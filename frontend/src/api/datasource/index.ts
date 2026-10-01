@@ -44,37 +44,42 @@ export interface DataSourceConfig {
  * `message` is a fallback when no i18n key exists (old logs decode into it).
  */
 export interface SyncItemError {
-  title?: string
-  code?: string
-  params?: Record<string, string>
-  message?: string
+  title: string
+  code: string
+  params: Record<string, string> | null
+  message: string
 }
 
 export interface SyncResultDetail {
-  total?: number
-  created?: number
-  updated?: number
-  deleted?: number
-  skipped?: number
-  failed?: number
-  /** Per-item failure samples (capped); localised in the sync-log drawer. */
-  errors?: SyncItemError[]
+  total: number
+  created: number
+  updated: number
+  deleted: number
+  skipped: number
+  failed: number
+  deletionFailed: number
+  /** Per-item failure samples (capped; null when none); localised in the sync-log drawer. */
+  errors: SyncItemError[] | null
+  nextCursor?: unknown
 }
 
 export interface SyncLog {
   id: string
-  data_source_id: string
+  dataSourceId: string
+  tenantId: number
   status: 'running' | 'success' | 'partial' | 'failed' | 'canceled'
-  started_at: string
-  finished_at: string | null
-  items_total: number
-  items_created: number
-  items_updated: number
-  items_deleted: number
-  items_skipped: number
-  items_failed: number
-  error_message: string
-  result?: SyncResultDetail
+  startedAt: string
+  finishedAt: string | null
+  itemsTotal: number
+  itemsCreated: number
+  itemsUpdated: number
+  itemsDeleted: number
+  itemsSkipped: number
+  itemsFailed: number
+  errorMessage: string
+  result: SyncResultDetail | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ConnectorMeta {

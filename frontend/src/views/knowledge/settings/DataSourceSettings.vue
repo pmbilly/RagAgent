@@ -154,11 +154,11 @@ function syncResultPills(ds: DataSource) {
   const log = ds.latestSyncLog
   if (!log) return []
   const pills: { text: string; cls: string }[] = []
-  if (log.items_created > 0) pills.push({ text: `+${log.items_created}`, cls: 'created' })
-  if (log.items_updated > 0) pills.push({ text: `~${log.items_updated}`, cls: 'updated' })
-  if (log.items_deleted > 0) pills.push({ text: `-${log.items_deleted}`, cls: 'deleted' })
-  if (log.items_failed > 0) pills.push({ text: `${log.items_failed} ${t('datasource.logMetric.failed')}`, cls: 'failed' })
-  if (log.items_skipped > 0) pills.push({ text: `${log.items_skipped} ${t('datasource.logMetric.skipped')}`, cls: 'skipped' })
+  if (log.itemsCreated > 0) pills.push({ text: `+${log.itemsCreated}`, cls: 'created' })
+  if (log.itemsUpdated > 0) pills.push({ text: `~${log.itemsUpdated}`, cls: 'updated' })
+  if (log.itemsDeleted > 0) pills.push({ text: `-${log.itemsDeleted}`, cls: 'deleted' })
+  if (log.itemsFailed > 0) pills.push({ text: `${log.itemsFailed} ${t('datasource.logMetric.failed')}`, cls: 'failed' })
+  if (log.itemsSkipped > 0) pills.push({ text: `${log.itemsSkipped} ${t('datasource.logMetric.skipped')}`, cls: 'skipped' })
   return pills
 }
 

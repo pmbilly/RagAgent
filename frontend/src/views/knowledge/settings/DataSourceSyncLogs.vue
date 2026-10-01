@@ -61,7 +61,7 @@ const stats = computed(() => {
   const total = logs.value.length
   const success = logs.value.filter(l => l.status === 'success').length
   const failed = logs.value.filter(l => l.status === 'failed').length
-  const totalItems = logs.value.reduce((acc, l) => acc + (l.items_created || 0) + (l.items_updated || 0), 0)
+  const totalItems = logs.value.reduce((acc, l) => acc + (l.itemsCreated || 0) + (l.itemsUpdated || 0), 0)
   return { total, success, failed, totalItems }
 })
 
@@ -118,8 +118,8 @@ function formatHourMin(ts: string | null) {
 }
 
 function duration(log: SyncLog) {
-  if (!log.started_at || !log.finished_at) return '--'
-  const ms = new Date(log.finished_at).getTime() - new Date(log.started_at).getTime()
+  if (!log.startedAt || !log.finishedAt) return '--'
+  const ms = new Date(log.finishedAt).getTime() - new Date(log.startedAt).getTime()
   if (ms < 0) return '--'
   if (ms < 1000) return `<1s`
   const sec = Math.round(ms / 1000)
@@ -128,7 +128,7 @@ function duration(log: SyncLog) {
 }
 
 function hasPills(log: SyncLog) {
-  return log.items_created > 0 || log.items_updated > 0 || log.items_deleted > 0 || log.items_skipped > 0 || log.items_failed > 0
+  return log.itemsCreated > 0 || log.itemsUpdated > 0 || log.itemsDeleted > 0 || log.itemsSkipped > 0 || log.itemsFailed > 0
 }
 
 // Cap the per-item failure list so a sync that failed thousands of documents
@@ -160,7 +160,7 @@ const groupedLogs = computed(() => {
   const groups: { date: string; logs: SyncLog[] }[] = []
   let currentDate = ''
   for (const log of logs.value) {
-    const d = formatDate(log.started_at)
+    const d = formatDate(log.startedAt)
     if (d !== currentDate) {
       currentDate = d
       groups.push({ date: d, logs: [] })
@@ -250,54 +250,54 @@ const groupedLogs = computed(() => {
                 <span class="tl-status" :style="{ color: statusColor(log.status) }">
                   {{ t(`datasource.logStatus.${log.status}`) }}
                 </span>
-                <span class="tl-time">{{ formatHourMin(log.started_at) }}</span>
-                <span v-if="log.finished_at" class="tl-duration">{{ duration(log) }}</span>
+                <span class="tl-time">{{ formatHourMin(log.startedAt) }}</span>
+                <span v-if="log.finishedAt" class="tl-duration">{{ duration(log) }}</span>
               </div>
 
               <!-- Pills -->
               <div v-if="hasPills(log)" class="tl-pills">
-                <span v-if="log.items_created > 0" class="pill created">+{{ log.items_created }}</span>
-                <span v-if="log.items_updated > 0" class="pill updated">~{{ log.items_updated }}</span>
-                <span v-if="log.items_deleted > 0" class="pill deleted">-{{ log.items_deleted }}</span>
-                <span v-if="log.items_skipped > 0" class="pill skipped">{{ log.items_skipped }} {{ t('datasource.logMetric.skipped') }}</span>
-                <span v-if="log.items_failed > 0" class="pill failed">{{ log.items_failed }} {{ t('datasource.logMetric.failed') }}</span>
+                <span v-if="log.itemsCreated > 0" class="pill created">+{{ log.itemsCreated }}</span>
+                <span v-if="log.itemsUpdated > 0" class="pill updated">~{{ log.itemsUpdated }}</span>
+                <span v-if="log.itemsDeleted > 0" class="pill deleted">-{{ log.itemsDeleted }}</span>
+                <span v-if="log.itemsSkipped > 0" class="pill skipped">{{ log.itemsSkipped }} {{ t('datasource.logMetric.skipped') }}</span>
+                <span v-if="log.itemsFailed > 0" class="pill failed">{{ log.itemsFailed }} {{ t('datasource.logMetric.failed') }}</span>
               </div>
 
               <!-- Expanded -->
               <div v-if="expandedId === log.id" class="tl-detail" @click.stop>
                 <div class="detail-row">
                   <span class="detail-label">{{ t('datasource.logDetail.startTime') }}</span>
-                  <span>{{ formatTime(log.started_at) }}</span>
+                  <span>{{ formatTime(log.startedAt) }}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">{{ t('datasource.logDetail.endTime') }}</span>
-                  <span>{{ formatTime(log.finished_at) }}</span>
+                  <span>{{ formatTime(log.finishedAt) }}</span>
                 </div>
-                <div v-if="log.items_total > 0" class="detail-row">
+                <div v-if="log.itemsTotal > 0" class="detail-row">
                   <span class="detail-label">{{ t('datasource.logMetric.total') }}</span>
-                  <span>{{ log.items_total }}</span>
+                  <span>{{ log.itemsTotal }}</span>
                 </div>
-                <!-- Localised failure summary; raw error_message only for a
+                <!-- Localised failure summary; raw errorMessage only for a
                      pure infra failure with no per-document detail. -->
-                <div v-if="log.items_failed > 0" class="tl-error">
-                  {{ t('datasource.logDetail.docsFailedSummary', { n: log.items_failed }) }}
+                <div v-if="log.itemsFailed > 0" class="tl-error">
+                  {{ t('datasource.logDetail.docsFailedSummary', { n: log.itemsFailed }) }}
                 </div>
-                <div v-else-if="log.error_message" class="tl-error">
-                  {{ log.error_message }}
+                <div v-else-if="log.errorMessage" class="tl-error">
+                  {{ log.errorMessage }}
                 </div>
 
                 <!-- Per-item failures: which documents failed and why.
-                     The true count is items_failed (a bounded int); result.errors
+                     The true count is itemsFailed (a bounded int); result.errors
                      is only a capped sample the backend retains for display. -->
                 <div v-if="failedItems(log).length" class="tl-failed">
                   <div class="tl-failed-title">
-                    {{ t('datasource.logDetail.failedItems') }} ({{ log.items_failed }})
+                    {{ t('datasource.logDetail.failedItems') }} ({{ log.itemsFailed }})
                   </div>
                   <div v-for="(e, i) in failedItems(log)" :key="i" class="tl-failed-item" :title="formatSyncError(e)">
                     {{ formatSyncError(e) }}
                   </div>
-                  <div v-if="log.items_failed > failedItems(log).length" class="tl-failed-more">
-                    {{ t('datasource.logDetail.failedItemsMore', { n: (log.items_failed - failedItems(log).length) }) }}
+                  <div v-if="log.itemsFailed > failedItems(log).length" class="tl-failed-more">
+                    {{ t('datasource.logDetail.failedItemsMore', { n: (log.itemsFailed - failedItems(log).length) }) }}
                   </div>
                 </div>
               </div>
