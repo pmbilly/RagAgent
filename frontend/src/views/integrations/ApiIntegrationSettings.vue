@@ -1108,7 +1108,7 @@ const requestExample = computed(() => {
     t('integrations.api.requestExampleAgentChat'),
     `curl -N -X POST ${apiBaseUrl.value}/agent-chat/<session_id> \\`,
     commonHeaders,
-    `  -d '{"query":"hello","agent_enabled":true,"agent_id":"${agentID}","channel":"api"}'`,
+    `  -d '{"query":"hello","agentEnabled":true,"agentId":"${agentID}","channel":"api"}'`,
   )
   return lines.join('\n')
 })
@@ -1660,7 +1660,8 @@ async function runPlayground() {
       throw new Error(sessionPayload?.message || sessionPayload?.error?.message || `HTTP ${sessionResp.status}`)
     }
     playground.session_status = 'success'
-    const sessionID = sessionPayload?.data?.id || sessionPayload?.data?.ID
+    // 裸资源：响应体即会话对象（§14.9l S1b 起不再有 {data,success} 信封）
+    const sessionID = sessionPayload?.id
     if (!sessionID) {
       throw new Error(t('integrations.api.playgroundMissingSessionId'))
     }
@@ -1671,8 +1672,8 @@ async function runPlayground() {
       headers: buildPlaygroundHeaders(false).chatHeaders,
       body: JSON.stringify({
         query: playground.query.trim(),
-        agent_enabled: true,
-        agent_id: playground.agent_id,
+        agentEnabled: true,
+        agentId: playground.agent_id,
         channel: 'api',
       }),
       signal: controller.signal,

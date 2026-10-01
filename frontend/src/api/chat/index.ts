@@ -38,13 +38,13 @@ export async function knowledgeChat(data: { session_id: string; query: string; }
 export async function agentChat(data: { 
   session_id: string; 
   query: string;
-  knowledge_base_ids?: string[];
-  agent_enabled: boolean;
+  knowledgeBaseIds?: string[];
+  agentEnabled: boolean;
 }) {
   return postChat(`/api/v1/agent-chat/${data.session_id}`, { 
     query: data.query,
-    knowledge_base_ids: data.knowledge_base_ids,
-    agent_enabled: data.agent_enabled,
+    knowledgeBaseIds: data.knowledgeBaseIds,
+    agentEnabled: data.agentEnabled,
     channel: "web"
   });
 }

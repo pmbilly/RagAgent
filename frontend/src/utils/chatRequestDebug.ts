@@ -7,11 +7,12 @@ export function sanitizeStreamRequestBody(body: Record<string, unknown>): Record
       bytes: typeof img?.data === 'string' ? img.data.length : 0,
     }));
   }
-  if (Array.isArray(out.attachment_uploads)) {
-    out.attachment_uploads = out.attachment_uploads.map(
-      (att: { file_name?: string; file_size?: number; data?: string }, i: number) => ({
-        file_name: att.file_name,
-        file_size: att.file_size,
+  // 键名＝QA 请求体（§14.9l S4 后为 camelCase）：改错了这里，调试面板会把整段 base64 原样打印
+  if (Array.isArray(out.attachmentUploads)) {
+    out.attachmentUploads = out.attachmentUploads.map(
+      (att: { fileName?: string; fileSize?: number; data?: string }, i: number) => ({
+        fileName: att.fileName,
+        fileSize: att.fileSize,
         _placeholder: `attachment[${i}]`,
         bytes: typeof att?.data === 'string' ? att.data.length : 0,
       }),

@@ -41,9 +41,9 @@ export function useStream() {
   let renderTimer: number | null = null
 
   // 启动流式请求
-  // 请求信封键仍是下划线（S4 批次统一），但提及项元素与 SuggestionAttribution 的
-  // 内部键已随 S3 收口为 camelCase（服务端按实体反序列化，形状必须跟上）。
-  const startStream = async (params: { session_id: any; query: any; knowledge_base_ids?: string[]; knowledge_ids?: string[]; tag_ids?: string[]; agent_enabled?: boolean; agent_id?: string; agent_source_tenant_id?: string | number; web_search_enabled?: boolean; summary_model_id?: string; mcp_service_ids?: string[]; skill_names?: string[]; mentioned_items?: MentionedItem[]; images?: Array<{data: string}>; attachment_uploads?: Array<{data: string; file_name: string; file_size: number}>; attachment_ids?: string[]; suggestion_attribution?: { suggestionSetId: string; questionId: string }; method: string; url: string; embed_token?: string; embed_session_sig?: string; embed_visitor_id?: string }) => {
+  // QA 请求体键＝服务端字段名（§14.9l S4）：全部 camelCase，含提及项元素与
+  // SuggestionAttribution 的内部键（S3 已收口）。session_id/url 是前端路由参数，不属请求体。
+  const startStream = async (params: { session_id: any; query: any; knowledgeBaseIds?: string[]; knowledgeIds?: string[]; tagIds?: string[]; agentEnabled?: boolean; agentId?: string; agentSourceTenantId?: string | number; webSearchEnabled?: boolean; summaryModelId?: string; mcpServiceIds?: string[]; skillNames?: string[]; mentionedItems?: MentionedItem[]; images?: Array<{data: string}>; attachmentUploads?: Array<{data: string; fileName: string; fileSize: number}>; attachmentIds?: string[]; suggestionAttribution?: { suggestionSetId: string; questionId: string }; method: string; url: string; embed_token?: string; embed_session_sig?: string; embed_visitor_id?: string }) => {
     const myGeneration = ++streamGeneration
     const streamAbort = controller
     // 重置状态
@@ -90,61 +90,61 @@ export function useStream() {
       console.log(`[TTFB] request:start request_id=${requestID} url=${url} sent_at=${Date.now()}`);
       
       // Prepare POST body with required fields for agent-chat
-      // knowledge_base_ids array and agent_enabled can update Session's SessionAgentConfig
+      // knowledgeBaseIds array and agentEnabled can update Session's SessionAgentConfig
       const postBody: any = { 
         query: params.query,
-        agent_enabled: params.agent_enabled !== undefined ? params.agent_enabled : true
+        agentEnabled: params.agentEnabled !== undefined ? params.agentEnabled : true
       };
-      // Always include knowledge_base_ids for agent-chat (already validated above)
-      if (params.knowledge_base_ids !== undefined && params.knowledge_base_ids.length > 0) {
-        postBody.knowledge_base_ids = params.knowledge_base_ids;
+      // Always include knowledgeBaseIds for agent-chat (already validated above)
+      if (params.knowledgeBaseIds !== undefined && params.knowledgeBaseIds.length > 0) {
+        postBody.knowledgeBaseIds = params.knowledgeBaseIds;
       }
-      // Include knowledge_ids if provided
-      if (params.knowledge_ids !== undefined && params.knowledge_ids.length > 0) {
-        postBody.knowledge_ids = params.knowledge_ids;
+      // Include knowledgeIds if provided
+      if (params.knowledgeIds !== undefined && params.knowledgeIds.length > 0) {
+        postBody.knowledgeIds = params.knowledgeIds;
       }
-      // Include agent_id if provided (backend resolves shared agent and tenant from share relation)
-      if (params.agent_id) {
-        postBody.agent_id = params.agent_id;
+      // Include agentId if provided (backend resolves shared agent and tenant from share relation)
+      if (params.agentId) {
+        postBody.agentId = params.agentId;
       }
-      if (params.agent_source_tenant_id) {
-        postBody.agent_source_tenant_id = Number(params.agent_source_tenant_id);
+      if (params.agentSourceTenantId) {
+        postBody.agentSourceTenantId = Number(params.agentSourceTenantId);
       }
-      // Include web_search_enabled if provided
-      if (params.web_search_enabled !== undefined) {
-        postBody.web_search_enabled = params.web_search_enabled;
+      // Include webSearchEnabled if provided
+      if (params.webSearchEnabled !== undefined) {
+        postBody.webSearchEnabled = params.webSearchEnabled;
       }
-      // Include summary_model_id if provided (for non-Agent mode)
-      if (params.summary_model_id) {
-        postBody.summary_model_id = params.summary_model_id;
+      // Include summaryModelId if provided (for non-Agent mode)
+      if (params.summaryModelId) {
+        postBody.summaryModelId = params.summaryModelId;
       }
-      // Include mcp_service_ids if provided (for Agent mode)
-      if (params.mcp_service_ids !== undefined && params.mcp_service_ids.length > 0) {
-        postBody.mcp_service_ids = params.mcp_service_ids;
+      // Include mcpServiceIds if provided (for Agent mode)
+      if (params.mcpServiceIds !== undefined && params.mcpServiceIds.length > 0) {
+        postBody.mcpServiceIds = params.mcpServiceIds;
       }
-      if (params.skill_names !== undefined && params.skill_names.length > 0) {
-        postBody.skill_names = params.skill_names;
+      if (params.skillNames !== undefined && params.skillNames.length > 0) {
+        postBody.skillNames = params.skillNames;
       }
-      if (params.tag_ids !== undefined && params.tag_ids.length > 0) {
-        postBody.tag_ids = params.tag_ids;
+      if (params.tagIds !== undefined && params.tagIds.length > 0) {
+        postBody.tagIds = params.tagIds;
       }
-      // Include mentioned_items if provided (for displaying @mentions in chat)
-      if (params.mentioned_items !== undefined && params.mentioned_items.length > 0) {
-        postBody.mentioned_items = params.mentioned_items;
+      // Include mentionedItems if provided (for displaying @mentions in chat)
+      if (params.mentionedItems !== undefined && params.mentionedItems.length > 0) {
+        postBody.mentionedItems = params.mentionedItems;
       }
       // Include images if provided (base64 data URIs for multimodal chat)
       if (params.images !== undefined && params.images.length > 0) {
         postBody.images = params.images;
       }
-      // Include attachment_uploads if provided (documents, audio, etc.)
-      if (params.attachment_uploads !== undefined && params.attachment_uploads.length > 0) {
-        postBody.attachment_uploads = params.attachment_uploads;
+      // Include attachmentUploads if provided (documents, audio, etc.)
+      if (params.attachmentUploads !== undefined && params.attachmentUploads.length > 0) {
+        postBody.attachmentUploads = params.attachmentUploads;
       }
-	  if (params.attachment_ids !== undefined && params.attachment_ids.length > 0) {
-		postBody.attachment_ids = params.attachment_ids;
+	  if (params.attachmentIds !== undefined && params.attachmentIds.length > 0) {
+		postBody.attachmentIds = params.attachmentIds;
 	  }
-      if (params.suggestion_attribution) {
-        postBody.suggestion_attribution = params.suggestion_attribution;
+      if (params.suggestionAttribution) {
+        postBody.suggestionAttribution = params.suggestionAttribution;
       }
       postBody.channel = embedToken ? "embed" : "web";
 

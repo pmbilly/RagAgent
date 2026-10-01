@@ -1178,8 +1178,8 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
                 const base64Data = await base64Promise;
                 attachmentUploads.push({
                     data: base64Data,
-                    file_name: attachment.name,
-                    file_size: attachment.size
+                    fileName: attachment.name,
+                    fileSize: attachment.size
                 });
             }
         } catch (e) {
@@ -1236,21 +1236,21 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
     pendingSuggestionKnowledgeBaseIds = [];
     await startStream({
         session_id: session_id.value,
-        knowledge_base_ids: kbIds,
-        knowledge_ids: knowledgeIds,
-        agent_enabled: agentEnabled,
-        agent_id: selectedAgentId,
-        web_search_enabled: webSearchEnabled,
-        summary_model_id: modelId,
-        mcp_service_ids: requestMcpServiceIds,
-        skill_names: requestSkillNames,
-        tag_ids: tagIds,
-        mentioned_items: mentionedItems,
+        knowledgeBaseIds: kbIds,
+        knowledgeIds: knowledgeIds,
+        agentEnabled: agentEnabled,
+        agentId: selectedAgentId,
+        webSearchEnabled: webSearchEnabled,
+        summaryModelId: modelId,
+        mcpServiceIds: requestMcpServiceIds,
+        skillNames: requestSkillNames,
+        tagIds: tagIds,
+        mentionedItems: mentionedItems,
         images: imageAttachments.length > 0 ? imageAttachments : undefined,
-        attachment_uploads: attachmentUploads.length > 0 ? attachmentUploads : undefined,
-        attachment_ids: attachmentIds.length > 0 ? attachmentIds : undefined,
+        attachmentUploads: attachmentUploads.length > 0 ? attachmentUploads : undefined,
+        attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
         query: value,
-        suggestion_attribution: suggestionAttribution || undefined,
+        suggestionAttribution: suggestionAttribution || undefined,
         method: 'POST',
         url: endpoint,
     });

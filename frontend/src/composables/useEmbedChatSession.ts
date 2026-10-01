@@ -259,9 +259,9 @@ export function useEmbedChatSession(options: {
 
     const imageAttachments: Array<{ data: string }> = []
     const displayImages: Array<{ url: string }> = []
-    // 上传载荷走上送面（S4 前仍是下划线键）；displayAttachments 直接挂在本地消息对象上，
-    // 形状必须与 REST 返回的 MessageAttachment 一致（camelCase）。
-    const attachmentUploads: Array<{ data: string; file_name: string; file_size: number }> = []
+    // 上传载荷（QA 请求体的 attachmentUploads，§14.9l S4 后 camelCase）与本地消息上的
+    // displayAttachments 同形——两者都与 REST 返回的 MessageAttachment 一致。
+    const attachmentUploads: Array<{ data: string; fileName: string; fileSize: number }> = []
     const displayAttachments: Array<{ fileName: string; fileSize: number }> = []
     try {
       for (const file of imageFiles) {
@@ -271,7 +271,7 @@ export function useEmbedChatSession(options: {
       }
       for (const file of attachmentFiles) {
         const dataURI = String(await fileToDataURI(file))
-        attachmentUploads.push({ data: dataURI, file_name: file.name, file_size: file.size })
+        attachmentUploads.push({ data: dataURI, fileName: file.name, fileSize: file.size })
         displayAttachments.push({ fileName: file.name, fileSize: file.size })
       }
     } catch (err) {
@@ -311,18 +311,18 @@ export function useEmbedChatSession(options: {
     pendingSuggestionAttribution = null
     await startStream({
       session_id: options.sessionId.value,
-      knowledge_base_ids: options.kbIds,
-      knowledge_ids: [],
-      agent_enabled: agentEnabled,
-      agent_id: options.agentId,
-      web_search_enabled: (options.allowWebSearch ?? false) && visitorWebSearchEnabled,
-      summary_model_id: '',
-      mcp_service_ids: [],
-      mentioned_items: [],
+      knowledgeBaseIds: options.kbIds,
+      knowledgeIds: [],
+      agentEnabled: agentEnabled,
+      agentId: options.agentId,
+      webSearchEnabled: (options.allowWebSearch ?? false) && visitorWebSearchEnabled,
+      summaryModelId: '',
+      mcpServiceIds: [],
+      mentionedItems: [],
       images: imageAttachments.length > 0 ? imageAttachments : undefined,
-      attachment_uploads: attachmentUploads.length > 0 ? attachmentUploads : undefined,
+      attachmentUploads: attachmentUploads.length > 0 ? attachmentUploads : undefined,
       query: outboundQuery,
-      suggestion_attribution: suggestionAttribution || undefined,
+      suggestionAttribution: suggestionAttribution || undefined,
       method: 'POST',
       url: endpoint,
       embed_token: options.token,

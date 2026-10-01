@@ -46,17 +46,19 @@ test('SSE HTTP body preserves web search selection alongside other tools', async
   try {
     await stream.startStream({
       session_id: 'new-session', query: '查一下腾讯股价', method: 'POST', url: '/api/v1/agent-chat',
-      agent_enabled: true, web_search_enabled: true,
-      mcp_service_ids: ['mcp-1'], skill_names: ['report'],
+      agentEnabled: true, webSearchEnabled: true,
+      mcpServiceIds: ['mcp-1'], skillNames: ['report'],
     })
     assert.equal(stream.error.value, null)
     const request = transport.requests.at(-1)!
     assert.equal(request.url, '/api/v1/agent-chat/new-session')
     const body = JSON.parse(request.options.body)
     assert.equal(Object.hasOwn(body, 'local_browser_enabled'), false)
-    assert.equal(body.web_search_enabled, true)
-    assert.deepEqual(body.mcp_service_ids, ['mcp-1'])
-    assert.deepEqual(body.skill_names, ['report'])
-    assert.equal(stream.lastStreamRequest.value?.body?.web_search_enabled, true)
+    // 请求体键＝服务端字段名（§14.9l S4），旧 snake 键不再出现
+    assert.equal(body.webSearchEnabled, true)
+    assert.equal(Object.hasOwn(body, 'web_search_enabled'), false)
+    assert.deepEqual(body.mcpServiceIds, ['mcp-1'])
+    assert.deepEqual(body.skillNames, ['report'])
+    assert.equal(stream.lastStreamRequest.value?.body?.webSearchEnabled, true)
   } finally { stream.stopStream() }
 })
