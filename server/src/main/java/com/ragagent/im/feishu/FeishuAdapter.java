@@ -12,8 +12,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -59,7 +57,6 @@ import com.ragagent.im.runtime.ReplyMessage;
 public class FeishuAdapter implements AdapterInterfaces.Adapter,
         AdapterInterfaces.FullOutputProgressSender, AdapterInterfaces.FileDownloader {
 
-    private static final Logger log = LoggerFactory.getLogger(FeishuAdapter.class);
     static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** 可回落错误码（对照 Go 的 fallbackEligibleErrorCodes）。 */

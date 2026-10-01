@@ -140,6 +140,7 @@
 | 阶段 2（llm RemoteApiChat，2026-10-01） | llm 域聊天客户端 | **出榜**（5 刀 → RequestOps/BodyCodec/HttpOps/StreamOps/ResponseOps；1,366→513；llm 清零；§14.7.8） |
 | 阶段 2（TenantCatalogController，2026-10-01） | auth 域租户目录/KV 配置控制器 | **出榜**（4 刀 → BindSupport/CreateOps/CrudOps/ConfigOps；980→133；§14.7.9） |
 | 阶段 2（mcp 域双类，2026-10-01） | McpServiceController + OAuthHandler | **出榜，mcp 清零**（4 刀 → UsageInstructionsOps/CrudOps/Discovery/TokenOps；937→372、825→220；§14.7.10） |
+| 阶段 2（FeishuAdapter，2026-10-01） | im 域飞书适配器 | **出榜，im 清零**（4 刀 → CallbackOps/SendOps/CardStreamOps/MediaOps；926→331；§14.7.11） |
 
 ### 7.2 当前存量（实测）
 
@@ -148,15 +149,16 @@
 - llm 域（2026-10-01 批次后）：chat 包 `RemoteApiChat` 家族 6 类全部 <800（最大 `RemoteApiStreamOps` 365）。
 - auth 域 controller（2026-10-01 批次后）：`TenantCatalogController` 980→133，包内最大 `TenantInvitationController` 519。
 - mcp 域（2026-10-01 批次后）：controller/oauth 两神类出榜，包内最大 `OAuthDiscovery` 439。
-- 全仓 ≥800 行的类：**18 个**（清单与分域建议见 §14.3）。
+- im 域（2026-10-01 批次后）：`FeishuAdapter` 926→331，feishu 包最大协作者 `FeishuCardStreamOps` 256。
+- 全仓 ≥800 行的类：**17 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
 ### 7.3 未完成 / 待办
 
-1. **阶段 2 其余域**：wiki / im service / retrieval / auth controller / llm / mcp / knowledge(FaqImportService) / chatpipeline(PluginMerge) **均已出榜**；
-   余量以 §14.3 实测为准——单类：im(FeishuAdapter 926)、embed(EmbedChannelController 925)、
-   chatpipeline(PluginSearch 899)、modelcontext(SourceRegistry 878)、auth service(UserService 876)、
-   knowledge 例外 2 个、wiki-page 面 4 类；大体量：datasource / memory（单独立项）。
+1. **阶段 2 其余域**：wiki / im / retrieval / auth controller / llm / mcp / knowledge(FaqImportService) / chatpipeline(PluginMerge) **均已出榜**；
+   余量以 §14.3 实测为准——单类：embed(EmbedChannelController 925)、chatpipeline(PluginSearch 899)、
+   modelcontext(SourceRegistry 878)、auth service(UserService 876)、knowledge 例外 2 个、
+   wiki-page 面 4 类；大体量：datasource / memory（单独立项）。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / 会话-消息-附件-建议-steer-knowledge-search /
    chunker-preview 已完成（同批带前端）；**剩余域 wiki / agent / auth / memory / mcp 等**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
@@ -367,7 +369,7 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **18 个**；mcp 批后 20→18）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **17 个**；im 批后 18→17）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
@@ -376,8 +378,8 @@ knowledge/
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
 | mcp | **已清零**（McpServiceController 937→372 + OAuthHandler 825→220，§14.7.10） |
-| 其余单类 | `FeishuAdapter` 926（im）· `EmbedChannelController` 925 · `PluginSearch` 899（chatpipeline）· `SourceRegistry` 878（modelcontext）· `UserService` 876（auth service）· `KnowledgeService` 848（knowledge 例外）· `KnowledgeProcessWorker` 814（knowledge 例外） |
-| im / llm | llm **已清零**（RemoteApiChat 1,366→513，§14.7.8）；im 剩 `FeishuAdapter` 926 |
+| 其余单类 | `EmbedChannelController` 925（embed）· `PluginSearch` 899（chatpipeline）· `SourceRegistry` 878（modelcontext）· `UserService` 876（auth service）· `KnowledgeService` 848（knowledge 例外）· `KnowledgeProcessWorker` 814（knowledge 例外） |
+| im / llm | **均已清零**（llm：RemoteApiChat 1,366→513，§14.7.8；im：FeishuAdapter 926→331，§14.7.11） |
 | session | `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；**本域已清零**（§11.3） |
 | auth | **controller 已清零**（§14.7.7 AuthController + §14.7.9 TenantCatalogController 980→133）；service 域剩 `UserService` 876 + apikey 未动 |
 
@@ -811,6 +813,24 @@ token 态 + `getTenantAccessToken` 留门面（四簇都消费）；构造器/`v
 
 **预估**：门面 926→~300；四个协作者 110~230 行。闸门：每刀 `--rerun-tasks` 重编 +
 `--tests "com.ragagent.im.*"`（阈值 ≥110）+ spotlessCheck + 忠实性逐字比对；收官 clean 全量 + 环守卫。
+
+**落刀记录（2026-10-01 执行完毕，4 刀全绿；边界判定见上）**
+
+| 刀 | 协作者 | 内容 | 提交 |
+|---|---|---|---|
+| F1 | `FeishuCallbackOps` 237 | verifyCallback/handleURLVerification/parseCallback + stripBotMention/baseMessage/textMessage + decrypt；剥 3 个 @Override；门面留 stripBotMention static 委托（LarkEventConverter 消费） | `3945a40` |
+| F2 | `FeishuSendOps` 147 | sendReply/resolveReceiveId/sendWithFallback/postFeishuMessage + `ApiResult` record + safePathParam；门面留 sendWithFallback 包内委托（F3/F4 消费）+ resolveReceiveId/safePathParam static 委托 | `f78062c` |
+| F3 | `FeishuCardStreamOps` 256 | 流式四端点 + cardkit 四件 + sendCardByCardId + purgeOrphans/cardSummaryPreview/buildStreamingCardJson + STREAMING_ELEMENT_ID/STREAM_ORPHAN_TTL_MS；STREAMS/StreamState 留门面（测试直摸） | `dc719e1` |
+| F4 | `FeishuMediaOps` 182 | resolveMarkdownImages/imageKeyForUrl/imageCacheKey/uploadImageFromUrl/downloadFile + MAX_IMAGE_BYTES；IMAGE_KEY_CACHE/MD 正则留门面 | `4e63159` |
+
+**结果**：`FeishuAdapter` 926→**331**（出榜，收官清扫删死 logger）；四个协作者 147~256 行；
+im 域 ≥800 清零；im 域测试 121 条 / 全量 4,668 条 0 失败（clean 全量 + spotless + 环守卫基线保持）；
+全仓 ≥800 类 18→**17**。
+**本批新增坑位**：①implements 继承的嵌套类型作用域（`DownloadedFile` 双层嵌套于
+`AdapterInterfaces.FileDownloader`，门面靠 implements 直用，协作者须全链限定）；②形参遮蔽的
+点位化替换（`buildStreamingCardJson(FeishuRegion region)` 的形参 region 不能盲替，只能替换
+`region.label()`/`buildStreamingCardJson(region)` 等具体形态）；③跨刀依赖先登记（F3 的
+resolveMarkdownImages 属 F4，落 F3 时先经 `service.` 调用，F4 搬走后委托天然接住）。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
