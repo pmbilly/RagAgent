@@ -531,7 +531,13 @@ public class MessageSuggestionService {
         return out;
     }
 
-    /** ec.tagScopes（jsonb map 形态）→ AgentSuggestedQuestions.TagScope。 */
+    /**
+     * ec.tagScopes（jsonb map 形态）→ AgentSuggestedQuestions.TagScope。
+     *
+     * <p>内层键**双拼写读**：Go 行与历史行是 {@code knowledge_base_id}/{@code tag_ids}
+     * （跨模块 TagScope 的透传面，§14.9l S5 刻意不改），而 Java 侧若有人用
+     * {@code QaSupport.TagScope} 的字段名写（camelCase）也读得出来——两种形状都不至于静默丢作用域。</p>
+     */
     private static List<AgentSuggestedQuestions.TagScope> tagScopes(MessageExecutionContext ec) {
         if (ec == null || ec.getTagScopes() == null) {
             return List.of();
@@ -541,8 +547,8 @@ public class MessageSuggestionService {
             if (m == null) {
                 continue;
             }
-            Object kb = m.get("knowledge_base_id");
-            Object ids = m.get("tag_ids");
+            Object kb = firstNonNull(m.get("knowledge_base_id"), m.get("knowledgeBaseId"));
+            Object ids = firstNonNull(m.get("tag_ids"), m.get("tagIds"));
             List<String> tagIds = new ArrayList<>();
             if (ids instanceof List<?> list) {
                 for (Object o : list) {
@@ -554,6 +560,10 @@ public class MessageSuggestionService {
             out.add(new AgentSuggestedQuestions.TagScope(kb == null ? "" : kb.toString(), tagIds));
         }
         return out;
+    }
+
+    private static Object firstNonNull(Object a, Object b) {
+        return a != null ? a : b;
     }
 
     private GenerationContext buildGenerationContext(Message current, int maxTurns) {

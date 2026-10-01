@@ -4,9 +4,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 单条消息级的**非机密**请求状态快照（对照 Go {@code types.MessageExecutionContext}，
@@ -19,60 +16,47 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * 永远不出现在响应里。因此下面两个跨模块类型（{@code QuestionSuggestionConfig}、
  * {@code TagScope}）先用 {@code Map<String,Object>} 原样透传即可——它们只影响这一列能不能
  * 往返，不影响对外契约。对应模块翻译时再收紧类型。</p>
+ *
+ * <p><b>键名＝Java 字段名（§14.9l S5 换锚）</b>：11 个外层键的 {@code @JsonProperty}
+ * 与照抄 Go {@code omitempty} 的 {@code @JsonInclude} 已摘除。三处**刻意保留**：</p>
+ * <ul>
+ *   <li>{@code questionSuggestions} 的**内层**键属 agent 域配置
+ *       （{@code enabled}/{@code allow_regenerate}/…，见 {@code MessageSuggestionService}），
+ *       不在本批范围；</li>
+ *   <li>{@code tagScopes} 的内层键同理（跨模块 {@code TagScope}）；</li>
+ *   <li>{@code locale} 单词键本来就无映射。</li>
+ * </ul>
+ *
+ * <p><b>读路径必须宽容</b>（{@code ignoreUnknown=true}）：历史行里可能有已删键，
+ * 且换锚前写的是下划线键——**旧键会被静默吞成空值**，存量行必须跑迁移
+ * （SQL 见 HANDOFF §14.9l S5）。</p>
  */
-@JsonPropertyOrder({
-        "agent_config_hash", "question_suggestions", "knowledge_base_ids", "knowledge_ids",
-        "tag_ids", "tag_scopes", "mcp_service_ids", "skill_names",
-        "web_search_enabled", "locale", "suggestion_attribution", "langfuse_traceparent"
-})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MessageExecutionContext {
 
-    @JsonProperty("agent_config_hash")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String agentConfigHash;
 
-    /** 对照 Go 的 {@code *QuestionSuggestionConfig}——跨模块，先原样透传。 */
-    @JsonProperty("question_suggestions")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    /** 对照 Go 的 {@code *QuestionSuggestionConfig}——跨模块，先原样透传（内层键保留下划线）。 */
     private Map<String, Object> questionSuggestions;
 
-    @JsonProperty("knowledge_base_ids")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> knowledgeBaseIds;
 
-    @JsonProperty("knowledge_ids")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> knowledgeIds;
 
-    @JsonProperty("tag_ids")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> tagIds;
 
-    /** 对照 Go 的 {@code []TagScope}——跨模块，先原样透传。 */
-    @JsonProperty("tag_scopes")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    /** 对照 Go 的 {@code []TagScope}——跨模块，先原样透传（内层键保留下划线）。 */
     private List<Map<String, Object>> tagScopes;
 
-    @JsonProperty("mcp_service_ids")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> mcpServiceIds;
 
-    @JsonProperty("skill_names")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> skillNames;
 
-    /** 无 omitempty：恒输出（false 也要出现）。 */
-    @JsonProperty("web_search_enabled")
     private boolean webSearchEnabled;
 
-    @JsonProperty("locale")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String locale;
 
     /** 追问建议的归因，挂在点击后的下一条用户消息上。 */
-    @JsonProperty("suggestion_attribution")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private SuggestionAttribution suggestionAttribution;
 
     /**
@@ -80,8 +64,6 @@ public class MessageExecutionContext {
      * （或 SSE handler 已经结束根 span 之后），没有它的话 LLM 包装器会另起一个
      * 孤儿 {@code chat.completion} 追踪，而不是嵌在 agent 轮次之下。
      */
-    @JsonProperty("langfuse_traceparent")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String langfuseTraceparent;
 
     public MessageExecutionContext() {

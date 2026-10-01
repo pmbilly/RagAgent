@@ -19,7 +19,9 @@ import com.ragagent.session.domain.MentionedItem;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageArtifact;
 import com.ragagent.session.domain.MessageAttachment;
+import com.ragagent.session.domain.MessageExecutionContext;
 import com.ragagent.session.domain.MessageImage;
+import com.ragagent.session.domain.SuggestionAttribution;
 import com.ragagent.session.domain.UsedMemory;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +43,12 @@ class MessageJsonContractTest {
             "agentSteps", "mentionedItems", "images", "attachments", "artifacts",
             "completed", "fallback", "agentDurationMs", "usage", "channel", "agentId",
             "modelId", "knowledgeId", "usedMemories", "createdAt", "updatedAt", "deletedAt");
+
+    /** execution_context 的 12 个键、声明序（§14.9l S5 换锚后同样无条件输出）。 */
+    private static final List<String> EXECUTION_CONTEXT_KEYS = List.of(
+            "agentConfigHash", "questionSuggestions", "knowledgeBaseIds", "knowledgeIds",
+            "tagIds", "tagScopes", "mcpServiceIds", "skillNames",
+            "webSearchEnabled", "locale", "suggestionAttribution", "langfuseTraceparent");
 
     @Test
     void topLevelKeyOrderMatchesDeclaration() {
@@ -68,6 +76,41 @@ class MessageJsonContractTest {
         String out = json(fullMessage());
         assertFalse(out.contains("RAG-augmented"), "rendered_content 泄漏: " + out);
         assertFalse(out.contains("exec-ctx"), "execution_context 泄漏: " + out);
+    }
+
+    /**
+     * {@code execution_context} 的**落库**键集（§14.9l S5 换锚）。
+     *
+     * <p>这一列不出响应，所以没有任何 HTTP 夹具能守它——漏改不会报错，只会让追问建议之类的
+     * 派生体验读不到当时的作用域（静默降级）。此处把键集与"旧下划线键不得出现"钉死，
+     * 存量行按 HANDOFF §14.9l S5 的 SQL 迁移。</p>
+     */
+    @Test
+    void executionContextJsonbKeysMatchFieldNames() {
+        MessageExecutionContext ctx = new MessageExecutionContext();
+        ctx.setAgentConfigHash("h");
+        ctx.setQuestionSuggestions(java.util.Map.of("enabled", true));
+        ctx.setKnowledgeBaseIds(new ArrayList<>(List.of("kb1")));
+        ctx.setKnowledgeIds(new ArrayList<>(List.of("k1")));
+        ctx.setTagIds(new ArrayList<>(List.of("t1")));
+        ctx.setTagScopes(new ArrayList<>(List.of(java.util.Map.of("knowledgeBaseId", "kb1"))));
+        ctx.setMcpServiceIds(new ArrayList<>(List.of("m1")));
+        ctx.setSkillNames(new ArrayList<>(List.of("s1")));
+        ctx.setWebSearchEnabled(true);
+        ctx.setLocale("zh");
+        ctx.setSuggestionAttribution(new SuggestionAttribution());
+        ctx.setLangfuseTraceparent("00-abc-def-01");
+
+        String out = json(ctx);
+        assertEquals(EXECUTION_CONTEXT_KEYS, fieldNames(out));
+        // 全空实例同样输出全部 12 个键（原先照抄 Go omitempty 的 @JsonInclude 已随 S5 摘除）
+        assertEquals(EXECUTION_CONTEXT_KEYS, fieldNames(json(new MessageExecutionContext())));
+        // 旧下划线键不得出现（否则等于旧行读不出来）
+        assertFalse(out.contains("agent_config_hash"), out);
+        assertFalse(out.contains("langfuse_traceparent"), out);
+        assertFalse(out.contains("web_search_enabled"), out);
+        // 跨模块透传的**内层**键刻意保留下划线（agent 域配置，见类注释）
+        assertTrue(out.contains("\"enabled\""), out);
     }
 
     /** 同 {@code Session.pinned} 那类坑：布尔字段不带 {@code is} 前缀，且只出一个键。 */
