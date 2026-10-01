@@ -78,39 +78,39 @@ class WikiPageServiceTest {
             "link with spaces normalized ; See [[Entity/Acme Corp]] for details.                        ; entity/acme-corp",
     })
     void parseOutLinksTable(String name, String content, String want) {
-        assertThat(WikiPageServiceImpl.parseOutLinks(content.trim()))
+        assertThat(WikiPageLinkOps.parseOutLinks(content.trim()))
                 .isEqualTo(List.of(want.split(",", -1)));
     }
 
     @Test
     void parseOutLinksMultiple() {
-        assertThat(WikiPageServiceImpl.parseOutLinks(
+        assertThat(WikiPageLinkOps.parseOutLinks(
                 "See [[entity/acme-corp]] and [[concept/rag]] for details."))
                 .containsExactly("entity/acme-corp", "concept/rag");
     }
 
     @Test
     void parseOutLinksDeduplicates() {
-        assertThat(WikiPageServiceImpl.parseOutLinks(
+        assertThat(WikiPageLinkOps.parseOutLinks(
                 "See [[entity/acme-corp]] and also [[entity/acme-corp]] again."))
                 .containsExactly("entity/acme-corp");
     }
 
     @Test
     void parseOutLinksNoLinks() {
-        assertThat(WikiPageServiceImpl.parseOutLinks("Just plain text without any links."))
+        assertThat(WikiPageLinkOps.parseOutLinks("Just plain text without any links."))
                 .isEmpty();
     }
 
     @Test
     void parseOutLinksEmptyContent() {
-        assertThat(WikiPageServiceImpl.parseOutLinks("")).isEmpty();
+        assertThat(WikiPageLinkOps.parseOutLinks("")).isEmpty();
     }
 
     /** 对照 Go 用例 "nested brackets ignored"：{@code [not [a] link]} 不含 {@code [[} */
     @Test
     void parseOutLinksNestedBracketsIgnored() {
-        assertThat(WikiPageServiceImpl.parseOutLinks("Not a link: [not [a] link]")).isEmpty();
+        assertThat(WikiPageLinkOps.parseOutLinks("Not a link: [not [a] link]")).isEmpty();
     }
 
     // ──────────────────────────── normalizeSlug ────────────────────────────
@@ -123,25 +123,25 @@ class WikiPageServiceTest {
             "already-ok,already-ok",
     })
     void normalizeSlug(String input, String want) {
-        assertThat(WikiPageServiceImpl.normalizeSlug(input)).isEqualTo(want);
+        assertThat(WikiPageLinkOps.normalizeSlug(input)).isEqualTo(want);
     }
 
     @Test
     void normalizeSlugTrims() {
-        assertThat(WikiPageServiceImpl.normalizeSlug("  hello  ")).isEqualTo("hello");
+        assertThat(WikiPageLinkOps.normalizeSlug("  hello  ")).isEqualTo("hello");
     }
 
     @Test
     void normalizeSlugEmpty() {
-        assertThat(WikiPageServiceImpl.normalizeSlug("")).isEmpty();
+        assertThat(WikiPageLinkOps.normalizeSlug("")).isEmpty();
     }
 
     /** 对照 Go {@code slugNamespace}（L1059-1064） */
     @Test
     void slugNamespace() {
-        assertThat(WikiPageServiceImpl.slugNamespace("summary/abc")).isEqualTo("summary");
-        assertThat(WikiPageServiceImpl.slugNamespace("noslash")).isEmpty();
-        assertThat(WikiPageServiceImpl.slugNamespace("a/b/c")).isEqualTo("a");
+        assertThat(WikiPageLinkOps.slugNamespace("summary/abc")).isEqualTo("summary");
+        assertThat(WikiPageLinkOps.slugNamespace("noslash")).isEmpty();
+        assertThat(WikiPageLinkOps.slugNamespace("a/b/c")).isEqualTo("a");
     }
 
     // ──────────────────── stripWikiInlineChunkCitations ────────────────────
@@ -153,14 +153,14 @@ class WikiPageServiceTest {
                 + "手柄便于操作 [c003]。多个来源[c003, c1000]。";
         String want = "[**橡皮障夹**](#)**钳**\n\n夹钳是用于夹持橡皮障夹的专用器械。"
                 + "手柄便于操作。多个来源。";
-        assertThat(WikiPageServiceImpl.stripWikiInlineChunkCitations(input)).isEqualTo(want);
+        assertThat(WikiPageLinkOps.stripWikiInlineChunkCitations(input)).isEqualTo(want);
     }
 
     /** 对照 Go {@code TestStripWikiInlineChunkCitationsPreservesOrdinaryMarkdown} */
     @Test
     void stripWikiInlineChunkCitationsPreservesOrdinaryMarkdown() {
         String input = "保留 [citation]、[C003]、[c12] 和 [[concept/c003|页面链接]]。";
-        assertThat(WikiPageServiceImpl.stripWikiInlineChunkCitations(input)).isEqualTo(input);
+        assertThat(WikiPageLinkOps.stripWikiInlineChunkCitations(input)).isEqualTo(input);
     }
 
     // ──────────────────────── normalizeWikiHierarchy ────────────────────────

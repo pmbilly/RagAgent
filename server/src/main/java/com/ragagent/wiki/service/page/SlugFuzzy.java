@@ -185,7 +185,7 @@ public final class SlugFuzzy {
      */
     public static RewriteResult rewriteDeadWikiLinks(String content, SlugResolver resolve) {
         StringBuilder out = new StringBuilder(content.length());
-        java.util.regex.Matcher m = WikiPageServiceImpl.WIKI_LINK_REGEX.matcher(content);
+        java.util.regex.Matcher m = WikiPageLinkOps.WIKI_LINK_REGEX.matcher(content);
         boolean changed = false;
         int last = 0;
         while (m.find()) {
@@ -198,7 +198,7 @@ public final class SlugFuzzy {
                 rawSlug = inner.substring(0, pipe);
                 display = inner.substring(pipe + 1).trim();
             }
-            String norm = WikiPageServiceImpl.normalizeSlug(rawSlug);
+            String norm = WikiPageLinkOps.normalizeSlug(rawSlug);
             if (norm.isEmpty()) {
                 continue;
             }

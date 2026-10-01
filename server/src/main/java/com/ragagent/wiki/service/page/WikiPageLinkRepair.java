@@ -48,7 +48,7 @@ final class WikiPageLinkRepair {
         if (content == null || content.trim().isEmpty()) {
             return new WikiPageService.RepairResult(content, false);
         }
-        List<String> outLinks = service.parseOutLinks(content);
+        List<String> outLinks = WikiPageLinkOps.parseOutLinks(content);
         if (outLinks.isEmpty()) {
             return new WikiPageService.RepairResult(content, false);
         }
@@ -58,7 +58,7 @@ final class WikiPageLinkRepair {
             if (l.equals(selfSlug) || Boolean.TRUE.equals(existMap.get(l))) {
                 continue;
             }
-            deadPrefixes.add(service.slugNamespace(l));
+            deadPrefixes.add(WikiPageLinkOps.slugNamespace(l));
         }
         if (deadPrefixes.isEmpty()) {
             return new WikiPageService.RepairResult(content, false);
@@ -67,7 +67,7 @@ final class WikiPageLinkRepair {
         Map<String, Set<String>> liveByPrefix = new LinkedHashMap<>();
         List<String> candidateSlugs = new ArrayList<>();
         for (String sl : allSlugs) {
-            String ns = service.slugNamespace(sl);
+            String ns = WikiPageLinkOps.slugNamespace(sl);
             if (!deadPrefixes.contains(ns)) {
                 continue;
             }
@@ -103,7 +103,7 @@ final class WikiPageLinkRepair {
                 return cached.isEmpty() ? null : cached;
             }
             String resolved = SlugFuzzy.resolveDeadSlug(norm, display,
-                    liveByPrefix.getOrDefault(service.slugNamespace(norm), Set.of()), titleToSlug);
+                    liveByPrefix.getOrDefault(WikiPageLinkOps.slugNamespace(norm), Set.of()), titleToSlug);
             if (resolved == null || resolved.equals(norm)) {
                 resolveCache.put(key, "");
                 return null;
