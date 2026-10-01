@@ -2,7 +2,7 @@
   <SettingDrawer
     :visible="dialogVisible"
     :title="mode === 'add' ? t('mcpServiceDialog.addTitle') : t('mcpServiceDialog.editTitle')"
-    :class="`mcp-drawer mcp-drawer--${formData.transport_type}`"
+    :class="`mcp-drawer mcp-drawer--${formData.transportType}`"
     :confirm-loading="submitting"
     :confirm-disabled="metadataBusy || generatingUsage || (step === 1 && !toolsSynced)"
     :confirm-text="t(step === 0 ? 'mcpMetadata.saveNext' : 'common.save')"
@@ -115,8 +115,8 @@
             <button
               type="button"
               class="source-option"
-              :class="{ 'is-active': formData.transport_type === 'sse' }"
-              @click="formData.transport_type = 'sse'"
+              :class="{ 'is-active': formData.transportType === 'sse' }"
+              @click="formData.transportType = 'sse'"
             >
               <t-icon name="cast" class="source-option__icon" />
               <span class="source-option__label">SSE</span>
@@ -124,8 +124,8 @@
             <button
               type="button"
               class="source-option"
-              :class="{ 'is-active': formData.transport_type === 'http-streamable' }"
-              @click="formData.transport_type = 'http-streamable'"
+              :class="{ 'is-active': formData.transportType === 'http-streamable' }"
+              @click="formData.transportType = 'http-streamable'"
             >
               <t-icon name="link" class="source-option__icon" />
               <span class="source-option__label">HTTP Streamable</span>
@@ -190,8 +190,8 @@
               :key="opt.value"
               type="button"
               class="source-option"
-              :class="{ 'is-active': formData.auth_config.auth_type === opt.value }"
-              @click="formData.auth_config.auth_type = opt.value as '' | 'api_key' | 'bearer' | 'oauth'"
+              :class="{ 'is-active': formData.authConfig.authType === opt.value }"
+              @click="formData.authConfig.authType = opt.value as '' | 'apiKey' | 'bearer' | 'oauth'"
             >
               <span class="source-option__label">{{ opt.label }}</span>
             </button>
@@ -246,12 +246,12 @@
           两个字段都是 optional — MCP 服务可能完全不需要鉴权。
         -->
         <!-- 凭证 Header 策略：请求头名称 + 密钥值（其余 auth_type 不展示密钥字段） -->
-        <template v-else-if="formData.auth_config.auth_type === 'api_key'">
+        <template v-else-if="formData.authConfig.authType === 'apiKey'">
           <!-- 请求头名称（非密钥）：默认 X-API-Key，Bearer/裸 token 场景填 Authorization。 -->
           <div class="form-item">
             <label class="form-label">{{ t('mcpServiceDialog.apiKeyHeader', '请求头名称') }}</label>
             <t-input
-              v-model="formData.auth_config.api_key_header"
+              v-model="formData.authConfig.apiKeyHeader"
               placeholder="X-API-Key"
             />
             <p class="form-desc">{{ t('mcpServiceDialog.apiKeyHeaderDesc', '留空默认 X-API-Key。Bearer 方式请填 Authorization，并在下方密钥值中写 “Bearer <token>”；需要裸 token 时填 Authorization 并直接填入 token。') }}</p>
@@ -266,7 +266,7 @@
           <div v-else class="form-item">
             <label class="form-label">{{ t('mcpServiceDialog.credentialValue', '密钥值 / Token') }}</label>
             <t-input
-              v-model="formData.auth_config.api_key"
+              v-model="formData.authConfig.apiKey"
               type="password"
               :placeholder="t('mcpServiceDialog.optional')"
             >
@@ -306,7 +306,7 @@
             :max="10"
             placeholder="3"
             class="number-input"
-            @blur="onAdvancedNumberBlur('retry_count', 3, 0, 10)"
+            @blur="onAdvancedNumberBlur('retryCount', 3, 0, 10)"
           >
             <template #suffix>
               <span class="number-input__unit">{{ t('mcpServiceDialog.unitTimes', '次') }}</span>
@@ -322,7 +322,7 @@
             :max="60"
             placeholder="1"
             class="number-input"
-            @blur="onAdvancedNumberBlur('retry_delay', 1, 0, 60)"
+            @blur="onAdvancedNumberBlur('retryDelay', 1, 0, 60)"
           >
             <template #suffix>
               <span class="number-input__unit">{{ t('mcpServiceDialog.unitSecond', '秒') }}</span>
@@ -347,7 +347,7 @@
                 {{ t('mcpMetadata.generateUsage') }}
               </t-button>
             </div>
-            <t-textarea v-model="formData.usage_instructions" :maxlength="16000" :autosize="{ minRows: 3, maxRows: 8 }"
+            <t-textarea v-model="formData.usageInstructions" :maxlength="16000" :autosize="{ minRows: 3, maxRows: 8 }"
               :disabled="generatingUsage || submitting"
               :placeholder="t('mcpMetadata.instructionsPlaceholder')" />
             <p class="form-desc">{{ t('mcpMetadata.generateHint') }}</p>
@@ -425,31 +425,31 @@ const codeImportPlaceholder = `{
 
 const formData = ref({
   name: '',
-  usage_instructions: '',
+  usageInstructions: '',
   enabled: true,
-  transport_type: 'sse' as 'sse' | 'http-streamable',
+  transportType: 'sse' as 'sse' | 'http-streamable',
   url: '',
   // Custom HTTP headers attached to every MCP request — edited as key/value
   // rows here, serialised to a Record<string,string> on submit (top-level
   // `headers`). Independent of the auth strategy.
   headers: [] as { key: string; value: string }[],
-  auth_config: {
-    // Authentication strategy. UI exposes '' (none) | 'api_key' (credential
-    // header) | 'oauth'. Legacy 'bearer' is normalised to 'api_key' on load.
-    auth_type: '' as '' | 'api_key' | 'bearer' | 'oauth',
+  authConfig: {
+    // Authentication strategy. UI exposes '' (none) | 'apiKey' (credential
+    // header) | 'oauth'. Legacy 'bearer' is normalised to 'apiKey' on load.
+    authType: '' as '' | 'apiKey' | 'bearer' | 'oauth',
     // Only used in add-mode; in edit-mode the CredentialResource owns these.
-    api_key: '',
+    apiKey: '',
     // Non-secret: header name for the api_key value (default X-API-Key).
-    api_key_header: '',
+    apiKeyHeader: '',
     token: '',
     // OAuth-only, non-secret config.
     scopes: [] as string[],
-    auth_server_metadata_url: '',
+    authServerMetadataUrl: '',
   },
-  advanced_config: {
+  advancedConfig: {
     timeout: 30,
-    retry_count: 3,
-    retry_delay: 1,
+    retryCount: 3,
+    retryDelay: 1,
   },
 })
 
@@ -495,7 +495,7 @@ function applyServerConfig(name: string, cfg: Record<string, unknown>) {
   // header value is the secret (encrypted), carried in the given header name.
   // Bearer keeps its "Bearer " prefix inside the value; Authorization with a
   // raw token and X-API-Key all collapse to the same shape.
-  let authType: '' | 'api_key' = ''
+  let authType: '' | 'apiKey' = ''
   let apiKey = ''
   let apiKeyHeader = ''
   const customHeaders: { key: string; value: string }[] = []
@@ -506,7 +506,7 @@ function applyServerConfig(name: string, cfg: Record<string, unknown>) {
     const lowerKey = key.toLowerCase()
     const strVal = typeof val === 'string' ? val : String(val ?? '')
     if (lowerKey === 'authorization' || ['x-api-key', 'api-key', 'apikey'].includes(lowerKey)) {
-      authType = 'api_key'
+      authType = 'apiKey'
       apiKey = strVal.trim()
       apiKeyHeader = lowerKey === 'x-api-key' ? '' : key
     } else {
@@ -516,16 +516,16 @@ function applyServerConfig(name: string, cfg: Record<string, unknown>) {
 
   formData.value.name = name || formData.value.name
   formData.value.url = url
-  formData.value.transport_type = transport
-  if (typeof cfg.usage_instructions === 'string') formData.value.usage_instructions = cfg.usage_instructions
-  else if (typeof cfg.description === 'string') formData.value.usage_instructions = cfg.description
+  formData.value.transportType = transport
+  if (typeof cfg.usageInstructions === 'string') formData.value.usageInstructions = cfg.usageInstructions
+  else if (typeof cfg.description === 'string') formData.value.usageInstructions = cfg.description
   formData.value.headers = customHeaders
   // No recognised auth header → none (custom headers carry the rest).
-  formData.value.auth_config.auth_type = authType
-  formData.value.auth_config.token = ''
-  formData.value.auth_config.api_key = apiKey
-  formData.value.auth_config.api_key_header = apiKeyHeader
-  formData.value.auth_config.scopes = []
+  formData.value.authConfig.authType = authType
+  formData.value.authConfig.token = ''
+  formData.value.authConfig.apiKey = apiKey
+  formData.value.authConfig.apiKeyHeader = apiKeyHeader
+  formData.value.authConfig.scopes = []
 
   return true
 }
@@ -592,16 +592,16 @@ const handleCodeImport = () => {
 
 // Comma/space separated text binding for OAuth scopes.
 const oauthScopesText = computed({
-  get: () => (formData.value.auth_config.scopes || []).join(' '),
+  get: () => (formData.value.authConfig.scopes || []).join(' '),
   set: (val: string) => {
-    formData.value.auth_config.scopes = val
+    formData.value.authConfig.scopes = val
       .split(/[\s,]+/)
       .map((s) => s.trim())
       .filter(Boolean)
   },
 })
 
-const isOAuth = computed(() => formData.value.auth_config.auth_type === 'oauth')
+const isOAuth = computed(() => formData.value.authConfig.authType === 'oauth')
 
 // API Key / Bearer are unified into one "credential header" strategy now that
 // the header name is configurable (Bearer is just Authorization + a "Bearer "
@@ -609,7 +609,7 @@ const isOAuth = computed(() => formData.value.auth_config.auth_type === 'oauth')
 // only the custom headers configured above.
 const authTypeOptions = computed(() => [
   { value: '', label: t('mcpServiceDialog.authTypeNone', '无 / 自定义 Header') },
-  { value: 'api_key', label: t('mcpServiceDialog.authTypeApiKey', 'API Key / Token') },
+  { value: 'apiKey', label: t('mcpServiceDialog.authTypeApiKey', 'API Key / Token') },
   { value: 'oauth', label: t('mcpServiceDialog.authTypeOAuth', 'OAuth 2.0（首次连接授权）') },
 ])
 
@@ -704,11 +704,11 @@ async function handleRevokeOAuth() {
 // Header icon name + transport label, mirrored from McpSettings list cards
 // so the list-card → drawer hand-off stays visually continuous.
 const transportIcon = computed(() => {
-  return formData.value.transport_type === 'http-streamable' ? 'link' : 'cast'
+  return formData.value.transportType === 'http-streamable' ? 'link' : 'cast'
 })
 
 const transportLabel = computed(() => {
-  return formData.value.transport_type === 'http-streamable' ? 'HTTP Streamable' : 'SSE'
+  return formData.value.transportType === 'http-streamable' ? 'HTTP Streamable' : 'SSE'
 })
 
 // Field metadata for the credential subresource. Keep label keys local to
@@ -718,8 +718,8 @@ const transportLabel = computed(() => {
 // (placed verbatim into the configured header). None / OAuth carry no static
 // secret, so the credential card is only shown for the api_key strategy.
 const credentialFields = computed<CredentialFieldDef<McpCredentialField>[]>(() => {
-  if (formData.value.auth_config.auth_type === 'api_key') {
-    return [{ key: 'api_key', label: t('mcpServiceDialog.credentialValue', '密钥值 / Token') }]
+  if (formData.value.authConfig.authType === 'apiKey') {
+    return [{ key: 'apiKey', label: t('mcpServiceDialog.credentialValue', '密钥值 / Token') }]
   }
   return []
 })
@@ -744,13 +744,13 @@ const credentialApi = computed<CredentialResourceApi<McpCredentialField>>(() => 
 // are tracked locally by the component itself (and re-derived from this
 // whenever the parent reloads the service).
 const credentialMeta = computed(() => currentService.value?.credentials ?? {
-  api_key: { configured: false },
+  apiKey: { configured: false },
   token: { configured: false },
 })
 
 const rules: Record<string, FormRule[]> = {
   name: [{ required: true, message: t('mcpServiceDialog.rules.nameRequired') as string, type: 'error' }],
-  transport_type: [{ required: true, message: t('mcpServiceDialog.rules.transportRequired') as string, type: 'error' }],
+  transportType: [{ required: true, message: t('mcpServiceDialog.rules.transportRequired') as string, type: 'error' }],
   url: [
     {
       validator: (val: string) => {
@@ -778,16 +778,16 @@ const dialogVisible = computed({
 // user can clear the field and see the placeholder while typing. On blur
 // we coerce, clamp, and write back; bad values fall back to the default.
 const advancedTimeoutText = computed<string>({
-  get: () => String(formData.value.advanced_config.timeout ?? ''),
-  set: (v) => { formData.value.advanced_config.timeout = parseSloppyInt(v) ?? 30 },
+  get: () => String(formData.value.advancedConfig.timeout ?? ''),
+  set: (v) => { formData.value.advancedConfig.timeout = parseSloppyInt(v) ?? 30 },
 })
 const advancedRetryCountText = computed<string>({
-  get: () => String(formData.value.advanced_config.retry_count ?? ''),
-  set: (v) => { formData.value.advanced_config.retry_count = parseSloppyInt(v) ?? 3 },
+  get: () => String(formData.value.advancedConfig.retryCount ?? ''),
+  set: (v) => { formData.value.advancedConfig.retryCount = parseSloppyInt(v) ?? 3 },
 })
 const advancedRetryDelayText = computed<string>({
-  get: () => String(formData.value.advanced_config.retry_delay ?? ''),
-  set: (v) => { formData.value.advanced_config.retry_delay = parseSloppyInt(v) ?? 1 },
+  get: () => String(formData.value.advancedConfig.retryDelay ?? ''),
+  set: (v) => { formData.value.advancedConfig.retryDelay = parseSloppyInt(v) ?? 1 },
 })
 
 // Permissive int parser — keeps '' / NaN inputs as null instead of 0 so the
@@ -803,32 +803,32 @@ function parseSloppyInt(raw: string): number | null {
 }
 
 function onAdvancedNumberBlur(
-  field: 'timeout' | 'retry_count' | 'retry_delay',
+  field: 'timeout' | 'retryCount' | 'retryDelay',
   fallback: number,
   min: number,
   max: number,
 ) {
-  const cur = formData.value.advanced_config[field]
+  const cur = formData.value.advancedConfig[field]
   if (cur == null || !Number.isFinite(cur)) {
-    formData.value.advanced_config[field] = fallback
+    formData.value.advancedConfig[field] = fallback
     return
   }
   // Clamp to [min, max] on blur — gives the input "settled" feedback even
   // though native type=number doesn't enforce its own min/max attribute
   // for typed values (only for stepper buttons).
-  formData.value.advanced_config[field] = Math.min(max, Math.max(min, cur))
+  formData.value.advancedConfig[field] = Math.min(max, Math.max(min, cur))
 }
 
 const resetForm = () => {
   formData.value = {
     name: '',
-    usage_instructions: '',
+    usageInstructions: '',
     enabled: true,
-    transport_type: 'sse',
+    transportType: 'sse',
     url: '',
     headers: [],
-    auth_config: { auth_type: '', api_key: '', api_key_header: '', token: '', scopes: [], auth_server_metadata_url: '' },
-    advanced_config: { timeout: 30, retry_count: 3, retry_delay: 1 },
+    authConfig: { authType: '', apiKey: '', apiKeyHeader: '', token: '', scopes: [], authServerMetadataUrl: '' },
+    advancedConfig: { timeout: 30, retryCount: 3, retryDelay: 1 },
   }
   formRef.value?.clearValidate()
 }
@@ -852,34 +852,34 @@ watch(
     codeImportText.value = ''
     codeImportError.value = ''
     if (service) {
-      const transportType = service.transport_type === 'stdio' ? 'sse' : (service.transport_type || 'sse')
+      const transportType = service.transportType === 'stdio' ? 'sse' : (service.transportType || 'sse')
       formData.value = {
         name: service.name || '',
-        usage_instructions: service.usage_instructions?.trim() || service.description || '',
+        usageInstructions: service.usageInstructions?.trim() || service.description || '',
         enabled: service.enabled ?? true,
-        transport_type: transportType as 'sse' | 'http-streamable',
+        transportType: transportType as 'sse' | 'http-streamable',
         url: service.url || '',
         headers: service.headers
           ? Object.entries(service.headers).map(([key, value]) => ({ key, value: String(value) }))
           : [],
         // Credentials are owned by CredentialResource in edit mode, but reset
         // the local state too so a switch to add-mode starts clean.
-        auth_config: {
-          // Legacy 'bearer' collapses into the unified 'api_key' strategy; ''
+        authConfig: {
+          // Legacy 'bearer' collapses into the unified 'apiKey' strategy; ''
           // (none) and the rest are preserved.
-          auth_type: service.auth_config?.auth_type === 'bearer'
-            ? 'api_key'
-            : ((service.auth_config?.auth_type as '' | 'api_key' | 'oauth') || ''),
-          api_key: '',
-          api_key_header: service.auth_config?.api_key_header || '',
+          authType: service.authConfig?.authType === 'bearer'
+            ? 'apiKey'
+            : ((service.authConfig?.authType as '' | 'apiKey' | 'oauth') || ''),
+          apiKey: '',
+          apiKeyHeader: service.authConfig?.apiKeyHeader || '',
           token: '',
-          scopes: service.auth_config?.scopes ? [...service.auth_config.scopes] : [],
-          auth_server_metadata_url: service.auth_config?.auth_server_metadata_url || '',
+          scopes: service.authConfig?.scopes ? [...service.authConfig.scopes] : [],
+          authServerMetadataUrl: service.authConfig?.authServerMetadataUrl || '',
         },
-        advanced_config: {
-          timeout: service.advanced_config?.timeout || 30,
-          retry_count: service.advanced_config?.retry_count || 3,
-          retry_delay: service.advanced_config?.retry_delay || 1,
+        advancedConfig: {
+          timeout: service.advancedConfig?.timeout || 30,
+          retryCount: service.advancedConfig?.retryCount || 3,
+          retryDelay: service.advancedConfig?.retryDelay || 1,
         },
       }
       oauthAuthorized.value = false
@@ -908,30 +908,30 @@ function buildPayload(asCreate: boolean): Partial<MCPService> {
   const data: Partial<MCPService> = {
     name: formData.value.name,
     enabled: formData.value.enabled,
-    transport_type: formData.value.transport_type,
-    advanced_config: formData.value.advanced_config,
+    transportType: formData.value.transportType,
+    advancedConfig: formData.value.advancedConfig,
     url: formData.value.url || undefined,
     headers: headersMap,
   }
 
   // Non-secret auth config (strategy + OAuth params) flows through the main body.
-  const auth: NonNullable<MCPService['auth_config']> = {
-    auth_type: formData.value.auth_config.auth_type,
+  const auth: NonNullable<MCPService['authConfig']> = {
+    authType: formData.value.authConfig.authType,
   }
-  if (formData.value.auth_config.auth_type === 'api_key') {
-    auth.api_key_header = formData.value.auth_config.api_key_header.trim()
+  if (formData.value.authConfig.authType === 'apiKey') {
+    auth.apiKeyHeader = formData.value.authConfig.apiKeyHeader.trim()
   }
   if (isOAuth.value) {
-    auth.scopes = formData.value.auth_config.scopes
-    if (formData.value.auth_config.auth_server_metadata_url) {
-      auth.auth_server_metadata_url = formData.value.auth_config.auth_server_metadata_url
+    auth.scopes = formData.value.authConfig.scopes
+    if (formData.value.authConfig.authServerMetadataUrl) {
+      auth.authServerMetadataUrl = formData.value.authConfig.authServerMetadataUrl
     }
   }
   if (asCreate && !isOAuth.value) {
-    if (formData.value.auth_config.api_key) auth.api_key = formData.value.auth_config.api_key
-    if (formData.value.auth_config.token) auth.token = formData.value.auth_config.token
+    if (formData.value.authConfig.apiKey) auth.apiKey = formData.value.authConfig.apiKey
+    if (formData.value.authConfig.token) auth.token = formData.value.authConfig.token
   }
-  data.auth_config = auth
+  data.authConfig = auth
   return data
 }
 
@@ -968,7 +968,7 @@ async function handleGenerateUsage() {
   try {
     const instructions = await generateMCPUsageInstructions(id, locale.value)
     if (current !== usageGeneration) return
-    formData.value.usage_instructions = instructions
+    formData.value.usageInstructions = instructions
     MessagePlugin.success(t('mcpMetadata.generated'))
   } catch {
     if (current === usageGeneration) MessagePlugin.error(t('mcpMetadata.generateFailed'))
@@ -982,7 +982,7 @@ onBeforeUnmount(() => { usageGeneration++ })
 const handleSubmit = async () => {
   const id = currentService.value?.id
   if (!id || submitting.value || metadataBusy.value || generatingUsage.value) return
-  const instructions = formData.value.usage_instructions.trim()
+  const instructions = formData.value.usageInstructions.trim()
   if (!instructions) {
     MessagePlugin.warning(t('mcpMetadata.instructionsRequired'))
     return
@@ -993,7 +993,7 @@ const handleSubmit = async () => {
   }
   submitting.value = true
   try {
-    await updateMCPService(id, { usage_instructions: instructions })
+    await updateMCPService(id, { usageInstructions: instructions })
     MessagePlugin.success(t('mcpServiceDialog.toasts.updated'))
     emit('success')
   } catch (error) { MessagePlugin.error(t('mcpServiceDialog.toasts.updateFailed')) }

@@ -19,7 +19,7 @@ const compiled = ts.transpileModule(script, { compilerOptions: { module: ts.Modu
 function fixture(generate: () => Promise<string> = async () => 'Query logs by module and time.', initialStep: 0 | 1 = 0) {
   const updates: Array<{ id: string; data: Record<string, unknown> }> = []
   const warnings: string[] = []
-  const props = reactive({ visible: true, service: { id: 'one', name: 'Logs', description: 'Legacy usage', transport_type: 'sse', url: 'https://example.com/mcp' }, mode: 'edit', initialStep })
+  const props = reactive({ visible: true, service: { id: 'one', name: 'Logs', description: 'Legacy usage', transportType: 'sse', url: 'https://example.com/mcp' }, mode: 'edit', initialStep })
   const exports: any = {}
   runInNewContext(compiled, {
     exports,
@@ -63,26 +63,26 @@ test('tool shortcut opens the saved service directly without resaving its connec
 test('usage instructions are required for final save and legacy description is editable there', async () => {
   const f = fixture()
   try {
-    assert.equal(f.vm.formData.usage_instructions, 'Legacy usage')
+    assert.equal(f.vm.formData.usageInstructions, 'Legacy usage')
     assert.equal('description' in f.vm.formData, false)
     f.vm.toolsSynced = true
-    f.vm.formData.usage_instructions = '  \n  '
+    f.vm.formData.usageInstructions = '  \n  '
     await f.vm.handleSubmit()
     assert.equal(f.updates.length, 0)
     assert.deepEqual(f.warnings, ['mcpMetadata.instructionsRequired'])
-    f.vm.formData.usage_instructions = '  Query logs  '
+    f.vm.formData.usageInstructions = '  Query logs  '
     await f.vm.handleSubmit()
     assert.equal(f.updates.length, 1)
-    assert.deepEqual({ ...f.updates[0]?.data }, { usage_instructions: 'Query logs' })
+    assert.deepEqual({ ...f.updates[0]?.data }, { usageInstructions: 'Query logs' })
   } finally { f.close() }
 })
 
 test('connection save omits usage instructions so new services can sync tools first', () => {
   const f = fixture()
   try {
-    f.vm.formData.usage_instructions = ''
+    f.vm.formData.usageInstructions = ''
     const body = f.vm.buildPayload(true)
-    assert.equal('usage_instructions' in body, false)
+    assert.equal('usageInstructions' in body, false)
     assert.equal('description' in body, false)
     assert.equal(body.url, 'https://example.com/mcp')
   } finally { f.close() }
@@ -97,7 +97,7 @@ test('AI generation needs synced tools and fills the editor without saving', asy
     f.vm.toolsSynced = true
     await f.vm.handleGenerateUsage()
     assert.equal(calls, 1)
-    assert.equal(f.vm.formData.usage_instructions, 'Generated usage')
+    assert.equal(f.vm.formData.usageInstructions, 'Generated usage')
     assert.equal(f.updates.length, 0)
     assert.equal(f.vm.generatingUsage, false)
   } finally { f.close() }
@@ -108,7 +108,7 @@ test('generation failure preserves existing instructions', async () => {
   try {
     f.vm.toolsSynced = true
     await f.vm.handleGenerateUsage()
-    assert.equal(f.vm.formData.usage_instructions, 'Legacy usage')
+    assert.equal(f.vm.formData.usageInstructions, 'Legacy usage')
     assert.equal(f.vm.generatingUsage, false)
     assert.equal(f.updates.length, 0)
   } finally { f.close() }
@@ -128,7 +128,7 @@ test('closing or switching service prevents a late AI result from overwriting th
       await nextTick()
       resolve('Stale generated usage')
       await generation
-      assert.equal(f.vm.formData.usage_instructions, action === 'close' ? 'Legacy usage' : 'Other service')
+      assert.equal(f.vm.formData.usageInstructions, action === 'close' ? 'Legacy usage' : 'Other service')
       assert.equal(f.vm.generatingUsage, false)
     } finally { f.close() }
   }

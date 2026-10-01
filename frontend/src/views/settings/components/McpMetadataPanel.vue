@@ -19,8 +19,8 @@
       <p class="form-desc">{{ t('mcpMetadata.cacheHint') }}</p>
       <p v-if="snapshot" class="snapshot-meta">
         <span>{{ t('mcpMetadata.toolCount', { count: snapshot.tools.length }) }}</span>
-        <span v-if="snapshot.server_name">{{ snapshot.server_name }} {{ snapshot.server_version }}</span>
-        <span>{{ t('mcpMetadata.syncedAt') }} {{ formatTime(snapshot.synced_at) }}</span>
+        <span v-if="snapshot.serverName">{{ snapshot.serverName }} {{ snapshot.serverVersion }}</span>
+        <span>{{ t('mcpMetadata.syncedAt') }} {{ formatTime(snapshot.syncedAt) }}</span>
         <t-tooltip
           v-if="!hasServerDocumentation"
           :content="t('mcpMetadata.noServerDocumentation')"
@@ -54,7 +54,7 @@
           <template #content>
             <div class="server-docs-popup" @click.stop>
               <div class="server-docs-popup__title">{{ t('mcpMetadata.serverDocumentation') }}</div>
-              <p v-if="snapshot.server_description">{{ snapshot.server_description }}</p>
+              <p v-if="snapshot.serverDescription">{{ snapshot.serverDescription }}</p>
               <pre v-if="snapshot.instructions">{{ snapshot.instructions }}</pre>
             </div>
           </template>
@@ -92,7 +92,7 @@ const docsOpen = ref(false)
 const error = ref('')
 let generation = 0
 const busy = computed(() => loading.value || (refreshing.value && !snapshot.value))
-const hasServerDocumentation = computed(() => !!(snapshot.value?.instructions || snapshot.value?.server_description))
+const hasServerDocumentation = computed(() => !!(snapshot.value?.instructions || snapshot.value?.serverDescription))
 
 function onPolicyBusy(busyPolicy: boolean) {
   policyBusy.value = busyPolicy

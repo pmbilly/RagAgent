@@ -20,7 +20,7 @@ async function fixture(update: () => Promise<void> = async () => {}, admin = tru
   const calls: Array<{ id: string; data: unknown }> = []
   const errors: string[] = []
   const deletes: unknown[] = []
-  const service = reactive({ id: 'one', name: 'Logs', enabled: true, is_builtin: false })
+  const service = reactive({ id: 'one', name: 'Logs', enabled: true, isBuiltin: false })
   const exports: any = {}
   runInNewContext(compiled, {
     exports, console: { error() {} },
@@ -104,7 +104,7 @@ test('viewer controls and builtin mutations cannot update services', async () =>
     assert.equal(viewer.vm.dialogVisible, false)
     assert.equal(viewer.calls.length, 0)
     assert.equal(viewer.deletes.length, 0)
-    builtin.service.is_builtin = true
+    builtin.service.isBuiltin = true
     await builtin.vm.handleToggleEnabled(builtin.service)
     builtin.vm.handleDelete(builtin.service)
     assert.equal(builtin.calls.length, 0)

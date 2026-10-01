@@ -25,13 +25,13 @@
                   <t-icon name="tools" size="14px" />
                 </div>
                 <h3 class="service-card__title" :title="service.name">{{ service.name }}</h3>
-                <span v-if="service.is_builtin" class="service-card__builtin">{{ $t('mcpSettings.builtin') }}</span>
+                <span v-if="service.isBuiltin" class="service-card__builtin">{{ $t('mcpSettings.builtin') }}</span>
                 <div v-if="authStore.hasRole('admin')" class="service-card__actions">
                   <button type="button" class="service-card__icon-btn" :title="$t('common.edit')"
                     :aria-label="`${service.name} · ${$t('common.edit')}`" @click="handleEdit(service)">
                     <t-icon name="edit" size="14px" />
                   </button>
-                  <button v-if="!service.is_builtin" type="button" class="service-card__icon-btn service-card__icon-btn--danger"
+                  <button v-if="!service.isBuiltin" type="button" class="service-card__icon-btn service-card__icon-btn--danger"
                     :disabled="togglingIds.has(service.id)" :title="$t('common.delete')"
                     :aria-label="`${service.name} · ${$t('common.delete')}`" @click="handleDelete(service)">
                     <t-icon name="delete" size="14px" />
@@ -42,7 +42,7 @@
                 {{ serviceUsage(service).replace(/\s+/g, ' ') }}
               </p>
               <div v-else class="service-card__empty-usage">
-                <button v-if="authStore.hasRole('admin') && !service.is_builtin" type="button"
+                <button v-if="authStore.hasRole('admin') && !service.isBuiltin" type="button"
                   class="service-card__add-usage" @click="handleEdit(service, 1)">
                   <t-icon name="add" size="14px" />
                   {{ $t('mcpSettings.addUsageInstructions') }}
@@ -58,25 +58,25 @@
                     @click="authStore.hasRole('admin') && handleEdit(service, 1)">
                     <t-icon v-if="service.catalog?.stale" name="error-circle" size="14px" />
                     <span class="service-card__tools-label">
-                      {{ service.catalog ? $t('mcpSettings.toolCount', { count: service.catalog.tool_count }) : $t('mcpSettings.toolsNotSynced') }}
+                      {{ service.catalog ? $t('mcpSettings.toolCount', { count: service.catalog.toolCount }) : $t('mcpSettings.toolsNotSynced') }}
                       <template v-if="service.catalog?.stale"> · {{ $t('mcpSettings.toolsStale') }}</template>
                     </span>
                     <t-icon v-if="authStore.hasRole('admin')" name="chevron-right" size="14px" />
                   </component>
-                  <span class="service-card__type">{{ getTransportTypeLabel(service.transport_type) }}</span>
+                  <span class="service-card__type">{{ getTransportTypeLabel(service.transportType) }}</span>
                 </div>
-                <component :is="authStore.hasRole('admin') && !service.is_builtin ? 'button' : 'span'"
-                  class="service-card__status" :class="{ 'is-enabled': service.enabled || service.is_builtin }"
-                  :type="authStore.hasRole('admin') && !service.is_builtin ? 'button' : undefined"
-                  :role="authStore.hasRole('admin') && !service.is_builtin ? 'switch' : undefined"
-                  :aria-checked="authStore.hasRole('admin') && !service.is_builtin ? service.enabled : undefined"
+                <component :is="authStore.hasRole('admin') && !service.isBuiltin ? 'button' : 'span'"
+                  class="service-card__status" :class="{ 'is-enabled': service.enabled || service.isBuiltin }"
+                  :type="authStore.hasRole('admin') && !service.isBuiltin ? 'button' : undefined"
+                  :role="authStore.hasRole('admin') && !service.isBuiltin ? 'switch' : undefined"
+                  :aria-checked="authStore.hasRole('admin') && !service.isBuiltin ? service.enabled : undefined"
                   :aria-label="`${service.name} · ${$t('mcpServiceDialog.enableService')}`"
                   :disabled="togglingIds.has(service.id)"
-                  :title="!service.is_builtin && authStore.hasRole('admin') ? $t(service.enabled ? 'common.off' : 'common.on') : undefined"
+                  :title="!service.isBuiltin && authStore.hasRole('admin') ? $t(service.enabled ? 'common.off' : 'common.on') : undefined"
                   @click="handleToggleEnabled(service)">
                   <t-loading v-if="togglingIds.has(service.id)" size="12px" />
                   <span v-else class="service-card__status-dot" aria-hidden="true" />
-                  {{ $t(service.enabled || service.is_builtin ? 'common.on' : 'common.off') }}
+                  {{ $t(service.enabled || service.isBuiltin ? 'common.on' : 'common.off') }}
                 </component>
               </div>
             </div>
@@ -134,7 +134,7 @@ const dialogMode = ref<'add' | 'edit'>('add')
 const currentService = ref<MCPService | null>(null)
 const dialogInitialStep = ref<0 | 1>(0)
 const togglingIds = ref(new Set<string>())
-const serviceUsage = (service: MCPService) => service.usage_instructions?.trim() || service.description?.trim() || ''
+const serviceUsage = (service: MCPService) => service.usageInstructions?.trim() || service.description?.trim() || ''
 
 // Load MCP services
 const loadServices = async () => {
@@ -186,7 +186,7 @@ const handleDialogCreated = async (created: MCPService) => {
 
 // Commit the visible state only after saving; reject duplicate toggles while pending.
 const handleToggleEnabled = async (service: MCPService) => {
-  if (!authStore.hasRole('admin') || service.is_builtin || !service.id || togglingIds.value.has(service.id)) return
+  if (!authStore.hasRole('admin') || service.isBuiltin || !service.id || togglingIds.value.has(service.id)) return
   const enabled = !service.enabled
   togglingIds.value.add(service.id)
   try {
@@ -203,7 +203,7 @@ const handleToggleEnabled = async (service: MCPService) => {
 
 // Handle delete button click
 const handleDelete = (service: MCPService) => {
-  if (!authStore.hasRole('admin') || service.is_builtin || !service.id || togglingIds.value.has(service.id)) return
+  if (!authStore.hasRole('admin') || service.isBuiltin || !service.id || togglingIds.value.has(service.id)) return
 
   confirmDelete({
     body: t('mcpSettings.deleteConfirmBody', { name: service.name || t('mcpSettings.unnamed') }),

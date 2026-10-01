@@ -2,55 +2,55 @@ import { get, post, put, del } from '@/utils/request'
 
 export interface MCPService {
   id: string
-  tenant_id?: number
+  tenantId?: number
   name: string
   description: string
-  usage_instructions?: string
+  usageInstructions?: string
   enabled: boolean
-  transport_type: 'sse' | 'http-streamable' | 'stdio'
+  transportType: 'sse' | 'http-streamable' | 'stdio'
   url?: string // Optional: required for SSE/HTTP Streamable
   headers?: Record<string, string>
-  auth_config?: {
+  authConfig?: {
     // Authentication strategy. Empty/absent means none. "oauth" enables the
     // per-user OAuth2 authorization-code flow (zero-config: discovery +
     // dynamic client registration).
-    auth_type?: '' | 'api_key' | 'bearer' | 'oauth'
+    authType?: '' | 'apiKey' | 'bearer' | 'oauth'
     // Secret fields (api_key, token) are NEVER returned by the server in
     // this shape — they live behind the /credentials subresource. The
     // optional-property typing remains so create-mode payloads can still
     // carry them in the initial POST body.
-    api_key?: string
+    apiKey?: string
     // Header name carrying api_key when auth_type is "api_key". Non-secret;
     // empty defaults to "X-API-Key". Lets services expecting the key in a
     // different header (e.g. raw token in "Authorization") work.
-    api_key_header?: string
+    apiKeyHeader?: string
     token?: string
-    custom_headers?: Record<string, string>
+    customHeaders?: Record<string, string>
     // OAuth-only, non-secret configuration.
     scopes?: string[]
-    auth_server_metadata_url?: string
+    authServerMetadataUrl?: string
   }
-  advanced_config?: {
+  advancedConfig?: {
     timeout?: number
-    retry_count?: number
-    retry_delay?: number
+    retryCount?: number
+    retryDelay?: number
   }
-  stdio_config?: {
+  stdioConfig?: {
     command: 'uvx' | 'npx' // Command: uvx or npx
     args: string[] // Command arguments array
   }
-  env_vars?: Record<string, string> // Environment variables for stdio transport
-  is_builtin?: boolean // Whether this is a builtin MCP service
+  envVars?: Record<string, string> // Environment variables for stdio transport
+  isBuiltin?: boolean // Whether this is a builtin MCP service
   // Per-field "configured?" map embedded on the main response (server-side
   // dto.MCPServiceResponse.Credentials). Drives the CredentialResource card
   // without a follow-up GET. Absent for builtin services.
   credentials?: Record<McpCredentialField, CredentialFieldMetadata>
-  created_at?: string
-  updated_at?: string
+  createdAt?: string
+  updatedAt?: string
   catalog?: {
-    tool_count: number
+    toolCount: number
     stale: boolean
-    synced_at: string
+    syncedAt: string
   }
 }
 
@@ -64,7 +64,7 @@ export interface MCPTool {
 
 export interface MCPToolApprovalRow {
   id: string
-  tenant_id?: number
+  tenantId?: number
   service_id: string
   tool_name: string
   require_approval: boolean
@@ -84,33 +84,32 @@ export interface MCPTestResult {
   description?: string
   // Set when the server requires OAuth (RFC 9728) but the service was not
   // configured for it — the UI guides the user to switch to OAuth 2.0.
-  oauth_required?: boolean
+  oauthRequired?: boolean
   tools?: MCPTool[]
   resources?: MCPResource[]
 }
 
 // List all MCP services
 export async function listMCPServices(): Promise<MCPService[]> {
+  // 裸数组（§14.9n M1：无 {data,success} 信封）
   const response: any = await get('/api/v1/mcp-services')
-  return response.data || []
+  return Array.isArray(response) ? response : []
 }
 
 // Get a single MCP service by ID
 export async function getMCPService(id: string): Promise<MCPService> {
-  const response: any = await get(`/api/v1/mcp-services/${id}`)
-  return response.data
+  return get<MCPService>(`/api/v1/mcp-services/${id}`)
 }
 
 // Create a new MCP service
 export async function createMCPService(data: Partial<MCPService>): Promise<MCPService> {
-  const response: any = await post('/api/v1/mcp-services', data)
-  return response.data
+  // 201 + 裸资源（§1.15）
+  return post<MCPService>('/api/v1/mcp-services', data)
 }
 
 // Update an existing MCP service
 export async function updateMCPService(id: string, data: Partial<MCPService>): Promise<MCPService> {
-  const response: any = await put(`/api/v1/mcp-services/${id}`, data)
-  return response.data
+  return put<MCPService>(`/api/v1/mcp-services/${id}`, data)
 }
 
 // Delete an MCP service
@@ -120,26 +119,20 @@ export async function deleteMCPService(id: string): Promise<void> {
 
 // Test MCP service connection
 export async function testMCPService(id: string): Promise<MCPTestResult> {
-  const response: any = await post(`/api/v1/mcp-services/${id}/test`, {})
-  // 后端返回格式: { success: true, data: MCPTestResult }
-  // response interceptor 已经返回了 data，所以 response 就是 { success: true, data: {...} }
-  if (response && response.data) {
-    return response.data
-  }
-  // 如果格式不对，尝试直接返回 response（可能是直接返回的数据）
-  return response
+  // 裸 McpTestResult（success 是**业务结论**，不是信封）
+  return post<MCPTestResult>(`/api/v1/mcp-services/${id}/test`, {})
 }
 
 // Get tools from an MCP service
 export async function getMCPServiceTools(id: string): Promise<MCPTool[]> {
   const response: any = await get(`/api/v1/mcp-services/${id}/tools`)
-  return response.data || []
+  return Array.isArray(response) ? response : []
 }
 
 // Get resources from an MCP service
 export async function getMCPServiceResources(id: string): Promise<MCPResource[]> {
   const response: any = await get(`/api/v1/mcp-services/${id}/resources`)
-  return response.data || []
+  return Array.isArray(response) ? response : []
 }
 
 /** Persisted per-tool human-approval flags (issue #1173) */
@@ -168,7 +161,7 @@ export async function setMCPToolEnabled(serviceId: string, toolName: string, ena
 // client reconnect server-side.
 // ----------------------------------------------------------------------------
 
-export type McpCredentialField = 'api_key' | 'token'
+export type McpCredentialField = 'apiKey' | 'token'
 
 export interface CredentialFieldMetadata {
   configured: boolean
@@ -182,8 +175,8 @@ export async function putMCPCredentials(
   serviceId: string,
   body: Partial<Record<McpCredentialField, string>>
 ): Promise<McpCredentialsResponse> {
-  const response: any = await put(`/api/v1/mcp-services/${serviceId}/credentials`, body)
-  return (response.data ?? response) as McpCredentialsResponse
+  // 裸 {fields:{...}}（§14.9n M1）
+  return put<McpCredentialsResponse>(`/api/v1/mcp-services/${serviceId}/credentials`, body)
 }
 
 export async function deleteMCPCredentialField(
@@ -287,27 +280,27 @@ export async function cancelMCPOAuth(pendingId: string): Promise<void> {
 
 // Persisted directory: GET never opens an upstream MCP connection.
 export interface MCPMetadata {
-  service_id: string
+  serviceId: string
   tools: MCPTool[]
   instructions: string
-  server_name: string
-  server_version: string
-  server_description: string
-  synced_at: string
+  serverName: string
+  serverVersion: string
+  serverDescription: string
+  syncedAt: string
   stale: boolean
 }
 
 export async function getMCPMetadata(id: string): Promise<MCPMetadata | null> {
+  // 从未同步 → 裸 JSON null（§2.1）
   const response: any = await get(`/api/v1/mcp-services/${id}/metadata`)
-  return response.data ?? null
+  return response ?? null
 }
 
 export async function refreshMCPMetadata(id: string): Promise<MCPMetadata> {
-  const response: any = await post(`/api/v1/mcp-services/${id}/metadata/refresh`, {})
-  return response.data
+  return post<MCPMetadata>(`/api/v1/mcp-services/${id}/metadata/refresh`, {})
 }
 
 export async function generateMCPUsageInstructions(id: string, language: string): Promise<string> {
   const response: any = await post(`/api/v1/mcp-services/${id}/usage-instructions/generate`, { language }, { timeout: 65000 })
-  return response.data.usage_instructions
+  return response.usageInstructions
 }
