@@ -31,7 +31,6 @@ import com.ragagent.wiki.domain.WikiPageListResponse;
 import com.ragagent.wiki.domain.WikiPageNotFoundException;
 import com.ragagent.wiki.domain.WikiPageRevision;
 import com.ragagent.wiki.domain.WikiPageRevisionListResponse;
-import com.ragagent.wiki.domain.WikiRevisionPruneRequest;
 import com.ragagent.wiki.domain.WikiStats;
 import com.ragagent.wiki.mapper.WikiPageRepository;
 import com.ragagent.wiki.service.WikiChunkCleaner;
@@ -103,6 +102,9 @@ public class WikiPageServiceImpl implements WikiPageService {
     final ObjectProvider<WikiPendingOpsCounter> pendingOps;
     final ObjectProvider<WikiActiveFlag> activeFlag;
 
+    /** 修订/问题域协作者(构造期装配;只存 service 引用,调用期才解引)。 */
+    final WikiPageRevisionOps revisionOps;
+
     /** 页面域协作者(构造期装配;只存 service 引用,调用期才解引)。 */
     final WikiPageFolderSupport folderSupport;
     final WikiPageLinkRepair linkRepair;
@@ -120,6 +122,7 @@ public class WikiPageServiceImpl implements WikiPageService {
         this.crossLinker = crossLinker;
         this.pendingOps = pendingOps;
         this.activeFlag = activeFlag;
+        this.revisionOps = new WikiPageRevisionOps(this);
         this.folderSupport = new WikiPageFolderSupport(this);
         this.linkRepair = new WikiPageLinkRepair(this);
         this.views = new WikiPageViewsSupport(this);
@@ -216,9 +219,9 @@ public class WikiPageServiceImpl implements WikiPageService {
 
             // 快照被取代的版本 + 原子写入新版本：每个历史版本的正文都被保住，
             // 且更新失败时不会留下半份快照
-            repo.updateWithRevision(existing, revisionFromPage(prev));
+            repo.updateWithRevision(existing, WikiPageRevisionOps.revisionFromPage(prev));
             // 限制单页历史；尽力而为——剪枝失败只意味着多占一点存储，直到下次内容变更
-            pruneRevisions(existing.getId(), existing.getVersion());
+            revisionOps.pruneRevisions(existing.getId(), existing.getVersion());
         } else {
             // 没有用户可见的变化——持久化记账字段但保留 version，
             // 让下游消费方能依赖它
@@ -261,53 +264,7 @@ public class WikiPageServiceImpl implements WikiPageService {
         updateInLinks(existing.getKnowledgeBaseId(), existing.getSlug(), existing.getOutLinks());
     }
 
-    /**
-     * 为给定页面状态构造不可变快照行。
-     *
-     * <p>快照上的 {@code editSource} 是<b>那个版本</b>的作者——该版本尚为当前版本时
-     * 页面溯源列的值——而不是取代它的这次写入的作者。</p>
-     */
-    static WikiPageRevision revisionFromPage(WikiPage p) {
-        WikiPageRevision rev = new WikiPageRevision();
-        rev.setId(UUID.randomUUID().toString());
-        rev.setTenantId(p.getTenantId());
-        rev.setKnowledgeBaseId(p.getKnowledgeBaseId());
-        rev.setPageId(p.getId());
-        rev.setSlug(p.getSlug());
-        rev.setVersion(p.getVersion());
-        rev.setTitle(p.getTitle());
-        rev.setPageType(p.getPageType());
-        rev.setStatus(p.getStatus());
-        rev.setContent(p.getContent());
-        rev.setSummary(p.getSummary());
-        rev.setAliases(new ArrayList<>(p.getAliases()));
-        rev.setEditSource(WikiConstants.normalizeEditSource(p.getLastEditSource()));
-        rev.setEditorId(p.getLastEditorId());
-        rev.setEditedAt(p.getUpdatedAt());
-        rev.setCreatedAt(OffsetDateTime.now());
-        return rev;
-    }
 
-    /**
-     * 页面推进到 currentVersion 之后限制其
-     * 快照历史。机器作者的快照一旦滑出近期窗口就丢；人工/agent/回滚的快照活到硬上限
-     * ——这样热页上的管道churn 挤不掉用户真正在意的编辑。
-     */
-    final void pruneRevisions(String pageId, int currentVersion) {
-        WikiRevisionPruneRequest req = new WikiRevisionPruneRequest(
-                pageId,
-                currentVersion - WikiConstants.MAX_REVISIONS_PER_PAGE,
-                WikiConstants.PRUNABLE_EDIT_SOURCES,
-                currentVersion - WikiConstants.MAX_REVISIONS_HARD_CAP);
-        if (req.keepFromVersion() <= 0 && req.hardKeepFromVersion() <= 0) {
-            return;
-        }
-        try {
-            repo.pruneRevisions(req);
-        } catch (RuntimeException e) {
-            log.warn("prune wiki page revisions for {} failed: {}", pageId, e.toString());
-        }
-    }
 
     @Override
     public WikiPage getPageBySlug(String kbId, String slug) {
@@ -342,13 +299,7 @@ public class WikiPageServiceImpl implements WikiPageService {
 
         repo.delete(kbId, slug);
 
-        // 快照历史一并丢掉：页面已从所有读路径消失，它们的快照是不可达的行，
-        // 却占着完整正文。尽力而为——页面已经删了，回滚不了。
-        try {
-            repo.deleteRevisionsByPage(page.getId());
-        } catch (RuntimeException e) {
-            log.warn("delete wiki page revisions for {} failed: {}", page.getId(), e.toString());
-        }
+        revisionOps.deletePageRevisions(page);
 
         deleteChunkForPage(page);
     }
@@ -822,82 +773,11 @@ public class WikiPageServiceImpl implements WikiPageService {
         return c;
     }
 
-    /**
-     * 某页面存下来的历史快照
-     * （最新在前，<b>省略 content</b>）+ 快照总数 + 页面当前版本。
-     *
-     * <p>当前版本本身<b>没有</b>快照行——它活在 wiki_pages 里。</p>
-     */
-    @Override
-    public WikiPageRevisionListResponse listRevisions(String kbId, String slug, int limit,
-                                                      int offset) {
-        WikiPage page = repo.getBySlug(kbId, slug);
-        WikiPageRepository.RevisionList listed;
-        try {
-            listed = repo.listRevisions(kbId, page.getId(), limit, offset);
-        } catch (RuntimeException e) {
-            throw new WikiException("list wiki page revisions: " + e.getMessage(), e);
-        }
-        WikiPageRevisionListResponse resp = new WikiPageRevisionListResponse();
-        resp.setRevisions(listed.revisions());
-        resp.setTotal(listed.total());
-        resp.setCurrentVersion(page.getVersion());
-        return resp;
-    }
 
-    /** 单条历史快照，含 content */
-    @Override
-    public WikiPageRevision getRevision(String kbId, String slug, int version) {
-        WikiPage page = repo.getBySlug(kbId, slug);
-        return repo.getRevision(kbId, page.getId(), version);
-    }
 
-    /**
-     * 把页面回滚到某份快照的正文内容，
-     * 并以<b>一次普通编辑</b>的形式应用它——回滚前的状态会被快照、版本号前进、链接重解析。
-     *
-     * <p>位置（文件夹、排序权重）与溯源引用保持当前值——回滚是关于内容的，
-     * 不是撤销目录移动。</p>
-     */
-    @Override
-    public WikiPage revertPageToVersion(String kbId, String slug, int version) {
-        WikiPage page = repo.getBySlug(kbId, slug);
-        if (version == page.getVersion()) {
-            throw new WikiRevertToCurrentVersionException();
-        }
-        WikiPageRevision rev = repo.getRevision(kbId, page.getId(), version);
 
-        WikiPage target = copyPage(page);
-        target.setTitle(rev.getTitle());
-        target.setContent(rev.getContent());
-        target.setSummary(rev.getSummary());
-        target.setPageType(rev.getPageType());
-        target.setStatus(rev.getStatus());
-        target.setAliases(new ArrayList<>(rev.getAliases()));
 
-        // 以"回滚"编辑来源包裹这次 UpdatePage，让新版本署名可辨
-        return WikiEditContext.callWith(WikiConstants.EDIT_SOURCE_REVERT,
-                () -> updatePage(target));
-    }
 
-    @Override
-    public WikiPageIssue createIssue(WikiPageIssue issue) {
-        if (issue.getId() == null || issue.getId().isEmpty()) {
-            issue.setId(UUID.randomUUID().toString());
-        }
-        repo.createIssue(issue);
-        return issue;
-    }
-
-    @Override
-    public List<WikiPageIssue> listIssues(String kbId, String slug, String status) {
-        return repo.listIssues(kbId, slug, status);
-    }
-
-    @Override
-    public void updateIssueStatus(String issueID, String status) {
-        repo.updateIssueStatus(issueID, status);
-    }
 
     /**
      * 把每个文件夹 id 映射到
@@ -1004,5 +884,38 @@ public class WikiPageServiceImpl implements WikiPageService {
     @Override
     public WikiStats getStats(String kbId) {
         return views.getStats(kbId);
+    }
+
+    // ── 修订历史 / 页面问题:实现随协作者(WikiPageRevisionOps) ──
+
+    @Override
+    public WikiPageRevisionListResponse listRevisions(String kbId, String slug, int limit,
+                                                     int offset) {
+        return revisionOps.listRevisions(kbId, slug, limit, offset);
+    }
+
+    @Override
+    public WikiPageRevision getRevision(String kbId, String slug, int version) {
+        return revisionOps.getRevision(kbId, slug, version);
+    }
+
+    @Override
+    public WikiPage revertPageToVersion(String kbId, String slug, int version) {
+        return revisionOps.revertPageToVersion(kbId, slug, version);
+    }
+
+    @Override
+    public WikiPageIssue createIssue(WikiPageIssue issue) {
+        return revisionOps.createIssue(issue);
+    }
+
+    @Override
+    public List<WikiPageIssue> listIssues(String kbId, String slug, String status) {
+        return revisionOps.listIssues(kbId, slug, status);
+    }
+
+    @Override
+    public void updateIssueStatus(String issueID, String status) {
+        revisionOps.updateIssueStatus(issueID, status);
     }
 }
