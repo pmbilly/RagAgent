@@ -209,7 +209,7 @@
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
    auth（A1+A2+B）/ **memory M1+M2+M3** / **session 全域收官（S1 会话主资源 → S2 消息面 → S3 附件·建议·steer → S4 QA 请求面 → S5 收尾，前四批前后端同批）** / **embed 域 E1（渠道管理 + 公开面，前后端同批）** / **mcp 域 M1（服务资源 + 凭据面）+ M4（工具审批 + OAuth 用户面，均前后端同批）** 已完成（同批带前端）；
-   下一步候选：**mcp M5（oauth 内部与落库面，19 处）/ datasource / wiki / agent 等域的端点面**（§2 第 4 条落地范围）。
+   **mcp 域已收官（M1 + M4 + M5，仅剩第三方协议面 22 处永久冻结）**。下一步候选：**datasource / wiki / agent 等域的端点面**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
 3. **阶段 4 其余域标准化 + 架构调整**（Gradle 多模块 + ArchUnit 边界固化等）：未开始。
@@ -2208,6 +2208,28 @@ WHERE jsonb_typeof(tools) = 'array' AND tools <> '[]'::jsonb;
 M4 = 工具审批面（`McpToolApproval` 9 + `McpToolApprovalPolicyRequest` 2 + `ResolveToolApprovalRequest` 3 +
 agent 侧 `AgentToolApprovalController`，含 embed 事件委托的信封）。
 
+### 14.9p mcp 域 M5（OAuth 内部 blob 面）+ 该域收官（2026-10-01）
+
+**✅ M5 执行记录**：`OAuthState`(9) + `OAuthAttempt`(4) 去键名映射——这两个记录**只序列化进
+Redis/内存的同一份 JSON**（`OAuthStateStore` 的 `writeJson`/`readState`/`readAttempt`，TTL 10 分钟），
+客户端看不到、DB 里没有。改键名 + **部署窗口兼容读**（`migrateLegacyKeys`：按已知旧键改名后再反序列化）。
+
+- **为什么必须带兼容读**（本批最容易踩的坑）：两个记录都带 `@JsonIgnoreProperties(ignoreUnknown=true)`，
+  旧 blob 不会反序列化失败，而是**静默变成 `tenantId=0 / serviceId=""` 的空壳** —— 滚动发布期间
+  "已完成 authorize-url、还没点回调"的用户会拿到 `authorization_failed`（fail-closed，但体验差且难排查）。
+  兼容读的删除条件：过完一次 `STATE_TTL`（10 分钟）的部署窗口后，连同 `LEGACY_KEY_RENAMES` 一起删。
+- **判定为永久冻结（第三方协议，**别改**）**：`OAuthToken`（我方的唯一 Jackson 出口是解析授权服务器的
+  RFC 6749 §5.1 token 响应；落库走 `McpOAuthToken` 实体列映射，表里没有 jsonb 列）、
+  `AuthServerMetadata`（RFC 8414）、`OAuthProtectedResource`（RFC 9728）、`OAuthError`（RFC 6749 §5.2）。
+  这几个类的注释里都写明了冻结理由。
+- 测试：`OAuthStateStoreTest` 新增两条——`writesBlobsWithCamelCaseKeys`（写出口反证：旧键一条不留）
+  与 `readsLegacySnakeCaseBlobsDuringDeployWindow`（兼容读：旧 blob 必须按旧键读出非空壳）。
+- **验收口径的坦白**：本批**没有真机冒烟路径**——内部 blob 只有 Redis 分支才走 JSON（内存分支存的是
+  类型化对象）；全流程由 `OAuthServerStub`/`OAuthHandlerTest`/`OAuthLifecycleTest` 覆盖，
+  blob 往返由 `FakeOAuthStateRedis` 的两条新用例覆盖。
+- **mcp 域收官**：119 →（M1）58 →（M4）35 →（M5）**22**，剩下的 22 处**全部是第三方协议面**
+  （上一条列的四类），按 §14.9l 前提判定 2 永久冻结。该域 `@JsonProperty` 收尾完成。
+
 ### 14.9o mcp 域 M4（工具审批 + OAuth 用户面，2026-10-01）
 
 **✅ M4 执行记录（后端 + 前端同批）**：
@@ -2269,7 +2291,7 @@ agent 侧 `AgentToolApprovalController`，含 embed 事件委托的信封）。
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4 工具审批+OAuth 用户面，§14.9o；余 19 处内部面 = M5 + 16 处 RFC 文档面永久冻结）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
