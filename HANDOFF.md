@@ -18,9 +18,12 @@
    **DataSourceService 已出榜（2026-10-01，d1~d3，§14.7.15）——1,828→666，四协作者**；
    **datasource 连接器批已收官（2026-10-01，f1~f3 + n1，§14.7.16）——`FeishuClient` 1,155→709、`NotionConnector` 1,093→625，datasource 域 ≥800 清零**；
    **memory 域四刀落定（2026-10-01，m1~m4，§14.7.17）——`MemoryExtractionService` 1,217→718、`MemoryRepository` 1,515→458、`MemoryService` 1,663→965（余 m5 评估）**；
-   **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**。
-4. **下一步（两个候选，由用户排）**：① `memory` 域 m5——`MemoryService` 965 的「召回」段（243 行，接缝自然，§14.7.17 已给边界）；
-   ② **阶段 3 换锚按域推**——打样已跑通（§14.9b），目标域建议挑前端真有调用的（auth/memory 等，重域清单见 §14.9 存量表）。单类尾巴：`SourceRegistry` 878 / `UserService` 876；knowledge 两个已登记例外待复核。
+   **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**；
+   **阶段 3 第二域 model M1 完成（2026-10-01，§14.9c）——模型主资源去信封 + camelCase + 请求侧实体解耦，首次前后端同 PR（前端 12 文件）**。
+4. **下一步（候选，由用户排）**：① **model M2/M3**——debug 端点（multipart + 手搓响应 + 24 个 `md-*` fixture）与 weknoracloud；
+   ② `memory` 域 m5——`MemoryService` 965 的「召回」段（243 行，接缝自然，§14.7.17 已给边界）；
+   ③ 阶段 3 换锚按域继续推（建议 auth / system / memory 的端点面；落库 jsonb 面与错误形态统一各自成批）。
+   单类尾巴：`SourceRegistry` 878 / `UserService` 876；knowledge 两个已登记例外待复核。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`；切片产物排版闸门：`scripts/normalize-blank-lines.py`（§13.8）。
 6. **全仓存量**：≥800 行的类还有 **7 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource / evaluation 域 ≥800 全为零**，memory 域已出榜 2/3（余 `MemoryService` 965 待 m5、`MemoryIndexStore` 929 登记例外）。
@@ -153,6 +156,7 @@
 | 阶段 2（datasource 连接器批，2026-10-01） | FeishuClient + NotionConnector | **双出榜，datasource 域 ≥800 清零**（f1~f3 + n1 → Transport/WikiTreeOps/DriveOps/FetchOps；1,155→709、1,093→625；§14.7.16） |
 | 阶段 2（memory 域，2026-10-01 起） | MemoryExtractionService / MemoryRepository / MemoryService | **四刀落定**（m1 1,217→718 出榜；m2 1,515→1,200 出 `MemoryItemStore`；m3 1,200→**458** 出 `MemoryIndexStore`；m4 1,663→**965** 出 `MemoryCatalogOps`+`MemoryInsightOps`；⚠️ `MemoryIndexStore` 929 登记**已知例外**、`MemoryService` 965 待 m5 评估——用户 2026-10-01 定调「不硬切」，判据见 §14.7.17） |
 | 阶段 3 打样（evaluation 域，2026-10-01） | 小域契约换锚打样（§14.9b） | **流水线跑通**：POST/GET 去信封 + camelCase + 标准 DTO 绑定；10 个 fixture（含新增空体用例）；前端零调用面；**真实服务冒烟 8 路通过** |
+| 阶段 3（model 域 M1，2026-10-01） | 模型主资源契约换锚（§14.9c） | **完成**：CRUD + providers + credentials 去信封 + camelCase + 标准 DTO 绑定（含请求侧实体解耦）；54 处注解清零（87→33）；15 fixture 重录；**前端 12 文件同 PR**；真实服务冒烟 11 路 |
 
 ### 7.2 当前存量（实测）
 
@@ -167,6 +171,7 @@
 - datasource 域（2026-10-01 全批后）：**115 文件 / 26,723 行**；`DataSourceService` 1,828→**666**、`FeishuClient` 1,155→**709**、`NotionConnector` 1,093→**625** —— **域内 ≥800 清零**（原三个：1,828 / 1,155 / 1,093）。
 - memory 域（2026-10-01 m1~m4 后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**458**（出榜）、`MemoryService` 1,663→**965**；`MemoryItemStore` 462 / `MemoryCatalogOps` 517 / `MemoryInsightOps` 412 / `MemoryIndexStore` 929；≥800 剩 `MemoryService` 965（待 m5 评估）与 `MemoryIndexStore` 929（**登记例外**：同属索引侧一个关注点，§14.7.17）。
 - evaluation 域（2026-10-01 打样后）：**`@JsonProperty` 66→0、`@JsonInclude` 12→0**；POST/GET 两端点契约已换锚（§14.9b）；`dto` 包 2 文件（`EvaluationDtos` 容器待拆分，另立批次）。
+- model 域（2026-10-01 M1 后）：**`@JsonProperty` 87→33**（剩 `ModelParameters` 19 落库 + `ModelDebug*` 14）；主资源 CRUD/providers/credentials 已换锚（§14.9c）；前端 12 文件同批改（首次前后端同 PR 样本）。
 - 全仓 ≥800 行的类：**7 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
@@ -382,6 +387,17 @@ CLI 起服务常写 `set -a && . ./.env && set +a && ./gradlew :server:bootRun`�
 原样落库"断言失败（**1/4669，其余全绿，极易误判为回归**）。
 **判据**：全量里出现"孤零零 1 个与环境相关的失败"时，先 `env | grep SYSTEM_AES`；
 **修法**：跑闸门用 `env -u SYSTEM_AES_KEY ./gradlew ...`（或换独立 shell 复跑该单类确认）。
+
+### 13.10 校验文案的 locale / Accept-Language 漂移（2026-10-01 model 域换锚，1 条）
+
+**`@Valid` 默认 message 的 400 文案随请求头/进程 locale 变化**：同一条缺失字段的请求，
+不带 `Accept-Language` 时 details = `name: 不得为空白`（Hibernate Validator 中文资源包原样），
+带 `Accept-Language: en` / `zh-CN` 时 details = `name: 不能为空`（英文资源包经全局
+`translateMessage` 归一）——**同一个二进制、两种文案**。
+**根因**：契约测试（MockMvc 不带该头）只能钉住其中一种，真实匿名客户端与浏览器看到的可能不同。
+**修法（随批次）**：`@Valid` 注解显式写 `message = "字段名: 不能为空"`——`^[a-z][A-Za-z0-9_]*: `
+前缀格式被全局 `handleBind` 原样采用，不依赖任何资源包（model 域 2026-10-01 已示范）。
+**全仓现状**：knowledge/session 等域的旧注解仍用默认 message，属"错误形态统一批"存量，逐域顺手改。
 
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
@@ -1211,6 +1227,43 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 API-Key capability 名与 i18n 文案，差点误当调用面）；换锚批可顺手做"请求侧手写绑定器清除"
 （与 §14.2 步骤 4 一致），但错误信封统一与容器拆分都**不与换锚混轴**。
 
+### 14.9c 第二域：model 换锚（M1 主资源，2026-10-01）
+
+**选域理由**：① HTTP 面与落库面**已解耦**（`ModelResponse.from` 显式字段构造，改 DTO 不牵动
+`ModelParameters` 落库 jsonb）；② 前端**有真实调用面**——补上打样缺的"前后端同 PR"完整样本；
+③ 端点 10 个、形态齐全（CRUD 201/204 + 列表 + providers + credentials 子资源）。
+
+**M1 范围（已完成，提交 `c87fdd7`（后端）+ `e6d1af5`（前端））**：`ModelController`（6 端点）+ `ModelCredentialsController`（2 端点）
++ DTO 9 文件（新增 `ModelParametersRequest`）+ 15 个 fixture + `ModelContractTest` + 前端 12 文件。
+
+| 端点 | 请求（旧 → 新） | 响应（旧 → 新） |
+|---|---|---|
+| `POST /api/v1/models`（Admin） | `parameters` 由**直绑落库实体** `ModelParameters` → 新 `ModelParametersRequest`（含 apiKey/appSecret，`toDomain()` 显式转换）；其余字段去 snake 注解 | `{data:…,success:true}` → 裸 `ModelResponse`（201） |
+| `GET /api/v1/models` / `{id}`（Viewer） | — | 裸对象 / 裸数组（去信封） |
+| `PUT /api/v1/models/{id}`（Admin） | 同上；空值覆盖语义（name 空串不改、type/source 无条件覆盖）保留 | 同上 |
+| `DELETE /api/v1/models/{id}`（Admin） | — | `{message,success}` → **204 无响应体** |
+| `GET /api/v1/models/providers`（Viewer） | query `model_type` → `modelType` | 去信封 |
+| `PUT /api/v1/models/{id}/credentials`（Admin） | `{api_key,app_secret}` → `{apiKey,appSecret}` | 去信封（`fields` 键恒为 `api_key`/`app_secret`） |
+| `DELETE /api/v1/models/{id}/credentials/{field}` | `{field}` 取值域**保留** `api_key`/`app_secret` | 204（原样） |
+
+**有意保留（勿当漏网）**：① credentials 的 Map 键与 `{field}` 路径值 `api_key`/`app_secret` 是
+**字段标识符**（DELETE 路径取值域 + 前端 `ModelCredentialField` 类型共用），不是蛇形命名债；
+② `ModelParameters`（19 处，落库 jsonb）属**落库换锚批**（存量数据键名兼容）；③ `ModelDebug*`（14 处）
+属 M2；④ 错误 details 的 `ModelUsage` 载荷键（`knowledge_bases` 等）属错误形态批。
+
+**M2/M3 待办**：`ModelDebugController`（multipart + 手搓响应 Map + 24 个 md-* fixture）与
+`WeKnoraCloudController`（Map 手绑 + `{message,success}`）；model 域 `@JsonProperty` 现状 **87 → 33**
+（剩 debug 14 + 落库 19）。
+
+**验收**：后端干净一遍全绿（4669 用例）+ `spotlessCheck`；前端 `vue-tsc` 0 错误 + **690 用例全绿**
+（首次前后端同 PR）；**真实服务冒烟 11 路**：创建 201 裸对象 / 列表裸数组 / 单查 / 更新（覆盖语义保持）/
+credentials 写入与查询 / credentials 删除 204 / providers `?modelType=` / 缺 name 400 / 删除 204 /
+旧 `model_type` 参数被忽略。
+
+**顺带修**：`@Valid` 显式 message（§13.10 的 locale 漂移）；前端**类型逃逸**漏网点 2 处——
+`thinkingControl.ts` 的局部结构类型 `parameters: { extra_config?: … }` 与
+`initialization/index.ts` 的 query 参数，**vue-tsc 不报错也要 grep 兜底**（局部类型绕过编译器）。
+
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
 
@@ -1234,8 +1287,8 @@ API-Key capability 名与 i18n 文案，差点误当调用面）；换锚批可�
 - 细则与历史差异表：`docs/knowledge-api-contract-v1.md`（v1.0，32KB）。
 
 **进度（2026-10-01）**
-- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview / **evaluation（打样域，§14.9b——含真实服务冒烟）**。
-- 未完成：**wiki / agent / auth / memory / mcp 等其余域**的端点面与落库面。
+- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview / **evaluation（打样域，§14.9b）** / **model 主资源 M1（§14.9c，首次前后端同 PR）**。
+- 未完成：**wiki / agent / auth / memory / mcp 等其余域**的端点面与落库面；model 的 M2（debug）/ M3（weknoracloud）/ 落库面。
 
 **存量表（2026-10-01 盘点实测，§14.9 第 1 步交付物；只读扫描，三分法甄别）**
 
@@ -1245,7 +1298,7 @@ API-Key capability 名与 i18n 文案，差点误当调用面）；换锚批可�
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~1,038 处 / ~150 文件**，重域：auth 247 / session 188（`Message` 23、`MessageSuggestionSet` 20…多为 domain 实体）/ datasource 127 / memory 123 / mcp 110 / system 86 / model 78 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（2026-10-01 打样换锚，§14.9b） | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~984 处 / ~150 文件**，重域：auth 247 / session 188（`Message` 23、`MessageSuggestionSet` 20…多为 domain 实体）/ datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（2026-10-01 打样，§14.9b）；model 87 → **33**（2026-10-01 M1，§14.9c） | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。
