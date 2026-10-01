@@ -115,7 +115,7 @@ export const useSettingsStore = defineStore("settings", {
     // 进入会话时拍下"全局默认"的快照；离开会话时还原。非持久化字段：
     // 刷新页面相当于重新走"进入会话"流程，自然会重新拍快照。
     _defaultsSnapshot: null as Settings | null,
-    /** 正在从 session.last_request_state 恢复输入栏，避免 agent 切换 watch 覆盖 KB 选择 */
+    /** 正在从 session.lastRequestState 恢复输入栏，避免 agent 切换 watch 覆盖 KB 选择 */
     _isApplyingSessionState: false,
   }),
 
@@ -482,7 +482,7 @@ export const useSettingsStore = defineStore("settings", {
     // 输入栏的 agent / 模型 / KB / 联网 / MCP 等选择由本 store 持有，跨会话共享。
     // 但用户的诉求是：点开旧会话时，能看到当时发起请求的那一套状态。
     // 实现策略：进入会话时把"当前的全局默认"暂存到一个非持久化的 `_defaultsSnapshot`
-    // 字段里，然后用 session.last_request_state 覆盖 store；离开会话时从快照还原。
+    // 字段里，然后用 session.lastRequestState 覆盖 store；离开会话时从快照还原。
     // 快照不写 localStorage，因为它只在「正处于某个旧会话」这段路由期内有意义；
     // 刷新页面相当于"重新进入会话" → 重新拍快照 + 覆盖，不会丢失用户的全局默认。
 
@@ -510,67 +510,67 @@ export const useSettingsStore = defineStore("settings", {
       this.applyLastRequestState(state);
     },
 
-    // 根据 session.last_request_state 覆盖输入栏相关字段。
+    // 根据 session.lastRequestState 覆盖输入栏相关字段。
     // 只触碰本次记录的字段，**不**清空 store 中其它无关字段（如模型列表）。
     // 任何字段缺失则保留 store 现值，做"尽力恢复"。
     applyLastRequestState(state: SessionLastRequestStatePayload | null | undefined) {
       if (!state) return;
       this._isApplyingSessionState = true;
       try {
-        if (typeof state.agent_enabled === "boolean") {
-          this.settings.isAgentEnabled = state.agent_enabled;
+        if (typeof state.agentEnabled === "boolean") {
+          this.settings.isAgentEnabled = state.agentEnabled;
         }
-        if (typeof state.agent_id === "string" && state.agent_id) {
-          this.settings.selectedAgentId = state.agent_id;
+        if (typeof state.agentId === "string" && state.agentId) {
+          this.settings.selectedAgentId = state.agentId;
           // 上次记录是自有 agent 还是共享 agent，目前服务端不区分回传 sourceTenantId。
           // 与 selectAgent() 不同，这里**不**重置 KB/文件选择 —— 因为我们紧接着
           // 就要用 state 里的 KB/文件覆盖，不需要先清空再写。
         }
-        if (state.model_id !== undefined) {
+        if (state.modelId !== undefined) {
           const current = this.settings.conversationModels || defaultSettings.conversationModels;
-          this.settings.conversationModels = { ...current, selectedChatModelId: state.model_id || "" };
+          this.settings.conversationModels = { ...current, selectedChatModelId: state.modelId || "" };
         }
-        if (Array.isArray(state.knowledge_base_ids)) {
-          this.settings.selectedKnowledgeBases = [...state.knowledge_base_ids];
+        if (Array.isArray(state.knowledgeBaseIds)) {
+          this.settings.selectedKnowledgeBases = [...state.knowledgeBaseIds];
         }
-        if (Array.isArray(state.knowledge_ids)) {
-          this.settings.selectedFiles = [...state.knowledge_ids];
+        if (Array.isArray(state.knowledgeIds)) {
+          this.settings.selectedFiles = [...state.knowledgeIds];
           // selectedFileKbMap 此时无法重建（state 里没存 KB 归属），交给前端按
           // 需要 lazy 拉取。保留 store 现值，避免误删用户刚加进来的文件映射。
         }
-        if (Array.isArray(state.mentioned_items)) {
-          const fromMentions = state.mentioned_items
-            .filter(item => item.type === "tag" && item.id && item.kb_id)
-            .map(item => ({ id: item.id, name: item.name || item.id, kbId: item.kb_id!, kbName: item.kb_name }));
+        if (Array.isArray(state.mentionedItems)) {
+          const fromMentions = state.mentionedItems
+            .filter(item => item.type === "tag" && item.id && item.kbId)
+            .map(item => ({ id: item.id, name: item.name || item.id, kbId: item.kbId!, kbName: item.kbName }));
           const covered = new Set(fromMentions.map(t => t.id));
-          const orphanTagIds = (state.tag_ids || []).filter(id => id && !covered.has(id));
-          if (orphanTagIds.length > 0 && Array.isArray(state.knowledge_base_ids) && state.knowledge_base_ids.length === 1) {
-            const kbId = state.knowledge_base_ids[0];
+          const orphanTagIds = (state.tagIds || []).filter(id => id && !covered.has(id));
+          if (orphanTagIds.length > 0 && Array.isArray(state.knowledgeBaseIds) && state.knowledgeBaseIds.length === 1) {
+            const kbId = state.knowledgeBaseIds[0];
             orphanTagIds.forEach(id => {
               fromMentions.push({ id, name: id, kbId, kbName: undefined });
             });
           }
           this.settings.selectedTags = fromMentions;
-        } else if (Array.isArray(state.tag_ids)) {
+        } else if (Array.isArray(state.tagIds)) {
           const existing = this.settings.selectedTags || [];
-          this.settings.selectedTags = existing.filter(tag => state.tag_ids?.includes(tag.id));
+          this.settings.selectedTags = existing.filter(tag => state.tagIds?.includes(tag.id));
         }
-        if (Array.isArray(state.mcp_service_ids)) {
-          this.settings.selectedMCPServices = [...state.mcp_service_ids];
-        } else if (Array.isArray(state.mentioned_items)) {
-          this.settings.selectedMCPServices = state.mentioned_items
+        if (Array.isArray(state.mcpServiceIds)) {
+          this.settings.selectedMCPServices = [...state.mcpServiceIds];
+        } else if (Array.isArray(state.mentionedItems)) {
+          this.settings.selectedMCPServices = state.mentionedItems
             .filter(item => item.type === "mcp" && item.id)
             .map(item => item.id);
         }
-        if (Array.isArray(state.skill_names)) {
-          this.settings.selectedSkills = [...state.skill_names];
-        } else if (Array.isArray(state.mentioned_items)) {
-          this.settings.selectedSkills = state.mentioned_items
+        if (Array.isArray(state.skillNames)) {
+          this.settings.selectedSkills = [...state.skillNames];
+        } else if (Array.isArray(state.mentionedItems)) {
+          this.settings.selectedSkills = state.mentionedItems
             .filter(item => item.type === "skill" && item.id)
-            .map(item => item.skill_name || item.id);
+            .map(item => item.skillName || item.id);
         }
-        if (typeof state.web_search_enabled === "boolean") {
-          this.settings.webSearchEnabled = state.web_search_enabled;
+        if (typeof state.webSearchEnabled === "boolean") {
+          this.settings.webSearchEnabled = state.webSearchEnabled;
         }
       } finally {
         // 复位必须延后到下一次 flush 之后：监听 selectedAgentId 的 watcher 默认
@@ -588,24 +588,24 @@ export const useSettingsStore = defineStore("settings", {
   },
 });
 
-// 后端 sessions.last_request_state JSON 形状（与 SessionLastRequestState 对齐）。
+// 后端 sessions.lastRequestState JSON 形状（与 SessionLastRequestState 对齐）。
 // 字段全部可选——历史会话或新建会话首发前的请求没有这条记录。
 export interface SessionLastRequestStatePayload {
-  agent_id?: string;
-  agent_enabled?: boolean;
-  model_id?: string;
-  knowledge_base_ids?: string[];
-  knowledge_ids?: string[];
-  tag_ids?: string[];
-  mcp_service_ids?: string[];
-  skill_names?: string[];
-  mentioned_items?: Array<{
+  agentId?: string;
+  agentEnabled?: boolean;
+  modelId?: string;
+  knowledgeBaseIds?: string[];
+  knowledgeIds?: string[];
+  tagIds?: string[];
+  mcpServiceIds?: string[];
+  skillNames?: string[];
+  mentionedItems?: Array<{
     id: string;
     name?: string;
     type: string;
-    kb_id?: string;
-    kb_name?: string;
-    skill_name?: string;
+    kbId?: string;
+    kbName?: string;
+    skillName?: string;
   }>;
-  web_search_enabled?: boolean;
+  webSearchEnabled?: boolean;
 }

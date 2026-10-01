@@ -23,7 +23,7 @@
       :title="displayTitle"
       @dblclick="startTitleEdit"
     >
-      <t-icon v-if="session?.is_pinned" name="pin" size="12px" class="chat-header__pin" />
+      <t-icon v-if="session?.pinned" name="pin" size="12px" class="chat-header__pin" />
       <span class="chat-header__title-text">{{ displayTitle }}</span>
     </h1>
     <t-popup
@@ -50,9 +50,9 @@
       <template #content>
         <div class="chat-header-menu" @click.stop>
           <template v-if="menuMode === 'menu'">
-            <button type="button" class="chat-header-menu__item" @click="onMenuAction(session?.is_pinned ? 'unpin' : 'pin')">
-              <t-icon class="chat-header-menu__icon" :name="session?.is_pinned ? 'pin-filled' : 'pin'" />
-              <span>{{ session?.is_pinned ? t('menu.unpin') : t('menu.pin') }}</span>
+            <button type="button" class="chat-header-menu__item" @click="onMenuAction(session?.pinned ? 'unpin' : 'pin')">
+              <t-icon class="chat-header-menu__icon" :name="session?.pinned ? 'pin-filled' : 'pin'" />
+              <span>{{ session?.pinned ? t('menu.unpin') : t('menu.pin') }}</span>
             </button>
             <button type="button" class="chat-header-menu__item" @click="onMenuAction('rename')">
               <t-icon class="chat-header-menu__icon" name="edit-1" />
@@ -133,7 +133,7 @@ interface ChatHeaderSession {
   title?: string
   description?: string
   tenantId?: number | string
-  is_pinned?: boolean
+  pinned?: boolean
 }
 
 type MenuMode = 'menu' | 'clear' | 'delete'

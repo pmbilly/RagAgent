@@ -264,7 +264,7 @@ const loadSessionAndHydrate = async (sid) => {
         // 裸对象：响应体即会话
         if (sessionRes && sid === session_id.value) {
             currentSession.value = sessionRes;
-            const lastState = sessionRes.last_request_state;
+            const lastState = sessionRes.lastRequestState;
             useSettingsStoreInstance.hydrateSessionInputState(lastState, preserveDraft);
         }
     } catch (error) {
@@ -1374,7 +1374,7 @@ onBeforeMount(async () => {
         useSettingsStoreInstance.selectKnowledgeBases(props.kbIds);
     }
 
-    // 必须在 Input-field onMounted 之前完成：按 session.last_request_state 恢复输入栏
+    // 必须在 Input-field onMounted 之前完成：按 session.lastRequestState 恢复输入栏
     await loadSessionAndHydrate(session_id.value);
 });
 

@@ -10,8 +10,8 @@ export const SESSION_MUTATION_EVENT = 'weknora:session-mutation'
 
 export interface SessionMutationPatch {
   title?: string
-  is_pinned?: boolean
-  pinned_at?: string | null
+  pinned?: boolean
+  pinnedAt?: string | null
 }
 
 export interface SessionMutationDetail {
@@ -50,8 +50,8 @@ export async function setSessionPinned(sessionId: string, pinned: boolean): Prom
   notifySessionMutation({
     sessionId,
     patch: {
-      is_pinned: pinned,
-      pinned_at: pinned ? new Date().toISOString() : null,
+      pinned: pinned,
+      pinnedAt: pinned ? new Date().toISOString() : null,
     },
   })
 }

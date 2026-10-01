@@ -472,7 +472,7 @@ const filteredGroupedSessions = computed(() => {
             title: item.title || '',
         })),
         dateBucketLabels.value,
-        (session) => classifyDateBucket(session.updated_at || session.created_at),
+        (session) => classifyDateBucket(session.updatedAt || session.createdAt),
     );
 });
 
@@ -600,7 +600,7 @@ const handleSessionMenuClick = (data: { value: string }, item: any) => {
 
 const buildSessionMenuOptions = (item: any) => {
     const options: any[] = [];
-    if (item.is_pinned) {
+    if (item.pinned) {
         options.push({
             content: t('menu.unpin'),
             value: 'unpin',
@@ -624,7 +624,7 @@ const buildSessionMenuOptions = (item: any) => {
 
 const updateSessionInBuckets = (
     sessionId: string,
-    patch: Partial<{ is_pinned: boolean; pinned_at: string | null; title: string; isNoTitle?: boolean }>,
+    patch: Partial<{ pinned: boolean; pinnedAt: string | null; title: string; isNoTitle?: boolean }>,
 ) => {
     const next: Record<string, SidebarSessionBucket> = {};
     for (const [key, bucket] of Object.entries(sessionBuckets.value)) {
@@ -683,13 +683,13 @@ const mapSessionRow = (item: any) => ({
     id: item.id,
     isMore: false,
     isNoTitle: item.title ? false : true,
-    created_at: item.created_at,
-    updated_at: item.updated_at,
-    is_pinned: !!item.is_pinned,
-    pinned_at: item.pinned_at || null,
-    im_platform: item.im_platform || '',
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    pinned: !!item.pinned,
+    pinnedAt: item.pinnedAt || null,
+    imPlatform: item.imPlatform || '',
     description: item.description || '',
-    user_id: item.user_id || '',
+    userId: item.userId || '',
 });
 
 const syncMenuStoreFromBuckets = () => {
@@ -705,12 +705,12 @@ const menuChildToSessionRow = (item: Record<string, unknown>): SessionForGroupin
         id,
         path: typeof item.path === 'string' ? item.path : `chat/${id}`,
         title: typeof item.title === 'string' ? item.title : undefined,
-        is_pinned: !!item.is_pinned,
-        created_at: typeof item.created_at === 'string' ? item.created_at : undefined,
-        updated_at: typeof item.updated_at === 'string' ? item.updated_at : undefined,
-        im_platform: typeof item.im_platform === 'string' ? item.im_platform : '',
+        pinned: !!item.pinned,
+        createdAt: typeof item.createdAt === 'string' ? item.createdAt : undefined,
+        updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : undefined,
+        imPlatform: typeof item.imPlatform === 'string' ? item.imPlatform : '',
         description: typeof item.description === 'string' ? item.description : '',
-        user_id: typeof item.user_id === 'string' ? item.user_id : '',
+        userId: typeof item.userId === 'string' ? item.userId : '',
     };
 };
 
@@ -840,9 +840,9 @@ const syncActiveBucketFromChat = async (sessionId: string | undefined) => {
             // 裸对象：响应体即会话
             const candidate = originGroupKey(resolveSessionOrigin({
                 id: sessionId,
-                im_platform: res?.im_platform || '',
+                imPlatform: res?.imPlatform || '',
                 description: res?.description || '',
-                user_id: res?.user_id || '',
+                userId: res?.userId || '',
             }));
             if (sessionBuckets.value[candidate]) {
                 bucketKey = candidate;

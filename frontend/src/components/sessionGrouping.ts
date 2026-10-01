@@ -8,7 +8,7 @@ export const DEFAULT_SESSION_GROUP_MODE: SessionGroupMode = 'none'
 /** Mirrors backend types.EmbedSessionMarkerPrefix */
 export const EMBED_SESSION_MARKER_PREFIX = 'embed_channel:'
 
-/** Mirrors backend types.SessionOwnerAPITenantKeyPrefix (sessions.user_id owner). */
+/** Mirrors backend types.SessionOwnerAPITenantKeyPrefix (sessions.userId owner). */
 export const API_SESSION_OWNER_PREFIX = 'api_tenant_key:'
 
 /** Mirrors backend types.SessionOwnerAPIExternalUserPrefix. */
@@ -17,12 +17,12 @@ export const API_EXTERNAL_USER_SESSION_OWNER_PREFIX = 'api_external_user:'
 export interface SessionForGrouping {
   id: string
   title?: string
-  is_pinned?: boolean
-  created_at?: string
-  updated_at?: string
-  im_platform?: string
+  pinned?: boolean
+  createdAt?: string
+  updatedAt?: string
+  imPlatform?: string
   description?: string
-  user_id?: string
+  userId?: string
   originalIndex?: number
 }
 
@@ -88,14 +88,14 @@ export function storeGroupMode(mode: SessionGroupMode): void {
 }
 
 export function resolveSessionOrigin(session: SessionForGrouping): SessionOrigin {
-  const platform = (session.im_platform || '').trim().toLowerCase()
+  const platform = (session.imPlatform || '').trim().toLowerCase()
   if (platform) return { kind: 'im', platform }
   const desc = (session.description || '').trim()
   if (desc.startsWith(EMBED_SESSION_MARKER_PREFIX)) {
     const channelId = desc.slice(EMBED_SESSION_MARKER_PREFIX.length).trim()
     if (channelId) return { kind: 'embed', channelId }
   }
-  const ownerId = session.user_id || ''
+  const ownerId = session.userId || ''
   if (
     ownerId.startsWith(API_SESSION_OWNER_PREFIX) ||
     ownerId.startsWith(API_EXTERNAL_USER_SESSION_OWNER_PREFIX)
@@ -178,7 +178,7 @@ export function groupSessionsByDate<T extends SessionForGrouping>(
   for (const key of DATE_BUCKET_ORDER) buckets.set(key, [])
 
   for (const session of sessions) {
-    const bucket: DateBucketKey = session.is_pinned ? 'pinned' : categorize(session)
+    const bucket: DateBucketKey = session.pinned ? 'pinned' : categorize(session)
     buckets.get(bucket)!.push(session)
   }
 
@@ -202,7 +202,7 @@ export function groupSessionsBySource<T extends SessionForGrouping>(
   const byKey = new Map<string, T[]>()
 
   for (const session of sessions) {
-    if (session.is_pinned) {
+    if (session.pinned) {
       pinned.push(session)
       continue
     }
@@ -261,8 +261,8 @@ export function groupSessionsFlat<T extends SessionForGrouping>(
   sessions: T[],
   pinnedLabel: string,
 ): SessionGroup<T>[] {
-  const pinned = sessions.filter((s) => s.is_pinned)
-  const rest = sessions.filter((s) => !s.is_pinned)
+  const pinned = sessions.filter((s) => s.pinned)
+  const rest = sessions.filter((s) => !s.pinned)
   const groups: SessionGroup<T>[] = []
   if (pinned.length > 0) groups.push({ key: 'pinned', label: pinnedLabel, items: pinned })
   if (rest.length > 0) groups.push({ key: 'all', label: '', items: rest })

@@ -22,7 +22,7 @@ const sourceLabels = {
 
 test('resolveSessionOrigin distinguishes web, IM, and embed sessions', () => {
   assert.deepEqual(resolveSessionOrigin({ id: '1' }), { kind: 'web' })
-  assert.deepEqual(resolveSessionOrigin({ id: '2', im_platform: 'feishu' }), {
+  assert.deepEqual(resolveSessionOrigin({ id: '2', imPlatform: 'feishu' }), {
     kind: 'im',
     platform: 'feishu',
   })
@@ -34,11 +34,11 @@ test('resolveSessionOrigin distinguishes web, IM, and embed sessions', () => {
     { kind: 'embed', channelId: 'ch-1' },
   )
   assert.deepEqual(
-    resolveSessionOrigin({ id: '4', user_id: 'api_tenant_key:1:10' }),
+    resolveSessionOrigin({ id: '4', userId: 'api_tenant_key:1:10' }),
     { kind: 'api' },
   )
   assert.deepEqual(
-    resolveSessionOrigin({ id: '5', user_id: `${API_EXTERNAL_USER_SESSION_OWNER_PREFIX}1:alice` }),
+    resolveSessionOrigin({ id: '5', userId: `${API_EXTERNAL_USER_SESSION_OWNER_PREFIX}1:alice` }),
     { kind: 'api' },
   )
 })
@@ -56,7 +56,7 @@ test('configuredPlatforms returns distinct platform keys in first-seen order', (
 test('groupSessionsBySource orders web, configured IM, then embed channels', () => {
   const sessions = [
     { id: 'w', title: 'web chat' },
-    { id: 'f', title: 'feishu', im_platform: 'feishu' },
+    { id: 'f', title: 'feishu', imPlatform: 'feishu' },
     { id: 'e', title: 'embed', description: `${EMBED_SESSION_MARKER_PREFIX}ec-1` },
   ]
   const groups = groupSessionsBySource(sessions, sourceLabels, { 'ec-1': 'Help widget' }, ['feishu'], 'Pinned')
@@ -72,8 +72,8 @@ test('groupSessions date mode keeps pinned sessions in their own bucket', () => 
   const groups = groupSessions(
     'date',
     [
-      { id: 'p', is_pinned: true, updated_at: now },
-      { id: 't', updated_at: now },
+      { id: 'p', pinned: true, updatedAt: now },
+      { id: 't', updatedAt: now },
     ],
     {
       pinnedLabel: 'Pinned',

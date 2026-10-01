@@ -13,7 +13,7 @@
         :maxlength="SESSION_TITLE_MAX_LENGTH" @keydown.esc.prevent="cancelTitleEdit" @blur="submitTitleEdit" />
     </form>
     <span v-else class="submenu_title" :class="batchMode ? 'submenu_title--batch' : ''" :title="item.title">
-      <t-icon v-if="item.is_pinned" name="pin" class="submenu_pin_icon" />
+      <t-icon v-if="item.pinned" name="pin" class="submenu_pin_icon" />
       <span class="submenu_title-text">{{ item.title }}</span>
       <span v-if="apiOwnerTag" class="session-owner-tag" :class="`session-owner-tag--${apiOwnerTag.kind}`"
         :title="apiOwnerTag.full">{{ apiOwnerTag.label }}</span>
@@ -77,7 +77,7 @@ interface SessionMenuOption {
 type MenuMode = 'menu' | 'clear' | 'delete'
 
 const props = defineProps<{
-  item: { id: string; path: string; title: string; is_pinned?: boolean; user_id?: string }
+  item: { id: string; path: string; title: string; pinned?: boolean; userId?: string }
   batchMode: boolean
   activePath: string
   selectedIds: string[]
@@ -114,14 +114,14 @@ const menuOverlayClass = computed(() => (
  * API/渠道会话的 owner 是合成主体（api_external_user:<tenant>:<EMP_ID> /
  * api_tenant_key:<tenant>:<keyID>），不是真实账号。为方便管理员稽核"这条是谁的"，
  * 在标题旁渲染一个小徽标：外部员工会话取 sub（可读标识），平台 key 会话标 generic。
- * 普通账号会话（user_id 为空或为真实用户 UUID）不显示。
+ * 普通账号会话（userId 为空或为真实用户 UUID）不显示。
  */
 interface ApiOwnerTag { kind: 'user' | 'key'; label: string; full: string }
 const API_EXTERNAL_USER_PREFIX = 'api_external_user:'
 const API_TENANT_KEY_PREFIX = 'api_tenant_key:'
 
 const apiOwnerTag = computed<ApiOwnerTag | null>(() => {
-  const uid = props.item.user_id || ''
+  const uid = props.item.userId || ''
   if (uid.startsWith(API_EXTERNAL_USER_PREFIX)) {
     const tail = uid.slice(API_EXTERNAL_USER_PREFIX.length)
     const segments = tail.split(':').filter(Boolean)
