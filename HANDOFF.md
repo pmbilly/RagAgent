@@ -1528,6 +1528,16 @@ datasource / storage 的 scoped-key 用例）——它们的请求体与 `data.t
 3. 前端面：`api/memory/*` + 记忆设置/详情相关组件（`MemorySettings.vue` 等）；
 4. M2 的迁移要**先核对 jsonb 列**（`MemoryItem` 的字段是否落 jsonb）。
 
+**⚠️ M1 首次尝试记录（2026-10-01，已回滚，下一轮重做）**：
+首轮 M1 把改动做出来了（6+7 实体去注解、controller 去信封、204），但**测试同步阶段的批量替换再次踩了 SQL 列名坑**：
+测试文件里的 `jdbc.update("UPDATE memory_extraction_sessions SET updated_at = ? ...")` 与
+`\\"block_updated_at\\"` 形态的断言**混在同一次正则替换里**，结果列名变成 `updatedAt`
+（`BadSqlGrammarException` 立刻暴露）与 `block_updatedAt`（半转换）。
+**教训（补 §14.9j）**：批量替换的**作用域必须限定在"JSON 键"而非"任意下划线标识符"**——
+测试文件同时含 SQL、JSON 断言与 Java 标识符，正则必须按 `\\"…\\"` 转义引号 + 白名单双重约束；
+**推荐手法**：先 `git checkout` 逐文件重做，或对 fixture 用 JSON 解析（结构安全），
+对 Java 断言**逐处手改**。已回滚到干净状态（`4e5d3c3`），计划本身不变。
+
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
 
