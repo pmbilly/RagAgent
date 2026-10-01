@@ -22,10 +22,11 @@
    **memory 域契约换锚 M2 完成（2026-10-01，§14.9k）——7 个落库/内部实体 + `MemoryConfig` 去注解 60 处（memory 域 @JsonProperty 137→22，余者为 LLM 载荷并登记保留）；`tenants.memory_config` 与 `memory_subjects.extraction_state` 两处 jsonb 已跑存量迁移 SQL；前端 2 文件同批；真实服务冒烟 11 路通过**；
    **memory 域 M3 收尾完成（2026-10-01，§14.9k）——请求侧手写 `rawBody+parse()` 全部退役（三个 DTO 进 `memory/dto` + `@Valid`），错误形态统一到全局处理器；LLM 载荷 22 处登记保留；真实服务冒烟 12 路通过**；
    **memory 域 m5 切片完成（2026-10-01，§14.7.17）——`MemoryService` 965→**768**（出榜），「召回」段外提 `MemoryRecallOps` 252 行；忠实性逐字核验通过；memory 域 ≥800 仅剩 `MemoryIndexStore` 929（已登记例外）**；
-   **session 域换锚开工（2026-10-01，§14.9l）——S1a 会话实体面已完成**：`Session`/`SessionListItem`/
-   `SessionLastRequestState`/`MentionedItem` 换 camelCase + 恒输出（`is_pinned`→**`pinned`**），
-   `sessions.agent_config` 与 `messages.mentioned_items` 迁移 SQL 已备（dev 库 0 行需迁移），前端 8 文件同批；
-   **余 S1b（控制器信封/参数/请求 DTO）+ S2 消息面 + S3 附件建议 + S4 请求 DTO**；
+   **session 域 S1 完成（2026-10-01，§14.9l）——会话主资源全换锚**：实体面（`Session`/`SessionListItem`/
+   `SessionLastRequestState`/`MentionedItem` 换 camelCase + 恒输出，`is_pinned`→**`pinned`**）+
+   控制器面（请求体标准 DTO、列表 `{items,page,pageSize,total}`、置顶 `{pinned}`、产物裸数组、
+   生成标题 `{title}`、删除类与停止 **204**、查询参数 `pageSize`/`agentId`），两处 jsonb 迁移 SQL 已备
+   （dev 库 0 行需迁移）；**余 S2 消息面（最高风险，含 embed 与 9 个 jsonb 列）+ S3 附件/建议/steer + S4 请求 DTO**；
    **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**；
    **阶段 3 第二域 model 全域收官（2026-10-01，§14.9c/§14.9e）——主资源 + debug + weknoracloud + 落库 jsonb 四块换锚，`@JsonProperty` 87→0，前端 15 文件同批（首次前后端同 PR）**。
 4. **下一步（候选，由用户排）**：① **memory M3（收尾）**——LLM 载荷边界登记（22 处，写进文档即可）+
@@ -206,10 +207,10 @@
    单类：modelcontext(`SourceRegistry` 878)、auth service(`UserService` 876)、knowledge 例外 2 个；
    另登记：wiki 域 "原 ORM / 原实现" 措辞 19 文件（约 50 处，独立卫生批）、datasource 域 Go 锚点（`对照 Go` 多处，
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
-2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / 会话-消息-附件-建议-steer-knowledge-search /
-   chunker-preview / evaluation / model / system / auth（A1+A2+B）/ **memory M1（HTTP 响应面）+ M2（落库/内部 JSON 面）** 已完成（同批带前端）；
-   **memory 只剩 M3（收尾：LLM 载荷边界登记 + 请求侧 DTO 化，非契约项）**，
-   以及 **wiki / agent / mcp / session / datasource 等域的端点面**（§2 第 4 条落地范围）。
+2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
+   auth（A1+A2+B）/ **memory M1+M2+M3** / **session S1（会话主资源）** 已完成（同批带前端）；
+   **session 余 S2 消息面 / S3 附件·建议·steer / S4 请求 DTO / S5 收尾**，
+   以及 **wiki / agent / mcp / datasource 等域的端点面**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
 3. **阶段 4 其余域标准化 + 架构调整**（Gradle 多模块 + ArchUnit 边界固化等）：未开始。
@@ -1753,10 +1754,36 @@ WHERE jsonb_typeof(mentioned_items) = 'array'
   `stores/settings.ts` 的 `SessionLastRequestStatePayload`（含 mentionedItems 元素键）+ `views/chat/index.vue`
   的 `lastRequestState` 读取点；**刻意不动**：消息对象与 SSE 载荷里的 `created_at`/`session_id`（S2 范围）。
 
+**✅ S1b（会话控制器面）执行记录（2026-10-01）**：
+- **请求体**一律改标准 DTO + `@Valid`（§1.10）：新增 `session/dto/` 的 `CreateSessionRequest`/
+  `UpdateSessionRequest`/`BatchDeleteSessionsRequest`/`GenerateTitleRequest`/`StopSessionRequest`；
+  `PUT /sessions/{id}` 不再直接绑定 `Session` 实体（仓储白名单只写 title/description）；
+  手写的 `MAPPER`/`bindBody`/`parseCreateBody`/`parseSessionBody`/`parseBatchBody` 全部删除
+  ——Go 仿真文案（`EOF`、`GoJsonBindError`）退役，绑定错误由全局处理器给。
+- **响应**（§2.1）：列表 → `{items,page,pageSize,total}`（新 `SessionListResponse`，与内部 `SessionPage` 分开）；
+  置顶 → `{"pinned":bool}`（`SessionPinResponse`）；产物列表 → 裸数组（`ArtifactView`）；
+  生成标题 → `{"title":"…"}`；删除/批量删除/清空消息/停止生成 → **204**（§1.13/§1.17）；
+  旧 `{"message":…,"success":true}` 与 `artifactListItems` 的手写 Map 全部退役。
+- **查询参数**：`page_size`→`pageSize`、`agent_id`→`agentId`（§1.16）；分页门槛文案改标准中文
+  （`分页参数不合法` + `pageSize: 必须是整数/必须为正整数/超出上限`），go-playground 的 tag 文案退役。
+  保留历史语义：缺席或显式 `0` 跳过、服务层再归一化。
+- **路径变量**改名（`{session_id}`→`{sessionId}`、`{message_id}`→`{messageId}`）——**URL 本身不变**
+  （变量名只在路由模板里），前端无需改 URL。
+- **两处刻意不动**（避免混轴/半改）：① `stop` 的错误仍是纯字符串信封 `{"error":"…"}`（错误形态统一是 §14.9 第 ④ 项）；
+  ② **产物字段名仍是下划线**——同一批元数据还嵌在 `messages.artifacts`（消息面 jsonb）里，前端抽屉同时消费两处，
+  改名必须与 S2 同批（`ArtifactView` 的 `@JsonProperty` 是这个过渡的显式标记，S2 一并去掉）。
+- **跨域连带**：embed 的 stop 端点请求体键从 `message_id` 变 `messageId`（delegate/controller/前端同批改）；
+  embed 其余下划线键留给 embed 域自己的批次。
+- 夹具：8 个绑定错误夹具改写、4 个分页错误夹具改写、3 个置顶夹具改写、11 个列表夹具 `page_size`→`pageSize`、
+  3 个产物夹具去信封、`g6-title-existing` 去信封；**删除 8 个 204 类夹具**（`session-delete`/`-delete-all`/
+  `-batch-mixed`/`g6-stop-running`/`-stop-completed`/`emb-pub-stop-done`/`msg-clear`/`-clear-again`）。
+- 验收：session+embed 域绿；前端 `vue-tsc` 0 错误 + 690 用例通过；全量 `clean test` 绿 + `spotlessCheck`；
+  **真实服务冒烟 18 路通过**（列表/详情/改名/置顶/产物/生成标题/清空/删除/批量删除 + 空体 400 + 分页 400 两条）。
+
 **分批（按资源，每批自带 jsonb 迁移 + 前端 + 夹具）**：
 | 批 | 内容 | 文件（主要） | 预估 |
 |---|---|---|---|
-| **S1 会话主资源**（实体+夹具已完成；控制器信封/参数留作 S1b） | `Session` / `SessionListItem` / `SessionLastRequestState` / `MentionedItem` + `sessions.agent_config`/`messages.mentioned_items` 迁移 | `domain/Session.java`、`SessionListItem.java`；`controller/SessionController.java`；前端 `api/chat/index.ts` + `components/sessionGrouping.ts`、`SessionSidebarRow.vue`；夹具 `session-*.json`；`SessionJsonContractTest` / `SessionHttpContractTest` / `SessionQueryPagedTest` | ~55 处 |
+| **S1 会话主资源 ✅（S1a 实体面 + S1b 控制器面）** | `Session` / `SessionListItem` / `SessionLastRequestState` / `MentionedItem` + `SessionController`（求体 DTO / 信封 / 分页参数）+ 两处 jsonb 迁移 | `domain/Session.java`、`SessionListItem.java`；`controller/SessionController.java`；前端 `api/chat/index.ts` + `components/sessionGrouping.ts`、`SessionSidebarRow.vue`；夹具 `session-*.json`；`SessionJsonContractTest` / `SessionHttpContractTest` / `SessionQueryPagedTest` | ~55 处 |
 | **S2 消息主资源（最高风险）** | `Message` + 9 列 jsonb + `MessageAttachment`/`MessageImage`/`MentionedItem`/`UsedMemory`/`MessageExecutionContext`/`MessageArtifact` + 搜索/统计 + **embed 同批** | `domain/Message*.java`、`mapper/MessageMapper|MessageRepository`、`controller/MessageController.java`、`embed/controller/EmbedChannel*`、前端 `api/chat-history.ts`、`composables/useChatStreamHandler.ts`、`views/chat/index.vue`、`utils/messageTimestamp.ts`；夹具 `msg-*.json`、`emb-*.json` | ~90 处 |
 | **S3 附件 / 建议 / steer / artifacts** | `TemporaryDocument` / `MessageSuggestionSet` / `MessageSuggestionEvent` / `SuggestionItem` / `SuggestionAttribution` + 三个 controller 的手写信封（artifacts 三端点仍带 `{data,success}`；`api/message-suggestion.ts` 前端**还期待信封**） | `domain/*`、`controller/{TemporaryDocumentController,MessageSuggestionController,SteerController}.java`、前端 `api/message-suggestion.ts`、`api/chat/{steer.ts,temporary-attachments.ts}`、`utils/sessionArtifacts.ts`；夹具 `att-*/sug-*/g6-*` | ~70 处 |
 | **S4 请求面 DTO** | `dto/QaRequests.java` + `QaRequestBinder/QaRequestParser/KnowledgeQaController` 的请求体（web/IM/embed 三入口共用；**错误文案不动**） | `dto/QaRequests.java`、`controller/Qa*.java`、`im/service/ImQaRequests.java`、前端 `views/chat/index.vue` 发送段 | ~30 处 |
