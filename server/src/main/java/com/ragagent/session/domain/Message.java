@@ -9,9 +9,6 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.common.web.PgJsonTypeHandler;
 import com.ragagent.llm.domain.TokenUsage;
@@ -20,8 +17,8 @@ import com.ragagent.common.retrieval.SearchResult;
 /**
  * messages 表实体（对照 Go {@code types.Message}，internal/types/message.go L308-378）。
  *
- * <p><b>响应形态</b>：消息列表 / 单条消息接口把它塞进 {@code {"success":true,"data":...}}，
- * 所以下面是 **Go struct 声明序**，不是字母序。</p>
+ * <p><b>响应形态（§14.9l S2 换锚后）</b>：加载消息返回**裸数组** {@code [Message]}（无信封）；
+ * JSON 键名＝Java 字段名、键序＝声明序、**全部键恒输出**（§1.6：空列表写 {@code []}、缺值写 {@code null}）。</p>
  *
  * <h2>GORM 隐式行为 → Java 的等效清单（约定 §3 要求显式列出）</h2>
  * <ol>
@@ -52,12 +49,6 @@ import com.ragagent.common.retrieval.SearchResult;
  * 不出响应，子结构见 {@link MessageExecutionContext}。</p>
  */
 @TableName(value = "messages", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "session_id", "request_id", "content", "role", "knowledge_references",
-        "agent_steps", "mentioned_items", "images", "attachments", "artifacts",
-        "is_completed", "is_fallback", "agent_duration_ms", "usage", "channel", "agent_id",
-        "model_id", "knowledge_id", "used_memories", "created_at", "updated_at", "deleted_at"
-})
 public class Message {
 
     public static final String ROLE_USER = "user";
@@ -65,74 +56,53 @@ public class Message {
     public static final String ROLE_SYSTEM = "system";
 
     @TableId(value = "id", type = IdType.INPUT)
-    @JsonProperty("id")
     private String id = "";
 
-    @JsonProperty("session_id")
     private String sessionId = "";
 
     /** 追踪 API 请求用的请求 ID；同一次问答的用户/助手两条消息**共用一个**。 */
-    @JsonProperty("request_id")
     private String requestId = "";
 
-    @JsonProperty("content")
     private String content = "";
 
     /** {@code user} / {@code assistant} / {@code system}。 */
-    @JsonProperty("role")
     private String role = "";
 
-    /** 检索引用。**无 omitempty**（nil 会输出成 {@code null}）。跨模块类型见类注释。 */
+    /** 检索引用。恒输出（空列表写 {@code []}）。跨模块类型见类注释（元素键名随该域，不在本批范围）。 */
     @TableField(value = "knowledge_references", typeHandler = SearchResultListTypeHandler.class)
-    @JsonProperty("knowledge_references")
     private List<SearchResult> knowledgeReferences = new ArrayList<>();
 
     /** agent 执行步骤。跨模块类型见类注释。 */
     @TableField(value = "agent_steps", typeHandler = AgentStepListTypeHandler.class)
-    @JsonProperty("agent_steps")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<AgentStep> agentSteps = new ArrayList<>();
 
     /** 用户消息里 @ 到的知识库/文件等。 */
     @TableField(value = "mentioned_items", typeHandler = MentionedItemListTypeHandler.class)
-    @JsonProperty("mentioned_items")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<MentionedItem> mentionedItems = new ArrayList<>();
 
     @TableField(value = "images", typeHandler = MessageImageListTypeHandler.class)
-    @JsonProperty("images")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<MessageImage> images = new ArrayList<>();
 
     @TableField(value = "attachments", typeHandler = MessageAttachmentListTypeHandler.class)
-    @JsonProperty("attachments")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<MessageAttachment> attachments = new ArrayList<>();
 
     /** skill 产出、由 ArtifactCollector 在沙箱结束后回填（仅助手消息）。 */
     @TableField(value = "artifacts", typeHandler = MessageArtifactListTypeHandler.class)
-    @JsonProperty("artifacts")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<MessageArtifact> artifacts = new ArrayList<>();
 
     /**
-     * 是否生成完毕。**无 omitempty**：恒输出。
+     * 是否生成完毕。恒输出（线格式键是 {@code completed}，§1.24 不带 is 前缀）。
      *
      * <p>字段名不带 {@code is} 前缀——理由见 {@link Session} 上同名字段的注释。</p>
      */
     @TableField("is_completed")
-    @JsonProperty("is_completed")
     private boolean completed;
 
-    /** 是否兜底回答（没匹配到知识库）。omitempty → 省略 false。 */
+    /** 是否兜底回答（没匹配到知识库）。恒输出（键 {@code fallback}）。 */
     @TableField("is_fallback")
-    @JsonProperty("is_fallback")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean fallback;
 
-    /** 从发起查询到答案开始的耗时（毫秒）。omitempty + 列默认 0 → NON_DEFAULT。 */
-    @JsonProperty("agent_duration_ms")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    /** 从发起查询到答案开始的耗时（毫秒）。恒输出（0 也写）。 */
     private long agentDurationMs;
 
     /**
@@ -140,8 +110,6 @@ public class Message {
      * 仍能归因成本；用户消息与旧数据行为 null。
      */
     @TableField(value = "usage", typeHandler = PgJsonTypeHandler.class)
-    @JsonProperty("usage")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private TokenUsage usage;
 
     /** 发给 LLM 的完整 RAG 增强正文（带检索上下文）。**不进 JSON**，只落库。 */
@@ -150,13 +118,9 @@ public class Message {
     private String renderedContent = "";
 
     /** 消息来源渠道：{@code web} / {@code api} / {@code im}。 */
-    @JsonProperty("channel")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String channel;
 
     /** 本轮用的 agent。与 session 的 last_request_state 不同，它不随用户切换 agent 而变。 */
-    @JsonProperty("agent_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String agentId;
 
     /** 解析共享 agent 的模型/知识库所用的有效租户。**刻意不进 JSON**。 */
@@ -165,8 +129,6 @@ public class Message {
     private long agentTenantId;
 
     /** 本轮请求/生效的对话模型。 */
-    @JsonProperty("model_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String modelId;
 
     /** 本轮的机密无关作用域快照，供流结束后派生追问建议。**不进 JSON**。 */
@@ -175,23 +137,16 @@ public class Message {
     private MessageExecutionContext executionContext;
 
     /** 指向聊天历史知识库里的 Knowledge 条目（用于向量检索）。 */
-    @JsonProperty("knowledge_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String knowledgeId;
 
     /** 注入到本回答的长期记忆，供 UI 展示与就地删除。 */
     @TableField(value = "used_memories", typeHandler = UsedMemoryListTypeHandler.class)
-    @JsonProperty("used_memories")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<UsedMemory> usedMemories;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
 
-    @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
     public Message() {

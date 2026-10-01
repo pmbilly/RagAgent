@@ -2,8 +2,6 @@ package com.ragagent.session.domain;
 
 import java.time.OffsetDateTime;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
@@ -11,40 +9,28 @@ import com.ragagent.common.web.GoDoubleSerializer;
  * types/message.go L531-550）。
  *
  * <p><b>响应体形态</b>：{@code POST /messages/search} 的 data.items 元素就是本类型，
- * 所以键序按 Go struct 声明序（不是字母序，§9 的键序规则）。</p>
+ * 换锚后键名＝Java 字段名、键序＝声明序（§14.9l S2）。</p>
  *
  * <p><b>score 必须挂 {@link GoDoubleSerializer}</b>（逐字段，勿全局注册——§9.2）：
  * Go 的 float64 最短表示输出 {@code 1} 而不是 {@code 1.0}；关键词路径的分值是
  * {@code (n-i)/n}，单个结果时正好是 {@code 1}，Java 的裸 double 会写成 {@code 1.0}。</p>
  */
-@JsonPropertyOrder({
-        "request_id", "session_id", "session_title", "query_content",
-        "answer_content", "score", "match_type", "created_at"
-})
 public class MessageSearchGroupItem {
 
-    @JsonProperty("request_id")
     private String requestId = "";
 
-    @JsonProperty("session_id")
     private String sessionId = "";
 
-    @JsonProperty("session_title")
     private String sessionTitle = "";
 
-    @JsonProperty("query_content")
     private String queryContent = "";
 
-    @JsonProperty("answer_content")
     private String answerContent = "";
 
-    @JsonProperty("score")
     private double score;
 
-    @JsonProperty("match_type")
     private String matchType = "";
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
     public String getRequestId() {

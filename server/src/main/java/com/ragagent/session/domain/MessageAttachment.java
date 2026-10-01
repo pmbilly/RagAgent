@@ -2,9 +2,6 @@ package com.ragagent.session.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 消息上的文件附件（对照 Go {@code types.MessageAttachment}，
@@ -19,65 +16,41 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * <p><b>字段名不带 {@code is} 前缀</b>（{@code truncated} 而非 {@code isTruncated}）——
  * 理由见 {@link Session} 上同名字段的注释：Jackson 会因字段与 getter 的隐式名不一致而多吐键。</p>
  *
- * <p>omitempty 的处置：{@code file_size}/{@code line_count}/{@code token_count}/
- * {@code selected_chunks}/{@code total_chunks} 是数值，Go 的 omitempty 会省掉 0，
+ * <p>零值语义（§1.6 禁止条件键）：数值字段 {@code fileSize}/{@code lineCount}/{@code tokenCount}/
+ * {@code selectedChunks}/{@code totalChunks} 的 0 也照写（旧 Go 的 omitempty 已退役），
  * 用 NON_DEFAULT。</p>
  */
-@JsonPropertyOrder({
-        "id", "file_name", "file_type", "file_size", "content", "is_truncated",
-        "line_count", "content_mode", "token_count", "selected_chunks", "total_chunks"
-})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MessageAttachment {
 
     /** 会话级上传的临时文档 ID。 */
-    @JsonProperty("id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String id;
 
     /** 内部存储句柄（{@code provider://path} / {@code resource://...}）。见类注释。 */
     @JsonIgnore
     private String url;
 
-    @JsonProperty("file_name")
     private String fileName = "";
 
     /** 扩展名，如 {@code .pdf} / {@code .docx}。 */
-    @JsonProperty("file_type")
     private String fileType = "";
 
-    @JsonProperty("file_size")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private long fileSize;
 
     /** 小文本文件抽出来的正文。 */
-    @JsonProperty("content")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String content;
 
-    @JsonProperty("is_truncated")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean truncated;
 
-    @JsonProperty("line_count")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int lineCount;
 
     /** {@code full} 或 {@code selected_chunks}。 */
-    @JsonProperty("content_mode")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String contentMode;
 
-    @JsonProperty("token_count")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int tokenCount;
 
-    @JsonProperty("selected_chunks")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int selectedChunks;
 
-    @JsonProperty("total_chunks")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int totalChunks;
 
     public MessageAttachment() {

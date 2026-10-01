@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"Invalid time format, please use RFC3339 or RFC3339Nano format"},"success":false}
+{"error":{"code":1000,"details":null,"message":"beforeTime: 必须是 RFC3339 时间"},"success":false}

@@ -183,7 +183,7 @@ class MessageHttpContractTest {
     @Test
     void loadBeforeTimeMatchesGo() throws Exception {
         MvcResult r = perform(get("/api/v1/messages/" + sid + "/load")
-                .queryParam("before_time", "2026-09-18T17:30:30+08:00")
+                .queryParam("beforeTime", "2026-09-18T17:30:30+08:00")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("msg-load-before.json")), mask(raw(r)));
@@ -193,7 +193,7 @@ class MessageHttpContractTest {
     @Test
     void loadBeforeTimeBoundaryIsEmpty() throws Exception {
         MvcResult r = perform(get("/api/v1/messages/" + sid + "/load")
-                .queryParam("before_time", "2026-09-18T17:30:00+08:00")
+                .queryParam("beforeTime", "2026-09-18T17:30:00+08:00")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("msg-load-before-empty.json"), raw(r));
@@ -201,7 +201,7 @@ class MessageHttpContractTest {
 
     @Test
     void loadBadBeforeTimeIsBadRequest() throws Exception {
-        MvcResult r = perform(get("/api/v1/messages/" + sid + "/load?before_time=notatime")
+        MvcResult r = perform(get("/api/v1/messages/" + sid + "/load?beforeTime=notatime")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("msg-load-before-bad.json"), raw(r));
@@ -209,7 +209,7 @@ class MessageHttpContractTest {
 
     @Test
     void loadBogusResourceUrlsIsBadRequest() throws Exception {
-        MvcResult r = perform(get("/api/v1/messages/" + sid + "/load?resource_urls=bogus")
+        MvcResult r = perform(get("/api/v1/messages/" + sid + "/load?resourceUrls=bogus")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("msg-load-urls-bogus.json"), raw(r));
@@ -218,7 +218,7 @@ class MessageHttpContractTest {
     /** public 模式：本组数据没有 resource:// 引用，重写是 no-op（200 原样）。 */
     @Test
     void loadPublicModeMatchesGo() throws Exception {
-        MvcResult r = perform(get("/api/v1/messages/" + sid + "/load?resource_urls=public")
+        MvcResult r = perform(get("/api/v1/messages/" + sid + "/load?resourceUrls=public")
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertEquals(mask(golden("msg-load-urls-public.json")), mask(raw(r)));
@@ -322,8 +322,9 @@ class MessageHttpContractTest {
     void deleteMessageMatchesGo() throws Exception {
         MvcResult r = perform(delete("/api/v1/messages/" + sid + "/" + M3)
                 .header("Authorization", bearer));
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
-        assertEquals(golden("msg-delete.json"), raw(r));
+        // 同步删除 → 204（§1.13；旧 {"message":…,"success":true} 退役）
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
+        assertEquals("", raw(r), "204 必须无响应体");
 
         MvcResult load = perform(get("/api/v1/messages/" + sid + "/load")
                 .header("Authorization", bearer));

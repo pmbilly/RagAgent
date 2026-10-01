@@ -2,7 +2,6 @@ package com.ragagent.session.dto;
 
 import java.time.OffsetDateTime;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ragagent.session.domain.MessageArtifact;
 
 /**
@@ -14,20 +13,18 @@ import com.ragagent.session.domain.MessageArtifact;
  * <p>{@code createdAt}/{@code modTime} 都是可空时间：Go 用指针，未取到就是 {@code null}
  * （§1.5 显式 null）。</p>
  *
- * <p>⚠️ <b>过渡期</b>：线格式键名暂时仍是下划线，因为同一批产物元数据还出现在
- * {@code messages.artifacts}（消息面的 jsonb，{@link MessageArtifact}）里，前端抽屉同时消费两处
- * ——改名必须与消息面同批（§14.9l S2），否则前端会拿到两种形状。S2 落地时把这里的
- * {@code @JsonProperty} 一并去掉。</p>
+ * <p>键名＝Java 字段名（camelCase）：S2 已把消息面 {@code messages.artifacts} 里的
+ * {@link MessageArtifact} 一并换锚，前端抽屉消费的两处形状一致（§14.9l S1b 的过渡标记已摘除）。</p>
  */
 public record ArtifactView(
         int index,
         String handle,
-        @JsonProperty("file_name") String fileName,
-        @JsonProperty("file_type") String fileType,
-        @JsonProperty("file_size") long fileSize,
-        @JsonProperty("source_path") String sourcePath,
-        @JsonProperty("mod_time") OffsetDateTime modTime,
-        @JsonProperty("created_at") OffsetDateTime createdAt) {
+        String fileName,
+        String fileType,
+        long fileSize,
+        String sourcePath,
+        OffsetDateTime modTime,
+        OffsetDateTime createdAt) {
 
     /**
      * 对照 Go {@code artifactListItem}：{@code index} 是**列表下标**（不是产物自己的 id），

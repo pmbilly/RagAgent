@@ -24,7 +24,8 @@ import com.ragagent.session.domain.UsedMemory;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link Message} 响应体的 JSON 键序、键集与"不该泄漏的字段"——期望值实测 Go 得出。
+ * {@link Message} 响应体的 JSON 键序、键集与"不该泄漏的字段"（§14.9l S2 换锚后：
+ * 键名＝Java 字段名、键序＝声明序、全部键恒输出）。
  *
  * <p>用 Jackson 的 {@code fieldNames()} 取**顶层**键序（而不是正则）：正则会把嵌套对象的键
  * 也一并捞进来，口径容易和 Go 那边对不齐，反而不稳。</p>
@@ -34,31 +35,22 @@ class MessageJsonContractTest {
     private static final OffsetDateTime TS =
             OffsetDateTime.of(2026, 9, 18, 10, 30, 0, 0, ZoneOffset.ofHours(8));
 
-    @Test
-    void topLevelKeyOrderMatchesGo() {
-        // Go 实测：
-        // id session_id request_id content role knowledge_references agent_steps mentioned_items
-        // images attachments artifacts is_completed is_fallback agent_duration_ms usage
-        // channel agent_id model_id knowledge_id used_memories created_at updated_at deleted_at
-        assertEquals(List.of(
-                "id", "session_id", "request_id", "content", "role", "knowledge_references",
-                "agent_steps", "mentioned_items", "images", "attachments", "artifacts",
-                "is_completed", "is_fallback", "agent_duration_ms", "usage", "channel", "agent_id",
-                "model_id", "knowledge_id", "used_memories", "created_at", "updated_at",
-                "deleted_at"),
-                fieldNames(json(fullMessage())));
-    }
+    /** 23 个键、声明序（§14.9l S2 换锚后键名＝Java 字段名、全部恒输出）。 */
+    private static final List<String> KEY_ORDER = List.of(
+            "id", "sessionId", "requestId", "content", "role", "knowledgeReferences",
+            "agentSteps", "mentionedItems", "images", "attachments", "artifacts",
+            "completed", "fallback", "agentDurationMs", "usage", "channel", "agentId",
+            "modelId", "knowledgeId", "usedMemories", "createdAt", "updatedAt", "deletedAt");
 
     @Test
-    void emptyMessageKeepsOnlyTheAlwaysOutputKeys() {
-        // Go 实测（全空实例）：id session_id request_id content role knowledge_references
-        //                     is_completed created_at updated_at deleted_at
-        // 注意 knowledge_references **没有 omitempty**，空也要占位。
-        Message m = new Message();
-        assertEquals(List.of(
-                "id", "session_id", "request_id", "content", "role", "knowledge_references",
-                "is_completed", "created_at", "updated_at", "deleted_at"),
-                fieldNames(json(m)));
+    void topLevelKeyOrderMatchesDeclaration() {
+        assertEquals(KEY_ORDER, fieldNames(json(fullMessage())));
+    }
+
+    /** 换锚后没有条件键：全空实例也输出全部 23 个键（空列表写 {@code []}、缺值写 {@code null}）。 */
+    @Test
+    void emptyMessageStillEmitsEveryKey() {
+        assertEquals(KEY_ORDER, fieldNames(json(new Message())));
     }
 
     @Test
@@ -78,17 +70,18 @@ class MessageJsonContractTest {
         assertFalse(out.contains("exec-ctx"), "execution_context 泄漏: " + out);
     }
 
+    /** 同 {@code Session.pinned} 那类坑：布尔字段不带 {@code is} 前缀，且只出一个键。 */
     @Test
-    void attachmentBooleanFieldEmitsTheGoSnakeCaseKeyOnly() {
-        // 同 Session.is_pinned 那类坑：字段名不带 is 前缀
+    void attachmentBooleanFieldEmitsOneKeyOnly() {
         MessageAttachment a = new MessageAttachment();
         a.setFileName("f.pdf");
         a.setFileSize(10);
         a.setTruncated(true);
 
         String out = json(a);
-        assertTrue(out.contains("\"is_truncated\":true"), out);
-        assertFalse(out.contains("\"truncated\""), "多吐了驼峰重复键: " + out);
+        assertTrue(out.contains("\"truncated\":true"), out);
+        assertFalse(out.contains("\"isTruncated\""), "多吐了重复键: " + out);
+        assertFalse(out.contains("\"is_truncated\""), "旧下划线键不该出现: " + out);
     }
 
     // ── 构造 ────────────────────────────────────────────────────────────────

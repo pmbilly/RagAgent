@@ -48,11 +48,11 @@ class SessionG6ContractTest {
     private static final String A3 = "fff00001-0000-0000-0000-000000000003";
 
     private static final String ARTIFACT_JSON =
-            "[{\"url\":\"resource://abcdefghijklmnopqrstuv\",\"file_name\":\"report.pdf\","
-                    + "\"file_type\":\"pdf\",\"file_size\":1234,"
-                    + "\"source_path\":\"/tmp/report.pdf\","
-                    + "\"mod_time\":\"2026-09-18T21:00:00+08:00\","
-                    + "\"created_at\":\"2026-09-18T21:00:00+08:00\"}]";
+            "[{\"url\":\"resource://abcdefghijklmnopqrstuv\",\"fileName\":\"report.pdf\","
+                    + "\"fileType\":\"pdf\",\"fileSize\":1234,"
+                    + "\"sourcePath\":\"/tmp/report.pdf\","
+                    + "\"modTime\":\"2026-09-18T21:00:00+08:00\","
+                    + "\"createdAt\":\"2026-09-18T21:00:00+08:00\"}]";
 
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
     private static final Pattern UUID_VALUE = Pattern.compile(

@@ -2,20 +2,16 @@ package com.ragagent.session.controller;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageNotFoundException;
 import com.ragagent.session.domain.MessageSearchResult;
 import com.ragagent.session.domain.SessionNotFoundException;
+import com.ragagent.session.dto.SearchMessagesRequest;
 import com.ragagent.session.service.MessageService;
 import com.ragagent.storage.support.FileService;
 import com.ragagent.storage.support.Mode;
@@ -24,6 +20,7 @@ import com.ragagent.storage.support.ResourceModeException;
 import com.ragagent.session.support.MessageReferenceRewriter;
 import com.ragagent.storage.support.Rewriter;
 import com.ragagent.storage.support.StorageBackendResolver;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -40,31 +37,29 @@ import org.springframework.web.bind.annotation.RestController;
  * 消息 HTTP 层（对照 Go {@code internal/handler/message.go}，路由对照
  * {@code routes_chat.go} RegisterMessageRoutes L28-31 的 4 条）。
  *
- * <h2>响应形态：gin.H = map = 键按字母序</h2>
+ * <h2>响应形态（§14.9l S2 换锚后，§2.1）</h2>
  * <ul>
- *   <li>load / search / stats：{@code {"data":…,"success":true}}</li>
- *   <li>删除：{@code {"message":"Message deleted successfully","success":true}}</li>
+ *   <li>load → 裸 {@code [Message]}；search → 裸 {@link MessageSearchResult}；
+ *       stats → 裸 {@code ChatHistoryKbStats}；</li>
+ *   <li>删除 → <b>204</b>（§1.13；旧 {@code {"message":…,"success":true}} 退役）。</li>
  * </ul>
  *
  * <h2>错误门槛（逐条对照 Go handler）</h2>
  * <ul>
- *   <li>{@code resource_urls} 非法：public 拒绝 → 403，其他坏值 → 400；</li>
+ *   <li>{@code resourceUrls} 非法：public 拒绝 → 403，其他坏值 → 400；</li>
  *   <li>{@code limit} 非整数**容错**回落 20（Go 的 Atoi 失败 → 默认值，不是 400）；</li>
- *   <li>{@code before_time} 解析失败 → 400 固定文案；</li>
+ *   <li>{@code beforeTime} 解析失败 → 400（中文文案，不再是 Go 的英文固定串）；</li>
  *   <li>会话不可见 → 404 "session not found"；消息不存在 → 404 "record not found"
  *       （Go 透传 gorm.ErrRecordNotFound 的原文，两个 404 文案**不同**）；</li>
- *   <li>搜索 query 缺失/为空 → 400（binding required 的 validator 文案——handler 里
- *       那句 "Query content cannot be empty" 实际不可达，Go 的死代码）。</li>
+ *   <li>搜索 {@code query} 缺失/为空 → 400 {@code query: 不能为空}（DTO 上的 {@code @NotBlank}，
+ *       取代 Go validator 的 tag 文案——handler 里那句 "Query content cannot be empty"
+ *       在 Go 里就不可达）。</li>
  * </ul>
  */
 @RestController
 public class MessageController {
 
     private static final Logger log = LoggerFactory.getLogger(MessageController.class);
-
-    /** 请求体解析器：忽略未知字段（Go encoding/json 默认语义，同 SessionController）。 */
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 对照 Go {@code gorm.ErrRecordNotFound.Error()}——消息不存在时 404 的文案。 */
     private static final String RECORD_NOT_FOUND = "record not found";
@@ -95,12 +90,12 @@ public class MessageController {
      * {@code strconv.Atoi} 失败 → Warnf + 默认值），与分页那套 strconv 400 不同；
      * 且 limit 在 Go 里也过 {@code SanitizeForLog}。</p>
      */
-    @GetMapping("/api/v1/messages/{session_id}/load")
-    public ResponseEntity<List<com.ragagent.session.domain.Message>> loadMessages(
-            @PathVariable("session_id") String sessionId,
+    @GetMapping("/api/v1/messages/{sessionId}/load")
+    public ResponseEntity<List<Message>> loadMessages(
+            @PathVariable("sessionId") String sessionId,
             @RequestParam(name = "limit", required = false) String limit,
-            @RequestParam(name = "before_time", required = false) String beforeTime,
-            @RequestParam(name = "resource_urls", required = false) String resourceUrls) {
+            @RequestParam(name = "beforeTime", required = false) String beforeTime,
+            @RequestParam(name = "resourceUrls", required = false) String resourceUrls) {
         String sid = LogSanitizer.sanitize(sessionId);
 
         Rewriter rewriter = resolveResourceRewriter(resourceUrls);
@@ -148,15 +143,19 @@ public class MessageController {
      */
     private static OffsetDateTime parseBeforeTime(String raw) {
         if (raw == null || raw.isBlank()) {
-            throw new BizException(AppError.badRequest(
-                    "Invalid time format, please use RFC3339 or RFC3339Nano format"));
+            throw beforeTimeError();
         }
         try {
             return OffsetDateTime.parse(raw.trim());
         } catch (DateTimeParseException e) {
-            throw new BizException(AppError.badRequest(
-                    "Invalid time format, please use RFC3339 or RFC3339Nano format"));
+            throw beforeTimeError();
         }
+    }
+
+    /** 游标时间格式错的固定文案（RFC3339 / RFC3339Nano 都收）。 */
+    private static BizException beforeTimeError() {
+        return new BizException(
+                AppError.badRequest("beforeTime: 必须是 RFC3339 时间"));
     }
 
     // ══════════════════════════ 删除消息 ══════════════════════════
@@ -165,9 +164,9 @@ public class MessageController {
      * 对照 Go {@code DeleteMessage}（L193-233）。两个 404 文案**刻意不同**：
      * 会话不可见是 "session not found"；消息不存在是 gorm 的原文 "record not found"。
      */
-    @DeleteMapping("/api/v1/messages/{session_id}/{id}")
-    public ResponseEntity<Map<String, Object>> deleteMessage(
-            @PathVariable("session_id") String sessionId,
+    @DeleteMapping("/api/v1/messages/{sessionId}/{id}")
+    public ResponseEntity<Void> deleteMessage(
+            @PathVariable("sessionId") String sessionId,
             @PathVariable("id") String messageId) {
         String sid = LogSanitizer.sanitize(sessionId);
         String mid = LogSanitizer.sanitize(messageId);
@@ -182,10 +181,7 @@ public class MessageController {
         } catch (RuntimeException e) {
             throw toInternal(e);
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("message", "Message deleted successfully");
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.noContent().build();
     }
 
     // ══════════════════════════ 搜索 ══════════════════════════
@@ -200,15 +196,7 @@ public class MessageController {
      */
     @PostMapping("/api/v1/messages/search")
     public ResponseEntity<MessageSearchResult> searchMessages(
-            @RequestBody(required = false) String rawBody) {
-        SearchMessagesRequest request = bindBody(rawBody);
-        if (request.query() == null || request.query().isEmpty()) {
-            // 对照 gin validator 的 required tag 原文（binding 层拒绝）
-            throw new BizException(AppError.badRequest(
-                    "Key: 'SearchMessagesRequest.Query' Error:Field validation for 'Query' "
-                            + "failed on the 'required' tag"));
-        }
-
+            @RequestBody @Valid SearchMessagesRequest request) {
         MessageSearchResult result;
         try {
             result = messageService.searchMessages(
@@ -221,26 +209,6 @@ public class MessageController {
         }
 
         return ResponseEntity.ok(result);
-    }
-
-    /** 对照 Go {@code SearchMessagesRequest}（L290-299）；线格式 = Java 字段名。 */
-    private record SearchMessagesRequest(
-            String query,
-            String mode,
-            Integer limit,
-            List<String> sessionIds) {
-    }
-
-    private SearchMessagesRequest bindBody(String rawBody) {
-        if (rawBody == null || rawBody.isBlank()) {
-            throw new BizException(AppError.badRequest("EOF"));
-        }
-        try {
-            return MAPPER.readValue(rawBody, SearchMessagesRequest.class);
-        } catch (Exception e) {
-            throw new BizException(AppError.badRequest(
-                    GoJsonBindError.message(rawBody, e.getMessage())));
-        }
     }
 
     // ══════════════════════════ 聊天历史统计 ══════════════════════════

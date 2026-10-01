@@ -209,7 +209,7 @@
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
    auth（A1+A2+B）/ **memory M1+M2+M3** / **session S1（会话主资源）** 已完成（同批带前端）；
-   **session 余 S2 消息面 / S3 附件·建议·steer / S4 请求 DTO / S5 收尾**，
+   **session 余 S2 的「前端同批」（下一轮第一件事，见下）/ S3 附件·建议·steer / S4 请求 DTO / S5 收尾**，
    以及 **wiki / agent / mcp / datasource 等域的端点面**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
@@ -1780,11 +1780,66 @@ WHERE jsonb_typeof(mentioned_items) = 'array'
 - 验收：session+embed 域绿；前端 `vue-tsc` 0 错误 + 690 用例通过；全量 `clean test` 绿 + `spotlessCheck`；
   **真实服务冒烟 18 路通过**（列表/详情/改名/置顶/产物/生成标题/清空/删除/批量删除 + 空体 400 + 分页 400 两条）。
 
+**🟡 S2（消息面）执行记录（2026-10-01）——后端已交付，⚠️ 前端同批待补**：
+- **实体**：`Message`（23 处）/`MessageAttachment`（20）/`MessageImage`（3）/`UsedMemory`（3）/
+  `MessageArtifact`（7）/`MessageSearchResult`（2）/`MessageSearchGroupItem`（8）/`ChatHistoryKbStats`（9）
+  去键名映射 → 键名＝Java 字段名、全部键恒输出（§1.6）。两个键名决策：`is_completed`→**`completed`**、
+  `is_fallback`→**`fallback`**（§1.24，与 S1a 的 `pinned` 同款）；`MessageAttachment.truncated` 的线格式
+  从 `is_truncated` 回到字段名 `truncated`。
+- **按 §1.19「jsonb 保持不透明」保留的三处**（登记，不做改名）：`knowledge_references`（元素是检索域
+  `SearchResult`）、`agent_steps`（元素是 agent 域 `AgentStep`）、`usage`（llm 域 `TokenUsage`）；
+  另有 `execution_context`（`MessageExecutionContext`，`@JsonIgnore` 不出响应）。
+- **控制器**（`MessageController`）：load → 裸数组、search → 裸 `MessageSearchResult`、stats → 裸对象；
+  删除消息 → **204**；路径变量 `{sessionId}`、查询参数 `beforeTime`/`resourceUrls`（§1.16）；
+  搜索请求体改 DTO + `@NotBlank(query)`（Go validator 文案退役）；`beforeTime` 解析失败文案改中文；
+  手写 `MAPPER`/`bindBody` 删除。
+- **产物面解锁**：`ArtifactView` 的过渡 `@JsonProperty` 已摘除（S1b 登记的过渡项），产物字段终为 camelCase。
+- **存量迁移 SQL**（dev 库 **0 行**需迁移——`messages` 表当前为空；表达式已用合成数据验证）：
+```sql
+-- messages.attachments：数组元素键改名（8 个键）
+UPDATE messages SET attachments = (
+  SELECT coalesce(jsonb_agg(
+    (SELECT jsonb_object_agg(
+       CASE m.key WHEN 'file_name' THEN 'fileName' WHEN 'file_type' THEN 'fileType'
+                  WHEN 'file_size' THEN 'fileSize' WHEN 'line_count' THEN 'lineCount'
+                  WHEN 'content_mode' THEN 'contentMode' WHEN 'token_count' THEN 'tokenCount'
+                  WHEN 'selected_chunks' THEN 'selectedChunks'
+                  WHEN 'total_chunks' THEN 'totalChunks' ELSE m.key END, m.value)
+     FROM jsonb_each(el) m)), '[]'::jsonb)
+  FROM jsonb_array_elements(attachments) el)
+WHERE jsonb_typeof(attachments) = 'array'
+  AND EXISTS (SELECT 1 FROM jsonb_array_elements(attachments) el
+              WHERE el ?| array['file_name','file_type','file_size','line_count',
+                                 'content_mode','token_count','selected_chunks','total_chunks']);
+
+-- messages.artifacts：数组元素键改名（6 个键）
+UPDATE messages SET artifacts = (
+  SELECT coalesce(jsonb_agg(
+    (SELECT jsonb_object_agg(
+       CASE m.key WHEN 'file_name' THEN 'fileName' WHEN 'file_type' THEN 'fileType'
+                  WHEN 'file_size' THEN 'fileSize' WHEN 'source_path' THEN 'sourcePath'
+                  WHEN 'mod_time' THEN 'modTime' WHEN 'created_at' THEN 'createdAt'
+                  ELSE m.key END, m.value)
+     FROM jsonb_each(el) m)), '[]'::jsonb)
+  FROM jsonb_array_elements(artifacts) el)
+WHERE jsonb_typeof(artifacts) = 'array'
+  AND EXISTS (SELECT 1 FROM jsonb_array_elements(artifacts) el
+              WHERE el ?| array['file_name','file_type','file_size','source_path',
+                                 'mod_time','created_at']);
+```
+（`messages.mentioned_items` 的迁移在 S1a 已给，`images`/`used_memories` 无键名变化，不需迁移。）
+- **⚠️ 前端同批尚未落地（下一轮第一件事）**：`frontend/src` 里消息面字段仍是下划线（约 **223 处 / 20+ 文件**，
+  含 `composables/useChatStreamHandler.ts`、`views/chat/index.vue`、`utils/{messageTimestamp,sessionArtifacts,rag-pipeline-history}.ts`、
+  `api/chat-history.ts`、`api/embed/index.ts`、`components/ChatArtifactsDrawer.vue` 等）。**在补齐之前：
+  历史消息的渲染会不一致（引用/步骤/时间戳/记忆行读不到）**——别在这一步做 UI 走查。
+  注意甄别：SSE 载荷里的 `session_id`/`created_at`/`response_type` 属**冻结的线协议**（§14.9l 前提判定 2），
+  只有"从 REST 消息对象上读"的那些字段才改。
+
 **分批（按资源，每批自带 jsonb 迁移 + 前端 + 夹具）**：
 | 批 | 内容 | 文件（主要） | 预估 |
 |---|---|---|---|
 | **S1 会话主资源 ✅（S1a 实体面 + S1b 控制器面）** | `Session` / `SessionListItem` / `SessionLastRequestState` / `MentionedItem` + `SessionController`（求体 DTO / 信封 / 分页参数）+ 两处 jsonb 迁移 | `domain/Session.java`、`SessionListItem.java`；`controller/SessionController.java`；前端 `api/chat/index.ts` + `components/sessionGrouping.ts`、`SessionSidebarRow.vue`；夹具 `session-*.json`；`SessionJsonContractTest` / `SessionHttpContractTest` / `SessionQueryPagedTest` | ~55 处 |
-| **S2 消息主资源（最高风险）** | `Message` + 9 列 jsonb + `MessageAttachment`/`MessageImage`/`MentionedItem`/`UsedMemory`/`MessageExecutionContext`/`MessageArtifact` + 搜索/统计 + **embed 同批** | `domain/Message*.java`、`mapper/MessageMapper|MessageRepository`、`controller/MessageController.java`、`embed/controller/EmbedChannel*`、前端 `api/chat-history.ts`、`composables/useChatStreamHandler.ts`、`views/chat/index.vue`、`utils/messageTimestamp.ts`；夹具 `msg-*.json`、`emb-*.json` | ~90 处 |
+| **S2 消息主资源（最高风险）🟡 后端已交付，前端待补** | `Message` + 9 列 jsonb + `MessageAttachment`/`MessageImage`/`MentionedItem`/`UsedMemory`/`MessageExecutionContext`/`MessageArtifact` + 搜索/统计 + **embed 同批** | `domain/Message*.java`、`mapper/MessageMapper|MessageRepository`、`controller/MessageController.java`、`embed/controller/EmbedChannel*`、前端 `api/chat-history.ts`、`composables/useChatStreamHandler.ts`、`views/chat/index.vue`、`utils/messageTimestamp.ts`；夹具 `msg-*.json`、`emb-*.json` | ~90 处 |
 | **S3 附件 / 建议 / steer / artifacts** | `TemporaryDocument` / `MessageSuggestionSet` / `MessageSuggestionEvent` / `SuggestionItem` / `SuggestionAttribution` + 三个 controller 的手写信封（artifacts 三端点仍带 `{data,success}`；`api/message-suggestion.ts` 前端**还期待信封**） | `domain/*`、`controller/{TemporaryDocumentController,MessageSuggestionController,SteerController}.java`、前端 `api/message-suggestion.ts`、`api/chat/{steer.ts,temporary-attachments.ts}`、`utils/sessionArtifacts.ts`；夹具 `att-*/sug-*/g6-*` | ~70 处 |
 | **S4 请求面 DTO** | `dto/QaRequests.java` + `QaRequestBinder/QaRequestParser/KnowledgeQaController` 的请求体（web/IM/embed 三入口共用；**错误文案不动**） | `dto/QaRequests.java`、`controller/Qa*.java`、`im/service/ImQaRequests.java`、前端 `views/chat/index.vue` 发送段 | ~30 处 |
 | **S5 收尾** | `SessionLastRequestState`（agent_config 遗留载荷）+ 各 TypeHandler 挂载点 + 边界登记（SSE / `SuggestionItem` 的 LLM 解析面）+ 残留核对 | — | 收尾 |
