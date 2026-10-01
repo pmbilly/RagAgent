@@ -61,27 +61,28 @@ final class EmbedChannelMgmtOps {
         input.setLauncherIcon(EmbedChannelController.orEmpty(req.launcherIcon()));
         try {
             EmbedChannelEntity ch = ctrl.service.create(EmbedChannelController.currentTenant(), LogSanitizer.sanitize(agentId), input);
-            return ResponseEntity.status(201).body(EmbedChannelController.dataEnvelope(EmbedChannelController.row(ch, true)));
+            // 201 + 裸对象（§1.15 / §2.1）
+            return ResponseEntity.status(201).body(EmbedChannelController.row(ch, true));
         } catch (EmbedError e) {
             throw EmbedChannelController.writeMgmtError(e);
         }
     }
 
     /** 对照 ListEmbedChannels。 */
-    public ResponseEntity<Map<String, Object>> listByAgent(@PathVariable("id") String agentId) {
+    public ResponseEntity<List<Map<String, Object>>> listByAgent(@PathVariable("id") String agentId) {
         try {
             List<EmbedChannelEntity> rows =
                     ctrl.service.listByAgent(EmbedChannelController.currentTenant(), LogSanitizer.sanitize(agentId));
-            return ResponseEntity.ok(EmbedChannelController.dataEnvelope(EmbedChannelController.rows(rows)));
+            return ResponseEntity.ok(EmbedChannelController.rows(rows));
         } catch (EmbedError e) {
             throw EmbedChannelController.writeMgmtError(e);
         }
     }
 
     /** 对照 ListAllEmbedChannels（跨 agent，publish token 永不出现在列表里）。 */
-    public ResponseEntity<Map<String, Object>> listAll() {
+    public ResponseEntity<List<Map<String, Object>>> listAll() {
         try {
-            return ResponseEntity.ok(EmbedChannelController.dataEnvelope(EmbedChannelController.rows(ctrl.service.listByTenant(EmbedChannelController.currentTenant()))));
+            return ResponseEntity.ok(EmbedChannelController.rows(ctrl.service.listByTenant(EmbedChannelController.currentTenant())));
         } catch (EmbedError e) {
             throw EmbedChannelController.writeMgmtError(e);
         }
@@ -91,7 +92,7 @@ final class EmbedChannelMgmtOps {
     public ResponseEntity<Map<String, Object>> get(@PathVariable("channel_id") String channelId) {
         try {
             EmbedChannelEntity ch = ctrl.service.getOwnedChannel(EmbedChannelController.currentTenant(), EmbedChannelController.trim(channelId));
-            return ResponseEntity.ok(EmbedChannelController.dataEnvelope(EmbedChannelController.row(ch, true)));
+            return ResponseEntity.ok(EmbedChannelController.row(ch, true));
         } catch (EmbedError e) {
             throw EmbedChannelController.writeMgmtError(e);
         }
@@ -138,29 +139,27 @@ final class EmbedChannelMgmtOps {
                 ? "null" : req.allowedOrigins().toString();
         try {
             EmbedChannelEntity ch = ctrl.service.update(EmbedChannelController.currentTenant(), EmbedChannelController.trim(channelId), cmd);
-            return ResponseEntity.ok(EmbedChannelController.dataEnvelope(EmbedChannelController.row(ch, false)));
+            return ResponseEntity.ok(EmbedChannelController.row(ch, false));
         } catch (EmbedError e) {
             throw EmbedChannelController.writeMgmtError(e);
         }
     }
 
-    /** 对照 DeleteEmbedChannel：{"success":true}。 */
-    public ResponseEntity<Map<String, Object>> delete(@PathVariable("channel_id") String channelId) {
+    /** 删除渠道 → **204**（§1.13：同步完成的删除无响应体，不再是 {"success":true}）。 */
+    public ResponseEntity<Void> delete(@PathVariable("channel_id") String channelId) {
         try {
             ctrl.service.delete(EmbedChannelController.currentTenant(), EmbedChannelController.trim(channelId));
         } catch (EmbedError e) {
             throw EmbedChannelController.writeMgmtError(e);
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return ResponseEntity.ok(body);
+        return ResponseEntity.noContent().build();
     }
 
     /** 对照 RotateEmbedToken：200 + 含新 token 的行。 */
     public ResponseEntity<Map<String, Object>> rotate(@PathVariable("channel_id") String channelId) {
         try {
             var result = ctrl.service.rotateToken(EmbedChannelController.currentTenant(), EmbedChannelController.trim(channelId));
-            return ResponseEntity.ok(EmbedChannelController.dataEnvelope(EmbedChannelController.row(result.channel(), result.token())));
+            return ResponseEntity.ok(EmbedChannelController.row(result.channel(), result.token()));
         } catch (EmbedError e) {
             throw EmbedChannelController.writeMgmtError(e);
         }
@@ -178,9 +177,9 @@ final class EmbedChannelMgmtOps {
             throw EmbedChannelController.writeMgmtError(e);
         }
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("expires_in", result.expiresIn());
-        data.put("session_token", result.token());
-        return ResponseEntity.ok(EmbedChannelController.dataEnvelope(data));
+        data.put("expiresIn", result.expiresIn());
+        data.put("sessionToken", result.token());
+        return ResponseEntity.ok(data);
     }
 
     /** 对照 GetEmbedChannelStats：{session_count:N}。 */
@@ -192,7 +191,7 @@ final class EmbedChannelMgmtOps {
         }
         long total = ctrl.service.countEmbedSessions(EmbedChannelController.currentTenant(), EmbedChannelController.trim(channelId), ctrl.sessionRepository);
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("session_count", total);
-        return ResponseEntity.ok(EmbedChannelController.dataEnvelope(data));
+        data.put("sessionCount", total);
+        return ResponseEntity.ok(data);
     }
 }

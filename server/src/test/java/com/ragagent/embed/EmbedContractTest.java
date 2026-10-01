@@ -187,59 +187,59 @@ class EmbedContractTest {
         assertGolden(postJson("/api/v1/agents/" + AG + "/embed-channels", owner,
                 "{\"name\":\"no origins\"}"), 400, "emb-mgmt-create-missing-origin.json");
         assertGolden(postJson("/api/v1/agents/" + AG + "/embed-channels", owner,
-                "{\"name\":\"bad\",\"allowed_origins\":[\"not a url\"]}"), 400,
+                "{\"name\":\"bad\",\"allowedOrigins\":[\"not a url\"]}"), 400,
                 "emb-mgmt-create-bad-origin.json");
         assertGolden(postJson("/api/v1/agents/ghost-agent/embed-channels", owner,
-                "{\"name\":\"x\",\"allowed_origins\":[\"https://a.example.com\"]}"), 500,
+                "{\"name\":\"x\",\"allowedOrigins\":[\"https://a.example.com\"]}"), 500,
                 "emb-mgmt-create-bad-agent.json");
         assertGolden(postJson("/api/v1/agents/" + AGF + "/embed-channels", owner,
-                "{\"name\":\"x\",\"allowed_origins\":[\"https://a.example.com\"]}"), 500,
+                "{\"name\":\"x\",\"allowedOrigins\":[\"https://a.example.com\"]}"), 500,
                 "emb-mgmt-create-cross-agent.json");
         assertGolden(postJson("/api/v1/agents/" + AG + "/embed-channels", owner,
-                "{\"name\":\"x\",\"allowed_origins\":[\"https://a.example.com\"],"
-                        + "\"launcher_icon\":\"data:text/html;base64,PGI+\"}"), 400,
+                "{\"name\":\"x\",\"allowedOrigins\":[\"https://a.example.com\"],"
+                        + "\"launcherIcon\":\"data:text/html;base64,PGI+\"}"), 400,
                 "emb-mgmt-create-bad-icon.json");
         assertGolden(postJson("/api/v1/agents/" + AG + "/embed-channels", viewer,
-                "{\"name\":\"x\",\"allowed_origins\":[\"https://a.example.com\"]}"), 403,
+                "{\"name\":\"x\",\"allowedOrigins\":[\"https://a.example.com\"]}"), 403,
                 "emb-mgmt-guard-viewer.json");
         assertGolden(postJson("/api/v1/agents/" + AG + "/embed-channels", null,
-                "{\"name\":\"x\",\"allowed_origins\":[\"https://a.example.com\"]}"), 401,
+                "{\"name\":\"x\",\"allowedOrigins\":[\"https://a.example.com\"]}"), 401,
                 "emb-mgmt-noauth.json");
 
         // 三个 create（完整/minimal/disabled）
         MvcResult r = expect(201, postJson("/api/v1/agents/" + AG + "/embed-channels", owner,
-                "{\"name\":\"emb-main\",\"allowed_origins\":[\"https://a.example.com\","
-                        + "\"*.b.example.com\"],\"welcome_message\":\"你好\",\"rate_limit_per_minute\":500,"
-                        + "\"rate_limit_per_day\":9000,\"primary_color\":\"#0052d9\","
-                        + "\"page_title\":\"帮助中心\",\"header_title_mode\":\"session\","
-                        + "\"show_thinking\":true,\"widget_position\":\"bottom-left\","
-                        + "\"allow_web_search\":true,\"allow_file_upload\":true,"
-                        + "\"default_locale\":\"zh-CN\",\"webhook_url\":\"https://hook.example.com/embed\","
-                        + "\"webhook_secret\":\"sec123\",\"launcher_icon\":\"\"}"),
+                "{\"name\":\"emb-main\",\"allowedOrigins\":[\"https://a.example.com\","
+                        + "\"*.b.example.com\"],\"welcomeMessage\":\"你好\",\"rateLimitPerMinute\":500,"
+                        + "\"rateLimitPerDay\":9000,\"primaryColor\":\"#0052d9\","
+                        + "\"pageTitle\":\"帮助中心\",\"headerTitleMode\":\"session\","
+                        + "\"showThinking\":true,\"widgetPosition\":\"bottom-left\","
+                        + "\"allowWebSearch\":true,\"allowFileUpload\":true,"
+                        + "\"defaultLocale\":\"zh-CN\",\"webhookUrl\":\"https://hook.example.com/embed\","
+                        + "\"webhookSecret\":\"sec123\",\"launcherIcon\":\"\"}"),
                 "emb-mgmt-create.json");
-        String cid = jsonPath(r, "data.id");
-        String ptoken = jsonPath(r, "data.publish_token");
+        String cid = jsonPath(r, "id");
+        String ptoken = jsonPath(r, "publishToken");
 
         r = expect(201, postJson("/api/v1/agents/" + AGP + "/embed-channels", owner,
-                "{\"name\":\"emb-min\",\"allowed_origins\":[\"*\"]}"),
+                "{\"name\":\"emb-min\",\"allowedOrigins\":[\"*\"]}"),
                 "emb-mgmt-create-minimal.json");
-        String cidMin = jsonPath(r, "data.id");
-        ptokenMin = jsonPath(r, "data.publish_token");
+        String cidMin = jsonPath(r, "id");
+        ptokenMin = jsonPath(r, "publishToken");
 
         r = expect(201, postJson("/api/v1/agents/" + AGP + "/embed-channels", owner,
-                "{\"name\":\"emb-off\",\"allowed_origins\":[\"https://c.example.com\"],"
-                        + "\"enabled\":false,\"show_suggested_questions\":false}"),
+                "{\"name\":\"emb-off\",\"allowedOrigins\":[\"https://c.example.com\"],"
+                        + "\"enabled\":false,\"showSuggestedQuestions\":false}"),
                 "emb-mgmt-create-disabled.json");
-        String cidOff = jsonPath(r, "data.id");
-        ptokenOff = jsonPath(r, "data.publish_token");
+        String cidOff = jsonPath(r, "id");
+        ptokenOff = jsonPath(r, "publishToken");
 
         // ⚠️ golden 钉死的 quirk：create 的 enabled:false / show_suggested_questions:false
         // 走 DB 默认 true；禁用态只能经 Update 达成；update 不带 allowed_origins → null 覆写
         assertGolden(putJson("/api/v1/embed-channels/" + cidOff, owner,
-                "{\"enabled\":false,\"show_suggested_questions\":false}"), 200,
+                "{\"enabled\":false,\"showSuggestedQuestions\":false}"), 200,
                 "emb-mgmt-update-disable.json");
         assertGolden(putJson("/api/v1/embed-channels/" + cidMin, owner,
-                "{\"show_suggested_questions\":false,\"allowed_origins\":[\"*\"]}"), 200,
+                "{\"showSuggestedQuestions\":false,\"allowedOrigins\":[\"*\"]}"), 200,
                 "emb-mgmt-update-sugg-off.json");
 
         // 渠道标记回填（对照脚本的 SQL UPDATE）
@@ -263,12 +263,12 @@ class EmbedContractTest {
 
         // update 家族
         assertGolden(putJson("/api/v1/embed-channels/" + cid, owner,
-                "{\"name\":\"emb-main-renamed\",\"welcome_message\":\"欢迎回来\","
-                        + "\"allowed_origins\":[\"https://a.example.com\",\"*.b.example.com\","
-                        + "\"https://c.example.com\"],\"primary_color\":\"#1177ee\","
-                        + "\"show_thinking\":false}"), 200, "emb-mgmt-update.json");
+                "{\"name\":\"emb-main-renamed\",\"welcomeMessage\":\"欢迎回来\","
+                        + "\"allowedOrigins\":[\"https://a.example.com\",\"*.b.example.com\","
+                        + "\"https://c.example.com\"],\"primaryColor\":\"#1177ee\","
+                        + "\"showThinking\":false}"), 200, "emb-mgmt-update.json");
         assertGolden(putJson("/api/v1/embed-channels/" + cid, owner,
-                "{\"webhook_url\":\"ftp://hook.example.com/x\"}"), 400,
+                "{\"webhookUrl\":\"ftp://hook.example.com/x\"}"), 400,
                 "emb-mgmt-update-bad-webhook.json");
         assertGolden(putJson("/api/v1/embed-channels/b9999999-0000-0000-0000-000000000001", owner,
                 "{\"name\":\"x\"}"), 404, "emb-mgmt-update-404.json");
@@ -276,7 +276,7 @@ class EmbedContractTest {
         // rotate → 后续公开面用新 token
         r = expect(200, post("/api/v1/embed-channels/" + cid + "/rotate-token", owner, null),
                 "emb-mgmt-rotate.json");
-        ptoken = jsonPath(r, "data.publish_token");
+        ptoken = jsonPath(r, "publishToken");
         sigMain = sig(ptoken, cid, SES_MAIN);
 
         // preview / stats
@@ -294,8 +294,10 @@ class EmbedContractTest {
         // 公开面（在 rotate 之后的新 token 下）
         publicFace(cid, ptoken, cidMin, cidOff, sigMain);
 
-        // delete → get-deleted
-        assertGolden(delete("/api/v1/embed-channels/" + cidMin, owner), 200, "emb-mgmt-delete.json");
+        // delete → 204（§1.13，无响应体）→ get-deleted
+        MvcResult deleted = mockMvc.perform(delete("/api/v1/embed-channels/" + cidMin, owner)).andReturn();
+        assertEquals(204, deleted.getResponse().getStatus(), raw(deleted));
+        assertEquals("", raw(deleted), "删除必须无响应体");
         assertGolden(get("/api/v1/embed-channels/" + cidMin, viewer), 404, "emb-mgmt-get-deleted.json");
     }
 
@@ -322,7 +324,7 @@ class EmbedContractTest {
 
         MvcResult r = expect(200, post("/api/v1/embed/" + cid + "/exchange", null, null)
                 .header("Authorization", ea).header("Origin", origin), "emb-pub-exchange.json");
-        String stoken = jsonPath(r, "data.session_token");
+        String stoken = jsonPath(r, "sessionToken");
         assertGolden(post("/api/v1/embed/" + cid + "/exchange", null, null)
                 .header("Authorization", "Embed " + stoken).header("Origin", origin), 403,
                 "emb-pub-exchange-session-token.json");
@@ -428,11 +430,13 @@ class EmbedContractTest {
                 "not-json")
                 .header("Authorization", ea).header("Origin", origin)
                 .header("X-Embed-Session", sigMain), 400, "emb-pub-events-badbody.json");
-        assertGolden(postJson("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN + "/events", null,
-                "{\"type\":\"message_sent\",\"query\":\"你好\",\"content\":\"收到\","
-                        + "\"session_id\":\"\"}")
+        MvcResult evented = mockMvc.perform(postJson("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN
+                + "/events", null, "{\"type\":\"message_sent\",\"query\":\"你好\",\"content\":\"收到\","
+                        + "\"sessionId\":\"\"}")
                 .header("Authorization", ea).header("Origin", origin)
-                .header("X-Embed-Session", sigMain), 200, "emb-pub-events-ok.json");
+                .header("X-Embed-Session", sigMain)).andReturn();
+        assertEquals(204, evented.getResponse().getStatus(), raw(evented));
+        assertEquals("", raw(evented), "事件受理回执必须无响应体");
 
         String svcOauth = "b8000000-0000-0000-0000-000000000601";
         assertGolden(post("/api/v1/embed/" + cid + "/sessions/" + SES_MAIN + "/mcp-services/"
@@ -477,6 +481,12 @@ class EmbedContractTest {
         return EmbedTokens.signHandle(tmp, sessionId);
     }
 
+    /**
+     * 夹具重录开关：{@code -Dcontract.refresh=true} 时把**掩码后的实际响应**写回夹具，
+     * 用于换锚批（信封去除/键名改名会一次影响几十个 golden）。默认关闭——平时是断言。
+     */
+    private static final boolean REFRESH_FIXTURES = Boolean.getBoolean("contract.refresh");
+
     private void assertGolden(MockHttpServletRequestBuilder req, int status, String goldenName)
             throws Exception {
         expect(status, req, goldenName);
@@ -487,6 +497,16 @@ class EmbedContractTest {
         MvcResult r = mockMvc.perform(req).andReturn();
         assertEquals(status, r.getResponse().getStatus(), goldenName + " 状态码不符: " + raw(r));
         String actual = raw(r);
+        if (REFRESH_FIXTURES) {
+            java.nio.file.Path path = java.nio.file.Paths.get("src/test/resources/contracts", goldenName);
+            try {
+                java.nio.file.Files.writeString(path, mask(actual));
+                System.out.println("REFRESH " + goldenName);
+            } catch (java.io.IOException e) {
+                throw new IllegalStateException("refresh 写夹具失败: " + path, e);
+            }
+            return r;
+        }
         String golden = golden(goldenName);
         assertEquals(mask(golden), mask(actual), goldenName);
         return r;

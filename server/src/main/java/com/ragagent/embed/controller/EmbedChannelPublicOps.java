@@ -52,15 +52,15 @@ final class EmbedChannelPublicOps {
             return EmbedChannelController.plainError(500, "failed to issue session token");
         }
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("expires_in", result.expiresIn());
-        data.put("session_token", result.token());
-        return ResponseEntity.ok(EmbedChannelController.dataEnvelope(data));
+        data.put("expiresIn", result.expiresIn());
+        data.put("sessionToken", result.token());
+        return ResponseEntity.ok(data);
     }
 
     /** 对照 GetEmbedConfig。 */
-    public ResponseEntity<Map<String, Object>> config(@PathVariable("channel_id") String channelId) {
+    public ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> config(@PathVariable("channel_id") String channelId) {
         EmbedChannelEntity ch = EmbedChannelController.channel(EmbedChannelController.request0());
-        return ResponseEntity.ok(EmbedChannelController.dataEnvelope(ctrl.service.publicConfig(ch)));
+        return ResponseEntity.ok(ctrl.service.publicConfig(ch));
     }
 
     /** 对照 GetEmbedSuggestedQuestions。 */
@@ -71,7 +71,7 @@ final class EmbedChannelPublicOps {
         if (!ch.isShowSuggestedQuestions()) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("questions", new ArrayList<>());
-            return ResponseEntity.ok(EmbedChannelController.dataEnvelope(data));
+            return ResponseEntity.ok(data);
         }
         int limitInt = 0;
         if (limit != null && !limit.isEmpty()) {
@@ -92,11 +92,11 @@ final class EmbedChannelPublicOps {
         }
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("questions", questions == null ? new ArrayList<>() : questions);
-        return ResponseEntity.ok(EmbedChannelController.dataEnvelope(data));
+        return ResponseEntity.ok(data);
     }
 
     /** 对照 GetEmbedChunk。 */
-    public ResponseEntity<Map<String, Object>> chunk(@PathVariable("chunk_id") String chunkId) {
+    public ResponseEntity<?> chunk(@PathVariable("chunk_id") String chunkId) {
         EmbedChannelEntity ch = EmbedChannelController.channel(EmbedChannelController.request0());
         String cid = LogSanitizer.sanitize(chunkId);
         if (cid.isEmpty()) {
@@ -104,7 +104,7 @@ final class EmbedChannelPublicOps {
         }
         try {
             Chunk chunk = ctrl.service.embedChunk(ch, cid);
-            return ResponseEntity.ok(EmbedChannelController.dataEnvelope(chunk));
+            return ResponseEntity.ok(chunk);
         } catch (EmbedChannelService.ChunkNotFoundError e) {
             return EmbedChannelController.plainError(404, "chunk not found");
         } catch (EmbedChannelService.ChunkForbiddenError e) {
@@ -136,6 +136,6 @@ final class EmbedChannelPublicOps {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("id", created.getId());
         data.put("sig", sig);
-        return ResponseEntity.status(201).body(EmbedChannelController.dataEnvelope(data));
+        return ResponseEntity.status(201).body(data);
     }
 }

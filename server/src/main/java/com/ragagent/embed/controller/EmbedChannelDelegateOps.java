@@ -3,7 +3,6 @@ package com.ragagent.embed.controller;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.PlainErrorException;
@@ -189,8 +188,8 @@ final class EmbedChannelDelegateOps {
      * 对照 EmbedRelayWebhookEvent：message_sent / message_received 之外全拒；
      * DispatchEmbedWebhook 是 best-effort 异步（渠道 webhook 为空 → no-op），响应恒 200。
      */
-    public ResponseEntity<Map<String, Object>> events(@PathVariable("session_id") String sessionId,
-                                                      @RequestBody(required = false) String rawBody) {
+    public ResponseEntity<?> events(@PathVariable("session_id") String sessionId,
+                                    @RequestBody(required = false) String rawBody) {
         EmbedChannelEntity ch = EmbedChannelController.channel(EmbedChannelController.request0());
         ctrl.ensureSession(LogSanitizer.sanitize(sessionId));
         EventRequest req = null;
@@ -209,13 +208,12 @@ final class EmbedChannelDelegateOps {
             return EmbedChannelController.plainError(400, "unsupported event type");
         }
         // DispatchEmbedWebhook：webhook_url 为空直接返回；golden 渠道未配 webhook → no-op。
-        return ResponseEntity.ok(EmbedChannelController.successEnvelope());
+        // 无响应体的受理回执 → 204（§1.13 同款：不再回 {"success":true}）
+        return ResponseEntity.noContent().build();
     }
 
-    record EventRequest(@JsonProperty("type") String type,
-                        @JsonProperty("session_id") String sessionId,
-                        @JsonProperty("query") String query,
-                        @JsonProperty("content") String content) {
+    /** 访客事件上报体（键名＝组件名；S4 后请求面统一 camelCase）。 */
+    record EventRequest(String type, String sessionId, String query, String content) {
     }
 
     /** 对照 EmbedMCPOAuthAuthorizeURL（委托 McpOAuthController.AuthorizeURL）。 */

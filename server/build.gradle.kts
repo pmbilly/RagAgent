@@ -206,4 +206,9 @@ tasks.withType<Test> {
     // source 过 scripts/dev-env.sh（会导出 localhost:50051），测试 JVM 继承后连上真 docreader
     // 就**假红**（2026-09-25 踩过）。空串与未设等价（端点按 null/空归一成 ""）。
     environment("DOCREADER_ADDR", "")
+
+    // 契约夹具重录开关（换锚批用）：`-Dcontract.refresh=true` 时，支持该开关的契约测试
+    // 把**掩码后的实际响应**写回 src/test/resources/contracts（平时是断言）。Gradle 的 -D
+    // 只作用于 daemon JVM，必须显式转发给 fork 出来的测试 JVM，否则测试读不到。
+    systemProperty("contract.refresh", System.getProperty("contract.refresh") ?: "false")
 }

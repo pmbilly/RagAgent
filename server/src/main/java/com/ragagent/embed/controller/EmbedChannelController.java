@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -119,26 +118,7 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
 
     // ═══════════════════ 请求体（对照 Go embedChannelRequest） ═══════════════════
 
-    record EmbedChannelRequest(
-            @JsonProperty("name") String name,
-            @JsonProperty("enabled") Boolean enabled,
-            @JsonProperty("allowed_origins") JsonNode allowedOrigins,
-            @JsonProperty("welcome_message") String welcomeMessage,
-            @JsonProperty("rate_limit_per_minute") Integer rateLimitPerMinute,
-            @JsonProperty("rate_limit_per_day") Integer rateLimitPerDay,
-            @JsonProperty("primary_color") String primaryColor,
-            @JsonProperty("page_title") String pageTitle,
-            @JsonProperty("header_title_mode") String headerTitleMode,
-            @JsonProperty("show_suggested_questions") Boolean showSuggestedQuestions,
-            @JsonProperty("show_thinking") Boolean showThinking,
-            @JsonProperty("widget_position") String widgetPosition,
-            @JsonProperty("allow_web_search") Boolean allowWebSearch,
-            @JsonProperty("allow_file_upload") Boolean allowFileUpload,
-            @JsonProperty("default_locale") String defaultLocale,
-            @JsonProperty("webhook_url") String webhookUrl,
-            @JsonProperty("webhook_secret") String webhookSecret,
-            @JsonProperty("agent_id") String agentId,
-            @JsonProperty("launcher_icon") String launcherIcon) {
+    record EmbedChannelRequest( String name, Boolean enabled, JsonNode allowedOrigins, String welcomeMessage, Integer rateLimitPerMinute, Integer rateLimitPerDay, String primaryColor, String pageTitle, String headerTitleMode, Boolean showSuggestedQuestions, Boolean showThinking, String widgetPosition, Boolean allowWebSearch, Boolean allowFileUpload, String defaultLocale, String webhookUrl, String webhookSecret, String agentId, String launcherIcon) {
     }
 
 
@@ -149,12 +129,12 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
     }
 
     @GetMapping("/api/v1/agents/{id}/embed-channels")
-    public ResponseEntity<Map<String, Object>> listByAgent(@PathVariable("id") String agentId) {
+    public ResponseEntity<List<Map<String, Object>>> listByAgent(@PathVariable("id") String agentId) {
         return mgmtOps.listByAgent(agentId);
     }
 
     @GetMapping("/api/v1/embed-channels")
-    public ResponseEntity<Map<String, Object>> listAll() {
+    public ResponseEntity<List<Map<String, Object>>> listAll() {
         return mgmtOps.listAll();
     }
 
@@ -170,7 +150,7 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
     }
 
     @DeleteMapping("/api/v1/embed-channels/{channel_id}")
-    public ResponseEntity<Map<String, Object>> delete(@PathVariable("channel_id") String channelId) {
+    public ResponseEntity<Void> delete(@PathVariable("channel_id") String channelId) {
         return mgmtOps.delete(channelId);
     }
 
@@ -196,7 +176,7 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
     }
 
     @GetMapping("/api/v1/embed/{channel_id}/config")
-    public ResponseEntity<Map<String, Object>> config(@PathVariable("channel_id") String channelId) {
+    public ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> config(@PathVariable("channel_id") String channelId) {
         return publicOps.config(channelId);
     }
 
@@ -208,7 +188,7 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
     }
 
     @GetMapping("/api/v1/embed/{channel_id}/chunks/{chunk_id}")
-    public ResponseEntity<Map<String, Object>> chunk(@PathVariable("chunk_id") String chunkId) {
+    public ResponseEntity<?> chunk(@PathVariable("chunk_id") String chunkId) {
         return publicOps.chunk(chunkId);
     }
 
@@ -278,8 +258,8 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
     }
 
     @PostMapping("/api/v1/embed/{channel_id}/sessions/{session_id}/events")
-    public ResponseEntity<Map<String, Object>> events(@PathVariable("session_id") String sessionId,
-                                                      @RequestBody(required = false) String rawBody) {
+    public ResponseEntity<?> events(@PathVariable("session_id") String sessionId,
+                                    @RequestBody(required = false) String rawBody) {
         return delegateOps.events(sessionId, rawBody);
     }
 
@@ -416,38 +396,45 @@ void ensureSession(String sessionId) {
         return row(ch, ch.getPublishToken() == null ? "" : ch.getPublishToken(), withPublishToken);
     }
 
+    /**
+     * 渠道行视图（§14.9m E1 换锚后：键名＝Java 实体字段名、无 {@code {data,success}} 信封）。
+     *
+     * <p>唯一的**条件键**是 {@code publishToken}：管理详情/创建/轮换带它、列表行不带——
+     * 这是**授权边界**（列表里泄漏 publish token 等于把渠道会话签发权发给任何读列表的人），
+     * 不是 §1.6 说的那种"有时出现有时消失"的数据条件键，故按 Go 行为刻意保留。</p>
+     */
     static Map<String, Object> row(EmbedChannelEntity ch, String token) {
         return row(ch, token, true);
     }
 
     static Map<String, Object> row(EmbedChannelEntity ch, String token, boolean includeToken) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("agent_id", ch.getAgentId());
-        m.put("allow_file_upload", ch.isAllowFileUpload());
-        m.put("allow_web_search", ch.isAllowWebSearch());
-        m.put("allowed_origins", originsJson(EmbedChannelService.allowedOriginsList(ch)));
-        m.put("created_at", ch.getCreatedAt());
-        m.put("default_locale", ch.getDefaultLocale());
+        m.put("agentId", ch.getAgentId());
+        m.put("allowFileUpload", ch.isAllowFileUpload());
+        m.put("allowWebSearch", ch.isAllowWebSearch());
+        m.put("allowedOrigins", originsJson(EmbedChannelService.allowedOriginsList(ch)));
+        m.put("createdAt", ch.getCreatedAt());
+        m.put("defaultLocale", ch.getDefaultLocale());
         m.put("enabled", ch.isEnabled());
-        m.put("has_webhook_secret", ch.getWebhookSecret() != null && !ch.getWebhookSecret().isEmpty());
-        m.put("header_title_mode", EmbedChannelService.normalizeHeaderTitleMode(ch.getHeaderTitleMode()));
+        m.put("hasWebhookSecret", ch.getWebhookSecret() != null && !ch.getWebhookSecret().isEmpty());
+        m.put("headerTitleMode", EmbedChannelService.normalizeHeaderTitleMode(ch.getHeaderTitleMode()));
         m.put("id", ch.getId());
-        m.put("launcher_icon", ch.getLauncherIcon());
+        m.put("launcherIcon", ch.getLauncherIcon());
         m.put("name", ch.getName());
-        m.put("page_title", ch.getPageTitle());
-        m.put("primary_color", ch.getPrimaryColor());
+        m.put("pageTitle", ch.getPageTitle());
+        m.put("primaryColor", ch.getPrimaryColor());
         if (includeToken && token != null && !token.isEmpty()) {
-            m.put("publish_token", token);
+            m.put("publishToken", token);
         }
-        m.put("rate_limit_per_day", ch.getRateLimitPerDay());
-        m.put("rate_limit_per_minute", ch.getRateLimitPerMinute());
-        m.put("show_suggested_questions", ch.isShowSuggestedQuestions());
-        m.put("show_thinking", ch.isShowThinking());
-        m.put("tenant_id", ch.getTenantId());
-        m.put("updated_at", ch.getUpdatedAt());
-        m.put("webhook_url", ch.getWebhookUrl());
-        m.put("welcome_message", ch.getWelcomeMessage());
-        m.put("widget_position", ch.getWidgetPosition());
+        m.put("rateLimitPerDay", ch.getRateLimitPerDay());
+        m.put("rateLimitPerMinute", ch.getRateLimitPerMinute());
+        m.put("showSuggestedQuestions", ch.isShowSuggestedQuestions());
+        m.put("showThinking", ch.isShowThinking());
+        m.put("tenantId", ch.getTenantId());
+        m.put("updatedAt", ch.getUpdatedAt());
+        m.put("webhookUrl", ch.getWebhookUrl());
+        m.put("welcomeMessage", ch.getWelcomeMessage());
+        m.put("widgetPosition", ch.getWidgetPosition());
         return m;
     }
 
@@ -456,26 +443,13 @@ void ensureSession(String sessionId) {
         return origins.isEmpty() ? null : origins;
     }
 
+    /** 列表行（裸数组；不带 publish token）。 */
     static List<Map<String, Object>> rows(List<EmbedChannelEntity> list) {
         List<Map<String, Object>> data = new ArrayList<>();
         for (EmbedChannelEntity ch : list) {
             data.add(row(ch, "", false));
         }
         return data;
-    }
-
-    /** {"data":…,"success":true}（字母序 data < success）。 */
-    static Map<String, Object> dataEnvelope(Object data) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return body;
-    }
-
-static Map<String, Object> successEnvelope() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return body;
     }
 
     static ResponseEntity<Map<String, Object>> plainError(int status, String message) {

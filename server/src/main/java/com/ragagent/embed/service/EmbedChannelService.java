@@ -559,54 +559,32 @@ public class EmbedChannelService {
             agentWebSearch = cfg.path("web_search_enabled").asBoolean(false);
             agentImageUpload = cfg.path("image_upload_enabled").asBoolean(false);
         }
+        // §14.9m E1：键名＝实体字段名（camelCase）；且**全部键恒输出**（§1.6 禁止条件键）——
+        // 空集合写 []、空串照写，widget 侧不必再猜"这个键这次在不在"。
         ObjectNode n = MAPPER.createObjectNode();
-        n.put("channel_id", ch.getId());
+        n.put("channelId", ch.getId());
         n.put("name", ch.getName());
-        n.put("display_title", displayTitle);
-        if (!kbIds.isEmpty()) {
-            ArrayNode arr = n.putArray("knowledge_base_ids");
-            kbIds.forEach(arr::add);
-        }
-        n.put("agent_id", ch.getAgentId());
-        if (!agentName.isEmpty()) {
-            n.put("agent_name", agentName);
-        }
-        if (!agentAvatar.isEmpty()) {
-            n.put("agent_avatar", agentAvatar);
-        }
-        n.put("welcome_message", ch.getWelcomeMessage());
-        if (!ch.getPrimaryColor().isEmpty()) {
-            n.put("primary_color", ch.getPrimaryColor());
-        }
-        if (!ch.getPageTitle().isEmpty()) {
-            n.put("page_title", ch.getPageTitle());
-        }
-        String headerMode = normalizeHeaderTitleMode(ch.getHeaderTitleMode());
-        if (!headerMode.isEmpty()) {
-            n.put("header_title_mode", headerMode);
-        }
-        n.put("show_suggested_questions", ch.isShowSuggestedQuestions());
-        n.put("show_thinking", ch.isShowThinking());
-        List<String> origins = allowedOriginsList(ch);
-        if (!origins.isEmpty()) {
-            ArrayNode arr = n.putArray("allowed_origins");
-            origins.forEach(arr::add);
-        }
-        String widget = normalizeWidgetPosition(ch.getWidgetPosition());
-        if (!widget.isEmpty()) {
-            n.put("widget_position", widget);
-        }
-        n.put("allow_web_search", ch.isAllowWebSearch());
-        n.put("allow_file_upload", ch.isAllowFileUpload());
-        n.put("agent_web_search_enabled", agentWebSearch);
-        n.put("agent_image_upload_enabled", agentImageUpload);
-        String locale = normalizeDefaultLocale(ch.getDefaultLocale());
-        if (!locale.isEmpty()) {
-            n.put("default_locale", locale);
-        }
-        if (ch.getLauncherIcon() != null && !ch.getLauncherIcon().isEmpty()) {
-            n.put("launcher_icon", ch.getLauncherIcon());
-        }
+        n.put("displayTitle", displayTitle);
+        ArrayNode kbArr = n.putArray("knowledgeBaseIds");
+        kbIds.forEach(kbArr::add);
+        n.put("agentId", ch.getAgentId());
+        n.put("agentName", agentName);
+        n.put("agentAvatar", agentAvatar);
+        n.put("welcomeMessage", ch.getWelcomeMessage());
+        n.put("primaryColor", ch.getPrimaryColor());
+        n.put("pageTitle", ch.getPageTitle());
+        n.put("headerTitleMode", normalizeHeaderTitleMode(ch.getHeaderTitleMode()));
+        n.put("showSuggestedQuestions", ch.isShowSuggestedQuestions());
+        n.put("showThinking", ch.isShowThinking());
+        ArrayNode originArr = n.putArray("allowedOrigins");
+        allowedOriginsList(ch).forEach(originArr::add);
+        n.put("widgetPosition", normalizeWidgetPosition(ch.getWidgetPosition()));
+        n.put("allowWebSearch", ch.isAllowWebSearch());
+        n.put("allowFileUpload", ch.isAllowFileUpload());
+        n.put("agentWebSearchEnabled", agentWebSearch);
+        n.put("agentImageUploadEnabled", agentImageUpload);
+        n.put("defaultLocale", normalizeDefaultLocale(ch.getDefaultLocale()));
+        n.put("launcherIcon", ch.getLauncherIcon() == null ? "" : ch.getLauncherIcon());
         return n;
     }
 
