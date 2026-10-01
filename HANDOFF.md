@@ -156,6 +156,7 @@
 | 阶段 2（memory 域，2026-10-01 起） | MemoryExtractionService / MemoryRepository / MemoryService | **四刀落定**（m1 1,217→718 出榜；m2 1,515→1,200 出 `MemoryItemStore`；m3 1,200→**458** 出 `MemoryIndexStore`；m4 1,663→**965** 出 `MemoryCatalogOps`+`MemoryInsightOps`；⚠️ `MemoryIndexStore` 929 登记**已知例外**、`MemoryService` 965 待 m5 评估——用户 2026-10-01 定调「不硬切」，判据见 §14.7.17） |
 | 阶段 3 打样（evaluation 域，2026-10-01） | 小域契约换锚打样（§14.9b） | **流水线跑通**：POST/GET 去信封 + camelCase + 标准 DTO 绑定；10 个 fixture（含新增空体用例）；前端零调用面；**真实服务冒烟 8 路通过** |
 | 阶段 3（model 域，2026-10-01） | 模型域契约换锚四块（§14.9c + §14.9e） | **收官**：主资源 + debug + weknoracloud + 落库 jsonb 全部换锚；`@JsonProperty` **87→0**；**前端 15 文件同批**（首次前后端同 PR）；真实服务冒烟 11 路（§14.9c） |
+| 阶段 3（system 域 S1，2026-10-01） | /system 读端与探测端 7 端点（§14.9f） | **完成**：去 `code/data/msg` 信封 + camelCase + 错误语义化（503/403/400）；`SystemDtos` 85 处清零（99→14）；前端 10 文件同批；契约 19/19 绿 |
 
 ### 7.2 当前存量（实测）
 
@@ -171,6 +172,7 @@
 - memory 域（2026-10-01 m1~m4 后）：`MemoryExtractionService` 1,217→**718**（出榜）、`MemoryRepository` 1,515→**458**（出榜）、`MemoryService` 1,663→**965**；`MemoryItemStore` 462 / `MemoryCatalogOps` 517 / `MemoryInsightOps` 412 / `MemoryIndexStore` 929；≥800 剩 `MemoryService` 965（待 m5 评估）与 `MemoryIndexStore` 929（**登记例外**：同属索引侧一个关注点，§14.7.17）。
 - evaluation 域（2026-10-01 打样后）：**`@JsonProperty` 66→0、`@JsonInclude` 12→0**；POST/GET 两端点契约已换锚（§14.9b）；`dto` 包 2 文件（`EvaluationDtos` 容器待拆分，另立批次）。
 - model 域（2026-10-01 收官）：**`@JsonProperty` 87→0**、`@JsonInclude`/`Go*` 序列化引用清零；主资源（M1）+ debug（M2）+ weknoracloud（M3）+ 落库 jsonb 四块全部换锚（§14.9c/§14.9e）；前端 15 文件同批改；dev 库旧 jsonb 行已用迁移 SQL 改写。
+- system 域（2026-10-01 S1 后）：**`@JsonProperty` 99→14**（余 `SystemSetting`，属 S3）；`/system` 7 端点已换锚（去 `code/data/msg` 信封 + 错误语义化）；`SystemAdminController` 的端点外壳（S2/S3/S4）未动，但其响应体随共享 `SystemDtos` 已 camelCase。
 - 全仓 ≥800 行的类：**7 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
@@ -1334,6 +1336,41 @@ M3 新增校验用例）+ `spotlessCheck` 绿（`spotlessApply` 顺手删掉 `Bu
 / 凭证缺字段 400（显式 message）/ debug 未知模型 404。**全量抓到一处漏改**：
 `W5bInitializationContractTest` 用 SQL 直写旧键名 jsonb（§13 判据：落库面换锚后要全仓搜
 `models SET parameters` 这类直写点）。
+
+### 14.9f system 域换锚（S1：/system 读端与探测端，2026-10-01）
+
+**提交**：`f7df80e`（后端）+ `09805ee`（前端）。
+
+**选域与边界**：system 域 99 处 `@JsonProperty`（`SystemDtos` 85 + `SystemSetting` 14）。本批（S1）做
+**`SystemController` 的 7 个端点**（capabilities / info / parser-engines / parser-engines/check /
+docreader/reconnect / storage-engine-status / storage-engine-check）；`SystemAdminController`
+（账号 / 平台密钥 / 设置 / runtime 面，S2~S4）与 `SystemSetting` 落库面留后续批次。
+
+**边界（§11 不动面）**：parser-engines/check 与 storage-engine-check 的**请求键名保持 snake**——
+与租户配置 jsonb（`chat_parser_engine_rules` 等）同形，待该边界解冻后统一 DTO 化（controller
+javadoc 已注明）。
+
+**换锚内容**：
+- 响应去 `{"code":0,"data":…,"msg":"success"}` 信封 → 裸资源对象；新增
+  `ParserEnginesResponse`（connected / docreaderAddr / docreaderTransport / engines 收拢原顶层散键）；
+  错误 `{"code":1,"msg":…}` → AppError 信封
+- `SystemDtos` 去 85 处注解：键名 camelCase（含 `ParserEngineInfo` 的历史**大写键** Name/Description/
+  FileTypes/Available/UnavailableReason → 小写 camelCase）、可空字段显式 null（reason/commitId/…）
+- 错误语义化：docreader 连接失败 200+`code:1` → **503**；被禁存储引擎 403（保持）；请求体坏 400
+  （统一 `请求参数不合法` + `请求体格式不正确`）
+- **共享 DTO 波及**：`SystemAdminController` 的 promote/revoke/list/createUser/runtime-queues 响应体
+  随 `UserInfoResponse`/`SystemAdminListResponse`/`CreateUserResponse`/`RuntimeQueuesResponse` 一并
+  camelCase（端点外壳未动，留给 S2）——`adm-*` fixture 同步 14 个（`adm-key-*` 属 auth 域，**不动**；
+  `adm-settings-*` 属 S3 的 `SystemSetting` 面，**不动**）
+
+**验收**：后端干净一遍 **4670 用例 / 失败 0 / 跳过 4**（434 测试类）+ `spotlessCheck` 绿；
+`SystemContractTest` **19/19 绿**（掩码模式 `[a-z_]+`→`[a-zA-Z_]+` 支持 camelCase、内联断言更新）；
+前端 `api/system` 响应类型去解包 + camelCase，11 个组件/store 同步（`vue-tsc` 0 错误 + 690 用例绿）；
+**类型逃逸兜底**：`GraphSettings.vue` 的 `ref<any>` 绕过编译器，靠 grep 抓到 `graph_database_engine`
+残留（同 §14.9c 判据：改完 vue-tsc 仍要 grep）。
+
+**system 域进度口径**：`@JsonProperty` **99 → 14**（余 `SystemSetting`，属 S3）。下一步候选：
+S2（账号面）/ S3（密钥+设置+runtime）/ S4（配额）或转 auth/memory 域。
 
 **注意**：序列化层删除仍须**全仓一次性**（§2 第 7 条 + §14.9 执行顺序第 2 步），打样只做"域内换锚"，
 不触碰全仓序列化层。
