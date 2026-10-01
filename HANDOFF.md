@@ -141,6 +141,7 @@
 | 阶段 2（TenantCatalogController，2026-10-01） | auth 域租户目录/KV 配置控制器 | **出榜**（4 刀 → BindSupport/CreateOps/CrudOps/ConfigOps；980→133；§14.7.9） |
 | 阶段 2（mcp 域双类，2026-10-01） | McpServiceController + OAuthHandler | **出榜，mcp 清零**（4 刀 → UsageInstructionsOps/CrudOps/Discovery/TokenOps；937→372、825→220；§14.7.10） |
 | 阶段 2（FeishuAdapter，2026-10-01） | im 域飞书适配器 | **出榜，im 清零**（4 刀 → CallbackOps/SendOps/CardStreamOps/MediaOps；926→331；§14.7.11） |
+| 阶段 2（EmbedChannelController，2026-10-01） | embed 域渠道控制器 | **出榜，embed 清零**（3 刀 → MgmtOps/PublicOps/DelegateOps；925→561；§14.7.12） |
 
 ### 7.2 当前存量（实测）
 
@@ -150,15 +151,16 @@
 - auth 域 controller（2026-10-01 批次后）：`TenantCatalogController` 980→133，包内最大 `TenantInvitationController` 519。
 - mcp 域（2026-10-01 批次后）：controller/oauth 两神类出榜，包内最大 `OAuthDiscovery` 439。
 - im 域（2026-10-01 批次后）：`FeishuAdapter` 926→331，feishu 包最大协作者 `FeishuCardStreamOps` 256。
-- 全仓 ≥800 行的类：**17 个**（清单与分域建议见 §14.3）。
+- embed 域（2026-10-01 批次后）：`EmbedChannelController` 925→561，controller 包最大协作者 `EmbedChannelDelegateOps` 279。
+- 全仓 ≥800 行的类：**16 个**（清单与分域建议见 §14.3）。
 - 测试：session 域 388 条 / wiki 域 542 条，失败 0（本轮实测）；全量闸门命令见 §9。
 
 ### 7.3 未完成 / 待办
 
-1. **阶段 2 其余域**：wiki / im / retrieval / auth controller / llm / mcp / knowledge(FaqImportService) / chatpipeline(PluginMerge) **均已出榜**；
-   余量以 §14.3 实测为准——单类：embed(EmbedChannelController 925)、chatpipeline(PluginSearch 899)、
-   modelcontext(SourceRegistry 878)、auth service(UserService 876)、knowledge 例外 2 个、
-   wiki-page 面 4 类；大体量：datasource / memory（单独立项）。
+1. **阶段 2 其余域**：wiki / im / retrieval / auth controller / llm / mcp / embed / knowledge(FaqImportService) / chatpipeline(PluginMerge) **均已出榜**；
+   余量以 §14.3 实测为准——单类：chatpipeline(PluginSearch 899)、modelcontext(SourceRegistry 878)、
+   auth service(UserService 876)、knowledge 例外 2 个、wiki-page 面 4 类；
+   大体量：datasource / memory（单独立项）。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / 会话-消息-附件-建议-steer-knowledge-search /
    chunker-preview 已完成（同批带前端）；**剩余域 wiki / agent / auth / memory / mcp 等**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
@@ -369,7 +371,7 @@ knowledge/
 | 6 卫生 | 注释判据（§13.13）/ import（§13.14）/ 坏 `{@link}` / 批次代号清除 | `spotlessApply` 是标准手段，别自己写替换脚本 |
 | 7 收尾 | 更新 §4 数据、§12 地图、§14.3 候选表 | 顺带把该域新踩的坑写进 §13 |
 
-### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **17 个**；im 批后 18→17）
+### 14.3 候选域盘点（2026-10-01 复测：全仓 ≥800 行的类共 **16 个**；embed 批后 17→16）
 
 | 域 | ≥800 的类（行数） |
 |---|---|
@@ -378,7 +380,8 @@ knowledge/
 | retrieval | **已清零**（9 引擎仓 + HybridSearchService 1,260→775 均出榜；§14.7.5/§14.7.6） |
 | wiki | `WikiPageServiceImpl` 1,008 · `WikiPageRepository` 858 · `WikiIngestDedupService` 851 · `WikiPageFolderSupport` 821（两目标类已出榜，§14.7.2） |
 | mcp | **已清零**（McpServiceController 937→372 + OAuthHandler 825→220，§14.7.10） |
-| 其余单类 | `EmbedChannelController` 925（embed）· `PluginSearch` 899（chatpipeline）· `SourceRegistry` 878（modelcontext）· `UserService` 876（auth service）· `KnowledgeService` 848（knowledge 例外）· `KnowledgeProcessWorker` 814（knowledge 例外） |
+| 其余单类 | `PluginSearch` 899（chatpipeline）· `SourceRegistry` 878（modelcontext）· `UserService` 876（auth service）· `KnowledgeService` 848（knowledge 例外）· `KnowledgeProcessWorker` 814（knowledge 例外） |
+| embed | **已清零**（EmbedChannelController 925→561，§14.7.12；EmbedChannelService 792 本就 <800） |
 | im / llm | **均已清零**（llm：RemoteApiChat 1,366→513，§14.7.8；im：FeishuAdapter 926→331，§14.7.11） |
 | session | `SessionKnowledgeQaService` 1,036（§14.5 已登记例外）；**本域已清零**（§11.3） |
 | auth | **controller 已清零**（§14.7.7 AuthController + §14.7.9 TenantCatalogController 980→133）；service 域剩 `UserService` 876 + apikey 未动 |
