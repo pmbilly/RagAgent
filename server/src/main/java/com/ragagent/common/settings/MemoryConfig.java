@@ -230,9 +230,9 @@ public class MemoryConfig {
      * 对照 Go {@code Normalize}：套默认值，并把未知的 write mode 打回
      * {@link #WRITE_MODE_EXPLICIT_ONLY}。
      *
-     * <p>逐字段照抄，包括三处容易漏的：{@code extract_model_id} 与
-     * {@code embedding_model_id} 去空白、{@code extract_instructions} 去空白后按
-     * **rune** 截断到 1000、以及 {@code max_items} 的上下界
+     * <p>逐字段照抄（键名换锚后即为字段名），包括三处容易漏的：{@code extractModelId} 与
+     * {@code embeddingModelId} 去空白、{@code extractInstructions} 去空白后按
+     * **rune** 截断到 1000、以及 {@code maxItems} 的上下界
      * （小于等于 0 → 200，大于 2000 → 2000）。</p>
      *
      * <p>Go 的接收者是 {@code *MemoryConfig} 且 nil 时直接返回；Java 侧没有

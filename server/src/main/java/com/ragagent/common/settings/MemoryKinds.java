@@ -9,9 +9,9 @@ import java.util.List;
  * <p><b>为什么这些放得进一个类</b>：Go 里它们是包级常量，Java 没有包级作用域，
  * 全部落在一个 final 类里最贴近原样，也便于后续模块按名字检索。</p>
  *
- * <p>{@code write_mode} 的两个取值刻意**不在这里**——它们已经落在
+ * <p>{@code writeMode} 的两个取值刻意**不在这里**——它们已经落在
  * {@link MemoryConfig#WRITE_MODE_EXPLICIT_ONLY} / {@link MemoryConfig#WRITE_MODE_AUTO}，
- * 重复定义会让两处漂移。同理 {@code interest_threshold} 与
+ * 重复定义会让两处漂移。同理 {@code interestThreshold} 与
  * {@code MEMORY_DOC_AFFINITY_MIN_HITS} 也在 {@link MemoryConfig} 上。</p>
  */
 public final class MemoryKinds {
