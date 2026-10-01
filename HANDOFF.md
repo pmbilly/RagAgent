@@ -1133,9 +1133,16 @@ w3 12/12、w4 13/13 全等）；收官 `clean :server:test :server:spotlessCheck
 向量 / 抽取进度 / 内部工具 / 方言探测）同属「索引侧读写」一个关注点，**为压进 800 再切一刀只有数字意义**，
 故登记为已知例外。将来若「向量段」因独立演进出现真实接缝（如 pgvector 换成独立存储），再按自然边界外提
 ——**判据是接缝，不是行数**。
-- `MemoryService` 1,662：`开关判定` / `召回`（含 `finishSubjectLoadFailure` / `recallEmptyMeta`）/
-  `写入路径`（`remember` + `findContainedDuplicate` + `statusForWrite`）/ `记忆管理器`（列表/主题/文档/CRUD）
-  ——目标切 2~3 刀。
+- **`MemoryService` 1,662（下一批的正式目标，2026-10-01 已侦察到位）**：四段分布为
+  `开关：工作区配置与三层判定` L114-227（约 114 行）→ `召回` L232-474（约 243 行，含
+  `finishSubjectLoadFailure` / `recallEmptyMeta` / `residentItemsWithinBlock`）→ `写入路径` L475-713
+  （约 239 行，`remember` + `findContainedDuplicate` + `statusForWrite`）→ `记忆管理器` L714-1662
+  （约 950 行，占本类一半以上）。
+  **建议两刀**：m4 = 记忆管理器段**按自然接缝对半外提**——「条目 CRUD」（`listItems` / `createItem` /
+  `updateItem` / `deleteItem`）与「主题·文档视图」（`listTopics` / `promoteTopic` / `deleteTopic` /
+  `listDocuments` / `deleteDocument` / `familiarKnowledgeIds`）各成一个协作者（各约 450~480 行，
+  两个新类都 <500，避免再造一个 929 式大件）；m5 = 若切完仍明显超阈值，再评估 `召回` 段
+  （243 行，独立关注点，接缝自然）。
 
 ### 14.8 wiki 域边界判定（2026-09-30 侦察，动手前先读）
 
