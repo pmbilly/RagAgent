@@ -10,6 +10,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -40,6 +42,16 @@ public class OAuthStateStore {
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+
+    /** 旧 blob 的键名 → 新键名（仅用于 {@link #migrateLegacyKeys}，窗口过后连同该方法删除）。 */
+    private static final Map<String, String> LEGACY_KEY_RENAMES = Map.of(
+            "tenant_id", "tenantId",
+            "user_id", "userId",
+            "service_id", "serviceId",
+            "code_verifier", "codeVerifier",
+            "client_id", "clientId",
+            "redirect_uri", "redirectUri",
+            "frontend_redirect", "frontendRedirect");
 
     private final OAuthStateRedis redis;
     private final Map<String, MemEntry<OAuthState>> mem = new ConcurrentHashMap<>();
@@ -176,7 +188,7 @@ public class OAuthStateStore {
 
     private static OAuthState readState(String data) {
         try {
-            return MAPPER.readValue(data, OAuthState.class);
+            return MAPPER.treeToValue(migrateLegacyKeys(MAPPER.readTree(data)), OAuthState.class);
         } catch (Exception e) {
             throw new IllegalStateException("failed to decode oauth state: " + e.getMessage(), e);
         }
@@ -184,10 +196,35 @@ public class OAuthStateStore {
 
     private static OAuthAttempt readAttempt(String data) {
         try {
-            return MAPPER.readValue(data, OAuthAttempt.class);
+            return MAPPER.treeToValue(migrateLegacyKeys(MAPPER.readTree(data)), OAuthAttempt.class);
         } catch (Exception e) {
             throw new IllegalStateException("failed to decode oauth attempt: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 旧（Go 直译下划线）blob 的键名映射：**部署窗口内的兼容读**。
+     *
+     * <p>§14.9p M5 把 {@link OAuthState}/{@link OAuthAttempt} 的键名改成组件名，这两个记录
+     * 只活在同一份 Redis/内存 JSON 里（{@link #STATE_TTL} = 10 分钟）。若不兼容读，滚动发布
+     * 期间"已完成 authorize-url、还没点回调"的用户会拿到一份 tenantId=0/serviceId="" 的
+     * 空壳（`ignoreUnknown` 会静默吞掉旧键），回调只能报 authorization_failed。
+     * 这里按已知旧键改名后再反序列化，窗口过后可整体删除（删除条件：一次 STATE_TTL 的
+     * 部署窗口，见 HANDOFF §14.9p）。</p>
+     */
+    private static JsonNode migrateLegacyKeys(JsonNode node) {
+        if (!node.isObject()) {
+            return node;
+        }
+        ObjectNode obj = (ObjectNode) node;
+        boolean legacy = LEGACY_KEY_RENAMES.keySet().stream().anyMatch(obj::has);
+        if (!legacy) {
+            return node;
+        }
+        ObjectNode migrated = MAPPER.createObjectNode();
+        obj.fields().forEachRemaining(f -> migrated.set(
+                LEGACY_KEY_RENAMES.getOrDefault(f.getKey(), f.getKey()), f.getValue()));
+        return migrated;
     }
 
     private static String writeJson(Object value) {

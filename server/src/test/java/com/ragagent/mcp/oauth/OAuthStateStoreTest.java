@@ -144,4 +144,63 @@ class OAuthStateStoreTest {
         assertTrue(redis.contains(store.attemptKey("s1")), "attempt 必须还在");
         assertFalse(store.attempt("s1").completed());
     }
+
+    // ── 4. §14.9p M5：blob 键名换锚 + 部署窗口兼容读 ─────────────────────
+
+    /**
+     * 写出去的 blob 是新键名（反证：旧下划线键一条不留）。
+     *
+     * <p>这两个记录只有这一种序列化出口（Redis/内存同一份 JSON），所以直接看字符串即可。
+     */
+    @Test
+    void writesBlobsWithCamelCaseKeys() {
+        FakeOAuthStateRedis redis = new FakeOAuthStateRedis();
+        OAuthStateStore store = new OAuthStateStore(redis);
+        store.put("s2", state());
+
+        String stateBlob = redis.get(store.key("s2"));
+        assertTrue(stateBlob.contains("\"serviceId\":\"service-1\""), stateBlob);
+        assertTrue(stateBlob.contains("\"codeVerifier\":\"verifier\""), stateBlob);
+        assertTrue(stateBlob.contains("\"frontendRedirect\":\"/mcp-settings\""), stateBlob);
+        assertFalse(stateBlob.contains("service_id"), stateBlob);
+        assertFalse(stateBlob.contains("code_verifier"), stateBlob);
+
+        String attemptBlob = redis.get(store.attemptKey("s2"));
+        assertTrue(attemptBlob.contains("\"serviceId\":\"service-1\""), attemptBlob);
+        assertFalse(attemptBlob.contains("service_id"), attemptBlob);
+    }
+
+    /**
+     * 部署窗口的兼容读：Redis 里可能还躺着旧（下划线）键名的 blob，必须按旧键读出来——
+     * 不能静默变成 tenantId=0/serviceId="" 的空壳（{@code ignoreUnknown} 会吞掉旧键）。
+     */
+    @Test
+    void readsLegacySnakeCaseBlobsDuringDeployWindow() {
+        FakeOAuthStateRedis redis = new FakeOAuthStateRedis();
+        OAuthStateStore store = new OAuthStateStore(redis);
+        redis.set(store.key("legacy-1"),
+                "{\"tenant_id\":7,\"user_id\":\"user-1\",\"principal\":{\"type\":\"web_user\","
+                        + "\"id\":\"user-1\"},\"service_id\":\"service-1\",\"code_verifier\":\"verifier\","
+                        + "\"client_id\":\"client-1\","
+                        + "\"redirect_uri\":\"https://app.example.com/api/v1/mcp-oauth/callback\","
+                        + "\"frontend_redirect\":\"/mcp-settings\"}",
+                OAuthStateStore.STATE_TTL);
+        redis.set(store.attemptKey("legacy-1"),
+                "{\"tenant_id\":7,\"principal\":{\"type\":\"web_user\",\"id\":\"user-1\"},"
+                        + "\"service_id\":\"service-1\",\"completed\":true}",
+                OAuthStateStore.STATE_TTL);
+
+        OAuthAttempt attempt = store.attempt("legacy-1");
+        assertEquals(TENANT_ID, attempt.tenantId());
+        assertEquals("service-1", attempt.serviceId());
+        assertEquals("user-1", attempt.principalOrNull().id());
+        assertTrue(attempt.completed());
+
+        OAuthState taken = store.take("legacy-1");
+        assertEquals(TENANT_ID, taken.tenantId());
+        assertEquals("service-1", taken.serviceId());
+        assertEquals("verifier", taken.codeVerifier());
+        assertEquals("client-1", taken.clientId());
+        assertEquals("/mcp-settings", taken.frontendRedirect());
+    }
 }

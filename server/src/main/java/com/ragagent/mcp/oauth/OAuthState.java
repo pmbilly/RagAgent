@@ -1,13 +1,15 @@
 package com.ragagent.mcp.oauth;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.ragagent.common.context.TenantContext;
 
 /**
  * 一次进行中的 OAuth 授权码流程所需的全部临时数据（对照 Go
  * internal/mcp/oauth_state.go:25-36 的 {@code OAuthState}）。
+ *
+ * <p><b>键名（§14.9p M5）</b>：本记录只序列化进 Redis/内存（同一份 JSON），键名＝组件名；
+ * 部署窗口内由 {@code OAuthStateStore} 的兼容读接住旧的下划线 blob。</p>
  *
  * <p><b>为什么必须服务端存储</b>（Go 注释原文精神）：本结构持有 PKCE 的
  * {@code code_verifier}，那是<b>绝不能发往授权服务器</b>的秘密（授权请求里只发它的
@@ -16,17 +18,17 @@ import com.ragagent.common.context.TenantContext;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record OAuthState(
-        @JsonProperty("tenant_id") long tenantId,
-        @JsonProperty("user_id") String userId,
-        @JsonProperty("principal") Principal principal,
-        @JsonProperty("service_id") String serviceId,
-        @JsonProperty("code_verifier") String codeVerifier,
-        @JsonProperty("client_id") String clientId,
-        @JsonProperty("redirect_uri") String redirectUri,
+        long tenantId,
+        String userId,
+        Principal principal,
+        String serviceId,
+        String codeVerifier,
+        String clientId,
+        String redirectUri,
         /**
          * 回调完成后浏览器最终被弹回的前端地址（不是授权服务器回跳的 redirect_uri）。
          */
-        @JsonProperty("frontend_redirect") String frontendRedirect) {
+        String frontendRedirect) {
 
     public OAuthState {
         userId = nz(userId);
@@ -43,7 +45,7 @@ public record OAuthState(
 
     /** 对照 Go {@code types.Principal} 的结构内序列化形态（仅用于 Redis 往返）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Principal(@JsonProperty("type") String type, @JsonProperty("id") String id) {
+    public record Principal(String type, String id) {
 
         static Principal of(TenantContext.Principal p) {
             return p == null ? new Principal("", "") : new Principal(nz(p.type()), nz(p.id()));

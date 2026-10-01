@@ -1,13 +1,14 @@
 package com.ragagent.mcp.oauth;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 import com.ragagent.common.context.TenantContext;
 
 /**
  * 一次授权流程的<b>非秘密</b>、可鉴权状态（对照 Go
  * internal/mcp/oauth_state.go:58-63 的 {@code OAuthAttempt}）。
+ *
+ * <p><b>键名（§14.9p M5）</b>：同 {@link OAuthState}——只进 Redis/内存，键名＝组件名。</p>
  *
  * <p><b>为什么要与 {@link OAuthState} 分开存</b>（Go 注释原文精神）：{@link OAuthStateStore#take}
  * 会在 code 交换<b>完成之前</b>就消费掉 PKCE state，而发起方（前端弹窗）还需要区分
@@ -16,10 +17,10 @@ import com.ragagent.common.context.TenantContext;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record OAuthAttempt(
-        @JsonProperty("tenant_id") long tenantId,
-        @JsonProperty("principal") OAuthState.Principal principal,
-        @JsonProperty("service_id") String serviceId,
-        @JsonProperty("completed") boolean completed) {
+        long tenantId,
+        OAuthState.Principal principal,
+        String serviceId,
+        boolean completed) {
 
     public OAuthAttempt {
         serviceId = serviceId == null ? "" : serviceId;

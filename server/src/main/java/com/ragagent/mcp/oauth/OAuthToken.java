@@ -14,6 +14,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * <p>用可变类而非 record：授权服务器可以省略 {@code refresh_token}（表示"沿用旧值"），
  * 也可以只给 {@code expires_in}（需要就地折算成绝对 {@code expires_at}），
  * 这两处都是 Go 里对同一个结构体的原地改写。</p>
+ *
+ * <p><b>⚠️ 这里的下划线键名是"外来的"，永久冻结</b>（§14.9p M5 判定）：本类唯一的 Jackson
+ * 出口是 {@code OAuthTokenOps} 解析<b>授权服务器</b>的 RFC 6749 §5.1 token 响应
+ * （{@code access_token}/{@code token_type}/{@code refresh_token}/{@code expires_in}/{@code scope}）；
+ * 我方落库走 {@code McpOAuthToken} 实体的列映射（表里没有 jsonb 列），不存在"我们的键名"。
+ * 同理冻结的还有 {@code AuthServerMetadata}（RFC 8414）、{@code OAuthProtectedResource}
+ * （RFC 9728）、{@code OAuthError}（RFC 6749 §5.2）。**别把它们的键名"改回 camelCase"。**</p>
  */
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY,
         getterVisibility = JsonAutoDetect.Visibility.NONE,
