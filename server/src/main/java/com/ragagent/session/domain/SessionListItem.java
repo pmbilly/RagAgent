@@ -5,9 +5,6 @@ import java.time.OffsetDateTime;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
@@ -20,84 +17,54 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  * Go 的 encoding/json 按"深度浅者胜"解析，所以 {@code im_platform} **只出现一次**，
  * 位置在外层声明处（即 {@code deleted_at} 之后）。</p>
  *
- * <p>Java 侧若用继承或 {@code @JsonUnwrapped}，两个 {@code im_platform} 会撞成重复键，
+ * <p>Java 侧若用继承或 {@code @JsonUnwrapped}，两个 {@code imPlatform} 会撞成重复键，
  * 且键序由 Jackson 的内部规则决定、不受控。而这是**响应体**（GET /sessions 的
- * {@code data} 数组元素），键序必须与 Go 一致——所以平铺 + 显式 {@code @JsonPropertyOrder}。</p>
+ * {@code items} 数组元素），键序＝字段声明序才受控——所以保持平铺；显式的键序注解已在
+ * §14.9l S1 换锚时退役（声明序即线格式顺序，键名＝Java 字段名）。</p>
  */
 @TableName(value = "sessions", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "title", "description", "tenant_id", "user_id", "is_pinned", "pinned_at",
-        "last_request_state", "created_at", "updated_at", "deleted_at",
-        "im_platform", "im_chat_id", "im_thread_id", "im_user_id", "im_agent_id", "im_channel_id"
-})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SessionListItem {
 
-    @JsonProperty("id")
     private String id;
 
     // Go 字符串零值语义：GORM 扫 NULL 列得 ""（恒输出的键不允许出 null）
-    @JsonProperty("title")
     private String title = "";
 
-    @JsonProperty("description")
     private String description = "";
 
-    @JsonProperty("tenant_id")
     private Long tenantId;
 
-    @JsonProperty("user_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String userId;
 
     /** 字段名不带 {@code is} 前缀——理由见 {@link Session} 上同名字段的注释（重复键 + MP lambda）。 */
-    @JsonProperty("is_pinned")
     private boolean pinned;
 
-    @JsonProperty("pinned_at")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private OffsetDateTime pinnedAt;
 
     @TableField(value = "agent_config", typeHandler = PgJsonTypeHandler.class)
-    @JsonProperty("last_request_state")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private SessionLastRequestState lastRequestState;
 
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
 
-    @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
     // ── 以下六个来自 LEFT JOIN im_channel_sessions；Web 建的会话全为空 ──────────
 
-    @JsonProperty("im_platform")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private String imPlatform;
+    private String imPlatform = "";
 
-    @JsonProperty("im_chat_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private String imChatId;
+    private String imChatId = "";
 
-    @JsonProperty("im_thread_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private String imThreadId;
+    private String imThreadId = "";
 
-    @JsonProperty("im_user_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private String imUserId;
+    private String imUserId = "";
 
-    @JsonProperty("im_agent_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private String imAgentId;
+    private String imAgentId = "";
 
-    @JsonProperty("im_channel_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private String imChannelId;
+    private String imChannelId = "";
 
     public SessionListItem() {
     }
@@ -196,7 +163,7 @@ public class SessionListItem {
     }
 
     public void setImPlatform(String v) {
-        this.imPlatform = v;
+        this.imPlatform = v == null ? "" : v;
     }
 
     public String getImChatId() {
@@ -204,7 +171,7 @@ public class SessionListItem {
     }
 
     public void setImChatId(String v) {
-        this.imChatId = v;
+        this.imChatId = v == null ? "" : v;
     }
 
     public String getImThreadId() {
@@ -212,7 +179,7 @@ public class SessionListItem {
     }
 
     public void setImThreadId(String v) {
-        this.imThreadId = v;
+        this.imThreadId = v == null ? "" : v;
     }
 
     public String getImUserId() {
@@ -220,7 +187,7 @@ public class SessionListItem {
     }
 
     public void setImUserId(String v) {
-        this.imUserId = v;
+        this.imUserId = v == null ? "" : v;
     }
 
     public String getImAgentId() {
@@ -228,7 +195,7 @@ public class SessionListItem {
     }
 
     public void setImAgentId(String v) {
-        this.imAgentId = v;
+        this.imAgentId = v == null ? "" : v;
     }
 
     public String getImChannelId() {
@@ -236,6 +203,6 @@ public class SessionListItem {
     }
 
     public void setImChannelId(String v) {
-        this.imChannelId = v;
+        this.imChannelId = v == null ? "" : v;
     }
 }

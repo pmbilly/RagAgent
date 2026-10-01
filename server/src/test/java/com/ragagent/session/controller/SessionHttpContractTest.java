@@ -79,9 +79,9 @@ class SessionHttpContractTest {
 
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
     private static final Pattern UUID_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
+            "\"([A-Za-z_][A-Za-z0-9_]*)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     private static final Pattern TS_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
+            "\"([A-Za-z_][A-Za-z0-9_]*)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
 
     @Autowired
     private MockMvc mockMvc;

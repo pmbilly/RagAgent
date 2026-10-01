@@ -6,17 +6,15 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
  * sessions 表实体（对照 Go {@code types.Session}，internal/types/session.go L76-139）。
  *
- * <p><b>响应形态</b>：GET /sessions/{id} 与 POST /sessions 都把本对象**直接**放进
- * {@code {"success":true,"data":...}} 的 data 里，所以下面是 **Go struct 声明序**，
- * 不是字母序（对照 §9 的 JSON 键序规则：struct 按声明序、map 按字母序）。</p>
+ * <p><b>响应形态（§14.9l S1 换锚后）</b>：GET /sessions/{id}、POST /sessions、PUT /sessions/{id}
+ * 都直接返回本对象（201/200 + 裸对象，无 {@code {data,success}} 信封）；JSON 键名＝Java 字段名
+ * （camelCase）、键序＝字段声明序，所有字段恒输出（§1.6 禁止条件键：未置顶时
+ * {@code pinnedAt:null}、无 IM 来源时 {@code imPlatform:""}）。</p>
  *
  * <h2>GORM 隐式行为清单（约定 §3）</h2>
  * <ul>
@@ -39,11 +37,6 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  * </ul>
  */
 @TableName(value = "sessions", autoResultMap = true)
-@JsonPropertyOrder({
-        "id", "title", "description", "tenant_id", "user_id", "is_pinned", "pinned_at",
-        "last_request_state", "created_at", "updated_at", "deleted_at",
-        "im_platform"
-})
 public class Session {
 
     /** 对照 Go {@code SessionSourceAPI}：跨整租户的 API-Key 会话视图（仅 Admin+，且不做按人隔离）。 */
@@ -56,16 +49,12 @@ public class Session {
     public static final String SKILL_MAINTENANCE_SESSION_MARKER = "skill_maintenance:";
 
     @TableId(value = "id", type = IdType.INPUT)
-    @JsonProperty("id")
     private String id;
 
-    @JsonProperty("title")
     private String title = "";
 
-    @JsonProperty("description")
     private String description = "";
 
-    @JsonProperty("tenant_id")
     private Long tenantId;
 
     /**
@@ -74,8 +63,6 @@ public class Session {
      * <p>值为空的行是历史的/由 API 创建的租户级会话——可见性判定要把它们算进来
      * （见 {@code SessionRepository.applyUserScope}）。</p>
      */
-    @JsonProperty("user_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String userId = "";
 
     /**
@@ -83,19 +70,17 @@ public class Session {
      * <ol>
      *   <li>Jackson：字段 {@code isPinned} 的隐式属性名是 "isPinned"，而 getter
      *       {@code isPinned()} 的隐式名是 "pinned"——两者对不上就会**各生成一个属性**，
-     *       JSON 里同时冒出 {@code is_pinned} 和 {@code pinned} 两个键（真实踩过）。</li>
+     *       JSON 里同时冒出两个键（真实踩过）。字段名与 getter 名在这里一致，只有
+     *       {@code pinned} 一个键（§1.24：布尔字段不带 {@code is} 前缀，读写一致）。</li>
      *   <li>MyBatis-Plus 的 lambda：{@code Session::isPinned} 按 PropertyNamer 推成
      *       "pinned"，要能对上实体字段名才找得到列映射。</li>
      * </ol>
-     * 列名由 {@code @TableField("is_pinned")} 显式给出。
+     * 列名由 {@code @TableField("is_pinned")} 显式给出（**列名不变**，换锚只改 JSON 键名）。
      */
     @TableField("is_pinned")
-    @JsonProperty("is_pinned")
     private boolean pinned;
 
     /** 置顶时刻；未置顶时为 null（Go 的 *time.Time）。 */
-    @JsonProperty("pinned_at")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private OffsetDateTime pinnedAt;
 
     /**
@@ -105,17 +90,12 @@ public class Session {
      * 不驱动任何后端行为。</p>
      */
     @TableField(value = "agent_config", typeHandler = PgJsonTypeHandler.class)
-    @JsonProperty("last_request_state")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private SessionLastRequestState lastRequestState;
 
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt;
 
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt;
 
-    @JsonProperty("deleted_at")
     private OffsetDateTime deletedAt;
 
     /**
@@ -124,9 +104,7 @@ public class Session {
      * 好让 Web 控制台不必再查一次就能给会话分来源。</p>
      */
     @TableField(exist = false)
-    @JsonProperty("im_platform")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private String imPlatform;
+    private String imPlatform = "";
 
     public Session() {
     }

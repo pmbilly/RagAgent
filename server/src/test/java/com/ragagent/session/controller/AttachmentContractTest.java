@@ -50,7 +50,7 @@ class AttachmentContractTest {
 
     private static final Pattern TOKEN = Pattern.compile("\"token\":\"([^\"]+)\"");
     private static final Pattern TS_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
+            "\"([A-Za-z_][A-Za-z0-9_]*)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
     /** 动态 id：两侧各自生成（对照 G1 的掩码口径，按键名掩 UUID）。 */
     private static final Pattern UUID_FIELDS = Pattern.compile(
             "\"(id|session_id|attachment_id)\":\"[0-9a-f-]{32,36}\"");

@@ -1,52 +1,45 @@
 package com.ragagent.session.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * 被 @ 提及的知识库 / 文件 / 标签 / MCP 工具 / skill（对照 Go
  * {@code types.MentionedItem}，internal/types/message.go L27-36）。
  *
- * <p><b>八个键全部无 omitempty</b>：Go 的 string 零值是 {@code ""}，所以未使用的字段
- * 也要输出成空串，不能省略。逐字段对照 Go 的 json tag 写就行，别按"用不到的字段就省"的直觉改。</p>
+ * <p><b>八个键全部恒输出</b>：Go 的 string 零值是 {@code ""}，所以未使用的字段
+ * 也要输出成空串，不能省略（§1.6 禁止条件键）。§14.9l S1 换锚后键名＝Java 字段名
+ * （{@code kbType}/{@code kbId}/{@code kbName}/{@code serviceId}/{@code skillName}）。</p>
+ *
+ * <p>⚠️ 它**落两处 jsonb**（{@code messages.mentioned_items} 与
+ * {@code sessions.agent_config.mentioned_items}），换键名必须配存量迁移（HANDOFF §14.9l S1）。</p>
  *
  * <p>与 {@code MapString} / {@code MentionedItemsFromRaw} 的关系：Go 把那两个函数用于
  * 从 steer 事件里 JSON 安全的 map 形态重建本结构（只认 string 类型的值，其余当空串）。
  * Java 侧对应 {@link #fromRawMap}。</p>
  */
-@JsonPropertyOrder({"id", "name", "type", "kb_type", "kb_id", "kb_name", "service_id", "skill_name"})
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MentionedItem {
 
-    @JsonProperty("id")
     private String id = "";
 
-    @JsonProperty("name")
     private String name = "";
 
     /** "kb" / "file" / "tag" / "mcp" / "skill" */
-    @JsonProperty("type")
     private String type = "";
 
     /** "document" 或 "faq"（仅 kb 类型）。 */
-    @JsonProperty("kb_type")
     private String kbType = "";
 
     /** file / tag 提及所属的父知识库。 */
-    @JsonProperty("kb_id")
     private String kbId = "";
 
     /** 父知识库的显示名。 */
-    @JsonProperty("kb_name")
     private String kbName = "";
 
     /** MCP 工具提及所属的父服务。 */
-    @JsonProperty("service_id")
     private String serviceId = "";
 
     /** 预加载的 agent skill 名。 */
-    @JsonProperty("skill_name")
     private String skillName = "";
 
     public MentionedItem() {

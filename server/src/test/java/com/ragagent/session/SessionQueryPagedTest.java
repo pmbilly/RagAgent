@@ -276,11 +276,12 @@ class SessionQueryPagedTest {
         assertThat(item.getImChannelId()).isEqualTo("chan-1");
     }
 
+    /** Web 建的会话没有 IM 来源：六个 IM 字段是**空串**而不是 {@code null}（§1.6 恒输出键的零值语义）。 */
     @Test
     void webSessionsHaveEmptyImFields() {
         create("web", "", "u1");
         SessionListItem item = query("", null, null).get(0);
-        assertThat(item.getImPlatform()).isNull();
-        assertThat(item.getImChatId()).isNull();
+        assertThat(item.getImPlatform()).isEmpty();
+        assertThat(item.getImChatId()).isEmpty();
     }
 }
