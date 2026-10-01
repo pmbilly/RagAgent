@@ -285,12 +285,12 @@ class JsonContractRoundTripTest {
     // ── Wiki 批次管道（落 task_pending_ops.payload / task_dead_letters.payload） ──
 
     /**
-     * 批次执行体（wiki_ingest_batch.go / wiki_ingest_cite.go / wiki_ingest_dedup.go）
-     * 读写的那批 jsonb 载荷。
+     * 批次执行体（wiki ingest / cite / dedup）读写的那批 jsonb 载荷。
      *
-     * <p>跨语言读写时字段名必须逐字对齐 Go 的 json tag；任何
-     * {@code isXxx()}/{@code getXxx()} 派生方法都必须 {@code @JsonIgnore}
-     * （约定 §9 复发率最高的坑），否则整列回读会抛
+     * <p>键名即 Java 字段名（camelCase，落库格式 §2 第 11 条）；
+     * {@code WikiIngestPayload} 的五个 {@code lf_*} 追踪键是平铺载具的冻结面
+     * （见 §14.6 边界清单）。任何 {@code isXxx()}/{@code getXxx()} 派生方法都必须
+     * {@code @JsonIgnore}（约定 §9 复发率最高的坑），否则整列回读会抛
      * {@code UnrecognizedPropertyException}。</p>
      */
     @Test
@@ -299,11 +299,11 @@ class JsonContractRoundTripTest {
                 new WikiIngestPayload(7L, "kb-1", "zh-CN"),
                 WikiIngestPayload.class,
                 "service.WikiIngestPayload ← WikiIngestPayload");
-        // omitempty 的 language 省略后仍须往返幂等
+        // language 为 null 时显式输出 null 键，往返仍须幂等
         assertRoundTrips(
                 new WikiIngestPayload(7L, "kb-1", null),
                 WikiIngestPayload.class,
-                "service.WikiIngestPayload（language 省略）← WikiIngestPayload");
+                "service.WikiIngestPayload（language null）← WikiIngestPayload");
 
         assertRoundTrips(
                 WikiFinalizeRow.slug("entity/a", "A"),

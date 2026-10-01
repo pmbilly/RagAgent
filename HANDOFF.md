@@ -2,7 +2,7 @@
 
 > 本文档写给在 `~/ragagent` 打开的新会话/新成员。**一切背景以本文为准**；最近的执行细节在 `git log`。
 > 种子：自 `~/ragagent-java` @ `646aba7`（2026-09-28）分叉，git 历史完整保留。
-> **最近更新 2026-10-01**（wiki/im/retrieval 适配器批收官：≥800 类 38→28，§14.7.2/§14.7.4/§14.7.5）。
+> **最近更新 2026-10-02**（wiki ingest 载荷 W1 收官：阶段 3 域级契约换锚收官，§14.9r）。
 
 ## ⭐ 接手须知（5 分钟版）
 
@@ -28,13 +28,20 @@
    生成标题 `{title}`、删除类与停止 **204**、查询参数 `pageSize`/`agentId`），两处 jsonb 迁移 SQL 已备
    （dev 库 0 行需迁移）；**session 域 S1~S5 全部完成（S2/S3/S4 前后端同批，S5 后端面）——`@JsonProperty` 188 → 0**；
    **阶段 3 打样已跑通（2026-10-01，evaluation 域，§14.9b）——去信封 + camelCase + 标准 DTO 绑定，真实服务冒烟 8 路通过**；
-   **阶段 3 第二域 model 全域收官（2026-10-01，§14.9c/§14.9e）——主资源 + debug + weknoracloud + 落库 jsonb 四块换锚，`@JsonProperty` 87→0，前端 15 文件同批（首次前后端同 PR）**。
-4. **下一步（候选，由用户排）**：① **memory M3（收尾）**——LLM 载荷边界登记（22 处，写进文档即可）+
-   请求侧手写绑定器清除（`MemoryController` 的 `rawBody + parse()` → DTO + `@Valid`，含 1010/EOF 文案）；
-   ② 其余重域端点面：**session 188（下一条建议刀）/ datasource 127 / mcp 110 / system 尾**；
-   ③ 阶段 2 剩余尾巴：`SourceRegistry` 878 / `UserService` 876 / knowledge 两个登记例外 / `SessionKnowledgeQaService` 1,036 例外复核；
-   ④ 错误形态统一（`{error:{…},"success":false}` 去 `success`）可与任一批同做或单独立批。
-   **memory 域两条线都已走完**（切片：m1~m5；换锚：M1~M3）。
+   **阶段 3 第二域 model 全域收官（2026-10-01，§14.9c/§14.9e）——主资源 + debug + weknoracloud + 落库 jsonb 四块换锚，`@JsonProperty` 87→0，前端 15 文件同批（首次前后端同 PR）**；
+   **阶段 3 其余域全部收官（2026-10-01~10-02）**：system（§14.9f/g）/ auth（§14.9h/i/j）/ memory（§14.9k）/
+   mcp（§14.9n/o/p，余 22 处第三方协议面冻结）/ session（§14.9l，S1~S5，`@JsonProperty` 188→0）/
+   embed（§14.9m）/ datasource（§14.9q，D1~D3，余 350 处 connector 线格式 + 5 处 `lf_*` 冻结）；
+   **wiki ingest 载荷 W1 收官（2026-10-02，§14.9r）——阶段 3 域级契约换锚至此收官：
+   各域可换锚面清零，全仓 `@JsonProperty` 余量全是登记冻结面**（第三方 API / RFC 协议 / SSE·Redis 事件 /
+   provider 请求体 / LLM 输出解析面 / `lf_*` 载具 / 租户配置 jsonb）。
+4. **下一步（候选，由用户排）**：① **契约尾巴三小批**：(a) 小额散存量甄别批——im `ImChannelController` 17 /
+   storage dto 24 / favorite 5 / audit 1 / retrieval `ImageInfo`+`WebSearchResult` 13 / `common SearchParams` 13 /
+   `rerank RankResult` 4（约 77 处，**动手前先按 §14.9 三分法甄别**，个别可能是内部载荷）；
+   (b) **M6**——mcp 域 4 类 `@JsonInclude` 漏网改恒输出（§14.9q 登记的待办，7 文件，需重录夹具）；
+   (c) 错误形态统一（`{error:{…},"success":false}` 去 `success`）可单独立批；
+   ② 阶段 2 剩余尾巴：`SourceRegistry` 878 / `UserService` 876 / knowledge 两个登记例外 / `SessionKnowledgeQaService` 1,036 例外复核。
+   **阶段 3 域级换锚已收官**（2026-10-02 wiki W1 后），memory 域两条线也都走完（切片 m1~m5；换锚 M1~M3）。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`；切片产物排版闸门：`scripts/normalize-blank-lines.py`（§13.8）。
 6. **全仓存量**：≥800 行的类还有 **6 个**（清单见 §14.3）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource / evaluation 域 ≥800 全为零**，memory 域已出榜 3/3（2026-10-01 m5 后仅剩 `MemoryIndexStore` 929，登记例外）。
@@ -559,7 +566,7 @@ git grep -nE '@RequestBody\s+(String|Map<|JsonNode|Object)' -- 'server/src/main/
 
 - **别把"Go 序列化层删除"拆到各域**：409 处引用 / 94 文件的那一刀按 §3 红线必须**一次性全仓完成**。
   按域先换锚（同 PR 带前端）是允许的，删序列化器本体不是。
-- **别动 §11 的边界清单**：租户配置 jsonb（`chat_parser_engine_rules` 等）、auth 域、agent 域 fixture（`ag-*`）、**Go 工具面 5 类**（`GoDoubleSerializer`/`GoTimeSerializer`/`GoMapSerializer`/`GoJsonEscapes`/`GoJson`——线上注解已清零，但手搓载荷/provider 请求体仍依赖其字节）、chat/工具域手搓载荷与**工具输出自有 schema**、检索引擎索引文档、**`lf_*` 平铺追踪载具**（§14.9q D3：`TracingContext` 平铺进 4 个队列载荷，前缀是防撞名的命名空间；要清理应改为嵌套 `tracing` 键，不是去前缀）、**connector 第三方线格式**（`datasource/connector/**` 350 处，字段名由对方 API 决定）——
+- **别动 §11 的边界清单**：租户配置 jsonb（`chat_parser_engine_rules` 等）、auth 域、agent 域 fixture（`ag-*`）、**Go 工具面 5 类**（`GoDoubleSerializer`/`GoTimeSerializer`/`GoMapSerializer`/`GoJsonEscapes`/`GoJson`——线上注解已清零，但手搓载荷/provider 请求体仍依赖其字节）、chat/工具域手搓载荷与**工具输出自有 schema**、检索引擎索引文档、**`lf_*` 平铺追踪载具**（§14.9q D3：`TracingContext` 平铺进 4 个队列载荷，前缀是防撞名的命名空间；要清理应改为嵌套 `tracing` 键，不是去前缀）、**connector 第三方线格式**（`datasource/connector/**` 350 处，字段名由对方 API 决定）、**wiki LLM 输出解析面**（§14.9r：`CombinedExtraction`/`NewSlugFromCitation`/`CitationBatchResult`/`common/wiki/ExtractedItem` 约 17 处，键名由 `WikiPrompts` 三条 prompt 的正文钉住——要改 Java 侧键名必须连 prompt 一起改，属行为面，另批处理）——
   这些"仍是 snake"是**对的**。**注意该清单会随各域推进而变动**：`wiki 域实体` 条目已作废
   （`b407769` C 波把 `wiki/domain` 换锚为 camelCase），`wiki/service` 残留的 `@JsonProperty` 载荷随其批次处理；
   **引用前先看 §14.3 该域的进度栏，别照抄旧结论**。
@@ -2384,6 +2391,78 @@ WHERE jsonb_typeof(last_sync_cursor) = 'object' AND last_sync_cursor ? 'last_syn
 - **datasource 域收官**：493 →（D1）417 →（D2）366 →（D3）**355**，其中 **350 处是 connector 第三方线格式
   （永久冻结）+ 5 处 `lf_*` 共享载具（冻结）** ⇒ **该域可换锚面 = 0**。
 
+### 14.9r wiki ingest 载荷 W1 收官 + 阶段 3 域级换锚收官（2026-10-02）
+
+**范围甄别（动刀前三分）**：`wiki` 包 `@JsonProperty` 计 **39 处 / 7 文件**，不是一面：
+- **task_pending_ops 落库载荷 4 类（可换锚 17 键）**：`WikiPendingOp`(7)、`WikiFinalizeRow`(4)、
+  `WikiFinalizeChange`(3)、`WikiIngestPayload` 自有键(3)；键序注解与声明序一致，`@JsonPropertyOrder` 直接退役。
+- **死注解 8 处**：`WikiRetractPayload` ——侦察证实**全仓无任何序列化点**（字段在
+  `WikiIngestEnqueueOps.enqueueWikiRetract` 里摊平进 `WikiPendingOp` 落库、追踪载体进 `WikiIngestPayload` 进队列），
+  8 处 `@JsonProperty` + 3 处 `@JsonInclude` 是 Go 时代遗物，**整类摘除**而非改名。
+- **冻结 14 处**：`WikiIngestPayload` 的 `lf_*` 五键（平铺载具，D3 同款判定，`@JsonProperty`+NON_EMPTY 刻意保留）
+  + `CombinedExtraction`(2)/`NewSlugFromCitation`(7) ——**LLM 输出解析面**，键名由 `WikiPrompts` 三条 prompt
+  正文钉住（`entities`/`concepts`/`source_chunks`/`new_slugs`…），已登记进 §14.6 边界清单；
+  另 `WikiIngestCitePipeline.CitationBatchResult` 2 处全限定注解同面同冻结。
+
+**✅ W1 执行记录（2026-10-02）**：
+- **换锚**：上述 4 类 17 键去 `@JsonProperty`（JSON 名=Java 字段名）；**条件键改恒输出**（§1.6）——
+  `WikiPendingOp` 五个 retract 专属键零值写 `null`、`WikiFinalizeRow` 未选分支两键显式 `null`
+  （"恰好一个被设置"语义不变）、`WikiFinalizeChange.docTitle/docSummary` 恒在、`WikiIngestPayload.language`
+  null 照写。
+- **零兼容负担面**：`WikiIngestPayload` 只在单 JVM 的 `InProcessWikiIngestTaskQueue` 流动（队列实现 javadoc
+  明示跨实例语义需换 Redis/MQ 实现）⇒ 无需兼容读；**唯一落库点**是 `task_pending_ops.payload`
+  （`WikiPendingOp`/`WikiFinalizeRow`）与 `task_dead_letters.payload`（死信留档，`readTree` 原样存、不重放）
+  ⇒ 迁移 SQL 如下（dev 库两表实测 **0 行**；表达式已在真 PG 用 5+1 合成行验证：ingest/retract/change/folder_prune
+  四形状改名正确、`slug` 行无键不动、死信行 `lf_*` 不动）。
+- **前端无面**（内部队列与落库载荷；wiki 对前端契约已在 C 波完成）。
+- 测试：`JsonContractRoundTripTest` 注释去 Go 对齐理由（改列本批边界口径）、"language 省略"用例改
+  "language null 显式输出"；`InProcessWikiIngestTaskQueueTest` 三处硬编码 snake 载荷字面量改 camelCase
+  （**侦察教训：grep 蛇形键要带转义引号模式**，普通 `'"[a-z_]*_'` 漏掉 Java 字符串里的 `\"`）；
+  `WikiIngestServiceTest$FinalizeRows.rowJsonShapes` 原"与 Go 的 omitempty 一致"三断言按 §13.12
+  改写为本方形状（改判理由：内部落库载荷不属对外契约，§2 第 11 条）。
+- 验收：全量 **4686 / 0 失败 / 6 跳过** + `spotlessCheck`；无 HTTP 面改动，冒烟不适用（wiki 域测试全绿
+  覆盖 enqueue→peek→process 真序列化路径）。
+- **收官判定**：W1 后 wiki 包 `@JsonProperty` 39→**14**（`lf_*` 5 + `CombinedExtraction` 2 + `NewSlugFromCitation` 7），
+  连同同面的 `common/wiki/ExtractedItem`(6) 与 `CitationBatchResult`(2，全限定写法) 合计 22 处**全部是登记冻结面
+  ⇒ 该域可换锚面 = 0**。至此**阶段 3 域级契约换锚收官**：knowledge/retrieval/会话链/
+  chunker/evaluation/model/system/auth/memory/mcp/session/embed/datasource/wiki 十四域可换锚面全部清零，
+  全仓 `@JsonProperty` 余量（约 1,060 处）均为第三方 API、RFC 协议、SSE/Redis 事件、provider 请求体、
+  LLM 载荷、`lf_*` 载具、租户配置 jsonb 等登记冻结面；剩余真存量只有**小额散尾巴**（见 ⭐ 接手须知第 4 条）。
+
+**W1 存量迁移 SQL（真 PG 合成数据验证；dev 库 0 行）**：
+```sql
+-- ① task_pending_ops.payload：顶层 5 键 + 内层 change 的 2 键（表为 wiki 专属，键名条件已限定范围）
+UPDATE task_pending_ops SET payload = (
+  SELECT jsonb_object_agg(
+      CASE e.key
+        WHEN 'knowledge_id' THEN 'knowledgeId'
+        WHEN 'doc_title' THEN 'docTitle'
+        WHEN 'doc_summary' THEN 'docSummary'
+        WHEN 'page_slugs' THEN 'pageSlugs'
+        WHEN 'folder_ids' THEN 'folderIds'
+        ELSE e.key END,
+      CASE WHEN e.key = 'change' AND jsonb_typeof(e.value) = 'object' THEN (
+        SELECT jsonb_object_agg(CASE k.key
+            WHEN 'doc_title' THEN 'docTitle'
+            WHEN 'doc_summary' THEN 'docSummary' ELSE k.key END, k.value)
+        FROM jsonb_each(e.value) AS k) ELSE e.value END)
+  FROM jsonb_each(payload) AS e)
+WHERE jsonb_typeof(payload) = 'object'
+  AND (payload ? 'knowledge_id' OR payload ? 'doc_title' OR payload ? 'doc_summary'
+       OR payload ? 'page_slugs' OR payload ? 'folder_ids'
+       OR (payload -> 'change') ? 'doc_title' OR (payload -> 'change') ? 'doc_summary');
+
+-- ② task_dead_letters.payload：只改包装两键（lf_* 冻结不动）
+UPDATE task_dead_letters SET payload = (
+  SELECT jsonb_object_agg(CASE e.key
+      WHEN 'tenant_id' THEN 'tenantId'
+      WHEN 'knowledge_base_id' THEN 'knowledgeBaseId' ELSE e.key END, e.value)
+  FROM jsonb_each(payload) AS e)
+WHERE jsonb_typeof(payload) = 'object'
+  AND (payload ? 'tenant_id' OR payload ? 'knowledge_base_id');
+```
+
+
 ### 14.9p mcp 域 M5（OAuth 内部 blob 面）+ 该域收官（2026-10-01）
 
 **✅ M5 执行记录**：`OAuthState`(9) + `OAuthAttempt`(4) 去键名映射——这两个记录**只序列化进
@@ -2455,9 +2534,9 @@ Redis/内存的同一份 JSON**（`OAuthStateStore` 的 `writeJson`/`readState`/
 - 每个改契约的 PR **同批带前端**（§2 第 3 条）；产品未上线，无兼容期（§2 第 2 条）。
 - 细则与历史差异表：`docs/knowledge-api-contract-v1.md`（v1.0，32KB）。
 
-**进度（2026-10-01）**
-- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview / **evaluation（打样域，§14.9b）** / **model 全域（主资源 + debug + weknoracloud + 落库 jsonb，§14.9c/§14.9e——首次前后端同 PR）**。
-- 未完成：**wiki / agent / auth / memory / mcp 等其余域**的端点面与落库面。
+**进度（2026-10-02 更新：域级换锚收官）**
+- 已完成：knowledge（含 34 个端点 DTO 化）/ retrieval（`SearchResult` + `hybrid-search`）/ 会话-消息-附件-建议-steer-knowledge-search / chunker-preview / evaluation（打样，§14.9b）/ model（§14.9c/§14.9e，首次前后端同 PR）/ system（§14.9f/g）/ auth（§14.9h/i/j）/ memory（§14.9k）/ session（§14.9l）/ embed（§14.9m）/ mcp（§14.9n/o/p）/ datasource（§14.9q）/ wiki（§14.9r）。
+- **未完成 = 冻结面之外的小额散尾巴**（约 77 处，见 ⭐ 第 4 条，动手前按三分法甄别）+ 两个登记小批（M6、错误形态统一）。
 
 **存量表（2026-10-01 盘点实测，§14.9 第 1 步交付物；只读扫描，三分法甄别）**
 
@@ -2467,7 +2546,7 @@ Redis/内存的同一份 JSON**（`OAuthStateStore` 的 `writeJson`/`readState`/
 |---|---|---|
 | ① 外部 API 映射面（第三方 snake_case 合法映射） | 346 处 / 24 文件（feishu/yuque/ima/gitlab/notion 等 connector+client） | **保留**（映射外部 API 不是 Go 债） |
 | ② §11 已登记边界面（SSE/Redis 事件载荷、provider 请求体、手搓载荷、agent config jsonb） | event 155 + agent(`AgentConfig`) 14 + stream 9 + tracing 7 + llm 大部（provider 面） | **保留**（§14.6 边界清单；动它=改事件契约，须独立切片） |
-| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / wiki 39（ingest 落库载荷，§14.8 预告）；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1）→ 366（D2）→ 355（D3 收官，§14.9q）：余 350 处为 connector 第三方线格式 + 5 处 `lf_*` 平铺载具，**均为永久冻结** ⇒ 该域可换锚面 0**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
+| ③ 真·阶段 3 存量（HTTP 契约面 + 落库 jsonb 面） | **~897 处 / ~150 文件**，重域：auth 247 / datasource 127 / memory 123 / mcp 110 / system 86 / **wiki 39 → 0（W1 收官，§14.9r：17 键换锚 + 8 处死注解摘除；余 22 处 = `lf_*` 5 + LLM 解析面 17，登记冻结）**；evaluation 62 → **0**（打样，§14.9b）；model 87 → **0**（四块收官，§14.9c/§14.9e）；**session 188 → 0（S1+S2+S3+S4+S5 全部收官，§14.9l，含 5 处落库 jsonb 迁移 SQL）**；**embed 23 → 0（E1 收官，§14.9m）**；**mcp 119 → 58（M1，§14.9n）→ 35（M4，§14.9o）→ 22（M5 收官，§14.9p；余 22 处全是第三方协议面：RFC 8414/9728/6749 文档 + 授权服务器 token 响应，永久冻结）**；**datasource 493 → 417（D1）→ 366（D2）→ 355（D3 收官，§14.9q）：余 350 处为 connector 第三方线格式 + 5 处 `lf_*` 平铺载具，**均为永久冻结** ⇒ 该域可换锚面 0**。**2026-10-02 收官判定：十四域可换锚面全部清零；全仓 `@JsonProperty` 余量（约 1,060 处）均为登记冻结面，③ 类真存量只剩小额散尾巴（im 17 / storage 24 / favorite 5 / audit 1 / retrieval 13 / `SearchParams` 13 / `RankResult` 4，动手前先甄别）**。⚠️ **计数口径**：`QaRequests` 那批用的是全限定注解（`@com.fasterxml…JsonProperty`），只 grep `@JsonProperty` 会漏——盘点时两种写法都要扫 | 按域推进，一域一 PR 同批带前端 |
 
 `@JsonInclude`（Go omitempty 直译）存量：**~487 处**（NON_EMPTY 256 / NON_NULL 123 / NON_DEFAULT 108；ALWAYS 19 处是正确形态的显式 null，保留）。
 `@JsonNaming` **0**、Problem Details **0**、Go 序列化器线上引用 **0**（2026-09-30 已一次性删除）。

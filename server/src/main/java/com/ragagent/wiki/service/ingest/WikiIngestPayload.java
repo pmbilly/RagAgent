@@ -12,20 +12,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *
  * <p><b>langfuse 追踪载体</b>：五个 {@code lf_*} 组件直接<b>平铺</b>在 record 上
  * （与业务键同级；{@code @JsonUnwrapped} 不支持 record 的 Creator 参数）；空值整键省略，
- * 未启用追踪时载荷字节与接线前一致。结构视图见 {@link #tracing()}。</p>
+ * 未启用追踪时载荷字节与接线前一致。结构视图见 {@link #tracing()}。
+ * 这五个键是 {@code lf_*} 平铺追踪载具的一部分（四个域的队列载荷同形），键名刻意保持
+ * snake 并保留空值省略——前缀是防撞名的命名空间，见 HANDOFF §14.6 边界清单。</p>
  *
- * <p><b>JSON 键序</b>：由 {@link JsonPropertyOrder} 钉住 <b>tenant_id, knowledge_base_id,
- * language</b>（{@code language} 空时整键省略）在前，{@code lf_*} 追踪键随后。
- * 载荷会落进 {@code task_pending_ops.payload}，
- * 跨语言读写时键序不影响语义，但保持一致便于比对。</p>
+ * <p>载荷只在单 JVM 内的 {@link InProcessWikiIngestTaskQueue} 流动（死信留档除外），
+ * 自有键名即 Java 字段名（camelCase），键序随声明序。</p>
  */
-@com.fasterxml.jackson.annotation.JsonPropertyOrder({
-        "tenant_id", "knowledge_base_id", "language",
-        "lf_trace_id", "lf_parent_obs_id", "lf_traceparent", "lf_user_id", "lf_session_id"})
 public record WikiIngestPayload(
-        @JsonProperty("tenant_id") long tenantId,
-        @JsonProperty("knowledge_base_id") String knowledgeBaseId,
-        @JsonProperty("language") @JsonInclude(JsonInclude.Include.NON_EMPTY) String language,
+        long tenantId,
+        String knowledgeBaseId,
+        String language,
         /** 发起该任务的根 trace id（兼容旧负载；关联以 traceparent 为准）。 */
         @JsonProperty("lf_trace_id")
         @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,

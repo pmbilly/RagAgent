@@ -4,15 +4,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
  * {@code task_pending_ops} 表里 {@code task_type="wiki:ingest"} 的一行操作。
  *
  * <p>本对象就是该行的 JSON 载荷；外围的 {@code (task_type, scope, scope_id, dedup_key)}
- * 是独立列，不在此序列化。</p>
+ * 是独立列，不在此序列化。键名即 Java 字段名（camelCase），键序随声明序；
+ * retract 专属键在 ingest 行里显式输出 {@code null}。</p>
  *
  * <p>{@link #dbId} 是载入该行的自增主键。{@code peekPendingList} 会填它；消费方
  * 带着它穿过 Map/Reduce，好让消费后删除与失败后计数都能寻址到正确的行。
@@ -21,40 +19,26 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  * <p><b>改成可变 POJO 而非 record</b>：{@link #dbId} 是 peek 阶段回填的，
  * record 表达不了这种"先构造、后补主键"的时序。</p>
  */
-@JsonPropertyOrder({"op", "knowledge_id", "language", "doc_title", "doc_summary",
-        "page_slugs", "folder_ids"})
 public class WikiPendingOp {
 
     /** {@code "ingest"} 或 {@code "retract"} */
-    @JsonProperty("op")
     private String op = "";
 
-    @JsonProperty("knowledge_id")
     private String knowledgeId = "";
 
     /** ingest 载荷：文档语言 */
-    @JsonProperty("language")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String language;
 
     /** retract 载荷：文档标题 */
-    @JsonProperty("doc_title")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String docTitle;
 
     /** retract 载荷：被删文档的一句话摘要 */
-    @JsonProperty("doc_summary")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String docSummary;
 
     /** retract 载荷：该文档写过的页面 slug */
-    @JsonProperty("page_slugs")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> pageSlugs;
 
     /** retract 载荷：该文档曾归属的目录 id */
-    @JsonProperty("folder_ids")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> folderIds;
 
     /**

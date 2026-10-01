@@ -590,19 +590,22 @@ class WikiIngestServiceTest {
         }
 
         @Test
-        @DisplayName("三种行的 JSON 形状与 Go 的 omitempty 一致")
+        @DisplayName("三种行的 JSON 形状：键名即字段名，未设分支显式 null")
         void rowJsonShapes() throws Exception {
             String slugRow = MAPPER.writeValueAsString(
                     WikiFinalizeRow.slug("entity/acme", "Acme"));
-            assertThat(slugRow).isEqualTo("{\"slug\":\"entity/acme\",\"title\":\"Acme\"}");
+            assertThat(slugRow).isEqualTo(
+                    "{\"slug\":\"entity/acme\",\"title\":\"Acme\",\"change\":null,\"folderIds\":null}");
 
             String changeRow = MAPPER.writeValueAsString(
                     WikiFinalizeRow.change(WikiFinalizeChange.added("Doc", null)));
-            assertThat(changeRow).isEqualTo("{\"change\":{\"action\":\"added\",\"doc_title\":\"Doc\"}}");
+            assertThat(changeRow).isEqualTo(
+                    "{\"slug\":null,\"title\":null,\"change\":{\"action\":\"added\",\"docTitle\":\"Doc\",\"docSummary\":null},\"folderIds\":null}");
 
             String pruneRow = MAPPER.writeValueAsString(
                     WikiFinalizeRow.folderIds(List.of("f1")));
-            assertThat(pruneRow).isEqualTo("{\"folder_ids\":[\"f1\"]}");
+            assertThat(pruneRow).isEqualTo(
+                    "{\"slug\":null,\"title\":null,\"change\":null,\"folderIds\":[\"f1\"]}");
         }
 
         @Test
