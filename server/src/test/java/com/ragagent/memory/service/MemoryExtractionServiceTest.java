@@ -357,7 +357,7 @@ class MemoryExtractionServiceTest {
                     message("m3", "user", "第二段", at("2026-03-02T11:30:00Z"))));
             when(sessionMessages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
 
-            var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
+            var collected = service.transcriptOps.collectSessionSegments(sessionWithCursor("sess-1"));
 
             assertThat(collected.more()).isFalse();
             assertThat(collected.segments()).hasSize(2);
@@ -377,7 +377,7 @@ class MemoryExtractionServiceTest {
                     message("m3", "user", " 有内容 ", at("2026-03-02T09:02:00Z"))));
             when(sessionMessages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
 
-            var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
+            var collected = service.transcriptOps.collectSessionSegments(sessionWithCursor("sess-1"));
 
             assertThat(collected.segments()).hasSize(1);
             assertThat(collected.segments().get(0).lines).hasSize(1);
@@ -395,7 +395,7 @@ class MemoryExtractionServiceTest {
             when(sessionMessages.listAfterCursor(anyString(), any(), any(), anyInt())).thenReturn(rows);
             when(sessionMessages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
 
-            var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
+            var collected = service.transcriptOps.collectSessionSegments(sessionWithCursor("sess-1"));
 
             assertThat(collected.more()).isTrue();
             int lines = collected.segments().stream().mapToInt(s -> s.lines.size()).sum();
@@ -413,7 +413,7 @@ class MemoryExtractionServiceTest {
                     message("m6", "user", "六", at("2026-03-02T12:00:00Z"))));
             when(sessionMessages.listBeforeTime(eq("sess-1"), any(), anyInt())).thenReturn(List.of());
 
-            var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
+            var collected = service.transcriptOps.collectSessionSegments(sessionWithCursor("sess-1"));
 
             assertThat(collected.segments()).hasSize(2);
             // 第一段：priorContext 从消息历史取，历史为空 → Go 的 tailContents 回 **nil**
@@ -434,7 +434,7 @@ class MemoryExtractionServiceTest {
                     message("a5", "user", "c4", at("2026-03-02T09:04:00Z")),
                     message("a6", "user", "c5", at("2026-03-02T09:05:00Z"))));
 
-            var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
+            var collected = service.transcriptOps.collectSessionSegments(sessionWithCursor("sess-1"));
 
             // 只留最后 4 条**用户**消息，助手行不算
             assertThat(collected.segments().get(0).context).containsExactly("c2", "c3", "c4", "c5");
@@ -447,7 +447,7 @@ class MemoryExtractionServiceTest {
                     message("m1", "user", long_, at("2026-03-02T09:00:00Z"))));
             when(sessionMessages.listBeforeTime(anyString(), any(), anyInt())).thenReturn(List.of());
 
-            var collected = service.collectSessionSegments(sessionWithCursor("sess-1"));
+            var collected = service.transcriptOps.collectSessionSegments(sessionWithCursor("sess-1"));
 
             assertThat(collected.segments().get(0).lines.get(0).content.codePointCount(
                     0, collected.segments().get(0).lines.get(0).content.length()))
@@ -476,11 +476,11 @@ class MemoryExtractionServiceTest {
             return segment;
         }
 
-        private MemoryExtractionService.ExtractionDecision decision(String action, String topic,
+        private MemoryExtractionLlm.ExtractionDecision decision(String action, String topic,
                                                                    String content, Integer target,
                                                                    Integer source) {
-            MemoryExtractionService.ExtractionDecision d =
-                    new MemoryExtractionService.ExtractionDecision();
+            MemoryExtractionLlm.ExtractionDecision d =
+                    new MemoryExtractionLlm.ExtractionDecision();
             d.action = action;
             d.kind = MemoryKinds.KIND_FACT;
             d.topic = topic;
@@ -612,7 +612,7 @@ class MemoryExtractionServiceTest {
 
         @Test
         void atMostEightItemsAreAppliedPerRun() {
-            List<MemoryExtractionService.ExtractionDecision> decisions = new ArrayList<>();
+            List<MemoryExtractionLlm.ExtractionDecision> decisions = new ArrayList<>();
             for (int i = 0; i < 20; i++) {
                 decisions.add(decision("add", "t" + i, "c" + i, null, 1));
             }

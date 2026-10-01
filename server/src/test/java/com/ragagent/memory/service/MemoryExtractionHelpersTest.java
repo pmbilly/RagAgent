@@ -88,8 +88,8 @@ class MemoryExtractionHelpersTest {
                     new MemoryExtractionService.TranscriptSegment()))).isEqualTo("<zero>");
         }
 
-        private MemoryExtractionService.ExtractionDecision decision(Integer source) {
-            MemoryExtractionService.ExtractionDecision d = new MemoryExtractionService.ExtractionDecision();
+        private MemoryExtractionLlm.ExtractionDecision decision(Integer source) {
+            MemoryExtractionLlm.ExtractionDecision d = new MemoryExtractionLlm.ExtractionDecision();
             d.source = source;
             return d;
         }
@@ -104,23 +104,23 @@ class MemoryExtractionHelpersTest {
             // Go 实录：这九种输入全部 null
             for (String v : List.of("", "  ", "null", "NULL", "not-a-date", "2026/08/15",
                     "2099-01-01 10:00", "2099-1-1", "2020-01-01")) {
-                assertThat(MemoryExtractionService.parseExpiry(v))
+                assertThat(MemoryExtractionLlm.parseExpiry(v))
                         .as("parseExpiry(%s)", v).isNull();
             }
             // 已经过去的日期也要丢掉（消息里的"下周五"被存下来的那种）
-            assertThat(MemoryExtractionService.parseExpiry("2026-08-15")).isNull();
-            assertThat(MemoryExtractionService.parseExpiry("2026-08-15T10:00:00Z")).isNull();
+            assertThat(MemoryExtractionLlm.parseExpiry("2026-08-15")).isNull();
+            assertThat(MemoryExtractionLlm.parseExpiry("2026-08-15T10:00:00Z")).isNull();
         }
 
         @Test
         void acceptsFutureDatesInBothLayoutsWithGoSemantics() {
             // Go 实录：日期布局解析成 **UTC 午夜**（time.Parse 的 location 是 UTC）
-            assertThat(MemoryExtractionService.parseExpiry("2099-01-01").toInstant())
+            assertThat(MemoryExtractionLlm.parseExpiry("2099-01-01").toInstant())
                     .isEqualTo(java.time.Instant.parse("2099-01-01T00:00:00Z"));
             // RFC3339 布局保留原偏移
-            assertThat(MemoryExtractionService.parseExpiry("2099-01-01T10:00:00Z").toInstant())
+            assertThat(MemoryExtractionLlm.parseExpiry("2099-01-01T10:00:00Z").toInstant())
                     .isEqualTo(java.time.Instant.parse("2099-01-01T10:00:00Z"));
-            assertThat(MemoryExtractionService.parseExpiry("2099-01-01T10:00:00+08:00").toInstant())
+            assertThat(MemoryExtractionLlm.parseExpiry("2099-01-01T10:00:00+08:00").toInstant())
                     .isEqualTo(java.time.Instant.parse("2099-01-01T02:00:00Z"));
         }
     }
@@ -132,15 +132,15 @@ class MemoryExtractionHelpersTest {
         @Test
         void emptyAndNoObjectCases() {
             // Go 实录："" → 零值（memories/topics 都空）
-            MemoryExtractionService.ExtractionResponse parsed =
-                    MemoryExtractionService.parseExtractionResponse("");
+            MemoryExtractionLlm.ExtractionResponse parsed =
+                    MemoryExtractionLlm.parseExtractionResponse("");
             assertThat(parsed.memories).isEmpty();
             assertThat(parsed.topics).isEmpty();
 
-            assertThatThrownBy(() -> MemoryExtractionService.parseExtractionResponse("no json here"))
+            assertThatThrownBy(() -> MemoryExtractionLlm.parseExtractionResponse("no json here"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("no JSON object in response");
-            assertThatThrownBy(() -> MemoryExtractionService.parseExtractionResponse("{"))
+            assertThatThrownBy(() -> MemoryExtractionLlm.parseExtractionResponse("{"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("no JSON object in response");
         }
@@ -148,11 +148,11 @@ class MemoryExtractionHelpersTest {
         @Test
         void parsesAPlainObject() {
             // Go 实录：[{"action":"add",...,"content":"c","importance":0,"expires_at":"","inferred":false}]
-            MemoryExtractionService.ExtractionResponse parsed = MemoryExtractionService
+            MemoryExtractionLlm.ExtractionResponse parsed = MemoryExtractionLlm
                     .parseExtractionResponse("{\"memories\":[{\"action\":\"add\",\"kind\":\"fact\","
                             + "\"topic\":\"t\",\"content\":\"c\"}],\"topics\":[\"x\"]}");
             assertThat(parsed.memories).hasSize(1);
-            MemoryExtractionService.ExtractionDecision d = parsed.memories.get(0);
+            MemoryExtractionLlm.ExtractionDecision d = parsed.memories.get(0);
             assertThat(d.action).isEqualTo("add");
             assertThat(d.kind).isEqualTo("fact");
             assertThat(d.target).isNull();
@@ -168,12 +168,12 @@ class MemoryExtractionHelpersTest {
         @Test
         void stripsFencesAndProse() {
             // Go 实录：两种包装都解出 {"memories":[],"topics":[]}
-            MemoryExtractionService.ExtractionResponse fenced = MemoryExtractionService
+            MemoryExtractionLlm.ExtractionResponse fenced = MemoryExtractionLlm
                     .parseExtractionResponse("```json\n{\"memories\":[],\"topics\":[]}\n```");
             assertThat(fenced.memories).isEmpty();
             assertThat(fenced.topics).isEmpty();
 
-            MemoryExtractionService.ExtractionResponse prose = MemoryExtractionService
+            MemoryExtractionLlm.ExtractionResponse prose = MemoryExtractionLlm
                     .parseExtractionResponse(
                             "Sure! here you go:\n{\"memories\":[],\"topics\":[]}\nhope that helps");
             assertThat(prose.memories).isEmpty();
@@ -183,7 +183,7 @@ class MemoryExtractionHelpersTest {
         @Test
         void missingKeysBecomeDefaults() {
             // Go 实录：[{"action":"add","kind":"","topic":"","content":"",...,"inferred":false}]、topics null
-            MemoryExtractionService.ExtractionResponse parsed = MemoryExtractionService
+            MemoryExtractionLlm.ExtractionResponse parsed = MemoryExtractionLlm
                     .parseExtractionResponse("{\"memories\":[{\"action\":\"add\"}],\"topics\":null}");
             assertThat(parsed.memories).hasSize(1);
             assertThat(parsed.memories.get(0).kind).isEmpty();
@@ -200,18 +200,18 @@ class MemoryExtractionHelpersTest {
         @Test
         void isTruncatedTreatsEmptyBodyAsTruncation() {
             // Go 实录：nil→true、空白→true、finish=length→true、finish=stop→false
-            assertThat(MemoryExtractionService.isTruncated(null)).isTrue();
+            assertThat(MemoryExtractionLlm.isTruncated(null)).isTrue();
             ChatResponse blank = new ChatResponse();
             blank.setContent("  ");
-            assertThat(MemoryExtractionService.isTruncated(blank)).isTrue();
+            assertThat(MemoryExtractionLlm.isTruncated(blank)).isTrue();
             ChatResponse length = new ChatResponse();
             length.setContent("x");
             length.setFinishReason("length");
-            assertThat(MemoryExtractionService.isTruncated(length)).isTrue();
+            assertThat(MemoryExtractionLlm.isTruncated(length)).isTrue();
             ChatResponse stop = new ChatResponse();
             stop.setContent("x");
             stop.setFinishReason("stop");
-            assertThat(MemoryExtractionService.isTruncated(stop)).isFalse();
+            assertThat(MemoryExtractionLlm.isTruncated(stop)).isFalse();
         }
 
         @Test
@@ -260,7 +260,7 @@ class MemoryExtractionHelpersTest {
             segment.lines.add(line("m1", at("2026-03-02", 9, 5), "hi"));
 
             // Go 实录（逐字节）
-            assertThat(MemoryExtractionService.buildExtractionPrompt(segment, null, null, null, ""))
+            assertThat(MemoryExtractionLlm.buildExtractionPrompt(segment, null, null, null, ""))
                     .isEqualTo("Existing notes:\n(none)\n\nWhat the user said:\n<transcript>\n"
                             + "[1] (2026-03-02 09:05) hi\n</transcript>\n");
         }
@@ -268,7 +268,7 @@ class MemoryExtractionHelpersTest {
         @Test
         void workspaceRulesOnly() {
             // Go 实录（逐字节）：零值时间印成 0001-01-01 00:00
-            assertThat(MemoryExtractionService.buildExtractionPrompt(segment(1), null, null, null, "r"))
+            assertThat(MemoryExtractionLlm.buildExtractionPrompt(segment(1), null, null, null, "r"))
                     .isEqualTo("Existing notes:\n(none)\n\nWorkspace rules (follow these in addition to "
                             + "the above):\n<rules>\nr\n</rules>\n\nWhat the user said:\n<transcript>\n"
                             + "[1] (0001-01-01 00:00) line1\n</transcript>\n");
@@ -309,7 +309,7 @@ class MemoryExtractionHelpersTest {
             // 1) 序号用的是**原切片下标**（nil 被跳过但占位 → [0] 与 [2]）；
             // 2) 话题只展示 12 条（extractShownTopics 的截断）；
             // 3) 空主题的墓碑被跳过。
-            assertThat(MemoryExtractionService.buildExtractionPrompt(
+            assertThat(MemoryExtractionLlm.buildExtractionPrompt(
                     segment, existing, forgotten, known, "本工作区的规矩"))
                     .isEqualTo("Earlier in this conversation (context only, do not record from these):\n"
                             + "- 就用前面那个吧\n"
@@ -424,15 +424,15 @@ class MemoryExtractionHelpersTest {
     @Test
     @DisplayName("formatLineTime：按服务器本地时区的墙上时间（对照 Go 的 Format）")
     void formatLineTimeUsesServerLocalZone() {
-        assertThat(MemoryExtractionService.formatLineTime(
+        assertThat(MemoryExtractionLlm.formatLineTime(
                 LocalDateTime.of(2026, 3, 2, 9, 5).atZone(ZoneId.systemDefault()).toOffsetDateTime()))
                 .isEqualTo("2026-03-02 09:05");
         // 同一个瞬时换一个偏移，印出来必须是转换后的墙上时间
-        assertThat(MemoryExtractionService.formatLineTime(
+        assertThat(MemoryExtractionLlm.formatLineTime(
                 OffsetDateTime.of(2026, 3, 2, 9, 5, 0, 0, ZoneOffset.UTC)))
                 .isEqualTo(LocalDateTime.ofInstant(java.time.Instant.parse("2026-03-02T09:05:00Z"),
                         ZoneId.systemDefault()).format(
                         java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
-        assertThat(MemoryExtractionService.formatLineTime(null)).isEqualTo("0001-01-01 00:00");
+        assertThat(MemoryExtractionLlm.formatLineTime(null)).isEqualTo("0001-01-01 00:00");
     }
 }
