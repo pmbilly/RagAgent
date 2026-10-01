@@ -93,7 +93,8 @@ public final class GoJsonBindError {
      * 条目（Go uint64/int64/float64/[]string 的区分不能从 Java 类型推断，逐条录）。
      */
     private static final java.util.Map<String, String> FIELD_GO_TYPES = java.util.Map.of(
-            "CreateKnowledgeQARequest.agent_source_tenant_id", "uint64");
+            // S4 后 json 名是 camelCase；Go 的报错文本里用的就是这个 json 名（值类型仍是 Go 的 uint64）
+            "CreateKnowledgeQARequest.agentSourceTenantId", "uint64");
 
     /**
      * 仿真 Go 的字段级类型错误：{@code json: cannot unmarshal <kind> into Go struct

@@ -71,8 +71,12 @@ final class EmbedChannelDelegateOps {
      * 对照 patchEmbedChatPayload（L712-750）：把渠道约束合并进访客 QA 请求体。
      * 「invalid request body」（Go 的 io.ReadAll 失败）在 Java 不可达——body 已由
      * Spring 读成 String；坏 JSON / 非对象 → 400 "invalid json"。
+     *
+     * <p>写回的键名必须与 {@code QaRequests.CreateKnowledgeQARequest} 的字段名一致
+     * （§14.9l S4 后均为 camelCase）——写错不会报错，只会静默丢失渠道约束
+     * （KB 注入失效 = 访客拿到越权检索面）。对齐由 {@code EmbedChatPayloadPatchTest} 钉住。</p>
      */
-    private static String patchEmbedChatPayload(String rawBody, EmbedChannelEntity ch,
+    static String patchEmbedChatPayload(String rawBody, EmbedChannelEntity ch,
             boolean agentMode) {
         com.fasterxml.jackson.databind.node.ObjectNode payload;
         if (rawBody == null || rawBody.isEmpty()) {
@@ -94,19 +98,19 @@ final class EmbedChannelDelegateOps {
                 payload = (com.fasterxml.jackson.databind.node.ObjectNode) node;
             }
         }
-        payload.put("agent_id", ch.getAgentId());
-        payload.putArray("knowledge_base_ids");
+        payload.put("agentId", ch.getAgentId());
+        payload.putArray("knowledgeBaseIds");
         // Go：仅当客户端给了 bool 才算 opt-in（非 bool 一律 false）
-        JsonNode clientWs = payload.get("web_search_enabled");
-        payload.put("web_search_enabled", ch.isAllowWebSearch()
+        JsonNode clientWs = payload.get("webSearchEnabled");
+        payload.put("webSearchEnabled", ch.isAllowWebSearch()
                 && clientWs != null && clientWs.isBoolean() && clientWs.asBoolean());
         if (!ch.isAllowFileUpload()) {
             payload.remove("images");
-            payload.remove("attachment_uploads");
-            payload.remove("attachment_ids");
+            payload.remove("attachmentUploads");
+            payload.remove("attachmentIds");
         }
-        payload.putArray("mcp_service_ids");
-        payload.put("agent_enabled", agentMode);
+        payload.putArray("mcpServiceIds");
+        payload.put("agentEnabled", agentMode);
         try {
             return EmbedChannelController.MAPPER.writeValueAsString(payload);
         } catch (Exception e) {

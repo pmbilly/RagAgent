@@ -4,19 +4,31 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * QA 请求面 DTO（对照 Go internal/handler/session/types.go 的请求结构段，
- * 字段名逐字段对照 json tag）。
+ * QA 请求面 DTO（三个入口共用：{@code /knowledge-chat}、{@code /agent-chat}、
+ * {@code /knowledge-search}；embed 经 {@code patchEmbedChatPayload} 改写后走同一对端点）。
+ *
+ * <p><b>键名＝Java 字段名（camelCase）</b>，§14.9l S4 换锚——原先逐字段的
+ * {@code @JsonProperty}（Go json tag 直译）已全部摘除；原先照抄 Go {@code omitempty}
+ * 的 {@code @JsonInclude} 也一并去掉：这些类**只做入参**（解析后转
+ * {@code QaSupport.QaRequest} 内部模型），注解对入参没有语义，留着只会让下一个读者
+ * 以为响应面也受影响。</p>
+ *
+ * <p>绑定错误文案**不动**：{@code QaRequestBinder} 仍按 Go 的
+ * {@code Key: 'CreateKnowledgeQARequest.Query' Error:Field validation …} 措辞抛错
+ * （错误形态统一是独立批次）。</p>
+ *
+ * <p>未登记的键一律被忽略（{@code @JsonIgnoreProperties}，与 Go 的
+ * {@code json.Unmarshal} 一致）——**旧 snake 键因此不会报错，只会静默失效**，
+ * 客户端须同批改造（前端、embed 访客页、集成文档页已同批）。</p>
  */
 public final class QaRequests {
 
     private QaRequests() {}
 
-    /** 对照 MentionedItemRequest。 */
+    /** 提及项元素：与 `session.domain.MentionedItem` 同字段名（S3 收口）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MentionedItemRequest {
         public String id = "";
@@ -35,11 +47,8 @@ public final class QaRequests {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ImageAttachment {
         /** base64 data URI from frontend (data:image/png;base64,...) */
-        @JsonInclude(Include.NON_DEFAULT)
         public String data = "";
-        @JsonInclude(Include.NON_DEFAULT)
         public String url = "";
-        @JsonInclude(Include.NON_DEFAULT)
         public String caption = "";
     }
 
@@ -47,9 +56,7 @@ public final class QaRequests {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AttachmentUpload {
         public String data = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("file_name")
         public String fileName = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("file_size")
         public long fileSize;
     }
 
@@ -57,41 +64,22 @@ public final class QaRequests {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class CreateKnowledgeQARequest {
         public String query = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("knowledge_base_ids")
         public List<String> knowledgeBaseIds;
-        @com.fasterxml.jackson.annotation.JsonProperty("knowledge_ids")
         public List<String> knowledgeIds;
-        @com.fasterxml.jackson.annotation.JsonProperty("agent_enabled")
         public boolean agentEnabled;
-        @com.fasterxml.jackson.annotation.JsonProperty("agent_id")
         public String agentId = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("agent_source_tenant_id")
-        @JsonInclude(Include.NON_DEFAULT)
         public long agentSourceTenantId;
-        @com.fasterxml.jackson.annotation.JsonProperty("web_search_enabled")
         public boolean webSearchEnabled;
-        @com.fasterxml.jackson.annotation.JsonProperty("summary_model_id")
         public String summaryModelId = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("mcp_service_ids")
         public List<String> mcpServiceIds;
-        @com.fasterxml.jackson.annotation.JsonProperty("skill_names")
         public List<String> skillNames;
-        @com.fasterxml.jackson.annotation.JsonProperty("tag_ids")
         public List<String> tagIds;
-        @com.fasterxml.jackson.annotation.JsonProperty("mentioned_items")
         public List<MentionedItemRequest> mentionedItems;
-        @com.fasterxml.jackson.annotation.JsonProperty("disable_title")
         public boolean disableTitle;
         public List<ImageAttachment> images;
-        @com.fasterxml.jackson.annotation.JsonProperty("attachment_uploads")
-        @JsonInclude(Include.NON_DEFAULT)
         public List<AttachmentUpload> attachmentUploads;
-        @com.fasterxml.jackson.annotation.JsonProperty("attachment_ids")
-        @JsonInclude(Include.NON_DEFAULT)
         public List<String> attachmentIds;
         public String channel = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("suggestion_attribution")
-        @JsonInclude(Include.NON_DEFAULT)
         public JsonNode suggestionAttribution;
 
         public List<String> knowledgeBaseIds() {
@@ -135,15 +123,10 @@ public final class QaRequests {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SearchKnowledgeRequest {
         public String query = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("knowledge_base_id")
         public String knowledgeBaseId = "";
-        @com.fasterxml.jackson.annotation.JsonProperty("knowledge_base_ids")
         public List<String> knowledgeBaseIds;
-        @com.fasterxml.jackson.annotation.JsonProperty("knowledge_ids")
         public List<String> knowledgeIds;
-        @com.fasterxml.jackson.annotation.JsonProperty("tag_ids")
         public List<String> tagIds;
-        @com.fasterxml.jackson.annotation.JsonProperty("mentioned_items")
         public List<MentionedItemRequest> mentionedItems;
 
         public List<String> knowledgeBaseIds() {
