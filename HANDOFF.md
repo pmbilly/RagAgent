@@ -425,6 +425,15 @@ CLI 起服务常写 `set -a && . ./.env && set +a && ./gradlew :server:bootRun`�
 前缀格式被全局 `handleBind` 原样采用，不依赖任何资源包（model 域 2026-10-01 已示范）。
 **全仓现状**：knowledge/session 等域的旧注解仍用默认 message，属"错误形态统一批"存量，逐域顺手改。
 
+### 13.11 前端测试运行时不解析 `@/` 别名（2026-10-01 session S2 前端批，1 条）
+
+**给被 `node:test`（`tsx --test`）直接加载的模块加 `@/...` 的"值导入"会让整个测试文件在加载期崩掉**
+（`ERR_MODULE_NOT_FOUND: Cannot find package '@/types'`）——报错停在测试文件那一层，看起来像用例失败，
+其实是模块解析失败。`paths` 只在 `tsconfig.app.json` 里，而根 `tsconfig.json` 没有，tsx 以根为准。
+**判据**：某测试文件"整档失败"（`# Subtest: src/xxx.test.ts` 直接 not ok、无具体断言）时先看这条。
+**修法**：这类模块用相对导入（`../types/mention`）；`import type { X } from '@/...'` 是安全的（类型导入被擦除）。
+App 侧（Vite / vue-tsc）不受影响。
+
 ## 14. 逐包重构范式（knowledge 为范本，其余域照此推进）
 
 > **用户定稿（2026-09-30）：以 knowledge 包的重构为范本，逐步重构其他包。**
