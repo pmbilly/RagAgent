@@ -209,7 +209,9 @@
    随连接器批清）、`SessionKnowledgeQaService` 1,036 例外复核。
 2. **阶段 3 契约换锚**：**部分已执行** —— knowledge / retrieval / chunker-preview / evaluation / model / system /
    auth（A1+A2+B）/ **memory M1+M2+M3** / **session 全域收官（S1 会话主资源 → S2 消息面 → S3 附件·建议·steer → S4 QA 请求面 → S5 收尾，前四批前后端同批）** / **embed 域 E1（渠道管理 + 公开面，前后端同批）** / **mcp 域 M1（服务资源 + 凭据面）+ M4（工具审批 + OAuth 用户面，均前后端同批）** 已完成（同批带前端）；
-   **mcp 域已收官（M1 + M4 + M5，仅剩第三方协议面 22 处永久冻结）**。下一步候选：**datasource / wiki / agent 等域的端点面**（§2 第 4 条落地范围）。
+   **mcp 域已收官（M1 + M4 + M5，仅剩第三方协议面 22 处永久冻结）**。
+   下一步候选：**datasource 域（侦察案见 §14.9q：493 处里 270 处是 connector 第三方线格式永久冻结、
+   ~207 处是我方面，拆 D1/D2/D3）/ wiki（54）/ auth 余面（138）/ retrieval（21）/ agent（15）**（§2 第 4 条落地范围）。
    硬约束：**序列化层删除必须一次性全仓完成**，半删状态最危险（§5 阶段 3）；时机由用户定，可与阶段 2 对调。
    **入场前先做**：§14.9 的"端点 × 前端"清单盘点。
 3. **阶段 4 其余域标准化 + 架构调整**（Gradle 多模块 + ArchUnit 边界固化等）：未开始。
@@ -2207,6 +2209,44 @@ WHERE jsonb_typeof(tools) = 'array' AND tools <> '[]'::jsonb;
 `AuthServerMetadata`/`OAuthState`(Redis)/`OAuthToken`(DB) 的落库与线协议判定）；
 M4 = 工具审批面（`McpToolApproval` 9 + `McpToolApprovalPolicyRequest` 2 + `ResolveToolApprovalRequest` 3 +
 agent 侧 `AgentToolApprovalController`，含 embed 事件委托的信封）。
+
+### 14.9q datasource 域作战计划（2026-10-01 只读侦察，待执行）
+
+**总量**：`datasource/` 主代码 **493 处** `@JsonProperty`（130 个文件）。**按"谁的面"三分**：
+
+| 面 | 处数 | 判定 |
+| --- | --- | --- |
+| **第三方 connector 线格式** | **270** | **永久冻结**：飞书 `FeishuApiTypes`(94)+`DocxBlocks`(62)、语雀 `YuqueApiTypes`(47)、IMA `ImaApiTypes`(43)、`GitLabClient`(24)——字段名由对方 API 决定（同 mcp 的 RFC 面） |
+| **队列载荷（我方内部）** | 16 | `DataSourceSyncPayload`(13)+`TaskInitiator`(3)：进程内同步队列的 JSON（`InProcessDataSourceSyncTaskQueue`）；**但有 Go 逐字节 golden（`DataSourceJsonTest`）** → 归 D3 |
+| **我方 HTTP/落库面** | ~207 | 拆 D1/D2 |
+
+**批次划分**
+- **D1 主资源 + 凭据 + 资源目录（~140）**：`domain/DataSource`(22)、`dto/DataSourceResponse`(22)、`domain/Resource`(10)、
+  `ConnectorMetadata`(8)、`domain/DataSourceConfig`(5)、`dto/DataSourceConfigDto`(4)、`dto/CredentialsResponse`(2)、
+  `dto/CredentialFieldMetadata`(2)、`controller/DataSourceController`(1) 等。
+  - **响应形态已基本是裸的**（侦察实录：`listAvailableResources` 返回裸 `List<Resource>`、`deleteDataSource` → 204、
+    validate → `statusBody("connected")`）→ 本批以**键名**为主，只需清点剩余信封。
+  - **落库 jsonb（`data_sources` 3 列，含 `config`）** → 迁移 SQL（§2 第 11 条）。
+  - 前端：`api/datasource/index.ts` + 数据源设置页（侦察到 121 处旧键引用，**注意其中含 i18n 文案键与
+    `auditActionRegistry` 的动作名——那些不是线格式键，别动**）。
+- **D2 同步日志与结果（~60）**：`SyncLog`(17)、`FetchedItem`(15)、`SyncResult`(10)、`SyncItemError`(5)、`SyncCursor`(4)；
+  `sync_logs` 的**嵌套 jsonb**（fetched items 一类的数组列）→ 迁移 SQL。
+- **D3 队列载荷（~16）**：`DataSourceSyncPayload`/`TaskInitiator` + `DataSourceJsonTest` 的处理。
+
+**入场前必须判定的两件事（别跳过）**
+1. **`data_sources.config` 内层的键名归属**：外层（`type`/`credentials`/`settings`）是我方 schema ✓ 可换，
+   但 `settings` 内层是**自由 map**，其键往往就是各 connector 的配置字段名（如飞书 `app_id`）——
+   那些键由 `ConnectorMetadata` 的凭据字段描述符定义、且前端表单按同名提交，**改了会同时打断
+   构建期表单与既有行**。判定口径：**外层包装键换 camelCase，内层字段名保持不动**（它是数据，不是键）。
+2. **`DataSourceJsonTest` 的定位**：它钉的是队列载荷的逐字节 Go 输出（Go 内部结构体，非 HTTP 契约）。
+   按 §2/§13.12 应改写为"键名＝字段名"的重录制，并在提交信息里写明改判理由（"Go 内部载荷不属对外契约"）。
+
+**验收口径**：三闸门 + **真实服务冒烟**（datasource 端点完整、可本机跑通：`GET /datasources/connectors`
+（裸数组）→ `POST /datasources`（201）→ `GET /datasources` → `GET /datasources/{id}/logs` → 凭据 PUT/DELETE → 204）；
+**39 个 `ds-*` 夹具**（`DataSourceHttpContractTest`）用 `assertGoldenBody` 重录制（键改名一律走重录，别手改结构）。
+
+**冻结登记**：270 处 connector 线格式（`connector/{feishu,yuque,ima,gitlab,notion,rss}` 的 `*ApiTypes`/客户端），
+与 mcp 的 RFC 面同类——**别把它们的键名"改回 camelCase"**。
 
 ### 14.9p mcp 域 M5（OAuth 内部 blob 面）+ 该域收官（2026-10-01）
 
