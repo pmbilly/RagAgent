@@ -1,1 +1,1 @@
-{"data":{"enabled":true,"write_mode":"auto","extract_model_id":"","max_items":500,"extract_delay_seconds":30,"extract_min_interval_seconds":60,"extract_instructions":"记笔记","interest_threshold":5,"embedding_model_id":"","vector_recall":true,"retrieval_conditioning":false},"success":true}
+{"enabled":true,"write_mode":"auto","extract_model_id":"","max_items":500,"extract_delay_seconds":30,"extract_min_interval_seconds":60,"extract_instructions":"记笔记","interest_threshold":5,"embedding_model_id":"","vector_recall":true,"retrieval_conditioning":false}

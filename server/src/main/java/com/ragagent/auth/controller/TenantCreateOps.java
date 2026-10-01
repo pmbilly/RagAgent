@@ -2,7 +2,6 @@ package com.ragagent.auth.controller;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeMap;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,7 +42,7 @@ final class TenantCreateOps {
 
     // ── POST /tenants（对照 CreateTenant，tenant.go L226-513） ──────────────
 
-    public ResponseEntity<Map<String, Object>> createTenant(
+    public ResponseEntity<?> createTenant(
             @RequestBody(required = false) String rawBody) {
         User caller = service.userService.getCurrentUser();
         if (caller == null) {
@@ -186,10 +185,7 @@ final class TenantCreateOps {
             }
         }
 
-        Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return ResponseEntity.status(201).body(body);
+        return ResponseEntity.status(201).body(data);
     }
 
     /**

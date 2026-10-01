@@ -71,15 +71,15 @@ class TenantMemberContractTest {
 
     /** 掩码用（含 expires_at_unix / 裸数字邀请 id / invite_url / JWT） */
     private static final Pattern UUID_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
+            "\"([a-zA-Z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     private static final Pattern TS_VALUE = Pattern.compile(
-            "\"([a-z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T[0-9:.+\\-Z]+\"");
+            "\"([a-zA-Z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T[0-9:.+\\-Z]+\"");
     private static final Pattern INV_ID = Pattern.compile(
             "\"id\":(\\d+)");
     private static final Pattern JWT = Pattern.compile(
             "\"token\":\"(eyJ[^\"]+)\"");
     private static final Pattern INVITE_URL = Pattern.compile(
-            "\"invite_url\":\"[^\"]*\"");
+            "\"inviteUrl\":\"[^\"]*\"");
     private static final Pattern UNIX_TS = Pattern.compile(
             "\"expiresAtUnix\":\\d+");
 
@@ -292,12 +292,12 @@ class TenantMemberContractTest {
         String path = "/api/v1/tenants/10002/members/" + CONTRIBUTOR;
 
         MvcResult u = mockMvc.perform(jsonBody(put(path), owner, "{\"role\":\"admin\"}")).andReturn();
-        assertEquals(200, u.getResponse().getStatus(), raw(u));
+        assertEquals(204, u.getResponse().getStatus(), raw(u));
         assertEquals(golden("mb-member-update.json"), raw(u));
 
         // 同角色 no-op：仍是 200 {"success":true}（不审计）
         MvcResult s = mockMvc.perform(jsonBody(put(path), owner, "{\"role\":\"admin\"}")).andReturn();
-        assertEquals(200, s.getResponse().getStatus(), raw(s));
+        assertEquals(204, s.getResponse().getStatus(), raw(s));
         assertEquals(golden("mb-member-update-same.json"), raw(s));
 
         MvcResult b = mockMvc.perform(jsonBody(put(path), owner, "{\"role\":\"bogus\"}")).andReturn();
@@ -332,7 +332,7 @@ class TenantMemberContractTest {
 
         MvcResult r = mockMvc.perform(delete("/api/v1/tenants/10002/members/" + NEW_MEMBER)
                 .header("Authorization", owner)).andReturn();
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("mb-member-remove.json"), raw(r));
 
         MvcResult r2 = mockMvc.perform(delete("/api/v1/tenants/10002/members/" + NEW_MEMBER)
@@ -363,7 +363,7 @@ class TenantMemberContractTest {
         // A（tenantless token + 刚建立的成员关系）→ resolveFirstMembershipTarget 兜底 → 200
         MvcResult l = mockMvc.perform(post("/api/v1/tenants/10002/leave")
                 .header("Authorization", userA)).andReturn();
-        assertEquals(200, l.getResponse().getStatus(), raw(l));
+        assertEquals(204, l.getResponse().getStatus(), raw(l));
         assertEquals(golden("mb-leave.json"), raw(l));
 
         // leave 成功后 A 的 token 已被清理吊销：后续请求 401 invalid or expired token
@@ -517,7 +517,7 @@ class TenantMemberContractTest {
 
         MvcResult r = mockMvc.perform(delete("/api/v1/tenants/10002/invitations/" + invId)
                 .header("Authorization", owner)).andReturn();
-        assertEquals(200, r.getResponse().getStatus(), raw(r));
+        assertEquals(204, r.getResponse().getStatus(), raw(r));
         assertEquals(golden("mb-inv-revoke.json"), raw(r));
 
         MvcResult r2 = mockMvc.perform(delete("/api/v1/tenants/10002/invitations/" + invId)
@@ -595,7 +595,7 @@ class TenantMemberContractTest {
 
         MvcResult d = mockMvc.perform(post("/api/v1/me/invitations/" + invId + "/decline")
                 .header("Authorization", userA)).andReturn();
-        assertEquals(200, d.getResponse().getStatus(), raw(d));
+        assertEquals(204, d.getResponse().getStatus(), raw(d));
         assertEquals(golden("mb-my-decline.json"), raw(d));
 
         MvcResult a = mockMvc.perform(post("/api/v1/me/invitations/" + invId + "/accept")
@@ -814,7 +814,7 @@ class TenantMemberContractTest {
         // PR4：键序归一后邻接正则不可靠 → Jackson 直取
         try {
             var __root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
-            return String.valueOf(__root.path("data").path("id").asLong());
+            return String.valueOf(__root.path("id").asLong());
         } catch (Exception e) {
             throw new IllegalStateException("创建响应应含 data.id: " + body, e);
         }
@@ -822,8 +822,8 @@ class TenantMemberContractTest {
 
     /** 从 invite_url 提取明文 token（录制脚本同款提取方式）。 */
     private static String extractLinkToken(String body) {
-        Matcher m = Pattern.compile("invite_url\":\"[^\"]*/register\\?token=([A-Za-z0-9_-]+)").matcher(body);
-        assertThat(m.find()).as("创建响应应含 invite_url: " + body).isTrue();
+        Matcher m = Pattern.compile("inviteUrl\":\"[^\"]*/register\\?token=([A-Za-z0-9_-]+)").matcher(body);
+        assertThat(m.find()).as("创建响应应含 inviteUrl: " + body).isTrue();
         return m.group(1);
     }
 
@@ -868,7 +868,7 @@ class TenantMemberContractTest {
     private static String mask(String s) {
         // PR4 语义比较入口：键序/转义归一后再掩码
         s = com.ragagent.support.ContractJson.semantic(s);
-        String out = INVITE_URL.matcher(s).replaceAll("\"invite_url\":\"<invite_url>\"");
+        String out = INVITE_URL.matcher(s).replaceAll("\"inviteUrl\":\"<inviteUrl>\"");
         out = JWT.matcher(out).replaceAll("\"token\":\"<jwt>\"");
         out = UNIX_TS.matcher(out).replaceAll("\"expiresAtUnix\":\"<unix>\"");
         out = UUID_VALUE.matcher(out).replaceAll("\"$1\":\"<uuid>\"");

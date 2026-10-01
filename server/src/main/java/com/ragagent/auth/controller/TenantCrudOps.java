@@ -45,7 +45,7 @@ final class TenantCrudOps {
         }
         List<TenantResponse> items = new ArrayList<>();
         items.add(TenantResponse.from(tenant, contextRoleHasAdmin()));
-        return TenantMemberController.envelope(Map.of("items", items));
+        return Map.of("items", items);
     }
 
     /**
@@ -54,12 +54,9 @@ final class TenantCrudOps {
      * 400 是不可达死代码，约定 §9）；租户缺失 → 500 "Failed to retrieve workspace"
      * details "record not found"（Go 的 repo 错误不是 AppError）。
      */
-    public Map<String, Object> getTenant(@PathVariable("id") String id) {
+    public TenantResponse getTenant(@PathVariable("id") String id) {
         Tenant tenant = loadTenantOr500(Long.parseLong(id.trim()), "Failed to retrieve workspace");
-        Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("data", TenantResponse.from(tenant, contextRoleHasAdmin()));
-        body.put("success", true);
-        return body;
+        return TenantResponse.from(tenant, contextRoleHasAdmin());
     }
 
     /**
@@ -67,7 +64,7 @@ final class TenantCrudOps {
      *（指针区分"未携带"与"显式空串"）。绑定失败 400 "Invalid request data"+details；
      * name trim 后空 → 400 "name cannot be blank"；其余复用 kv 分发器的 500 形态。
      */
-    public Map<String, Object> updateTenant(@PathVariable("id") String id,
+    public TenantResponse updateTenant(@PathVariable("id") String id,
                                             @RequestBody(required = false) String rawBody) {
         UpdateTenantRequest req = bindUpdateTenantRequest(rawBody);
         Tenant existing = loadTenantOr500(Long.parseLong(id.trim()), "Failed to load workspace");
@@ -92,10 +89,7 @@ final class TenantCrudOps {
             throw new BizException(AppError.internal("Failed to update workspace")
                     .withDetails(e.getMessage()));
         }
-        Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("data", TenantResponse.from(existing, contextRoleHasAdmin()));
-        body.put("success", true);
-        return body;
+        return TenantResponse.from(existing, contextRoleHasAdmin());
     }
 
     /** 对照 updateTenantRequest（tenant.go L102-105）：name omitempty,min=1,max=128；description omitempty,max=512。 */
@@ -165,7 +159,7 @@ final class TenantCrudOps {
      * DELETE /tenants/{id}（对照 DeleteTenant，L1123-1162）：repo 层软删成员+租户、
      * 删不存在的 id 同样成功 → 恒 200 {"message","success"}。
      */
-    public Map<String, Object> deleteTenant(@PathVariable("id") String id) {
+    public org.springframework.http.ResponseEntity<Void> deleteTenant(@PathVariable("id") String id) {
         try {
             service.tenantService.deleteTenant(Long.parseLong(id.trim()));
         } catch (BizException e) {
@@ -174,10 +168,7 @@ final class TenantCrudOps {
             throw new BizException(AppError.internal("Failed to delete workspace")
                     .withDetails(e.getMessage()));
         }
-        Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("message", "Workspace deleted successfully");
-        body.put("success", true);
-        return body;
+        return org.springframework.http.ResponseEntity.noContent().build();
     }
 
     /** GET/PUT 共用：租户缺失 → 500 + details "record not found"（对照 GetTenantByID 的 gorm 原文透传）。 */

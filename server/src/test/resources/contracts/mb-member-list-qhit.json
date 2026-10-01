@@ -1,1 +1,1 @@
-{"data":{"members":[{"user_id":"11111111-2222-3333-4444-555555555505","email":"java-phase1-contrib@weknora.test","username":"phase1contrib","role":"contributor","status":"active","joined_at":"2026-09-01T18:02:00+08:00"}],"page":1,"page_size":20,"total":1},"success":true}
+{"members":[{"userId":"11111111-2222-3333-4444-555555555505","email":"java-phase1-contrib@weknora.test","username":"phase1contrib","avatar":null,"role":"contributor","status":"active","invitedBy":null,"joinedAt":"2026-09-01T18:02:00+08:00"}],"page":1,"pageSize":20,"total":1}

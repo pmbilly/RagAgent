@@ -1,7 +1,6 @@
 package com.ragagent.auth.controller;
 
 import java.util.List;
-import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.auth.apikey.domain.APIKeyCapability;
@@ -39,28 +38,33 @@ final class TenantConfigOps {
 
     // ── KV 分发器（对照 GetTenantKV / UpdateTenantKV，L1304-1395） ──────────
 
-    public Map<String, Object> getTenantKV(@PathVariable String key,
-                                           jakarta.servlet.http.HttpServletRequest request) {
+    public Object getTenantKV(@PathVariable String key,
+                              jakarta.servlet.http.HttpServletRequest request) {
         requireIntegrationSecretsIfSensitive(key);
         return switch (key) {
-            case "web-search-config" -> TenantMemberController.envelope(getWebSearch());
+            case "web-search-config" -> {
+                WebSearchConfig ws = getWebSearch();
+                yield ws == null
+                        ? com.fasterxml.jackson.databind.node.NullNode.getInstance()
+                        : ws;
+            }
             // 对照 GetPromptTemplates：config.yaml 模板 + Accept-Language 本地化
             // （locale 解析 = middleware/language.go：env → Accept-Language 首 tag → zh-CN）
-            case "prompt-templates" -> TenantMemberController.envelope(
+            case "prompt-templates" ->
                     com.ragagent.agent.PromptTemplateCatalog.toJson(
                             com.ragagent.agent.PromptTemplateCatalog.load(),
                             com.ragagent.agentm.service.BuiltinAgentRegistry
-                                    .localeFromRequest(request.getHeader("Accept-Language"))));
-            case "parser-engine-config" -> TenantMemberController.envelope(getParserEngine());
-            case "storage-engine-config" -> TenantMemberController.envelope(getStorageEngine());
-            case "chat-history-config" -> TenantMemberController.envelope(getChatHistory());
-            case "retrieval-config" -> TenantMemberController.envelope(getRetrieval());
-            case "memory-config" -> TenantMemberController.envelope(getMemory());
+                                    .localeFromRequest(request.getHeader("Accept-Language")));
+            case "parser-engine-config" -> getParserEngine();
+            case "storage-engine-config" -> getStorageEngine();
+            case "chat-history-config" -> getChatHistory();
+            case "retrieval-config" -> getRetrieval();
+            case "memory-config" -> getMemory();
             default -> throw new BizException(AppError.badRequest("unsupported key"));
         };
     }
 
-    public Map<String, Object> updateTenantKV(@PathVariable String key,
+    public Object updateTenantKV(@PathVariable String key,
                                               @RequestBody(required = false) String rawBody) {
         requireIntegrationSecretsIfSensitive(key);
         return switch (key) {
@@ -140,15 +144,6 @@ final class TenantConfigOps {
         return new BizException(AppError.internal(message).withDetails(e.getMessage()));
     }
 
-    /** 对照 gin.H{"success","data","message"}：字母序 data, message, success */
-    private static Map<String, Object> envelopeWithMessage(Object data, String message) {
-        Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("data", data);
-        body.put("message", message);
-        body.put("success", true);
-        return body;
-    }
-
     // ── web-search-config（对照 L1398-1472） ────────────────────────────────
 
     private WebSearchConfig getWebSearch() {
@@ -157,7 +152,7 @@ final class TenantConfigOps {
                 parseConfig(tenant.getWebSearchConfig(), WebSearchConfig.class));
     }
 
-    private Map<String, Object> putWebSearch(String rawBody) {
+    private Object putWebSearch(String rawBody) {
         WebSearchConfig cfg = TenantBindSupport.bindBody(rawBody, WebSearchConfig.class, "Invalid request data");
         if (cfg == null) {
             cfg = new WebSearchConfig();
@@ -174,9 +169,7 @@ final class TenantConfigOps {
         } catch (RuntimeException e) {
             throw updateFailed("Failed to update workspace web search config", e);
         }
-        return envelopeWithMessage(
-                TenantConfigRedaction.webSearchForResponse(merged),
-                "Web search configuration updated successfully");
+        return TenantConfigRedaction.webSearchForResponse(merged);
     }
 
     // ── parser-engine-config（对照 L1474-1533） ─────────────────────────────
@@ -188,7 +181,7 @@ final class TenantConfigOps {
         return data == null ? new ParserEngineConfig() : data;
     }
 
-    private Map<String, Object> putParserEngine(String rawBody) {
+    private Object putParserEngine(String rawBody) {
         ParserEngineConfig cfg = TenantBindSupport.bindBody(rawBody, ParserEngineConfig.class, "Invalid request data");
         if (cfg == null) {
             cfg = new ParserEngineConfig();
@@ -203,8 +196,7 @@ final class TenantConfigOps {
         } catch (RuntimeException e) {
             throw updateFailed("Failed to update workspace parser engine config", e);
         }
-        return envelopeWithMessage(
-                TenantConfigRedaction.parserEngineForResponse(merged), "解析引擎配置已更新");
+        return TenantConfigRedaction.parserEngineForResponse(merged);
     }
 
     /** 对照 validateParserEngineOutboundURLs（L1904-1930）：四处 URL 过 SSRF */
@@ -244,7 +236,7 @@ final class TenantConfigOps {
         return data == null ? new StorageEngineConfig() : data;
     }
 
-    private Map<String, Object> putStorageEngine(String rawBody) {
+    private Object putStorageEngine(String rawBody) {
         StorageEngineConfig cfg = TenantBindSupport.bindBody(rawBody, StorageEngineConfig.class, "Invalid request data");
         if (cfg == null) {
             cfg = new StorageEngineConfig();
@@ -272,8 +264,7 @@ final class TenantConfigOps {
         } catch (RuntimeException e) {
             throw updateFailed("Failed to update workspace storage engine config", e);
         }
-        return envelopeWithMessage(
-                TenantConfigRedaction.storageEngineForResponse(merged), "存储引擎配置已更新");
+        return TenantConfigRedaction.storageEngineForResponse(merged);
     }
 
     /** 对照 firstAllowedStorageProvider：白名单序的第一个允许项（全允许时为 local） */
@@ -290,7 +281,7 @@ final class TenantConfigOps {
         return data == null ? new ChatHistoryConfig() : data;
     }
 
-    private Map<String, Object> putChatHistory(String rawBody) {
+    private Object putChatHistory(String rawBody) {
         ChatHistoryConfig req = TenantBindSupport.bindBody(rawBody, ChatHistoryConfig.class, "Invalid request data");
         if (req == null) {
             req = new ChatHistoryConfig();
@@ -328,7 +319,7 @@ final class TenantConfigOps {
         } catch (RuntimeException e) {
             throw updateFailed("Failed to update chat history config", e);
         }
-        return envelopeWithMessage(cfg, "Chat history configuration updated successfully");
+        return cfg;
     }
 
     // ── retrieval-config（对照 L1731-1806） ─────────────────────────────────
@@ -339,7 +330,7 @@ final class TenantConfigOps {
         return data == null ? new RetrievalConfig() : data;
     }
 
-    private Map<String, Object> putRetrieval(String rawBody) {
+    private Object putRetrieval(String rawBody) {
         RetrievalConfig cfg = TenantBindSupport.bindBody(rawBody, RetrievalConfig.class, "Invalid request data");
         if (cfg == null) {
             cfg = new RetrievalConfig();
@@ -367,7 +358,7 @@ final class TenantConfigOps {
         } catch (RuntimeException e) {
             throw updateFailed("Failed to update retrieval config", e);
         }
-        return envelopeWithMessage(cfg, "Retrieval configuration updated successfully");
+        return cfg;
     }
 
     // ── memory-config（对照 L1808-1901；MemoryConfig 本体在 memory 模块） ────
@@ -382,7 +373,7 @@ final class TenantConfigOps {
         return data;
     }
 
-    private Map<String, Object> putMemory(String rawBody) {
+    private Object putMemory(String rawBody) {
         MemoryConfig cfg = TenantBindSupport.bindBody(rawBody, MemoryConfig.class, "Invalid request data");
         if (cfg == null) {
             cfg = new MemoryConfig();
@@ -431,6 +422,6 @@ final class TenantConfigOps {
         } catch (RuntimeException e) {
             throw updateFailed("Failed to update memory config", e);
         }
-        return envelopeWithMessage(cfg, "Memory configuration updated successfully");
+        return cfg;
     }
 }

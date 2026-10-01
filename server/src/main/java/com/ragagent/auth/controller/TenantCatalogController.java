@@ -90,7 +90,7 @@ public class TenantCatalogController {
 
 
     @PostMapping("/api/v1/tenants")
-    public ResponseEntity<Map<String, Object>> createTenant(
+    public ResponseEntity<?> createTenant(
             @RequestBody(required = false) String rawBody) {
         return createOps.createTenant(rawBody);
     }
@@ -102,30 +102,30 @@ public class TenantCatalogController {
     }
 
     @GetMapping("/api/v1/tenants/{id}")
-    public Map<String, Object> getTenant(@PathVariable("id") String id) {
+    public Object getTenant(@PathVariable("id") String id) {
         return crudOps.getTenant(id);
     }
 
     @PutMapping("/api/v1/tenants/{id}")
-    public Map<String, Object> updateTenant(@PathVariable("id") String id,
+    public Object updateTenant(@PathVariable("id") String id,
                                             @RequestBody(required = false) String rawBody) {
         return crudOps.updateTenant(id, rawBody);
     }
 
     @DeleteMapping("/api/v1/tenants/{id}")
-    public Map<String, Object> deleteTenant(@PathVariable("id") String id) {
+    public Object deleteTenant(@PathVariable("id") String id) {
         return crudOps.deleteTenant(id);
     }
 
     @GetMapping("/api/v1/tenants/kv/{key}")
-    public Map<String, Object> getTenantKV(@PathVariable String key,
-                                           jakarta.servlet.http.HttpServletRequest request) {
+    public Object getTenantKV(@PathVariable String key,
+                              jakarta.servlet.http.HttpServletRequest request) {
         return configOps.getTenantKV(key, request);
     }
 
     @PutMapping("/api/v1/tenants/kv/{key}")
-    public Map<String, Object> updateTenantKV(@PathVariable String key,
-                                              @RequestBody(required = false) String rawBody) {
+    public Object updateTenantKV(@PathVariable String key,
+                                 @RequestBody(required = false) String rawBody) {
         return configOps.updateTenantKV(key, rawBody);
     }
 

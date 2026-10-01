@@ -19,6 +19,7 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoJsonBindError;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -89,19 +90,17 @@ public class TenantMemberController {
                     m.getInvitedBy(),
                     m.getJoinedAt()));
         }
-        // gin.H{data: gin.H{...}} 双层 map → 全字母序（members < page < page_size < total）
         Map<String, Object> data = new LinkedHashMap<>();
-        // gin.H 字母序：members < page < page_size < total（golden 锁定）
         data.put("members", resp);
         data.put("page", pp[0]);
-        data.put("page_size", pp[1]);
+        data.put("pageSize", pp[1]);
         data.put("total", page.total());
-        return envelope(data);
+        return data;
     }
 
     /** POST /tenants/{id}/members（Owner+，直加路径；201 + TenantMemberResponse） */
     @PostMapping("/api/v1/tenants/{id}/members")
-    public org.springframework.http.ResponseEntity<Map<String, Object>> addMember(
+    public org.springframework.http.ResponseEntity<TenantMemberResponse> addMember(
             @PathVariable String id, HttpServletRequest request) {
         long tenantId = parseTenantId(id);
         JsonNode body = bindJson(rawBody(request));
@@ -127,14 +126,12 @@ public class TenantMemberController {
 
         String invitedBy = invitedByForCaller(TenantContext.currentUserId());
         PreparedResponse r = addMemberAndRespond(user, tenantId, role, invitedBy);
-        return org.springframework.http.ResponseEntity.status(r.status())
-                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                .body(r.body());
+        return org.springframework.http.ResponseEntity.status(r.status()).body(r.body());
     }
 
     /** PUT /tenants/{id}/members/{user_id}（Owner+，改角色；ErrLastOwner → 409） */
     @PutMapping("/api/v1/tenants/{id}/members/{user_id}")
-    public Map<String, Object> updateMemberRole(@PathVariable String id,
+    public ResponseEntity<Void> updateMemberRole(@PathVariable String id,
                                                 @PathVariable("user_id") String userId,
                                                 HttpServletRequest request) {
         long tenantId = parseTenantId(id);
@@ -164,12 +161,12 @@ public class TenantMemberController {
                 }
             }
         }
-        return successOnly();
+        return ResponseEntity.noContent().build();
     }
 
     /** DELETE /tenants/{id}/members/{user_id}（Owner+，软删；ErrLastOwner → 409） */
     @DeleteMapping("/api/v1/tenants/{id}/members/{user_id}")
-    public Map<String, Object> removeMember(@PathVariable String id,
+    public ResponseEntity<Void> removeMember(@PathVariable String id,
                                             @PathVariable("user_id") String userId) {
         long tenantId = parseTenantId(id);
         String targetUserId = trimToEmpty(userId);
@@ -189,12 +186,12 @@ public class TenantMemberController {
                 }
             }
         }
-        return successOnly();
+        return ResponseEntity.noContent().build();
     }
 
     /** POST /tenants/{id}/leave（Viewer+，自助退出；ErrMembershipNotFound → 404 专属文案） */
     @PostMapping("/api/v1/tenants/{id}/leave")
-    public Map<String, Object> leaveTenant(@PathVariable String id) {
+    public ResponseEntity<Void> leaveTenant(@PathVariable String id) {
         long tenantId = parseTenantId(id);
         String caller = requireCaller();
         try {
@@ -211,13 +208,13 @@ public class TenantMemberController {
                 }
             }
         }
-        return successOnly();
+        return ResponseEntity.noContent().build();
     }
 
     // ── 共享辅助（成员/邀请两组共用，对照 Go 包级函数） ──────────────────────
 
     /** addMemberAndRespond 的结果：body + 显式状态码（201 直加成功用） */
-    public record PreparedResponse(Map<String, Object> body, int status) {
+    public record PreparedResponse(TenantMemberResponse body, int status) {
     }
 
     /**
@@ -230,7 +227,7 @@ public class TenantMemberController {
         try {
             TenantMember member = memberService.addMemberChecked(user.getId(), tenantId, role, invitedBy);
             // 对照 writeAddMemberSuccess：与列表端点同形，前端免二次往返
-            return new PreparedResponse(envelope(memberResponseMap(member, user)), 201);
+            return new PreparedResponse(memberResponse(member, user), 201);
         } catch (TenantRbacException e) {
             switch (e.kind()) {
                 case INVALID_TENANT_ROLE -> throw e.asValidationError();
@@ -240,38 +237,6 @@ public class TenantMemberController {
                         .withDetails(e.getMessage()));
             }
         }
-    }
-
-    /** TenantMemberResponse → map（字段序 = Go struct 声明序，非字母序） */
-    static Map<String, Object> memberResponseMap(TenantMember member, User user) {
-        TenantMemberResponse r = memberResponse(member, user);
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("user_id", r.userId());
-        m.put("email", r.email());
-        m.put("username", r.username());
-        if (r.avatar() != null) {
-            m.put("avatar", r.avatar());
-        }
-        m.put("role", r.role());
-        m.put("status", r.status());
-        if (r.invitedBy() != null) {
-            m.put("invited_by", r.invitedBy());
-        }
-        m.put("joined_at", r.joinedAt());
-        return m;
-    }
-
-    static Map<String, Object> envelope(Object data) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
-        return body;
-    }
-
-    static Map<String, Object> successOnly() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", true);
-        return body;
     }
 
     /** 对照 parseTenantIDFromPath（通常已被 PathTenantMatch 拦在前面，保留同文案） */

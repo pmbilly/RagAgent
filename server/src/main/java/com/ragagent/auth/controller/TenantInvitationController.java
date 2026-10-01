@@ -97,14 +97,14 @@ public class TenantInvitationController {
         // gin.H 字母序：invitations < page < page_size < total
         data.put("invitations", resp);
         data.put("page", pp[0]);
-        data.put("page_size", pp[1]);
+        data.put("pageSize", pp[1]);
         data.put("total", page.total());
-        return TenantMemberController.envelope(data);
+        return data;
     }
 
     /** POST /tenants/{id}/invitations（Owner+；auto-accept 开启时直加成员） */
     @PostMapping("/api/v1/tenants/{id}/invitations")
-    public ResponseEntity<Map<String, Object>> createInvitation(@PathVariable String id,
+    public ResponseEntity<?> createInvitation(@PathVariable String id,
                                                                 HttpServletRequest request) {
         long tenantId = TenantMemberController.parseTenantId(id);
         JsonNode body = TenantMemberController.bindJson(TenantMemberController.rawBody(request));
@@ -148,7 +148,7 @@ public class TenantInvitationController {
             }
             // Go：c.JSON(http.StatusCreated, ...)——创建邀请是 201
             return ResponseEntity.status(201)
-                    .body(TenantMemberController.envelope(projectInvitation(inv, usersById, null)));
+                    .body(projectInvitation(inv, usersById, null));
         } catch (TenantRbacException e) {
             switch (e.kind()) {
                 case INVALID_TENANT_ROLE -> throw e.asValidationError();
@@ -163,7 +163,7 @@ public class TenantInvitationController {
 
     /** DELETE /tenants/{id}/invitations/{inv_id}（Owner+，撤销 pending） */
     @DeleteMapping("/api/v1/tenants/{id}/invitations/{inv_id}")
-    public Map<String, Object> revokeInvitation(@PathVariable String id,
+    public ResponseEntity<Void> revokeInvitation(@PathVariable String id,
             @PathVariable("inv_id") String invId) {
         long tenantId = TenantMemberController.parseTenantId(id);
         long invIdNum = TenantMemberController.parseInvitationId(invId);
@@ -186,12 +186,12 @@ public class TenantInvitationController {
                         .withDetails(e.getMessage()));
             }
         }
-        return TenantMemberController.successOnly();
+        return ResponseEntity.noContent().build();
     }
 
     /** POST /tenants/{id}/invite-links（Owner+，多用途共享链接；201 + 带 invite_url） */
     @PostMapping("/api/v1/tenants/{id}/invite-links")
-    public ResponseEntity<Map<String, Object>> createInviteLink(@PathVariable String id,
+    public ResponseEntity<TenantInvitationResponse> createInviteLink(@PathVariable String id,
                                                                 HttpServletRequest request) {
         long tenantId = TenantMemberController.parseTenantId(id);
         JsonNode body = TenantMemberController.bindJson(TenantMemberController.rawBody(request));
@@ -220,7 +220,7 @@ public class TenantInvitationController {
             }
         }
         return ResponseEntity.status(201)
-                .body(TenantMemberController.envelope(projectInvitationWithLink(inv, usersById, null)));
+                .body(projectInvitationWithLink(inv, usersById, null));
     }
 
     // ── 收件箱（/me/invitations*，登录即可、无角色门） ────────────────────────
@@ -242,7 +242,7 @@ public class TenantInvitationController {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("invitations", resp);
         data.put("total", resp.size());
-        return TenantMemberController.envelope(data);
+        return data;
     }
 
     /** GET /me/invitations/pending-count（头像角标轮询的轻量端点） */
@@ -251,8 +251,8 @@ public class TenantInvitationController {
         String caller = TenantMemberController.requireCaller();
         long count = invitationService.countPendingByInvitee(caller);
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("pending_count", count);
-        return TenantMemberController.envelope(data);
+        data.put("pendingCount", count);
+        return data;
     }
 
     /** POST /me/invitations/{inv_id}/accept（接受 + 写成员行 + 首空间采纳） */
@@ -267,12 +267,12 @@ public class TenantInvitationController {
             throw acceptDeclineError(e, "failed to accept invitation");
         }
         adoptHomeTenantIfTenantless(caller, member);
-        return membershipEnvelope(member, "");
+        return membershipResponse(member, "");
     }
 
     /** POST /me/invitations/{inv_id}/decline（拒绝；不建成员行） */
     @PostMapping("/api/v1/me/invitations/{inv_id}/decline")
-    public Map<String, Object> declineMyInvitation(@PathVariable("inv_id") String invId) {
+    public ResponseEntity<Void> declineMyInvitation(@PathVariable("inv_id") String invId) {
         String caller = TenantMemberController.requireCaller();
         long invIdNum = TenantMemberController.parseInvitationId(invId);
         try {
@@ -280,12 +280,12 @@ public class TenantInvitationController {
         } catch (TenantRbacException e) {
             throw acceptDeclineError(e, "failed to decline invitation");
         }
-        return TenantMemberController.successOnly();
+        return ResponseEntity.noContent().build();
     }
 
     /** POST /me/invitations/accept-by-token（已登录用户用共享链接 token 加入；幂等） */
     @PostMapping("/api/v1/me/invitations/accept-by-token")
-    public Object acceptMyInvitationByToken(HttpServletRequest request) {
+    public Map<String, Object> acceptMyInvitationByToken(HttpServletRequest request) {
         String caller = TenantMemberController.requireCaller();
         JsonNode body = TenantMemberController.bindJson(TenantMemberController.rawBody(request));
         requireToken(body);
@@ -315,7 +315,7 @@ public class TenantInvitationController {
         if (tenant != null) {
             tenantName = tenant.getName();
         }
-        return membershipEnvelope(member, tenantName);
+        return membershipResponse(member, tenantName);
     }
 
     // ── 共享投影 / 辅助 ─────────────────────────────────────────────────────
@@ -495,25 +495,16 @@ public class TenantInvitationController {
         }
     }
 
-    /**
-     * membership 信封：gin.H 嵌套 map → 全字母序
-     * （data &lt; success；membership 内 joined_at &lt; role &lt; status &lt; tenant_id）。
-     * tenantName 非空时附 tenant_name（accept-by-token 专有，membership &lt; tenant_name）。
-     */
-    private static Map<String, Object> membershipEnvelope(TenantMember member, String tenantName) {
+    /** 成员关系响应体（camelCase；无租户名时输出空串）。 */
+    private static Map<String, Object> membershipResponse(TenantMember member, String tenantName) {
         Map<String, Object> membership = new LinkedHashMap<>();
-        membership.put("joined_at", member.getJoinedAt());
+        membership.put("joinedAt", member.getJoinedAt());
         membership.put("role", member.getRole());
         membership.put("status", member.getStatus());
-        membership.put("tenant_id", member.getTenantId());
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("membership", membership);
-        if (tenantName != null && !tenantName.isEmpty()) {
-            data.put("tenant_name", tenantName);
-        }
+        membership.put("tenantId", member.getTenantId());
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("data", data);
-        body.put("success", true);
+        body.put("membership", membership);
+        body.put("tenantName", tenantName == null ? "" : tenantName);
         return body;
     }
 }

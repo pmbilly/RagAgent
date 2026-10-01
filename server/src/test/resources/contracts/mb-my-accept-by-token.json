@@ -1,1 +1,1 @@
-{"data":{"membership":{"joined_at":"2026-09-19T10:23:53.223579+08:00","role":"contributor","status":"active","tenant_id":10002},"tenant_name":"phase1-test-tenant"},"success":true}
+{"membership":{"joinedAt":"2026-09-19T10:23:53.223579+08:00","role":"contributor","status":"active","tenantId":10002},"tenantName":"phase1-test-tenant"}
