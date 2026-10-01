@@ -2,27 +2,40 @@ import { get, post, put, del } from '../../utils/request'
 
 // --- Types ---
 
+// 键名＝服务端字段名（§14.9q D1 换锚后的 camelCase）
 export interface DataSource {
   id: string
-  tenant_id: number
-  knowledge_base_id: string
+  tenantId: number
+  knowledgeBaseId: string
   name: string
   type: string
-  config: any
-  sync_schedule: string
-  sync_mode: 'incremental' | 'full'
+  config: DataSourceConfig | null
+  syncSchedule: string
+  syncMode: 'incremental' | 'full'
   status: 'active' | 'paused' | 'error'
-  conflict_strategy: 'overwrite' | 'skip'
-  sync_deletions: boolean
-  last_sync_at: string | null
-  last_sync_result: any
-  error_message: string
+  conflictStrategy: 'overwrite' | 'skip'
+  syncDeletions: boolean
+  lastSyncAt: string | null
+  lastSyncCursor?: unknown
+  lastSyncResult: any
+  errorMessage: string
+  syncLogRetentionDays: number
+  totalItemsSynced: number
   // Single-field "credentials" map from the main response — DataSource
   // credentials are a per-connector atomic set.
   credentials?: { credentials: { configured: boolean } }
-  created_at: string
-  updated_at: string
-  latest_sync_log?: SyncLog
+  createdAt: string
+  updatedAt: string
+  deletedAt?: string | null
+  latestSyncLog?: SyncLog
+}
+
+/** jsonb `config` 的外层包装（内层 settings/credentials 是各 connector 的字段名，原样）。 */
+export interface DataSourceConfig {
+  type: string
+  resourceIds: string[] | null
+  settings?: Record<string, unknown> | null
+  credentials?: Record<string, unknown> | null
 }
 
 /**
@@ -70,18 +83,20 @@ export interface ConnectorMeta {
   description: string
   icon: string
   priority: number
-  auth_type: string
+  authType: string
   capabilities: string[]
 }
 
 export interface Resource {
-  external_id: string
+  externalId: string
   name: string
   type: string
   description: string
   url: string
-  parent_id?: string
-  has_children?: boolean
+  modifiedAt?: string
+  parentId?: string
+  hasChildren?: boolean
+  metadata?: Record<string, unknown> | null
 }
 
 // --- API calls ---
@@ -91,7 +106,7 @@ export function getConnectorTypes() {
 }
 
 export function listDataSources(kbId: string) {
-  return get(`/api/v1/datasource?kb_id=${encodeURIComponent(kbId)}`)
+  return get(`/api/v1/datasource?kbId=${encodeURIComponent(kbId)}`)
 }
 
 export function getDataSource(id: string) {
@@ -123,7 +138,7 @@ export function validateCredentials(type: string, credentials: Record<string, an
 // lazily load the direct children of a resource (e.g. expanding a Feishu wiki
 // space/node), which avoids traversing the whole tree up front.
 export function listResources(id: string, parentId?: string) {
-  const query = parentId ? `?parent_id=${encodeURIComponent(parentId)}` : ''
+  const query = parentId ? `?parentId=${encodeURIComponent(parentId)}` : ''
   return get(`/api/v1/datasource/${id}/resources${query}`, { timeout: 120000 })
 }
 
@@ -131,7 +146,7 @@ export function listResources(id: string, parentId?: string) {
 // expanded to reveal the given (possibly deeply nested) selections in a lazily
 // loaded picker. Used when editing a data source to restore an existing selection.
 export function resolveResourceAncestors(id: string, resourceIds: string[]) {
-  return post(`/api/v1/datasource/${id}/resource-ancestors`, { resource_ids: resourceIds }, { timeout: 120000 })
+  return post(`/api/v1/datasource/${id}/resource-ancestors`, { resourceIds }, { timeout: 120000 })
 }
 
 export function triggerSync(id: string) {
@@ -166,8 +181,8 @@ export async function putDataSourceCredentials(
   id: string,
   credentials: Record<string, unknown>,
 ): Promise<DataSourceCredentialsResponse> {
-  const response: any = await put(`/api/v1/datasource/${id}/credentials`, { credentials })
-  return (response.data ?? response) as DataSourceCredentialsResponse
+  // 裸对象（§2.1；§14.9q D1 去掉 data/success 信封）
+  return (await put(`/api/v1/datasource/${id}/credentials`, { credentials })) as DataSourceCredentialsResponse
 }
 
 export async function deleteDataSourceCredentials(id: string): Promise<void> {

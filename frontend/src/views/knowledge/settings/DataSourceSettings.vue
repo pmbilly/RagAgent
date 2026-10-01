@@ -56,7 +56,7 @@ async function loadList(silent = false) {
     dataSources.value = res?.data || res || []
     emit('count', dataSources.value.length)
 
-    const hasRunningSync = dataSources.value.some(ds => ds.latest_sync_log?.status === 'running')
+    const hasRunningSync = dataSources.value.some(ds => ds.latestSyncLog?.status === 'running')
     if (hasRunningSync) {
       schedulePolling()
     } else {
@@ -142,16 +142,16 @@ function scheduleLabel(cron: string) {
 }
 
 function lastSyncTime(ds: DataSource) {
-  return relativeTime(ds.last_sync_at, t)
+  return relativeTime(ds.lastSyncAt, t)
 }
 
 function lastSyncFullTime(ds: DataSource) {
-  if (!ds.last_sync_at) return ''
-  return new Date(ds.last_sync_at).toLocaleString()
+  if (!ds.lastSyncAt) return ''
+  return new Date(ds.lastSyncAt).toLocaleString()
 }
 
 function syncResultPills(ds: DataSource) {
-  const log = ds.latest_sync_log
+  const log = ds.latestSyncLog
   if (!log) return []
   const pills: { text: string; cls: string }[] = []
   if (log.items_created > 0) pills.push({ text: `+${log.items_created}`, cls: 'created' })
@@ -163,13 +163,13 @@ function syncResultPills(ds: DataSource) {
 }
 
 function lastSyncStatusLabel(ds: DataSource) {
-  const log = ds.latest_sync_log
+  const log = ds.latestSyncLog
   if (!log) return '--'
   return t(`datasource.logStatus.${log.status}`)
 }
 
 function isSyncRunning(ds: DataSource) {
-  return ds.latest_sync_log?.status === 'running'
+  return ds.latestSyncLog?.status === 'running'
 }
 
 function onEditorSaved() {
@@ -275,7 +275,7 @@ onBeforeUnmount(stopPolling)
               </div>
             </div>
             <p class="ds-card__subtitle">
-              {{ connectorLabel(ds.type) }} · {{ syncModeLabel(ds.sync_mode) }}
+              {{ connectorLabel(ds.type) }} · {{ syncModeLabel(ds.syncMode) }}
               <span class="ds-card__sep">·</span>
               <span class="ds-card__status" :class="`ds-card__status--${ds.status}`">
                 <span class="ds-status-dot" aria-hidden="true" />
@@ -283,16 +283,16 @@ onBeforeUnmount(stopPolling)
               </span>
             </p>
             <p class="ds-card__detail">
-              {{ scheduleLabel(ds.sync_schedule) }}
+              {{ scheduleLabel(ds.syncSchedule) }}
               <span class="ds-card__sep">·</span>
               <t-tooltip :content="lastSyncFullTime(ds)" :disabled="!lastSyncFullTime(ds)">
                 <span>{{ lastSyncTime(ds) || '--' }}</span>
               </t-tooltip>
-              <template v-if="ds.latest_sync_log">
+              <template v-if="ds.latestSyncLog">
                 <span class="ds-card__sep">·</span>
                 <span
                   class="ds-card__sync-result"
-                  :class="`ds-card__sync-result--${ds.latest_sync_log.status}`"
+                  :class="`ds-card__sync-result--${ds.latestSyncLog.status}`"
                 >
                   {{ lastSyncStatusLabel(ds) }}
                 </span>
@@ -303,9 +303,9 @@ onBeforeUnmount(stopPolling)
                 >{{ pill.text }}</span>
               </template>
             </p>
-            <div v-if="ds.error_message" class="ds-card__error">
+            <div v-if="ds.errorMessage" class="ds-card__error">
               <t-icon name="error-circle-filled" size="14px" />
-              <span>{{ ds.error_message }}</span>
+              <span>{{ ds.errorMessage }}</span>
             </div>
           </div>
         </component>

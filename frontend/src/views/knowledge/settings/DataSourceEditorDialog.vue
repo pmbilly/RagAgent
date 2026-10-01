@@ -14,6 +14,7 @@ import {
   putDataSourceCredentials,
   deleteDataSourceCredentials,
   type DataSource,
+  type DataSourceConfig,
   type Resource,
 } from '@/api/datasource'
 import SettingDrawer from '@/components/settings/SettingDrawer.vue'
@@ -135,12 +136,12 @@ function syncRssAuthHeadersToCredentials() {
 // Feed URLs may still live in credentials on older rows (not returned by the
 // API). The backend copies them into settings on read; fall back to the
 // selected feed resource IDs when settings are still empty.
-function hydrateRssFeedUrlsFromConfig(config: { settings?: Record<string, any>; resource_ids?: string[] }) {
+function hydrateRssFeedUrlsFromConfig(config: { settings?: Record<string, any> | null; resourceIds?: string[] | null }) {
   const settings = config.settings || {}
   if (String(settings.feed_urls || '').trim()) {
     return { ...settings }
   }
-  const ids = config.resource_ids || []
+  const ids = config.resourceIds || []
   if (ids.length === 0) {
     return { ...settings }
   }
@@ -172,13 +173,13 @@ const form = ref({
   type: '',
   config: {
     credentials: {} as Record<string, any>,
-    resource_ids: [] as string[],
+    resourceIds: [] as string[],
     settings: {} as Record<string, any>,
   },
-  sync_schedule: '0 0 */6 * * *',
-  sync_mode: 'incremental' as 'incremental' | 'full',
-  conflict_strategy: 'overwrite' as 'overwrite' | 'skip',
-  sync_deletions: true,
+  syncSchedule: '0 0 */6 * * *',
+  syncMode: 'incremental' as 'incremental' | 'full',
+  conflictStrategy: 'overwrite' as 'overwrite' | 'skip',
+  syncDeletions: true,
 })
 
 // Step 2: Resources
@@ -198,7 +199,7 @@ const treeFullyLoaded = ref(false)
 
 // Drive (云盘) root input: the Drive connectors have no "list spaces" API, so
 // the user must supply a root folder_token. We collect it here, write it into
-// form.config.resource_ids as the single root, then loadResources lists its
+// form.config.resourceIds as the single root, then loadResources lists its
 // children. See 飞书云盘数据源设计.md §5.2 / ADR-0004.
 const driveFolderToken = ref('')
 // 必填校验的内联错误文案：非空时输入框显示 error 状态 + 下方 tips,
@@ -259,7 +260,7 @@ async function loadDriveRoot() {
   driveFolderTokenError.value = ''
   // Normalize the input so the user sees the extracted token, not the full URL.
   driveFolderToken.value = token
-  form.value.config.resource_ids = [token]
+  form.value.config.resourceIds = [token]
   driveRootLoaded.value = false
   loadingResources.value = true
   try {
@@ -288,22 +289,22 @@ async function loadDriveRoot() {
       // arrived with children and auto-expand them.
       const parentsWithChildren = new Set<string>()
       for (const r of resources.value) {
-        if (r.parent_id) parentsWithChildren.add(r.parent_id)
+        if (r.parentId) parentsWithChildren.add(r.parentId)
       }
       loadedChildrenIds.value = parentsWithChildren
       loadingChildrenIds.value = new Set<string>()
       treeFullyLoaded.value = parentsWithChildren.size > 0
       expandedResourceIds.value = new Set(
         resources.value
-          .filter(r => !r.parent_id && r.has_children && parentsWithChildren.has(r.external_id))
-          .map(r => r.external_id),
+          .filter(r => !r.parentId && r.hasChildren && parentsWithChildren.has(r.externalId))
+          .map(r => r.externalId),
       )
       driveRootLoaded.value = true
       // In edit mode, reveal pre-existing selections that live below the
       // (not-yet-expanded) tree so they are visible and checked - mirrors
       // loadResources' behavior for non-Drive connectors.
       if (isEdit.value && !treeFullyLoaded.value) {
-        const loaded = new Set(resources.value.map(r => r.external_id))
+        const loaded = new Set(resources.value.map(r => r.externalId))
         const hidden = selectedResourceIds.value.filter(id => !loaded.has(id))
         if (hidden.length > 0) void revealExistingSelections(hidden)
       }
@@ -346,10 +347,10 @@ function classifyDriveLoadError(e: any): string {
 const childrenMap = computed(() => {
   const map = new Map<string, Resource[]>()
   for (const r of resources.value) {
-    if (r.parent_id) {
-      const siblings = map.get(r.parent_id)
+    if (r.parentId) {
+      const siblings = map.get(r.parentId)
       if (siblings) siblings.push(r)
-      else map.set(r.parent_id, [r])
+      else map.set(r.parentId, [r])
     }
   }
   return map
@@ -358,7 +359,7 @@ const childrenMap = computed(() => {
 const parentMap = computed(() => {
   const map = new Map<string, string>()
   for (const r of resources.value) {
-    if (r.parent_id) map.set(r.external_id, r.parent_id)
+    if (r.parentId) map.set(r.externalId, r.parentId)
   }
   return map
 })
@@ -376,17 +377,17 @@ const checkStates = computed(() => {
   // in the cover set; otherwise `indeterminate` if any descendant is checked;
   // otherwise `unchecked`. Returns whether the subtree contains a checked node.
   function walk(node: Resource, ancestorChecked: boolean): boolean {
-    const selfChecked = ancestorChecked || cover.has(node.external_id)
+    const selfChecked = ancestorChecked || cover.has(node.externalId)
     let descendantChecked = false
-    for (const c of childrenMap.value.get(node.external_id) || []) {
+    for (const c of childrenMap.value.get(node.externalId) || []) {
       if (walk(c, selfChecked)) descendantChecked = true
     }
-    if (selfChecked) states.set(node.external_id, 'checked')
-    else states.set(node.external_id, descendantChecked ? 'indeterminate' : 'unchecked')
+    if (selfChecked) states.set(node.externalId, 'checked')
+    else states.set(node.externalId, descendantChecked ? 'indeterminate' : 'unchecked')
     return selfChecked || descendantChecked
   }
   for (const r of resources.value) {
-    if (!r.parent_id) walk(r, false)
+    if (!r.parentId) walk(r, false)
   }
   return states
 })
@@ -419,10 +420,10 @@ async function ensureChildrenLoaded(id: string) {
     const res = await listResources(tempDsId.value, id)
     const children: Resource[] = res?.data || res || []
     if (children.length > 0) {
-      const existing = new Set(resources.value.map(r => r.external_id))
+      const existing = new Set(resources.value.map(r => r.externalId))
       const merged = resources.value.slice()
       for (const c of children) {
-        if (!existing.has(c.external_id)) merged.push(c)
+        if (!existing.has(c.externalId)) merged.push(c)
       }
       resources.value = merged
     }
@@ -441,13 +442,13 @@ async function ensureChildrenLoaded(id: string) {
 }
 
 const visibleTree = computed(() => {
-  const roots = resources.value.filter(r => !r.parent_id)
+  const roots = resources.value.filter(r => !r.parentId)
   const result: { resource: Resource; depth: number }[] = []
   function walk(items: Resource[], depth: number) {
     for (const r of items) {
       result.push({ resource: r, depth })
-      if (r.has_children && expandedResourceIds.value.has(r.external_id)) {
-        walk(childrenMap.value.get(r.external_id) || [], depth + 1)
+      if (r.hasChildren && expandedResourceIds.value.has(r.externalId)) {
+        walk(childrenMap.value.get(r.externalId) || [], depth + 1)
       }
     }
   }
@@ -677,23 +678,23 @@ watch(visible, async (v) => {
     credentialsConfigured.value = false
     refreshCredentialsStatus()
     testResult.value = credentialsConfigured.value ? 'success' : ''
-    const editConfig = props.dataSource.config || {}
+    const editConfig: DataSourceConfig = props.dataSource.config || { type: '', resourceIds: null }
     form.value = {
       name: props.dataSource.name,
       type: props.dataSource.type,
       config: {
         credentials: {},
-        resource_ids: editConfig.resource_ids || [],
+        resourceIds: editConfig.resourceIds || [],
         settings: props.dataSource.type === 'rss'
           ? hydrateRssFeedUrlsFromConfig(editConfig)
           : (editConfig.settings || {}),
       },
-      sync_schedule: props.dataSource.sync_schedule,
-      sync_mode: props.dataSource.sync_mode,
-      conflict_strategy: props.dataSource.conflict_strategy,
-      sync_deletions: props.dataSource.sync_deletions,
+      syncSchedule: props.dataSource.syncSchedule,
+      syncMode: props.dataSource.syncMode,
+      conflictStrategy: props.dataSource.conflictStrategy,
+      syncDeletions: props.dataSource.syncDeletions,
     }
-    selectedResourceIds.value = form.value.config?.resource_ids || []
+    selectedResourceIds.value = form.value.config?.resourceIds || []
     if (isGitLabConnector(form.value.type)) {
       const savedProjects = Array.isArray(form.value.config.settings.projects) ? form.value.config.settings.projects : []
       gitlabProjects.value = savedProjects.map((project: any) => ({
@@ -701,12 +702,12 @@ watch(visible, async (v) => {
         pathsText: Array.isArray(project.paths) ? project.paths.join('\n') : '',
       }))
     }
-    // Pre-fill the Drive root folder_token from the saved resource_ids so the
+    // Pre-fill the Drive root folder_token from the saved resourceIds so the
     // user sees what they previously entered. driveRootLoaded stays false: the
     // tree has not been listed yet, and clicking "load" triggers listResources
     // + revealExistingSelections so pre-existing selections are revealed.
     if (isDriveConnector(form.value.type)) {
-      const rids = form.value.config?.resource_ids || []
+      const rids = form.value.config?.resourceIds || []
       if (rids.length > 0) {
         // resource_id is "folderToken" or "folderToken:fileToken"; the root is
         // the first segment.
@@ -720,11 +721,11 @@ watch(visible, async (v) => {
     form.value = {
       name: '',
       type: '',
-      config: { credentials: {}, resource_ids: [], settings: {} },
-      sync_schedule: '0 0 */6 * * *',
-      sync_mode: 'incremental',
-      conflict_strategy: 'overwrite',
-      sync_deletions: true,
+      config: { credentials: {}, resourceIds: [], settings: {} },
+      syncSchedule: '0 0 */6 * * *',
+      syncMode: 'incremental',
+      conflictStrategy: 'overwrite',
+      syncDeletions: true,
     }
   }
 })
@@ -840,7 +841,7 @@ async function loadResources() {
     // full tree, e.g. Notion) needs no further lazy fetch.
     const parentsWithChildren = new Set<string>()
     for (const r of resources.value) {
-      if (r.parent_id) parentsWithChildren.add(r.parent_id)
+      if (r.parentId) parentsWithChildren.add(r.parentId)
     }
     loadedChildrenIds.value = parentsWithChildren
     loadingChildrenIds.value = new Set<string>()
@@ -851,13 +852,13 @@ async function loadResources() {
     // (children not yet fetched) stay collapsed until the user expands them.
     expandedResourceIds.value = new Set(
       resources.value
-        .filter(r => !r.parent_id && r.has_children && parentsWithChildren.has(r.external_id))
-        .map(r => r.external_id),
+        .filter(r => !r.parentId && r.hasChildren && parentsWithChildren.has(r.externalId))
+        .map(r => r.externalId),
     )
     // When editing a lazily-loaded source, reveal pre-existing selections that
     // live below the (not-yet-loaded) tree so they are visible and checked.
     if (isEdit.value && !treeFullyLoaded.value) {
-      const loaded = new Set(resources.value.map(r => r.external_id))
+      const loaded = new Set(resources.value.map(r => r.externalId))
       const hidden = selectedResourceIds.value.filter(id => !loaded.has(id))
       if (hidden.length > 0) void revealExistingSelections(hidden)
     }
@@ -891,8 +892,8 @@ function getDescendantIds(id: string): string[] {
   const ids: string[] = []
   const children = childrenMap.value.get(id) || []
   for (const c of children) {
-    ids.push(c.external_id)
-    ids.push(...getDescendantIds(c.external_id))
+    ids.push(c.externalId)
+    ids.push(...getDescendantIds(c.externalId))
   }
   return ids
 }
@@ -936,7 +937,7 @@ function uncheckResource(id: string, cover: Set<string>) {
       const parent = chain[i]
       const next = chain[i - 1]
       for (const sib of childrenMap.value.get(parent) || []) {
-        if (sib.external_id !== next) cover.add(sib.external_id)
+        if (sib.externalId !== next) cover.add(sib.externalId)
       }
     }
   }
@@ -1042,7 +1043,7 @@ function buildConfigPayload(): Record<string, unknown> {
   syncGitLabProjectsToSettings()
   return {
     credentials: isEdit.value ? {} : { ...form.value.config.credentials },
-    resource_ids: form.value.config.resource_ids,
+    resourceIds: form.value.config.resourceIds,
     settings: form.value.config.settings,
   }
 }
@@ -1072,7 +1073,7 @@ async function commitCredentialsIfNeeded(dsId: string): Promise<boolean> {
 
 // --- Final submit ---
 async function handleSubmit() {
-  form.value.config.resource_ids = selectedResourceIds.value
+  form.value.config.resourceIds = selectedResourceIds.value
   submitting.value = true
   try {
     let dataSourceId = tempDsId.value
@@ -1147,10 +1148,10 @@ const selectedResourceCount = computed(() => {
   return count
 })
 
-const hasExpandableNodes = computed(() => resources.value.some(r => r.has_children))
+const hasExpandableNodes = computed(() => resources.value.some(r => r.hasChildren))
 
 function resourceIconName(r: Resource): string {
-  if (r.has_children) return 'folder'
+  if (r.hasChildren) return 'folder'
   switch (r.type) {
     case 'wiki_space':
       return 'root-list'
@@ -1164,11 +1165,11 @@ function resourceIconName(r: Resource): string {
 }
 
 function expandAllNodes() {
-  const expandable = resources.value.filter(r => r.has_children)
-  expandedResourceIds.value = new Set(expandable.map(r => r.external_id))
+  const expandable = resources.value.filter(r => r.hasChildren)
+  expandedResourceIds.value = new Set(expandable.map(r => r.externalId))
   // Lazily load children of any expanded node that hasn't been fetched yet.
   for (const r of expandable) {
-    void ensureChildrenLoaded(r.external_id)
+    void ensureChildrenLoaded(r.externalId)
   }
 }
 
@@ -1639,30 +1640,30 @@ const drawerConfirmText = computed(() => {
         <div class="resource-picker__list" role="tree">
           <div
             v-for="{ resource: r, depth } in visibleTree"
-            :key="r.external_id"
+            :key="r.externalId"
             class="resource-picker__row"
             :class="{
-              'is-checked': resourceRowState(r.external_id) === 'checked',
-              'is-indeterminate': resourceRowState(r.external_id) === 'indeterminate',
+              'is-checked': resourceRowState(r.externalId) === 'checked',
+              'is-indeterminate': resourceRowState(r.externalId) === 'indeterminate',
             }"
             :style="{ '--depth': depth }"
             role="treeitem"
-            :aria-expanded="r.has_children ? expandedResourceIds.has(r.external_id) : undefined"
-            @click="toggleResource(r.external_id)"
+            :aria-expanded="r.hasChildren ? expandedResourceIds.has(r.externalId) : undefined"
+            @click="toggleResource(r.externalId)"
           >
             <button
-              v-if="r.has_children"
+              v-if="r.hasChildren"
               type="button"
               class="resource-picker__expand"
-              :aria-label="expandedResourceIds.has(r.external_id)
+              :aria-label="expandedResourceIds.has(r.externalId)
                 ? t('knowledgeStages.collapseBranch')
                 : t('knowledgeStages.expandBranch')"
-              @click.stop="toggleExpand(r.external_id)"
+              @click.stop="toggleExpand(r.externalId)"
             >
-              <t-loading v-if="loadingChildrenIds.has(r.external_id)" size="12px" />
+              <t-loading v-if="loadingChildrenIds.has(r.externalId)" size="12px" />
               <t-icon
                 v-else
-                :name="expandedResourceIds.has(r.external_id) ? 'chevron-down' : 'chevron-right'"
+                :name="expandedResourceIds.has(r.externalId) ? 'chevron-down' : 'chevron-right'"
                 size="12px"
               />
             </button>
@@ -1670,13 +1671,13 @@ const drawerConfirmText = computed(() => {
             <span
               class="resource-picker__check"
               :class="{
-                'is-checked': resourceRowState(r.external_id) === 'checked',
-                'is-indeterminate': resourceRowState(r.external_id) === 'indeterminate',
+                'is-checked': resourceRowState(r.externalId) === 'checked',
+                'is-indeterminate': resourceRowState(r.externalId) === 'indeterminate',
               }"
               aria-hidden="true"
             >
               <svg
-                v-if="resourceRowState(r.external_id) === 'checked'"
+                v-if="resourceRowState(r.externalId) === 'checked'"
                 width="10"
                 height="10"
                 viewBox="0 0 12 12"
@@ -1747,7 +1748,7 @@ const drawerConfirmText = computed(() => {
     <template v-if="step === 3">
       <section class="setting-drawer__section">
         <h4 class="setting-drawer__section-title">{{ t('datasource.syncScheduleLabel') }}</h4>
-        <t-select v-model="form.sync_schedule">
+        <t-select v-model="form.syncSchedule">
           <t-option v-for="p in schedulePresets" :key="p.value" :value="p.value" :label="p.label" />
         </t-select>
       </section>
@@ -1759,20 +1760,20 @@ const drawerConfirmText = computed(() => {
             <button
               type="button"
               class="option-pill"
-              :class="{ 'is-active': form.sync_mode === 'incremental' }"
+              :class="{ 'is-active': form.syncMode === 'incremental' }"
               role="radio"
-              :aria-checked="form.sync_mode === 'incremental'"
-              @click="form.sync_mode = 'incremental'"
+              :aria-checked="form.syncMode === 'incremental'"
+              @click="form.syncMode = 'incremental'"
             >
               {{ t('datasource.syncMode.incremental') }}
             </button>
             <button
               type="button"
               class="option-pill"
-              :class="{ 'is-active': form.sync_mode === 'full' }"
+              :class="{ 'is-active': form.syncMode === 'full' }"
               role="radio"
-              :aria-checked="form.sync_mode === 'full'"
-              @click="form.sync_mode = 'full'"
+              :aria-checked="form.syncMode === 'full'"
+              @click="form.syncMode = 'full'"
             >
               {{ t('datasource.syncMode.full') }}
             </button>
@@ -1785,20 +1786,20 @@ const drawerConfirmText = computed(() => {
             <button
               type="button"
               class="option-pill"
-              :class="{ 'is-active': form.conflict_strategy === 'overwrite' }"
+              :class="{ 'is-active': form.conflictStrategy === 'overwrite' }"
               role="radio"
-              :aria-checked="form.conflict_strategy === 'overwrite'"
-              @click="form.conflict_strategy = 'overwrite'"
+              :aria-checked="form.conflictStrategy === 'overwrite'"
+              @click="form.conflictStrategy = 'overwrite'"
             >
               {{ t('datasource.conflict.overwrite') }}
             </button>
             <button
               type="button"
               class="option-pill"
-              :class="{ 'is-active': form.conflict_strategy === 'skip' }"
+              :class="{ 'is-active': form.conflictStrategy === 'skip' }"
               role="radio"
-              :aria-checked="form.conflict_strategy === 'skip'"
-              @click="form.conflict_strategy = 'skip'"
+              :aria-checked="form.conflictStrategy === 'skip'"
+              @click="form.conflictStrategy = 'skip'"
             >
               {{ t('datasource.conflict.skip') }}
             </button>
@@ -1806,7 +1807,7 @@ const drawerConfirmText = computed(() => {
         </div>
 
         <div class="form-item form-item--flat">
-          <t-checkbox v-model="form.sync_deletions">{{ t('datasource.syncDeletions') }}</t-checkbox>
+          <t-checkbox v-model="form.syncDeletions">{{ t('datasource.syncDeletions') }}</t-checkbox>
         </div>
       </section>
     </template>
