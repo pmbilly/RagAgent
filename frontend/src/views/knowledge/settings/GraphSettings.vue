@@ -383,7 +383,7 @@ const systemInfo = ref<any>(null)
 
 // 计算图数据库是否启用
 const isGraphDatabaseEnabled = computed(() => {
-  return systemInfo.value?.graph_database_engine && systemInfo.value.graph_database_engine !== 'Not Enabled'
+  return systemInfo.value?.graphDatabaseEngine && systemInfo.value.graphDatabaseEngine !== 'Not Enabled'
 })
 
 // Watch for prop changes

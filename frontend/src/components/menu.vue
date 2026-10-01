@@ -978,7 +978,7 @@ onMounted(async () => {
 
     isLiteEdition.value = authStore.isLiteMode
     getSystemInfo().then(res => {
-        if (res.data?.edition === 'lite') {
+        if (res.edition === 'lite') {
             isLiteEdition.value = true
             authStore.setLiteMode(true)
         }

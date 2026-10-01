@@ -38,8 +38,8 @@
                 size="small"
                 style="margin-left: 8px;"
               >{{ systemInfo.edition === 'lite' ? 'Lite' : 'Standard' }}</t-tag>
-              <span v-if="systemInfo?.commit_id" class="commit-info">
-                ({{ systemInfo.commit_id }})
+              <span v-if="systemInfo?.commitId" class="commit-info">
+                ({{ systemInfo.commitId }})
               </span>
           </span>
         </div>
@@ -69,35 +69,35 @@
       </div>
 
       <!-- Build time -->
-      <div v-if="systemInfo?.build_time" class="setting-row">
+      <div v-if="systemInfo?.buildTime" class="setting-row">
         <div class="setting-info">
           <label>{{ $t('system.buildTimeLabel') }}</label>
           <p class="desc">{{ $t('system.buildTimeDescription') }}</p>
         </div>
         <div class="setting-control">
-          <span class="info-value">{{ formatLocalTime(systemInfo.build_time) }}</span>
+          <span class="info-value">{{ formatLocalTime(systemInfo.buildTime) }}</span>
         </div>
       </div>
 
       <!-- Java version -->
-      <div v-if="systemInfo?.java_version" class="setting-row">
+      <div v-if="systemInfo?.javaVersion" class="setting-row">
         <div class="setting-info">
           <label>{{ $t('system.javaVersionLabel') }}</label>
           <p class="desc">{{ $t('system.javaVersionDescription') }}</p>
         </div>
         <div class="setting-control">
-          <span class="info-value">{{ systemInfo.java_version }}</span>
+          <span class="info-value">{{ systemInfo.javaVersion }}</span>
         </div>
       </div>
 
       <!-- Service started at -->
-      <div v-if="systemInfo?.started_at" class="setting-row">
+      <div v-if="systemInfo?.startedAt" class="setting-row">
         <div class="setting-info">
           <label>{{ $t('system.startedAtLabel') }}</label>
           <p class="desc">{{ $t('system.startedAtDescription') }}</p>
         </div>
         <div class="setting-control">
-          <span class="info-value">{{ formatLocalTime(systemInfo.started_at) }}</span>
+          <span class="info-value">{{ formatLocalTime(systemInfo.startedAt) }}</span>
         </div>
       </div>
 
@@ -113,16 +113,16 @@
       </div>
 
       <!-- DB Version -->
-      <div v-if="systemInfo?.db_version || systemInfo?.db_migration_error" class="setting-row">
+      <div v-if="systemInfo?.dbVersion || systemInfo?.dbMigrationError" class="setting-row">
         <div class="setting-info">
           <label>{{ $t('system.dbVersionLabel') }}</label>
           <p class="desc">{{ $t('system.dbVersionDescription') }}</p>
         </div>
         <div class="setting-control">
           <span class="info-value">
-            {{ systemInfo?.db_version || $t('system.unknown') }}
+            {{ systemInfo?.dbVersion || $t('system.unknown') }}
             <t-tag
-              v-if="systemInfo?.db_migration_error"
+              v-if="systemInfo?.dbMigrationError"
               theme="danger"
               variant="light"
               size="small"
@@ -133,11 +133,11 @@
       </div>
 
       <!-- DB migration error: full-width banner under the row -->
-      <div v-if="systemInfo?.db_migration_error" class="setting-row migration-error-row">
+      <div v-if="systemInfo?.dbMigrationError" class="setting-row migration-error-row">
         <t-alert theme="error" :title="$t('system.dbMigrationFailedTitle')" style="width: 100%;">
           <template #default>
             <p class="migration-error-desc">{{ $t('system.dbMigrationFailedDesc') }}</p>
-            <pre class="migration-error-detail">{{ systemInfo.db_migration_error }}</pre>
+            <pre class="migration-error-detail">{{ systemInfo.dbMigrationError }}</pre>
             <div class="migration-error-actions">
               <t-link
                 theme="primary"
@@ -164,7 +164,7 @@
           <p class="desc">{{ $t('system.keywordIndexEngineDescription') }}</p>
         </div>
         <div class="setting-control">
-          <span class="info-value">{{ systemInfo?.keyword_index_engine || $t('system.unknown') }}</span>
+          <span class="info-value">{{ systemInfo?.keywordIndexEngine || $t('system.unknown') }}</span>
         </div>
       </div>
 
@@ -175,7 +175,7 @@
           <p class="desc">{{ $t('system.vectorStoreEngineDescription') }}</p>
         </div>
         <div class="setting-control">
-          <span class="info-value">{{ systemInfo?.vector_store_engine || $t('system.unknown') }}</span>
+          <span class="info-value">{{ systemInfo?.vectorStoreEngine || $t('system.unknown') }}</span>
         </div>
       </div>
 
@@ -186,7 +186,7 @@
           <p class="desc">{{ $t('system.graphDatabaseEngineDescription') }}</p>
         </div>
         <div class="setting-control">
-          <span class="info-value">{{ systemInfo?.graph_database_engine || $t('system.unknown') }}</span>
+          <span class="info-value">{{ systemInfo?.graphDatabaseEngine || $t('system.unknown') }}</span>
         </div>
       </div>
 
@@ -214,13 +214,13 @@ const uptimeTick = ref(0)
 const displayUptimeSeconds = computed(() => {
   void uptimeTick.value
   const info = systemInfo.value
-  if (info?.started_at) {
-    const boot = new Date(info.started_at).getTime()
+  if (info?.startedAt) {
+    const boot = new Date(info.startedAt).getTime()
     if (!Number.isNaN(boot)) {
       return Math.floor((Date.now() - boot) / 1000)
     }
   }
-  if (info?.uptime_seconds != null) return info.uptime_seconds
+  if (info?.uptimeSeconds != null) return info.uptimeSeconds
   return null
 })
 
@@ -259,14 +259,14 @@ const reportIssueURL = computed(() => {
     title: '[Bug]: Database migration failed at startup',
     labels: 'bug',
   })
-  const errMsg = systemInfo.value?.db_migration_error
+  const errMsg = systemInfo.value?.dbMigrationError
   if (errMsg) {
     const body = [
       '### Environment',
       `- WeKnora version: ${systemInfo.value?.version || 'unknown'}`,
-      `- Commit: ${systemInfo.value?.commit_id || 'unknown'}`,
+      `- Commit: ${systemInfo.value?.commitId || 'unknown'}`,
       `- Frontend version: ${frontendVersion} (${frontendCommit})`,
-      `- DB version reported: ${systemInfo.value?.db_version || 'unknown'}`,
+      `- DB version reported: ${systemInfo.value?.dbVersion || 'unknown'}`,
       '',
       '### Migration error',
       '```',
@@ -286,8 +286,8 @@ const loadInfo = async () => {
     
     const systemResponse = await getSystemInfo()
     
-    if (systemResponse.data) {
-      systemInfo.value = systemResponse.data
+    if (systemResponse) {
+      systemInfo.value = systemResponse
     } else {
       error.value = t('system.messages.fetchFailed')
     }

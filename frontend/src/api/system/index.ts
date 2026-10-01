@@ -27,28 +27,28 @@ export async function deletePlatformAPIKey(keyId: number): Promise<{ success: bo
 export interface SystemInfo {
   version: string
   edition?: string
-  commit_id?: string
-  build_time?: string
+  commitId?: string | null
+  buildTime?: string | null
   /** JVM runtime version (Java backend; renamed from Go's go_version). */
-  java_version?: string
-  keyword_index_engine?: string
-  vector_store_engine?: string
-  graph_database_engine?: string
-  minio_enabled?: boolean
-  db_version?: string
+  javaVersion?: string | null
+  keywordIndexEngine?: string | null
+  vectorStoreEngine?: string | null
+  graphDatabaseEngine?: string | null
+  minioEnabled?: boolean
+  dbVersion?: string | null
   /** Human-readable error message when the startup migration failed.
    *  When non-empty, the system info view should surface a troubleshooting
    *  banner (see docs/migration-troubleshooting.md). */
-  db_migration_error?: string
+  dbMigrationError?: string | null
   /** Server process boot time (RFC3339, UTC). */
-  started_at?: string
+  startedAt?: string | null
   /** Seconds since process start. */
-  uptime_seconds?: number
+  uptimeSeconds?: number
 }
 
 export interface DeploymentCapability {
   supported: boolean
-  reason?: string
+  reason: string | null
 }
 
 export interface DeploymentCapabilitiesResponse {
@@ -56,7 +56,7 @@ export interface DeploymentCapabilitiesResponse {
   capabilities: Record<string, DeploymentCapability>
 }
 
-export function getDeploymentCapabilities(): Promise<{ data: DeploymentCapabilitiesResponse }> {
+export function getDeploymentCapabilities(): Promise<DeploymentCapabilitiesResponse> {
   return get('/api/v1/system/capabilities')
 }
 
@@ -94,7 +94,7 @@ export interface PromptTemplatesConfig {
   intent_prompts?: PromptTemplate[]
 }
 
-export function getSystemInfo(): Promise<{ data: SystemInfo }> {
+export function getSystemInfo(): Promise<SystemInfo> {
   return get('/api/v1/system/info')
 }
 
@@ -103,11 +103,11 @@ export function getPromptTemplates(): Promise<{ data: PromptTemplatesConfig }> {
 }
 
 export interface ParserEngineInfo {
-  Name: string
-  Description: string
-  FileTypes: string[]
-  Available?: boolean
-  UnavailableReason?: string
+  name: string
+  description: string
+  fileTypes: string[]
+  available: boolean
+  unavailableReason: string | null
 }
 
 /** 解析引擎配置（引擎连接参数存空间；聊天附件解析策略在智能体中配置） */
@@ -144,10 +144,10 @@ export interface ParserEngineConfig {
 }
 
 export interface ParserEnginesResponse {
-  data: ParserEngineInfo[]
-  docreader_addr?: string
+  engines: ParserEngineInfo[]
+  docreaderAddr?: string
   /** 连接方式：grpc | http，由服务端环境/配置决定 */
-  docreader_transport?: string
+  docreaderTransport?: string
   connected?: boolean
 }
 
@@ -168,7 +168,7 @@ export function updateParserEngineConfig(config: ParserEngineConfig): Promise<{ 
   return put('/api/v1/tenants/kv/parser-engine-config', config)
 }
 
-export function reconnectDocReader(addr: string): Promise<ParserEnginesResponse & { msg?: string }> {
+export function reconnectDocReader(addr: string): Promise<ParserEnginesResponse> {
   return post('/api/v1/system/docreader/reconnect', { addr })
 }
 
@@ -240,8 +240,8 @@ export interface StorageEngineStatusItem {
 
 export interface GetStorageEngineStatusResponse {
   engines: StorageEngineStatusItem[]
-  allowed_providers?: string[]
-  minio_env_available: boolean
+  allowedProviders: string[]
+  minioEnvAvailable: boolean
 }
 
 export function getStorageEngineConfig(): Promise<{ data: StorageEngineConfig }> {
@@ -252,7 +252,7 @@ export function updateStorageEngineConfig(config: StorageEngineConfig): Promise<
   return put('/api/v1/tenants/kv/storage-engine-config', config)
 }
 
-export function getStorageEngineStatus(): Promise<{ data: GetStorageEngineStatusResponse }> {
+export function getStorageEngineStatus(): Promise<GetStorageEngineStatusResponse> {
   return get('/api/v1/system/storage-engine-status')
 }
 
@@ -270,10 +270,10 @@ export interface StorageCheckRequest {
 export interface StorageCheckResponse {
   ok: boolean
   message: string
-  bucket_created?: boolean
+  bucketCreated: boolean
 }
 
-export function checkStorageEngine(req: StorageCheckRequest): Promise<{ data: StorageCheckResponse }> {
+export function checkStorageEngine(req: StorageCheckRequest): Promise<StorageCheckResponse> {
   return post('/api/v1/system/storage-engine-check', req)
 }
 
@@ -284,10 +284,10 @@ export interface SystemAdminUser {
   username: string
   email: string
   avatar?: string
-  is_active: boolean
-  is_system_admin: boolean
-  created_at: string
-  updated_at: string
+  isActive: boolean
+  isSystemAdmin: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 export interface PromoteUserRequest {

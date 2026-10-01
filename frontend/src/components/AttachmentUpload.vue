@@ -61,9 +61,9 @@ const supportedTypes = ref([
 onMounted(async () => {
   try {
     const response = await getParserEngines();
-    const discovered = (response.data || [])
-      .filter(engine => engine.Available !== false)
-      .flatMap(engine => engine.FileTypes || [])
+    const discovered = (response.engines || [])
+      .filter(engine => engine.available !== false)
+      .flatMap(engine => engine.fileTypes || [])
       .filter(type => type && type.toLowerCase() !== 'url')
       .map(type => `.${type.replace(/^\./, '').toLowerCase()}`);
     supportedTypes.value = [...new Set([...supportedTypes.value, ...discovered])];

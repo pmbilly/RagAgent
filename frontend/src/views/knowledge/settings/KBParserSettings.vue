@@ -125,7 +125,7 @@ const loading = ref(true)
 const allFileTypes = computed(() => {
   const s = new Set<string>()
   for (const engine of parserEngines.value) {
-    for (const ft of engine.FileTypes || []) {
+    for (const ft of engine.fileTypes || []) {
       s.add(ft)
     }
   }
@@ -188,14 +188,14 @@ const fileTypeGroups = computed(() => {
 function getEngineOptions(extensions: string[]): EngineOption[] {
   const raw: { name: string; desc: string; fileTypes: string[]; available: boolean; reason: string }[] = []
   for (const engine of parserEngines.value) {
-    const supports = extensions.some(ext => (engine.FileTypes || []).includes(ext))
+    const supports = extensions.some(ext => (engine.fileTypes || []).includes(ext))
     if (supports) {
       raw.push({
-        name: engine.Name,
-        desc: engine.Description || engine.Name,
-        fileTypes: engine.FileTypes || [],
-        available: engine.Available !== false,
-        reason: engine.UnavailableReason || '',
+        name: engine.name,
+        desc: engine.description || engine.name,
+        fileTypes: engine.fileTypes || [],
+        available: engine.available !== false,
+        reason: engine.unavailableReason || '',
       })
     }
   }

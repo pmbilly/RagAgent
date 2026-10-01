@@ -167,7 +167,7 @@
           :class="[
             'footer-test-message',
             currentCheckState.result.ok
-              ? ((currentCheckState.result as { bucket_created?: boolean }).bucket_created ? 'created' : 'success')
+              ? ((currentCheckState.result as { bucketCreated?: boolean }).bucketCreated ? 'created' : 'success')
               : 'error'
           ]"
           :title="currentCheckState.result.message"
@@ -586,7 +586,7 @@ const saveMessage = ref('')
 const saveSuccess = ref(false)
 
 const checkingMinio = ref(false)
-const minioCheckResult = ref<{ ok: boolean; message: string; bucket_created?: boolean } | null>(null)
+const minioCheckResult = ref<{ ok: boolean; message: string; bucketCreated?: boolean } | null>(null)
 const checkingCos = ref(false)
 const cosCheckResult = ref<{ ok: boolean; message: string } | null>(null)
 const checkingTos = ref(false)
@@ -892,9 +892,9 @@ async function loadConfig() {
 async function loadStatus() {
   try {
     const res = await getStorageEngineStatus()
-    const engines = res?.data?.engines ?? []
-    allowedProviders.value = res?.data?.allowed_providers?.length
-      ? res.data.allowed_providers
+    const engines = res?.engines ?? []
+    allowedProviders.value = res?.allowedProviders?.length
+      ? res.allowedProviders
       : engines.filter(e => e.allowed !== false).map(e => e.name)
     const status = { local: true, minio: false, cos: true }
     for (const e of engines) {
@@ -903,7 +903,7 @@ async function loadStatus() {
       if (e.name === 'cos') status.cos = e.available
     }
     engineStatus.value = status
-    minioEnvAvailable.value = res?.data?.minio_env_available ?? false
+    minioEnvAvailable.value = res?.minioEnvAvailable ?? false
   } catch {
     engineStatus.value = { local: true, minio: false, cos: true }
     allowedProviders.value = ['local', 'minio', 'cos', 'tos', 's3', 'oss']
@@ -1021,7 +1021,7 @@ async function onCheckMinio() {
   try {
     const payload = buildPayload()
     const res = await checkStorageEngine({ provider: 'minio', minio: payload.minio })
-    minioCheckResult.value = res?.data ?? { ok: false, message: t('settings.storage.unknownError') }
+    minioCheckResult.value = res ?? { ok: false, message: t('settings.storage.unknownError') }
   } catch (e: unknown) {
     minioCheckResult.value = { ok: false, message: e instanceof Error ? e.message : t('settings.storage.requestFailed') }
   } finally {
@@ -1035,7 +1035,7 @@ async function onCheckCos() {
   try {
     const payload = buildPayload()
     const res = await checkStorageEngine({ provider: 'cos', cos: payload.cos })
-    cosCheckResult.value = res?.data ?? { ok: false, message: t('settings.storage.unknownError') }
+    cosCheckResult.value = res ?? { ok: false, message: t('settings.storage.unknownError') }
   } catch (e: unknown) {
     cosCheckResult.value = { ok: false, message: e instanceof Error ? e.message : t('settings.storage.requestFailed') }
   } finally {
@@ -1049,7 +1049,7 @@ async function onCheckTos() {
   try {
     const payload = buildPayload()
     const res = await checkStorageEngine({ provider: 'tos', tos: payload.tos })
-    tosCheckResult.value = res?.data ?? { ok: false, message: t('settings.storage.unknownError') }
+    tosCheckResult.value = res ?? { ok: false, message: t('settings.storage.unknownError') }
   } catch (e: unknown) {
     tosCheckResult.value = { ok: false, message: e instanceof Error ? e.message : t('settings.storage.requestFailed') }
   } finally {
@@ -1063,7 +1063,7 @@ async function onCheckS3() {
   try {
     const payload = buildPayload()
     const res = await checkStorageEngine({ provider: 's3', s3: payload.s3 })
-    s3CheckResult.value = res?.data ?? { ok: false, message: t('settings.storage.unknownError') }
+    s3CheckResult.value = res ?? { ok: false, message: t('settings.storage.unknownError') }
   } catch (e: unknown) {
     s3CheckResult.value = { ok: false, message: e instanceof Error ? e.message : t('settings.storage.requestFailed') }
   } finally {
@@ -1077,7 +1077,7 @@ async function onCheckOss() {
   try {
     const payload = buildPayload()
     const res = await checkStorageEngine({ provider: 'oss', oss: payload.oss })
-    ossCheckResult.value = res?.data ?? { ok: false, message: t('settings.storage.unknownError') }
+    ossCheckResult.value = res ?? { ok: false, message: t('settings.storage.unknownError') }
   } catch (e: unknown) {
     ossCheckResult.value = { ok: false, message: e instanceof Error ? e.message : t('settings.storage.requestFailed') }
   } finally {
@@ -1091,7 +1091,7 @@ async function onCheckKs3() {
   try {
     const payload = buildPayload()
     const res = await checkStorageEngine({ provider: 'ks3', ks3: payload.ks3 })
-    ks3CheckResult.value = res?.data ?? { ok: false, message: t('settings.storage.unknownError') }
+    ks3CheckResult.value = res ?? { ok: false, message: t('settings.storage.unknownError') }
   } catch (e: unknown) {
     ks3CheckResult.value = { ok: false, message: e instanceof Error ? e.message : t('settings.storage.requestFailed') }
   } finally {
@@ -1105,7 +1105,7 @@ async function onCheckObs() {
   try {
     const payload = buildPayload()
     const res = await checkStorageEngine({ provider: 'obs', obs: payload.obs })
-    obsCheckResult.value = res?.data ?? { ok: false, message: t('settings.storage.unknownError') }
+    obsCheckResult.value = res ?? { ok: false, message: t('settings.storage.unknownError') }
   } catch (e: unknown) {
     obsCheckResult.value = { ok: false, message: e instanceof Error ? e.message : t('settings.storage.requestFailed') }
   } finally {

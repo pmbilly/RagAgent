@@ -33,7 +33,7 @@
           v-if="!hasBuiltinEngine"
           type="button"
           class="engine-card engine-card--builtin"
-          :class="{ 'engine-card--active': drawerVisible && currentEngine?.Name === 'builtin' }"
+          :class="{ 'engine-card--active': drawerVisible && currentEngine?.name === 'builtin' }"
           @click="openDrawer({ Name: 'builtin' } as any)"
         >
           <div class="engine-card__badge">{{ engineInitial('builtin') }}</div>
@@ -54,26 +54,26 @@
 
         <button
           v-for="engine in sortedEngines"
-          :key="engine.Name"
+          :key="engine.name"
           type="button"
           class="engine-card"
           :class="[
-            `engine-card--${engine.Name}`,
-            { 'engine-card--active': drawerVisible && currentEngine?.Name === engine.Name }
+            `engine-card--${engine.name}`,
+            { 'engine-card--active': drawerVisible && currentEngine?.name === engine.name }
           ]"
           @click="openDrawer(engine)"
         >
-          <div class="engine-card__badge">{{ engineInitial(engine.Name) }}</div>
+          <div class="engine-card__badge">{{ engineInitial(engine.name) }}</div>
           <div class="engine-card__body">
             <div class="engine-card__header">
-              <h3 class="engine-card__title">{{ getEngineDisplayName(engine.Name) }}</h3>
-              <span v-if="engine.Available" class="engine-card__status engine-card__status--on">
+              <h3 class="engine-card__title">{{ getEngineDisplayName(engine.name) }}</h3>
+              <span v-if="engine.available" class="engine-card__status engine-card__status--on">
                 <span class="engine-card__status-dot" />
                 {{ $t('settings.parser.available') }}
               </span>
               <t-tooltip
-                v-else-if="engine.UnavailableReason"
-                :content="engine.UnavailableReason"
+                v-else-if="engine.unavailableReason"
+                :content="engine.unavailableReason"
                 placement="top"
               >
                 <span class="engine-card__status engine-card__status--err engine-card__status--help">
@@ -86,7 +86,7 @@
                 {{ $t('settings.parser.unavailable') }}
               </span>
             </div>
-            <p class="engine-card__desc">{{ getEngineDisplayDesc(engine.Name, engine.Description) }}</p>
+            <p class="engine-card__desc">{{ getEngineDisplayDesc(engine.name, engine.description) }}</p>
           </div>
         </button>
       </div>
@@ -97,7 +97,7 @@
     <SettingDrawer
       v-model:visible="drawerVisible"
       :title="drawerTitle"
-      :class="currentEngine ? `parser-engine-drawer parser-engine-drawer--${currentEngine.Name}` : 'parser-engine-drawer'"
+      :class="currentEngine ? `parser-engine-drawer parser-engine-drawer--${currentEngine.name}` : 'parser-engine-drawer'"
       :hide-footer="!authStore.hasRole('admin') && !needsTestButton"
       :confirm-loading="saving"
       @confirm="onSave"
@@ -110,22 +110,22 @@
         里只渲染字母；存储引擎那边走的是 logo 图片/mask，pattern 一致。
       -->
       <template v-if="currentEngine" #headerIcon>
-        <span class="header-icon__text">{{ engineInitial(currentEngine.Name) }}</span>
+        <span class="header-icon__text">{{ engineInitial(currentEngine.name) }}</span>
       </template>
       <!--
         Subtitle slot: 引擎描述 + 内联文档链接。我们把"参考资料"从一个
         独立 section 收回到头部副标题里 — 一个外链不值得占一整个 section。
       -->
       <template v-if="currentEngine" #subtitle>
-        <span>{{ getEngineDisplayDesc(currentEngine.Name, currentEngine.Description) }}</span>
+        <span>{{ getEngineDisplayDesc(currentEngine.name, currentEngine.description) }}</span>
         <a
-          v-if="engineDocLink(currentEngine.Name)"
-          :href="engineDocLink(currentEngine.Name)"
+          v-if="engineDocLink(currentEngine.name)"
+          :href="engineDocLink(currentEngine.name)"
           target="_blank"
           rel="noopener noreferrer"
           class="doc-link doc-link--inline"
         >
-          {{ engineDocLabel(currentEngine.Name) }}
+          {{ engineDocLabel(currentEngine.name) }}
           <t-icon name="link" class="link-icon" />
         </a>
       </template>
@@ -155,12 +155,12 @@
           一目了然概览，对所有引擎都有意义；与状态/配置区分开。
         -->
         <section
-          v-if="currentEngine.FileTypes && currentEngine.FileTypes.length"
+          v-if="currentEngine.fileTypes && currentEngine.fileTypes.length"
           class="setting-drawer__section"
         >
           <h4 class="setting-drawer__section-title">{{ $t('settings.parser.supportedFileTypes', '支持文件类型') }}</h4>
           <div class="file-types">
-            <span v-for="ft in currentEngine.FileTypes" :key="ft" class="file-type-chip">
+            <span v-for="ft in currentEngine.fileTypes" :key="ft" class="file-type-chip">
               {{ ft }}
             </span>
           </div>
@@ -171,13 +171,13 @@
           只有有内容时才渲染，避免空 section 空底部分隔线。
         -->
         <section
-          v-if="currentEngine.Name === 'builtin' || currentEngine.Name === 'weknoracloud'"
+          v-if="currentEngine.name === 'builtin' || currentEngine.name === 'weknoracloud'"
           class="setting-drawer__section"
         >
           <h4 class="setting-drawer__section-title">{{ $t('settings.parser.statusSection', '状态信息') }}</h4>
 
           <!-- builtin: DocReader 连接信息 -->
-          <div v-if="currentEngine.Name === 'builtin'" class="docreader-block">
+          <div v-if="currentEngine.name === 'builtin'" class="docreader-block">
             <div class="status-line">
               <t-tag v-if="connected" theme="success" variant="light" size="small">
                 {{ $t('settings.parser.connected') }}
@@ -200,7 +200,7 @@
             统一用 inline alert：图标 + 一行文案 + 行尾跳转 link，体量
             匹配"一条信息"该有的样子。
           -->
-          <template v-if="currentEngine.Name === 'weknoracloud'">
+          <template v-if="currentEngine.name === 'weknoracloud'">
             <div v-if="wkcState === 'configured'" class="inline-alert inline-alert--ok">
               <t-icon name="check-circle-filled" class="inline-alert__icon" />
               <span>{{ $t('settings.weknoraCloud.credentialConfigured') }}</span>
@@ -224,7 +224,7 @@
         </section>
 
         <!-- Section 3 — mineru 自建配置 -->
-        <section v-if="currentEngine.Name === 'mineru'" class="setting-drawer__section">
+        <section v-if="currentEngine.name === 'mineru'" class="setting-drawer__section">
           <h4 class="setting-drawer__section-title">{{ $t('settings.parser.configSection', '配置') }}</h4>
 
           <div class="form-item">
@@ -281,7 +281,7 @@
         </section>
 
         <!-- Section 3 — mineru_cloud 云 API 配置 -->
-        <section v-if="currentEngine.Name === 'mineru_cloud'" class="setting-drawer__section">
+        <section v-if="currentEngine.name === 'mineru_cloud'" class="setting-drawer__section">
           <h4 class="setting-drawer__section-title">{{ $t('settings.parser.configSection', '配置') }}</h4>
 
           <div class="form-item">
@@ -322,7 +322,7 @@
         </section>
 
         <!-- Section 3 — paddleocr_vl 自建配置 -->
-        <section v-if="currentEngine.Name === 'paddleocr_vl'" class="setting-drawer__section">
+        <section v-if="currentEngine.name === 'paddleocr_vl'" class="setting-drawer__section">
           <h4 class="setting-drawer__section-title">{{ $t('settings.parser.configSection', '配置') }}</h4>
 
           <div class="form-item">
@@ -344,7 +344,7 @@
         </section>
 
         <!-- Section 3 — paddleocr_vl_cloud 云 API 配置 -->
-        <section v-if="currentEngine.Name === 'paddleocr_vl_cloud'" class="setting-drawer__section">
+        <section v-if="currentEngine.name === 'paddleocr_vl_cloud'" class="setting-drawer__section">
           <h4 class="setting-drawer__section-title">{{ $t('settings.parser.configSection', '配置') }}</h4>
 
           <div class="form-item">
@@ -453,12 +453,12 @@ const saveSuccess = ref(false)
 const checking = ref(false)
 const checkMessage = ref('')
 
-const hasBuiltinEngine = computed(() => engines.value.some(e => e.Name === 'builtin'))
+const hasBuiltinEngine = computed(() => engines.value.some(e => e.name === 'builtin'))
 
 const drawerVisible = ref(false)
 const currentEngine = ref<ParserEngineInfo | null>(null)
 const drawerTitle = computed(() => {
-  return currentEngine.value ? getEngineDisplayName(currentEngine.value.Name) : ''
+  return currentEngine.value ? getEngineDisplayName(currentEngine.value.name) : ''
 })
 
 // SettingDrawer 头部图标走 #headerIcon 槽（首字母 monogram + per-engine
@@ -470,7 +470,7 @@ const drawerTitle = computed(() => {
 // e.g. simple/markitdown there's nothing to validate beyond presence.
 const needsTestButton = computed(() => {
   if (!currentEngine.value) return false
-  return hasConfigFields(currentEngine.value.Name) || currentEngine.value.Name === 'builtin'
+  return hasConfigFields(currentEngine.value.name) || currentEngine.value.name === 'builtin'
 })
 
 /** 固定展示顺序，未列出的引擎排在末尾按名称排序 */
@@ -488,10 +488,10 @@ const ENGINE_ORDER: Record<string, number> = {
 
 const sortedEngines = computed(() => {
   return [...engines.value].sort((a, b) => {
-    const oa = ENGINE_ORDER[a.Name] ?? 100
-    const ob = ENGINE_ORDER[b.Name] ?? 100
+    const oa = ENGINE_ORDER[a.name] ?? 100
+    const ob = ENGINE_ORDER[b.name] ?? 100
     if (oa !== ob) return oa - ob
-    return a.Name.localeCompare(b.Name)
+    return a.name.localeCompare(b.name)
   })
 })
 
@@ -536,9 +536,9 @@ function openDrawer(engine: ParserEngineInfo) {
 async function loadEngines() {
   try {
     const res = await getParserEngines()
-    engines.value = res?.data ?? []
-    docreaderAddrEnv.value = res?.docreader_addr ?? ''
-    const transport = (res?.docreader_transport ?? 'grpc').toLowerCase()
+    engines.value = res?.engines ?? []
+    docreaderAddrEnv.value = res?.docreaderAddr ?? ''
+    const transport = (res?.docreaderTransport ?? 'grpc').toLowerCase()
     docreaderTransport.value = transport === 'http' ? 'http' : 'grpc'
     connected.value = res?.connected ?? (engines.value.length > 0)
   } catch (e: any) {
@@ -628,13 +628,13 @@ async function onCheck() {
   saveMessage.value = ''
   try {
     const res = await checkParserEngines(buildConfigPayload())
-    engines.value = res?.data ?? []
+    engines.value = res?.engines ?? []
     if (res?.connected !== undefined) {
       connected.value = res.connected
     }
 
     if (currentEngine.value) {
-      if (currentEngine.value.Name === 'builtin') {
+      if (currentEngine.value.name === 'builtin') {
         if (connected.value) {
           checkMessage.value = t('settings.parser.checkSuccess', '测试连接成功')
           saveSuccess.value = true
@@ -643,13 +643,13 @@ async function onCheck() {
           saveSuccess.value = false
         }
       } else {
-        const updatedEngine = engines.value.find(e => e.Name === currentEngine.value!.Name)
+        const updatedEngine = engines.value.find(e => e.name === currentEngine.value!.name)
         if (updatedEngine) {
-          if (updatedEngine.Available) {
+          if (updatedEngine.available) {
             checkMessage.value = t('settings.parser.checkSuccess', '测试连接成功')
             saveSuccess.value = true
           } else {
-            checkMessage.value = updatedEngine.UnavailableReason || t('settings.parser.checkFailed', '测试连接失败')
+            checkMessage.value = updatedEngine.unavailableReason || t('settings.parser.checkFailed', '测试连接失败')
             saveSuccess.value = false
           }
         } else {

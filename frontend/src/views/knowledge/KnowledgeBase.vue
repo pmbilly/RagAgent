@@ -195,18 +195,18 @@ const supportedFileTypes = computed<Set<string>>(() => {
 
   const available = new Set<string>()
   const availableEngineNames = new Set(
-    engines.filter(e => e.Available !== false).map(e => e.Name)
+    engines.filter(e => e.available !== false).map(e => e.name)
   )
 
   for (const engine of engines) {
-    for (const ft of engine.FileTypes || []) {
+    for (const ft of engine.fileTypes || []) {
       if (available.has(ft)) continue
 
       const explicitEngine = ruleMap.get(ft)
       if (explicitEngine) {
         if (availableEngineNames.has(explicitEngine)) available.add(ft)
       } else {
-        if (engine.Available !== false) available.add(ft)
+        if (engine.available !== false) available.add(ft)
       }
     }
   }
@@ -223,7 +223,7 @@ const unsupportedFileTypes = computed<string[]>(() => {
 
   const allTypes = new Set<string>()
   for (const engine of engines) {
-    for (const ft of engine.FileTypes || []) allTypes.add(ft)
+    for (const ft of engine.fileTypes || []) allTypes.add(ft)
   }
 
   const supported = supportedFileTypes.value

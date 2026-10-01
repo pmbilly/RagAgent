@@ -859,7 +859,7 @@ const hasAudio = computed(() => {
 })
 
 const isGraphDatabaseEnabled = computed(() => {
-  const engine = editorResources.systemInfo?.graph_database_engine
+  const engine = editorResources.systemInfo?.graphDatabaseEngine
   return !!engine && engine !== 'Not Enabled'
 })
 

@@ -97,8 +97,8 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
         getStorageEngineStatus(),
       ])
       storageConfig.value = configRes?.data ?? null
-      storageStatus.value = statusRes?.data?.engines ?? []
-      storageAllowedProviders.value = statusRes?.data?.allowed_providers ?? []
+      storageStatus.value = statusRes?.engines ?? []
+      storageAllowedProviders.value = statusRes?.allowedProviders ?? []
       loadedAt.value.storageEngine = Date.now()
     })
   }
@@ -168,7 +168,7 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
   async function ensureParserEngines(force = false): Promise<void> {
     return runOnce('parserEngines', force, async () => {
       const resp = await getParserEngines()
-      parserEngines.value = resp?.data && Array.isArray(resp.data) ? resp.data : []
+      parserEngines.value = resp?.engines && Array.isArray(resp.engines) ? resp.engines : []
       loadedAt.value.parserEngines = Date.now()
     })
   }
@@ -176,7 +176,7 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
   async function ensureSystemInfo(force = false): Promise<void> {
     return runOnce('systemInfo', force, async () => {
       const response = await getSystemInfo()
-      systemInfo.value = response?.data ?? null
+      systemInfo.value = response ?? null
       loadedAt.value.systemInfo = Date.now()
     })
   }

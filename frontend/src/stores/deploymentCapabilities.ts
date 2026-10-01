@@ -22,8 +22,8 @@ export const useDeploymentCapabilitiesStore = defineStore('deploymentCapabilitie
     loadingPromise = (async () => {
       try {
         const response = await getDeploymentCapabilities()
-        edition.value = response.data?.edition || ''
-        capabilities.value = response.data?.capabilities || {}
+        edition.value = response.edition || ''
+        capabilities.value = response.capabilities || {}
         loadError.value = ''
       } catch (error) {
         // 能力探测失败时保持 fail-open；权限仍由后端路由最终校验。
