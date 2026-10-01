@@ -118,7 +118,8 @@ export function useChatCitationPopover(
     float.value.content = ''
     try {
       const res = await fetchChunkContent(chunkId)
-      const content = String(res?.data?.content || '').trim()
+      // 裸 Chunk（§14.9m E1：embed 侧不再有信封；非 embed 侧本就是裸对象）
+      const content = String((res as any)?.content || '').trim()
       if (!content) {
         const msg = t('agentStream.citation.notFound')
         setCitationChunkCache(scope, chunkId, { content: '', error: msg })

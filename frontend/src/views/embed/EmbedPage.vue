@@ -5,7 +5,7 @@
       <header v-if="sessionId" class="embed-header">
         <span class="embed-header__badge" :style="badgeStyle">
           <img v-if="headerAvatarImage" class="embed-header__avatar-img" :src="headerAvatarImage" alt="" />
-          <span v-else-if="config.agent_avatar" class="embed-header__avatar">{{ config.agent_avatar }}</span>
+          <span v-else-if="config.agentAvatar" class="embed-header__avatar">{{ config.agentAvatar }}</span>
           <t-icon v-else :name="headerIcon" size="18px" />
         </span>
         <div class="embed-header__text">
@@ -33,15 +33,15 @@
         :visitor-id="visitorId"
         :channel-id="channelId"
         :token="token"
-        :agent-id="config.agent_id"
+        :agent-id="config.agentId"
         :kb-ids="kbIds"
-        :welcome-message="config.welcome_message"
-        :show-suggested-questions="config.show_suggested_questions !== false"
-        :show-thinking="config.show_thinking === true"
-        :allow-web-search="config.allow_web_search === true"
-        :agent-web-search-enabled="config.agent_web_search_enabled === true"
-        :allow-file-upload="config.allow_file_upload === true"
-        :agent-image-upload-enabled="config.agent_image_upload_enabled === true"
+        :welcome-message="config.welcomeMessage"
+        :show-suggested-questions="config.showSuggestedQuestions !== false"
+        :show-thinking="config.showThinking === true"
+        :allow-web-search="config.allowWebSearch === true"
+        :agent-web-search-enabled="config.agentWebSearchEnabled === true"
+        :allow-file-upload="config.allowFileUpload === true"
+        :agent-image-upload-enabled="config.agentImageUploadEnabled === true"
         :use-session-header-title="useSessionHeaderTitle"
         :host-context="hostContext"
         @session-title="sessionTitle = $event"
@@ -103,10 +103,10 @@ const handleNewChat = () => {
   startNewSession()
 }
 
-const kbIds = computed(() => config.value?.knowledge_base_ids ?? [])
+const kbIds = computed(() => config.value?.knowledgeBaseIds ?? [])
 
 const pageStyle = computed(() => {
-  const color = config.value?.primary_color
+  const color = config.value?.primaryColor
   if (!color) return {}
   return {
     '--embed-primary': color,
@@ -117,7 +117,7 @@ const pageStyle = computed(() => {
 })
 
 const badgeStyle = computed(() => {
-  const color = config.value?.primary_color
+  const color = config.value?.primaryColor
   if (!color) return {}
   return {
     background: `color-mix(in srgb, ${color} 12%, transparent)`,
@@ -129,16 +129,16 @@ const channelDisplayTitle = computed(() => {
   const cfg = config.value
   if (!cfg) return ''
   return (
-    cfg.display_title?.trim()
-    || cfg.page_title?.trim()
+    cfg.displayTitle?.trim()
+    || cfg.pageTitle?.trim()
     || cfg.name?.trim()
-    || cfg.agent_name?.trim()
+    || cfg.agentName?.trim()
     || t('embedPublish.defaultChatTitle')
   )
 })
 
 const useSessionHeaderTitle = computed(
-  () => config.value?.header_title_mode === 'session',
+  () => config.value?.headerTitleMode === 'session',
 )
 
 const headerTitle = computed(() => {
@@ -150,21 +150,21 @@ const headerTitle = computed(() => {
 
 const headerSubtitle = computed(() => {
   const cfg = config.value
-  if (!cfg?.agent_name) return ''
+  if (!cfg?.agentName) return ''
   if (useSessionHeaderTitle.value && sessionTitle.value.trim()) {
     const fallback = channelDisplayTitle.value
     if (fallback && fallback !== sessionTitle.value.trim()) {
       return fallback
     }
-    return cfg.agent_name
+    return cfg.agentName
   }
   const channelName = cfg.name?.trim()
   if (!channelName || channelName === channelDisplayTitle.value) return ''
-  return cfg.agent_name
+  return cfg.agentName
 })
 
 const headerIcon = computed(() => {
-  const agentId = config.value?.agent_id || ''
+  const agentId = config.value?.agentId || ''
   return agentId && agentId !== 'builtin-quick-answer' ? 'control-platform' : 'chat'
 })
 
@@ -174,9 +174,9 @@ const headerIcon = computed(() => {
  */
 const headerAvatarImage = computed(() => {
   const cfg = config.value
-  const icon = typeof cfg?.launcher_icon === 'string' ? cfg.launcher_icon.trim() : ''
+  const icon = typeof cfg?.launcherIcon === 'string' ? cfg.launcherIcon.trim() : ''
   if (icon) return icon
-  const avatar = typeof cfg?.agent_avatar === 'string' ? cfg.agent_avatar.trim() : ''
+  const avatar = typeof cfg?.agentAvatar === 'string' ? cfg.agentAvatar.trim() : ''
   return /^(data:image\/|https?:\/\/|\/)/i.test(avatar) ? avatar : ''
 })
 

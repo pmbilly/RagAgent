@@ -2446,7 +2446,7 @@ const defaultFormData = {
       },
     },
     // 已废弃字段（保留兼容）
-    welcome_message: '',
+    welcomeMessage: '',
   }
 };
 
@@ -2635,7 +2635,7 @@ async function loadAgentIntegrationCounts(agentId: string) {
       listEmbedChannels(agentId),
     ]);
     agentIMChannelCount.value = imResp?.data?.length ?? 0;
-    agentEmbedChannelCount.value = embedResp?.data?.length ?? 0;
+    agentEmbedChannelCount.value = embedResp?.length ?? 0;
   } catch {
     agentIMChannelCount.value = 0;
     agentEmbedChannelCount.value = 0;

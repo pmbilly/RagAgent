@@ -121,8 +121,8 @@ export function useEmbedBridge(channelId: Ref<string>) {
       if (!isEmbedSessionToken(embedToken)) {
         try {
           const exchangeRes = await exchangeEmbedSession(id, embedToken)
-          if (exchangeRes?.data?.session_token) {
-            apiToken = exchangeRes.data.session_token
+          if (exchangeRes?.sessionToken) {
+            apiToken = exchangeRes.sessionToken
           } else if (!import.meta.env.DEV) {
             // Fail closed in production: a missing session token must not silently
             // fall back to the long-lived publish token.
@@ -137,20 +137,21 @@ export function useEmbedBridge(channelId: Ref<string>) {
         }
       }
 
+      // 裸对象（§14.9m E1：无 {data,success} 信封）
       const res = await getEmbedConfig(id, apiToken)
-      if (!res?.success || !res.data) {
+      if (!res?.channelId) {
         loadError.value = t('embedPublish.invalidChannel')
         return
       }
-      config.value = res.data
+      config.value = res
 
-      if (res.data.default_locale && !hostLocalePinned) {
-        applyEmbedLocale(res.data.default_locale, activeLocale)
+      if (res.defaultLocale && !hostLocalePinned) {
+        applyEmbedLocale(res.defaultLocale, activeLocale)
       }
 
       // Resume a persisted session when still valid and still bound to the same
       // agent; otherwise create a fresh one (e.g. after rebinding the channel).
-      const configAgentId = String(res.data.agent_id || '').trim()
+      const configAgentId = String(res.agentId || '').trim()
       let resolved: StoredSession | null = null
       const stored = readStoredSession(id)
       const agentMatches = !stored?.agentId || !configAgentId || stored.agentId === configAgentId
@@ -158,9 +159,9 @@ export function useEmbedBridge(channelId: Ref<string>) {
         resolved = { ...stored, agentId: configAgentId || stored.agentId }
       } else {
         const sessionRes = await createEmbedSession(id, apiToken)
-        const newId = sessionRes?.data?.id || ''
+        const newId = sessionRes?.id || ''
         if (newId) {
-          resolved = { id: newId, sig: sessionRes?.data?.sig || '', agentId: configAgentId }
+          resolved = { id: newId, sig: sessionRes?.sig || '', agentId: configAgentId }
         }
       }
       if (!resolved) {
@@ -195,10 +196,10 @@ export function useEmbedBridge(channelId: Ref<string>) {
     if (!id || !apiToken) return
     try {
       const sessionRes = await createEmbedSession(id, apiToken)
-      const newId = sessionRes?.data?.id || ''
+      const newId = sessionRes?.id || ''
       if (!newId) return
-      const agentId = String(config.value?.agent_id || '').trim()
-      const next: StoredSession = { id: newId, sig: sessionRes?.data?.sig || '', agentId }
+      const agentId = String(config.value?.agentId || '').trim()
+      const next: StoredSession = { id: newId, sig: sessionRes?.sig || '', agentId }
       sessionSig.value = next.sig
       sessionId.value = next.id
       writeStoredSession(id, next)

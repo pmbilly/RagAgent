@@ -1,60 +1,80 @@
 import { get, post, put, del } from '@/utils/request'
 import { resolveEmbedBaseUrl } from '@/utils/embedBaseUrl'
 
+/**
+ * 渠道管理视图（§14.9m E1 后：键名＝服务端实体字段名；响应是**裸对象/裸数组**，
+ * 无 {data,success} 信封）。
+ *
+ * `publishToken` 是唯一的条件键（列表行不带、详情/创建/轮换带）——那是授权边界，
+ * 不是 §1.6 说的数据条件键。
+ */
 export interface EmbedChannel {
   id: string
-  tenant_id: number
-  agent_id: string
+  tenantId: number
+  agentId: string
   name: string
   enabled: boolean
-  allowed_origins: string[]
-  welcome_message: string
-  rate_limit_per_minute: number
-  rate_limit_per_day?: number
-  primary_color?: string
-  launcher_icon?: string
-  page_title?: string
-  header_title_mode?: HeaderTitleMode
-  show_suggested_questions?: boolean
-  show_thinking?: boolean
-  widget_position?: WidgetPosition
-  allow_web_search?: boolean
-  allow_file_upload?: boolean
-  default_locale?: string
-  webhook_url?: string
-  has_webhook_secret?: boolean
-  publish_token?: string
-  created_at: string
-  updated_at: string
+  allowedOrigins: string[]
+  welcomeMessage: string
+  rateLimitPerMinute: number
+  rateLimitPerDay?: number
+  primaryColor?: string
+  launcherIcon?: string
+  pageTitle?: string
+  headerTitleMode?: HeaderTitleMode
+  showSuggestedQuestions?: boolean
+  showThinking?: boolean
+  widgetPosition?: WidgetPosition
+  allowWebSearch?: boolean
+  allowFileUpload?: boolean
+  defaultLocale?: string
+  webhookUrl?: string
+  hasWebhookSecret?: boolean
+  publishToken?: string
+  createdAt: string
+  updatedAt: string
 }
 
+/** 访客公开配置（§14.9m E1：camelCase，且**全部键恒输出**——空集合写成 []）。 */
 export interface EmbedChannelPublicConfig {
-  channel_id: string
+  channelId: string
   name: string
-  display_title?: string
-  knowledge_base_ids?: string[]
-  agent_id: string
-  agent_name?: string
-  agent_avatar?: string
-  welcome_message: string
-  primary_color?: string
-  launcher_icon?: string
-  page_title?: string
-  header_title_mode?: HeaderTitleMode
-  show_suggested_questions?: boolean
-  show_thinking?: boolean
-  widget_position?: WidgetPosition
-  allow_web_search?: boolean
-  allow_file_upload?: boolean
-  agent_web_search_enabled?: boolean
-  agent_image_upload_enabled?: boolean
-  default_locale?: string
+  displayTitle: string
+  knowledgeBaseIds: string[]
+  agentId: string
+  agentName: string
+  agentAvatar: string
+  welcomeMessage: string
+  primaryColor: string
+  launcherIcon: string
+  pageTitle: string
+  headerTitleMode: HeaderTitleMode | ''
+  showSuggestedQuestions: boolean
+  showThinking: boolean
+  widgetPosition: WidgetPosition | ''
+  allowWebSearch: boolean
+  allowFileUpload: boolean
+  agentWebSearchEnabled: boolean
+  agentImageUploadEnabled: boolean
+  defaultLocale: string
+}
+
+/** 兑换/预览得到的短时会话令牌（裸对象，§14.9m E1）。 */
+export interface EmbedSessionToken {
+  sessionToken: string
+  expiresIn: number
+}
+
+/** 访客会话创建回执（201 裸对象）。 */
+export interface EmbedCreatedSession {
+  id: string
+  sig: string
 }
 
 export type EmbedLocaleTag = 'zh-CN' | 'en-US' | 'ko-KR' | 'ja-JP' | 'ru-RU' | ''
 
 export interface EmbedChannelStats {
-  session_count: number
+  sessionCount: number
 }
 
 export type HeaderTitleMode = 'channel' | 'session'
@@ -162,23 +182,23 @@ export function isEmbedSessionToken(token: string): boolean {
 }
 
 export async function listEmbedChannels(agentId: string) {
-  return get<{ success: boolean; data: EmbedChannel[] }>(`/api/v1/agents/${agentId}/embed-channels`)
+  return get<EmbedChannel[]>(`/api/v1/agents/${agentId}/embed-channels`)
 }
 
 export async function listAllEmbedChannels() {
-  return get<{ success: boolean; data: EmbedChannel[] }>('/api/v1/embed-channels')
+  return get<EmbedChannel[]>('/api/v1/embed-channels')
 }
 
 export async function createEmbedChannel(agentId: string, data: Partial<EmbedChannel>) {
-  return post<{ success: boolean; data: EmbedChannel }>(`/api/v1/agents/${agentId}/embed-channels`, data)
+  return post<EmbedChannel>(`/api/v1/agents/${agentId}/embed-channels`, data)
 }
 
 export async function getEmbedChannel(channelId: string) {
-  return get<{ success: boolean; data: EmbedChannel }>(`/api/v1/embed-channels/${channelId}`)
+  return get<EmbedChannel>(`/api/v1/embed-channels/${channelId}`)
 }
 
 export async function updateEmbedChannel(channelId: string, data: Partial<EmbedChannel>) {
-  return put<{ success: boolean; data: EmbedChannel }>(`/api/v1/embed-channels/${channelId}`, data)
+  return put<EmbedChannel>(`/api/v1/embed-channels/${channelId}`, data)
 }
 
 export async function deleteEmbedChannel(channelId: string) {
@@ -186,18 +206,18 @@ export async function deleteEmbedChannel(channelId: string) {
 }
 
 export async function rotateEmbedToken(channelId: string) {
-  return post<{ success: boolean; data: EmbedChannel }>(`/api/v1/embed-channels/${channelId}/rotate-token`, {})
+  return post<EmbedChannel>(`/api/v1/embed-channels/${channelId}/rotate-token`, {})
 }
 
 /** Short-lived session token for management UI preview (JWT auth, no publish token needed). */
 export async function getEmbedChannelStats(channelId: string) {
-  return get<{ success: boolean; data: EmbedChannelStats }>(
+  return get<EmbedChannelStats>(
     `/api/v1/embed-channels/${channelId}/stats`,
   )
 }
 
 export async function issueEmbedPreviewSession(channelId: string) {
-  return post<{ success: boolean; data: { session_token: string; expires_in: number } }>(
+  return post<EmbedSessionToken>(
     `/api/v1/embed-channels/${channelId}/preview-session`,
     {},
   )
@@ -223,7 +243,8 @@ export interface EmbedMessageSuggestionSet {
 }
 
 export async function getEmbedChunkById(channelId: string, token: string, chunkId: string) {
-  return get<{ success: boolean; data: { content?: string } }>(
+  // 裸 Chunk（§2.1；调用方只取 content）
+  return get<{ content?: string }>(
     `/api/v1/embed/${channelId}/chunks/${chunkId}`,
     { headers: { Authorization: `Embed ${token}` } },
   )
@@ -232,7 +253,7 @@ export async function getEmbedChunkById(channelId: string, token: string, chunkI
 export async function getEmbedSuggestedQuestions(channelId: string, token: string, limit?: number) {
   // Omit limit to let the channel agent's configured starter count apply.
   const qs = typeof limit === 'number' && limit > 0 ? `?limit=${limit}` : ''
-  return get<{ success: boolean; data: { questions: SuggestedQuestion[] } }>(
+  return get<{ questions: SuggestedQuestion[] }>(
     `/api/v1/embed/${channelId}/suggested-questions${qs}`,
     { headers: { Authorization: `Embed ${token}` } },
   )
@@ -287,14 +308,14 @@ export async function recordEmbedMessageSuggestionEvent(
 }
 
 export async function getEmbedConfig(channelId: string, token: string) {
-  return get<{ success: boolean; data: EmbedChannelPublicConfig }>(
+  return get<EmbedChannelPublicConfig>(
     `/api/v1/embed/${channelId}/config`,
     { headers: { Authorization: `Embed ${token}` } },
   )
 }
 
 export async function createEmbedSession(channelId: string, token: string) {
-  return post<{ success: boolean; data: { id: string; sig: string } }>(
+  return post<EmbedCreatedSession>(
     `/api/v1/embed/${channelId}/sessions`,
     {},
     { headers: { Authorization: `Embed ${token}` } },
@@ -302,7 +323,7 @@ export async function createEmbedSession(channelId: string, token: string) {
 }
 
 export async function exchangeEmbedSession(channelId: string, publishToken: string) {
-  return post<{ success: boolean; data: { session_token: string; expires_in: number } }>(
+  return post<EmbedSessionToken>(
     `/api/v1/embed/${channelId}/exchange`,
     {},
     { headers: { Authorization: `Embed ${publishToken}` } },
@@ -435,7 +456,8 @@ export async function getEmbedMessageList(
   const headers: Record<string, string> = { Authorization: `Embed ${token}` }
   // Signed session handle — sent as a header so it never lands in URL/access logs.
   if (sig) headers['X-Embed-Session'] = sig
-  return get<{ success: boolean; data: unknown[] }>(
+  // 裸数组：embed 的 load 委托 MessageController（§2.1）
+  return get<unknown[]>(
     `/api/v1/embed/${channelId}/messages/${sessionId}/load?${params.toString()}`,
     { headers },
   )
@@ -536,7 +558,7 @@ export function relayEmbedWebhookEvent(
   }
   void post(
     `/api/v1/embed/${channelId}/sessions/${sessionId}/events`,
-    { type: body.type, session_id: sessionId, query: body.query, content: body.content },
+    { type: body.type, sessionId, query: body.query, content: body.content },
     { headers },
   ).catch(() => {
     // Webhook relay must not block chat.
@@ -676,12 +698,12 @@ export function buildSecureServerNodeExample(channelId: string, opts?: { baseUrl
     `    method: 'POST',`,
     `    headers: {`,
     `      Authorization: 'Embed ' + process.env.WEKNORA_PUBLISH_TOKEN,`,
-    `      Origin: 'https://your-site.example.com', // must match channel allowed_origins`,
+    `      Origin: 'https://your-site.example.com', // must match the channel's allowedOrigins`,
     `    },`,
     `  })`,
     `  const body = await r.json()`,
-    `  if (!body?.data?.session_token) return res.status(502).json({ error: 'mint failed' })`,
-    `  res.json({ token: body.data.session_token, expiresIn: body.data.expires_in })`,
+    `  if (!body?.sessionToken) return res.status(502).json({ error: 'mint failed' })`,
+    `  res.json({ token: body.sessionToken, expiresIn: body.expiresIn })`,
     `})`,
   ].join('\n')
 }
@@ -698,20 +720,20 @@ export function buildSecureServerGoExample(channelId: string, opts?: { baseUrl?:
     `  }`,
     `  req, _ := http.NewRequest(http.MethodPost, "${exchangeUrl}", nil)`,
     `  req.Header.Set("Authorization", "Embed "+os.Getenv("WEKNORA_PUBLISH_TOKEN"))`,
-    `  req.Header.Set("Origin", "https://your-site.example.com") // must match channel allowed_origins`,
+    `  req.Header.Set("Origin", "https://your-site.example.com") // must match the channel's allowedOrigins`,
     `  resp, err := http.DefaultClient.Do(req)`,
     `  if err != nil || resp.StatusCode >= 300 {`,
     `    http.Error(w, \`{"error":"mint failed"}\`, http.StatusBadGateway)`,
     `    return`,
     `  }`,
     `  defer resp.Body.Close()`,
-    `  var body struct { Data struct { SessionToken string \`json:"session_token"\` ExpiresIn int \`json:"expires_in"\` } \`json:"data"\` }`,
-    `  if json.NewDecoder(resp.Body).Decode(&body) != nil || body.Data.SessionToken == "" {`,
+    `  var body struct { SessionToken string \`json:"sessionToken"\` ExpiresIn int \`json:"expiresIn"\` }`,
+    `  if json.NewDecoder(resp.Body).Decode(&body) != nil || body.SessionToken == "" {`,
     `    http.Error(w, \`{"error":"mint failed"}\`, http.StatusBadGateway)`,
     `    return`,
     `  }`,
     `  w.Header().Set("Content-Type", "application/json")`,
-    `  json.NewEncoder(w).Encode(map[string]any{"token": body.Data.SessionToken, "expiresIn": body.Data.ExpiresIn})`,
+    `  json.NewEncoder(w).Encode(map[string]any{"token": body.SessionToken, "expiresIn": body.ExpiresIn})`,
     `}`,
   ].join('\n')
 }

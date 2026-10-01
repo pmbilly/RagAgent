@@ -938,7 +938,8 @@ const loadSessionOriginMeta = async () => {
     try {
         const res: any = await listAllEmbedChannels();
         const names: Record<string, string> = {};
-        for (const ch of res?.data || []) {
+        // 裸数组（§14.9m E1）
+        for (const ch of res || []) {
             if (ch?.id && ch?.name) names[ch.id] = ch.name;
         }
         embedChannelNames.value = names;

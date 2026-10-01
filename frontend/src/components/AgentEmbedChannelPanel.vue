@@ -137,14 +137,14 @@
 
           <div class="form-item">
             <label class="form-label">{{ $t('embedPublish.rateLimitLabel') }}</label>
-            <t-input-number v-model="form.rate_limit_per_minute" :disabled="!isAdmin" :min="1" :max="600" theme="column"
+            <t-input-number v-model="form.rateLimitPerMinute" :disabled="!isAdmin" :min="1" :max="600" theme="column"
               class="form-number" />
             <p class="form-desc">{{ $t('embedPublish.rateLimitDesc') }}</p>
           </div>
 
           <div class="form-item">
             <label class="form-label">{{ $t('embedPublish.rateLimitDayLabel') }}</label>
-            <t-input-number v-model="form.rate_limit_per_day" :disabled="!isAdmin" :min="1" :max="1000000"
+            <t-input-number v-model="form.rateLimitPerDay" :disabled="!isAdmin" :min="1" :max="1000000"
               theme="column" class="form-number" />
             <p class="form-desc">{{ $t('embedPublish.rateLimitDayDesc') }}</p>
           </div>
@@ -158,7 +158,7 @@
 
           <div class="form-item">
             <label class="form-label">{{ $t('embedPublish.welcomeMessage') }}</label>
-            <t-textarea v-model="form.welcome_message" :disabled="!isAdmin"
+            <t-textarea v-model="form.welcomeMessage" :disabled="!isAdmin"
               :placeholder="$t('embedPublish.welcomePlaceholder')" :autosize="{ minRows: 2, maxRows: 4 }" />
             <p class="form-desc">{{ $t('embedPublish.welcomeMessageDesc') }}</p>
           </div>
@@ -170,7 +170,7 @@
                 <p class="desc">{{ $t('embedPublish.showSuggestedQuestionsDesc') }}</p>
               </div>
               <div class="setting-control">
-                <t-switch v-model="form.show_suggested_questions" :disabled="!isAdmin" size="small" />
+                <t-switch v-model="form.showSuggestedQuestions" :disabled="!isAdmin" size="small" />
               </div>
             </div>
 
@@ -180,7 +180,7 @@
                 <p class="desc">{{ $t('embedPublish.showThinkingDesc') }}</p>
               </div>
               <div class="setting-control">
-                <t-switch v-model="form.show_thinking" :disabled="!isAdmin" size="small" />
+                <t-switch v-model="form.showThinking" :disabled="!isAdmin" size="small" />
               </div>
             </div>
 
@@ -188,12 +188,12 @@
               <div class="setting-info">
                 <label>{{ $t('embedPublish.allowWebSearch') }}</label>
                 <p class="desc">{{ $t('embedPublish.allowWebSearchDesc') }}</p>
-                <p v-if="form.allow_web_search && !agentWebSearchEnabledEffective" class="desc desc--warn">
+                <p v-if="form.allowWebSearch && !agentWebSearchEnabledEffective" class="desc desc--warn">
                   {{ $t('embedPublish.agentWebSearchDisabledHint') }}
                 </p>
               </div>
               <div class="setting-control">
-                <t-switch v-model="form.allow_web_search" :disabled="!isAdmin" size="small" />
+                <t-switch v-model="form.allowWebSearch" :disabled="!isAdmin" size="small" />
               </div>
             </div>
 
@@ -201,12 +201,12 @@
               <div class="setting-info">
                 <label>{{ $t('embedPublish.allowFileUpload') }}</label>
                 <p class="desc">{{ $t('embedPublish.allowFileUploadDesc') }}</p>
-                <p v-if="form.allow_file_upload && !agentImageUploadEnabledEffective" class="desc desc--warn">
+                <p v-if="form.allowFileUpload && !agentImageUploadEnabledEffective" class="desc desc--warn">
                   {{ $t('embedPublish.agentImageUploadDisabledHint') }}
                 </p>
               </div>
               <div class="setting-control">
-                <t-switch v-model="form.allow_file_upload" :disabled="!isAdmin" size="small" />
+                <t-switch v-model="form.allowFileUpload" :disabled="!isAdmin" size="small" />
               </div>
             </div>
           </div>
@@ -220,31 +220,31 @@
 
           <div class="form-item">
             <label class="form-label">{{ $t('embedPublish.pageTitle') }}</label>
-            <t-input v-model="form.page_title" :disabled="!isAdmin"
+            <t-input v-model="form.pageTitle" :disabled="!isAdmin"
               :placeholder="$t('embedPublish.pageTitlePlaceholder')" />
             <p class="form-desc">{{ $t('embedPublish.pageTitleDesc') }}</p>
           </div>
 
           <div class="form-item">
             <label class="form-label">{{ $t('embedPublish.headerTitleMode') }}</label>
-            <t-select v-model="form.header_title_mode" :disabled="!isAdmin" :options="headerTitleModeOptions" />
+            <t-select v-model="form.headerTitleMode" :disabled="!isAdmin" :options="headerTitleModeOptions" />
             <p class="form-desc">{{ $t('embedPublish.headerTitleModeDesc') }}</p>
           </div>
 
           <div class="form-item">
             <label class="form-label">{{ $t('embedPublish.widgetPosition') }}</label>
-            <t-select v-model="form.widget_position" :disabled="!isAdmin" :options="positionOptions" />
+            <t-select v-model="form.widgetPosition" :disabled="!isAdmin" :options="positionOptions" />
           </div>
 
           <div class="form-item">
             <label class="form-label">{{ $t('embedPublish.defaultLocale') }}</label>
-            <t-select v-model="form.default_locale" :disabled="!isAdmin" :options="defaultLocaleOptions" />
+            <t-select v-model="form.defaultLocale" :disabled="!isAdmin" :options="defaultLocaleOptions" />
             <p class="form-desc">{{ $t('embedPublish.defaultLocaleDesc') }}</p>
           </div>
 
           <div class="form-item">
             <label class="form-label">{{ $t('embedPublish.primaryColor') }}</label>
-            <t-color-picker v-model="form.primary_color" :disabled="!isAdmin" format="HEX"
+            <t-color-picker v-model="form.primaryColor" :disabled="!isAdmin" format="HEX"
               :color-modes="['monochrome']" />
           </div>
 
@@ -252,15 +252,15 @@
             <label class="form-label">{{ $t('embedPublish.launcherIcon') }}</label>
             <div class="launcher-icon-field">
               <div class="launcher-icon-preview"
-                :style="{ background: form.primary_color || defaultPrimaryColor }" aria-hidden="true">
-                <img v-if="form.launcher_icon" :src="form.launcher_icon" alt="" />
+                :style="{ background: form.primaryColor || defaultPrimaryColor }" aria-hidden="true">
+                <img v-if="form.launcherIcon" :src="form.launcherIcon" alt="" />
                 <t-icon v-else name="chat" />
               </div>
               <t-button size="small" variant="outline" :disabled="!isAdmin" @click="triggerLauncherIconPick">
                 {{ $t('embedPublish.launcherIconUpload') }}
               </t-button>
-              <t-button v-if="form.launcher_icon" size="small" variant="text" :disabled="!isAdmin"
-                @click="form.launcher_icon = ''">
+              <t-button v-if="form.launcherIcon" size="small" variant="text" :disabled="!isAdmin"
+                @click="form.launcherIcon = ''">
                 {{ $t('embedPublish.launcherIconRemove') }}
               </t-button>
               <input ref="launcherIconInput" type="file" style="display:none"
@@ -271,11 +271,11 @@
 
           <div class="form-item">
             <label class="form-label">{{ $t('embedPublish.widgetPreview') }}</label>
-            <div class="widget-preview" :class="`pos-${form.widget_position}`">
+            <div class="widget-preview" :class="`pos-${form.widgetPosition}`">
               <div class="preview-surface">
                 <button type="button" class="preview-launcher"
-                  :style="{ background: form.primary_color || defaultPrimaryColor }" aria-hidden="true">
-                  <img v-if="form.launcher_icon" :src="form.launcher_icon" class="preview-launcher__img" alt="" />
+                  :style="{ background: form.primaryColor || defaultPrimaryColor }" aria-hidden="true">
+                  <img v-if="form.launcherIcon" :src="form.launcherIcon" class="preview-launcher__img" alt="" />
                   <t-icon v-else name="chat" />
                 </button>
               </div>
@@ -292,14 +292,14 @@
           <div class="settings-group">
             <div class="settings-group__field">
               <label class="form-label">{{ $t('embedPublish.webhookUrl') }}</label>
-              <t-input v-model="form.webhook_url" :disabled="!isAdmin" autocomplete="off"
+              <t-input v-model="form.webhookUrl" :disabled="!isAdmin" autocomplete="off"
                 :placeholder="$t('embedPublish.webhookUrlPlaceholder')" />
               <p class="form-desc">{{ $t('embedPublish.webhookUrlDesc') }}</p>
             </div>
 
             <div class="settings-group__field">
               <label class="form-label">{{ $t('embedPublish.webhookSecret') }}</label>
-              <t-input v-model="form.webhook_secret" :disabled="!isAdmin" type="password" autocomplete="new-password"
+              <t-input v-model="form.webhookSecret" :disabled="!isAdmin" type="password" autocomplete="new-password"
                 :placeholder="webhookSecretPlaceholder" />
               <p class="form-desc">{{ $t('embedPublish.webhookSecretDesc') }}</p>
             </div>
@@ -420,8 +420,8 @@
 
     <EmbedChannelPreview v-model:visible="previewVisible" :channel-id="previewChannel?.id || ''" :token="previewToken"
       :mode="previewMode" :title="previewChannel?.name || $t('embedPublish.preview')"
-      :primary-color="previewChannel?.primary_color" :position="previewPosition" :refresh-key="previewNonce"
-      :locale="previewLocale" :launcher-icon="previewChannel?.launcher_icon" />
+      :primary-color="previewChannel?.primaryColor" :position="previewPosition" :refresh-key="previewNonce"
+      :locale="previewLocale" :launcher-icon="previewChannel?.launcherIcon" />
   </div>
 </template>
 
@@ -474,7 +474,7 @@ const allChannels = ref<EmbedChannel[]>([])
 const channels = computed(() => {
   const filter = filterAgentId.value?.trim()
   if (!filter) return allChannels.value
-  return allChannels.value.filter((ch) => ch.agent_id === filter)
+  return allChannels.value.filter((ch) => ch.agentId === filter)
 })
 const revealedTokens = reactive<Record<string, boolean>>({})
 const previewVisible = ref(false)
@@ -504,7 +504,7 @@ const agentOptions = computed(() =>
 
 const drawerAgentId = computed(() => {
   if (editingId.value) {
-    return drawerChannel.value?.agent_id || ''
+    return drawerChannel.value?.agentId || ''
   }
   return createAgentId.value
 })
@@ -533,21 +533,21 @@ const defaultPrimaryColor = getDefaultEmbedPrimaryColor()
 
 const defaultForm = () => ({
   name: '',
-  welcome_message: '',
-  rate_limit_per_minute: 30,
-  rate_limit_per_day: 10000,
-  primary_color: getDefaultEmbedPrimaryColor(),
-  launcher_icon: '',
-  page_title: '',
-  header_title_mode: 'channel' as HeaderTitleMode,
-  show_suggested_questions: true,
-  show_thinking: false,
-  widget_position: 'bottom-right' as WidgetPosition,
-  allow_web_search: false,
-  allow_file_upload: false,
-  default_locale: '' as EmbedLocaleTag,
-  webhook_url: '',
-  webhook_secret: '',
+  welcomeMessage: '',
+  rateLimitPerMinute: 30,
+  rateLimitPerDay: 10000,
+  primaryColor: getDefaultEmbedPrimaryColor(),
+  launcherIcon: '',
+  pageTitle: '',
+  headerTitleMode: 'channel' as HeaderTitleMode,
+  showSuggestedQuestions: true,
+  showThinking: false,
+  widgetPosition: 'bottom-right' as WidgetPosition,
+  allowWebSearch: false,
+  allowFileUpload: false,
+  defaultLocale: '' as EmbedLocaleTag,
+  webhookUrl: '',
+  webhookSecret: '',
 })
 const form = ref(defaultForm())
 const launcherIconInput = ref<HTMLInputElement | null>(null)
@@ -573,12 +573,12 @@ function handleLauncherIconChange(event: Event) {
   }
   const reader = new FileReader()
   reader.onload = () => {
-    form.value.launcher_icon = typeof reader.result === 'string' ? reader.result : ''
+    form.value.launcherIcon = typeof reader.result === 'string' ? reader.result : ''
   }
   reader.readAsDataURL(file)
 }
 const webhookSecretPlaceholder = computed(() =>
-  drawerChannel.value?.has_webhook_secret
+  drawerChannel.value?.hasWebhookSecret
     ? t('embedPublish.webhookSecretKeep')
     : t('embedPublish.webhookSecretPlaceholder'))
 
@@ -628,11 +628,11 @@ function handleChannelMenuClick(data: { value?: string }, ch: EmbedChannel) {
 const drawerTitle = computed(() => {
   if (!editingId.value) return t('embedPublish.createTitle')
   const ch = drawerChannel.value
-  const agentId = createAgentId.value || ch?.agent_id || ''
+  const agentId = createAgentId.value || ch?.agentId || ''
   return channelDisplayName({
     id: editingId.value,
     name: form.value.name,
-    agent_id: agentId,
+    agentId: agentId,
   } as EmbedChannel)
 })
 
@@ -650,7 +650,7 @@ function resolvedEmbedChannelName(): string {
 
 function channelDisplayName(ch: EmbedChannel): string {
   if (ch.name?.trim()) return ch.name.trim()
-  return defaultEmbedChannelName(ch.agent_id)
+  return defaultEmbedChannelName(ch.agentId)
 }
 
 function applyDefaultChannelNameIfNeeded() {
@@ -721,14 +721,14 @@ const drawerChannel = computed(() =>
   editingId.value ? channels.value.find((ch) => ch.id === editingId.value) : null)
 
 const previewPosition = computed((): WidgetPosition =>
-  (previewChannel.value?.widget_position as WidgetPosition) || 'bottom-right')
+  (previewChannel.value?.widgetPosition as WidgetPosition) || 'bottom-right')
 
 function agentDisplayName(ch: EmbedChannel): string {
   return agentForChannel(ch)?.name || ''
 }
 
 function agentForChannel(ch: EmbedChannel): CustomAgent | undefined {
-  return agents.value.find((agent) => agent.id === ch.agent_id)
+  return agents.value.find((agent) => agent.id === ch.agentId)
 }
 
 function mergeChannelDetail(detail: EmbedChannel) {
@@ -745,13 +745,13 @@ const load = async () => {
       listAllEmbedChannels(),
       listAgents(),
     ])
-    allChannels.value = res?.data || []
+    allChannels.value = res || []
     agents.value = agentRes?.agents || []
     await Promise.all(allChannels.value.map(async (ch) => {
       try {
         const statsRes = await getEmbedChannelStats(ch.id)
-        if (statsRes?.data?.session_count != null) {
-          sessionStats.value = { ...sessionStats.value, [ch.id]: statsRes.data.session_count }
+        if (statsRes?.sessionCount != null) {
+          sessionStats.value = { ...sessionStats.value, [ch.id]: statsRes.sessionCount }
         }
       } catch {
         // Stats are best-effort for the channel list subtitle.
@@ -790,7 +790,7 @@ watch(createAgentId, (agentId, prev) => {
   previewNonce.value += 1
 })
 
-const tokenFor = (ch: EmbedChannel) => ch.publish_token || ''
+const tokenFor = (ch: EmbedChannel) => ch.publishToken || ''
 
 const displayChannelKey = (channelId: string) => {
   const ch = channels.value.find((c) => c.id === channelId)
@@ -826,19 +826,19 @@ const iframeSnippet = (ch: EmbedChannel) => {
 const widgetSnippet = (ch: EmbedChannel) => {
   const token = tokenFor(ch)
   if (!token) return `<!-- ${t('embedPublish.tokenHint')} -->`
-  const position = (ch.widget_position as WidgetPosition) || 'bottom-right'
+  const position = (ch.widgetPosition as WidgetPosition) || 'bottom-right'
   return buildWidgetSnippet(ch.id, token, {
-    primaryColor: ch.primary_color,
-    title: ch.page_title || ch.name,
+    primaryColor: ch.primaryColor,
+    title: ch.pageTitle || ch.name,
     position,
   })
 }
 
 const secureSnippet = (ch: EmbedChannel) => {
-  const position = (ch.widget_position as WidgetPosition) || 'bottom-right'
+  const position = (ch.widgetPosition as WidgetPosition) || 'bottom-right'
   return buildSecureWidgetSnippet(ch.id, {
-    primaryColor: ch.primary_color,
-    title: ch.page_title || ch.name,
+    primaryColor: ch.primaryColor,
+    title: ch.pageTitle || ch.name,
     position,
   })
 }
@@ -874,26 +874,26 @@ const snippetScenarioHint = computed(() => {
 const fillFormFromChannel = (ch: EmbedChannel) => {
   editingId.value = ch.id
   editingEnabled.value = ch.enabled
-  createAgentId.value = ch.agent_id
+  createAgentId.value = ch.agentId
   form.value = {
     name: ch.name,
-    welcome_message: ch.welcome_message,
-    rate_limit_per_minute: ch.rate_limit_per_minute || 30,
-    rate_limit_per_day: ch.rate_limit_per_day || 10000,
-    primary_color: ch.primary_color || getDefaultEmbedPrimaryColor(),
-    launcher_icon: ch.launcher_icon || '',
-    page_title: ch.page_title || '',
-    header_title_mode: (ch.header_title_mode as HeaderTitleMode) || 'channel',
-    show_suggested_questions: ch.show_suggested_questions !== false,
-    show_thinking: ch.show_thinking === true,
-    widget_position: (ch.widget_position as WidgetPosition) || 'bottom-right',
-    allow_web_search: ch.allow_web_search === true,
-    allow_file_upload: ch.allow_file_upload === true,
-    default_locale: (ch.default_locale || '') as EmbedLocaleTag,
-    webhook_url: ch.webhook_url || '',
-    webhook_secret: '',
+    welcomeMessage: ch.welcomeMessage,
+    rateLimitPerMinute: ch.rateLimitPerMinute || 30,
+    rateLimitPerDay: ch.rateLimitPerDay || 10000,
+    primaryColor: ch.primaryColor || getDefaultEmbedPrimaryColor(),
+    launcherIcon: ch.launcherIcon || '',
+    pageTitle: ch.pageTitle || '',
+    headerTitleMode: (ch.headerTitleMode as HeaderTitleMode) || 'channel',
+    showSuggestedQuestions: ch.showSuggestedQuestions !== false,
+    showThinking: ch.showThinking === true,
+    widgetPosition: (ch.widgetPosition as WidgetPosition) || 'bottom-right',
+    allowWebSearch: ch.allowWebSearch === true,
+    allowFileUpload: ch.allowFileUpload === true,
+    defaultLocale: (ch.defaultLocale || '') as EmbedLocaleTag,
+    webhookUrl: ch.webhookUrl || '',
+    webhookSecret: '',
   }
-  originsText.value = (ch.allowed_origins || []).join('\n')
+  originsText.value = (ch.allowedOrigins || []).join('\n')
   originsError.value = ''
   drawerSnippetTab.value = 'iframe'
   secureServerLangTab.value = 'node'
@@ -921,8 +921,8 @@ const openDrawer = async (ch: EmbedChannel) => {
   showDrawer.value = true
   try {
     const res = await getEmbedChannel(ch.id)
-    if (res?.data) {
-      mergeChannelDetail(res.data)
+    if (res?.id) {
+      mergeChannelDetail(res)
     }
   } catch {
     MessagePlugin.warning(t('embedPublish.channelKeyLoadFailed'))
@@ -973,35 +973,35 @@ const saveForm = async () => {
   try {
     const payload = {
       name: resolvedEmbedChannelName(),
-      welcome_message: form.value.welcome_message,
-      allowed_origins: originsValidation.origins,
-      rate_limit_per_minute: form.value.rate_limit_per_minute,
-      rate_limit_per_day: form.value.rate_limit_per_day,
-      primary_color: form.value.primary_color,
-      launcher_icon: form.value.launcher_icon,
-      page_title: form.value.page_title,
-      header_title_mode: form.value.header_title_mode,
-      show_suggested_questions: form.value.show_suggested_questions,
-      show_thinking: form.value.show_thinking,
-      widget_position: form.value.widget_position,
-      allow_web_search: form.value.allow_web_search,
-      allow_file_upload: form.value.allow_file_upload,
-      default_locale: form.value.default_locale || '',
-      webhook_url: form.value.webhook_url || '',
-      webhook_secret: form.value.webhook_secret || undefined,
+      welcomeMessage: form.value.welcomeMessage,
+      allowedOrigins: originsValidation.origins,
+      rateLimitPerMinute: form.value.rateLimitPerMinute,
+      rateLimitPerDay: form.value.rateLimitPerDay,
+      primaryColor: form.value.primaryColor,
+      launcherIcon: form.value.launcherIcon,
+      pageTitle: form.value.pageTitle,
+      headerTitleMode: form.value.headerTitleMode,
+      showSuggestedQuestions: form.value.showSuggestedQuestions,
+      showThinking: form.value.showThinking,
+      widgetPosition: form.value.widgetPosition,
+      allowWebSearch: form.value.allowWebSearch,
+      allowFileUpload: form.value.allowFileUpload,
+      defaultLocale: form.value.defaultLocale || '',
+      webhookUrl: form.value.webhookUrl || '',
+      webhookSecret: form.value.webhookSecret || undefined,
       enabled: editingId.value ? editingEnabled.value : true,
-      agent_id: createAgentId.value,
+      agentId: createAgentId.value,
     }
     if (editingId.value) {
-      const previousAgentId = drawerChannel.value?.agent_id
+      const previousAgentId = drawerChannel.value?.agentId
       const res = await updateEmbedChannel(editingId.value, payload)
       MessagePlugin.success(t('embedPublish.updated'))
-      const saved = res?.data
+      const saved = res
       await load()
       const updated = saved ?? channels.value.find((ch) => ch.id === editingId.value)
       if (updated) {
         fillFormFromChannel(updated)
-        if (previousAgentId && updated.agent_id !== previousAgentId) {
+        if (previousAgentId && updated.agentId !== previousAgentId) {
           clearEmbedStoredChatSession(updated.id)
           if (previewVisible.value) {
             previewChannel.value = updated
@@ -1016,18 +1016,18 @@ const saveForm = async () => {
         return
       }
       const res = await createEmbedChannel(targetAgentId, payload)
-      if (res?.data?.publish_token) {
-        revealedTokens[res.data.id] = true
+      if (res?.publishToken) {
+        revealedTokens[res.id] = true
         MessagePlugin.success(t('embedPublish.createdWithToken'))
       } else {
         MessagePlugin.success(t('embedPublish.created'))
       }
       await load()
-      if (res?.data?.id) {
-        const created = channels.value.find((ch) => ch.id === res.data.id) ?? res.data
+      if (res?.id) {
+        const created = channels.value.find((ch) => ch.id === res.id) ?? res
         if (created) {
-          mergeChannelDetail({ ...created, ...res.data })
-          fillFormFromChannel(allChannels.value.find((ch) => ch.id === res.data.id) ?? created)
+          mergeChannelDetail({ ...created, ...res })
+          fillFormFromChannel(allChannels.value.find((ch) => ch.id === res.id) ?? created)
           wizardStep.value = stepTitles.value.length - 1
         }
       }
@@ -1061,14 +1061,14 @@ async function openPreviewForChannel(
 ) {
   previewLoading.value = true
   try {
-    const agentId = ((opts?.useDraft ? createAgentId.value : '') || ch.agent_id)
+    const agentId = ((opts?.useDraft ? createAgentId.value : '') || ch.agentId)
     if (agentId) {
       clearEmbedStoredChatSessionIfAgentMismatch(ch.id, agentId)
     }
     let token = tokenFor(ch)
     if (!token) {
       const res = await issueEmbedPreviewSession(ch.id)
-      token = res?.data?.session_token || ''
+      token = res?.sessionToken || ''
       if (!token) {
         MessagePlugin.warning(t('embedPublish.previewUnavailable'))
         return
@@ -1077,14 +1077,14 @@ async function openPreviewForChannel(
     previewMode.value = opts?.mode ?? 'iframe'
     previewChannel.value = {
       ...ch,
-      agent_id: agentId || ch.agent_id,
-      primary_color: opts?.useDraft ? form.value.primary_color : ch.primary_color,
-      launcher_icon: opts?.useDraft ? form.value.launcher_icon : ch.launcher_icon,
-      widget_position: (opts?.useDraft ? form.value.widget_position : ch.widget_position) as WidgetPosition,
-      default_locale: opts?.useDraft ? (form.value.default_locale || ch.default_locale) : ch.default_locale,
+      agentId: agentId || ch.agentId,
+      primaryColor: opts?.useDraft ? form.value.primaryColor : ch.primaryColor,
+      launcherIcon: opts?.useDraft ? form.value.launcherIcon : ch.launcherIcon,
+      widgetPosition: (opts?.useDraft ? form.value.widgetPosition : ch.widgetPosition) as WidgetPosition,
+      defaultLocale: opts?.useDraft ? (form.value.defaultLocale || ch.defaultLocale) : ch.defaultLocale,
     }
     previewToken.value = token
-    previewLocale.value = (opts?.useDraft ? form.value.default_locale : '') || ch.default_locale || ''
+    previewLocale.value = (opts?.useDraft ? form.value.defaultLocale : '') || ch.defaultLocale || ''
     previewNonce.value += 1
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur()
@@ -1113,8 +1113,8 @@ const performRotate = async (id: string) => {
   rotating.value = true
   try {
     const res = await rotateEmbedToken(id)
-    if (res?.data?.publish_token) {
-      mergeChannelDetail(res.data)
+    if (res?.publishToken) {
+      mergeChannelDetail(res)
       revealedTokens[id] = true
       MessagePlugin.success(t('embedPublish.resetKeySuccess'))
     } else {
@@ -1138,16 +1138,16 @@ const removeChannel = async (id: string) => {
 const toggleEnabled = async (ch: EmbedChannel, enabled: boolean) => {
   await updateEmbedChannel(ch.id, {
     name: ch.name,
-    welcome_message: ch.welcome_message,
-    allowed_origins: ch.allowed_origins,
-    rate_limit_per_minute: ch.rate_limit_per_minute,
-    rate_limit_per_day: ch.rate_limit_per_day,
-    primary_color: ch.primary_color,
-    page_title: ch.page_title,
-    header_title_mode: ch.header_title_mode || 'channel',
-    show_suggested_questions: ch.show_suggested_questions !== false,
-    show_thinking: ch.show_thinking === true,
-    widget_position: ch.widget_position,
+    welcomeMessage: ch.welcomeMessage,
+    allowedOrigins: ch.allowedOrigins,
+    rateLimitPerMinute: ch.rateLimitPerMinute,
+    rateLimitPerDay: ch.rateLimitPerDay,
+    primaryColor: ch.primaryColor,
+    pageTitle: ch.pageTitle,
+    headerTitleMode: ch.headerTitleMode || 'channel',
+    showSuggestedQuestions: ch.showSuggestedQuestions !== false,
+    showThinking: ch.showThinking === true,
+    widgetPosition: ch.widgetPosition,
     enabled,
   })
   await load()

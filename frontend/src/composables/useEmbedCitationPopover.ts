@@ -89,7 +89,7 @@ export function useEmbedCitationPopover(
     float.value.content = ''
     try {
       const res = await getEmbedChunkById(unref(channelId), unref(token), chunkId)
-      const content = String(res?.data?.content || '').trim()
+      const content = String(res?.content || '').trim()
       setCitationChunkCache(scope, chunkId, { content })
       float.value.content = content
     } catch {
