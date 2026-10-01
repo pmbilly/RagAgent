@@ -8,9 +8,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -68,7 +66,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
         AdapterInterfaces.FullOutputProgressSender, AdapterInterfaces.FileDownloader {
 
     private static final Logger log = LoggerFactory.getLogger(FeishuAdapter.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** 流式卡片里承载内容的元素 id。 */
     static final String STREAMING_ELEMENT_ID = "streaming_content";
@@ -104,14 +102,17 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    private final FeishuRegion region;
-    private final String appId;
-    private final String appSecret;
-    private final String verificationToken;
-    private final String encryptKey;
-    private final String apiBaseUrl;
-    private final HttpClient http;
-    private final SsrfGuard ssrfGuard;
+    final FeishuRegion region;
+    final String appId;
+    final String appSecret;
+    final String verificationToken;
+    final String encryptKey;
+    final String apiBaseUrl;
+    final HttpClient http;
+    final SsrfGuard ssrfGuard;
+
+    /** 回调验签/解析协作者（对照 Go 回调段）。 */
+    final FeishuCallbackOps callbackOps;
 
     private final Object tokenLock = new Object();
     private String tokenCache = "";
@@ -136,6 +137,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
+        this.callbackOps = new FeishuCallbackOps(this);
     }
 
     /**
@@ -185,204 +187,27 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
         return true;
     }
 
-    /** 对照 {@code VerifyCallback}：未配 token 跳过；加密体先解密，再比 header.token。 */
-    @Override
+
+    /** 薄委托：验签/解析见 {@link FeishuCallbackOps}。 */
     public Exception verifyCallback(CallbackExchange exchange) {
-        if (verificationToken.isEmpty()) {
-            return null;
-        }
-        byte[] body = exchange.body();
-        byte[] raw;
-        try {
-            JsonNode encrypted = readTree(body);
-            String encrypt = encrypted.path("encrypt").asText("");
-            if (!encrypt.isEmpty()) {
-                raw = decrypt(encrypt);
-            } else {
-                raw = body == null ? new byte[0] : body;
-            }
-        } catch (Exception e) {
-            return new AdapterInterfaces.VerifyException("decrypt event for verification: "
-                    + e.getMessage());
-        }
-        try {
-            JsonNode event = readTree(raw);
-            JsonNode header = event.path("header");
-            if (header.isMissingNode() || header.isNull()
-                    || !verificationToken.equals(header.path("token").asText(""))) {
-                return new AdapterInterfaces.VerifyException("invalid verification token");
-            }
-        } catch (Exception e) {
-            return new AdapterInterfaces.VerifyException("unmarshal event header: "
-                    + e.getMessage());
-        }
-        return null;
+        return callbackOps.verifyCallback(exchange);
     }
 
-    /** 对照 {@code HandleURLVerification}：含 {@code challenge} 即 200 回显（加密体先解密）。 */
-    @Override
+    /** 薄委托：见 {@link FeishuCallbackOps#handleURLVerification}。 */
     public boolean handleURLVerification(CallbackExchange exchange) {
-        byte[] body = exchange.body();
-        JsonNode parsed;
-        try {
-            JsonNode maybeEncrypted = readTree(body);
-            String encrypt = maybeEncrypted.path("encrypt").asText("");
-            if (!encrypt.isEmpty()) {
-                parsed = readTree(decrypt(encrypt));
-            } else {
-                parsed = maybeEncrypted;
-            }
-        } catch (Exception e) {
-            if (exchange.body() != null && !new String(
-                    exchange.body(), StandardCharsets.UTF_8).contains("\"encrypt\"")) {
-                return false;
-            }
-            log.error("[{}] Failed to decrypt: {}", region.label(), e.toString());
-            return false;
-        }
-        if (parsed.has("challenge") && parsed.get("challenge").isTextual()) {
-            exchange.json(200, Map.of("challenge", parsed.get("challenge").asText()));
-            return true;
-        }
-        return false;
+        return callbackOps.handleURLVerification(exchange);
     }
 
-    @Override
+    /** 薄委托：见 {@link FeishuCallbackOps#parseCallback}。 */
     public IncomingMessage parseCallback(CallbackExchange exchange) throws Exception {
-        byte[] body = exchange.body();
-        JsonNode maybeEncrypted = readTree(body);
-        String encrypt = maybeEncrypted.path("encrypt").asText("");
-        JsonNode eventBody = encrypt.isEmpty() ? maybeEncrypted
-                : readTree(decrypt(encrypt));
-
-        JsonNode header = eventBody.path("header");
-        String eventType = header.path("event_type").asText("");
-        if (!"im.message.receive_v1".equals(eventType)) {
-            if (!header.isMissingNode()) {
-                log.info("[{}] Ignoring event type: {}", region.label(), eventType);
-            }
-            return null;
-        }
-        JsonNode message = eventBody.path("event").path("message");
-        if (message.isMissingNode() || message.isNull()) {
-            return null;
-        }
-
-        String messageId = message.path("message_id").asText("");
-        String threadId = message.path("root_id").asText("");
-        if (threadId.isEmpty()) {
-            threadId = messageId;
-        }
-        boolean isGroup = "group".equals(message.path("chat_type").asText(""));
-        String chatType = isGroup ? ImTypes.CHAT_TYPE_GROUP : ImTypes.CHAT_TYPE_DIRECT;
-        String chatId = isGroup ? message.path("chat_id").asText("") : "";
-        String openId = eventBody.path("event").path("sender").path("sender_id")
-                .path("open_id").asText("");
-
-        String messageType = message.path("message_type").asText("");
-        String rawContent = message.path("content").asText("");
-        return switch (messageType) {
-            case "text" -> {
-                JsonNode text = MAPPER.readTree(rawContent.isEmpty() ? "{}" : rawContent);
-                String content = text.path("text").asText("");
-                if (isGroup) {
-                    content = stripBotMention(content);
-                }
-                yield textMessage(openId, chatId, chatType, messageId, threadId,
-                        content.trim());
-            }
-            case "file" -> {
-                JsonNode file = MAPPER.readTree(rawContent.isEmpty() ? "{}" : rawContent);
-                String fileKey = file.path("file_key").asText("");
-                if (fileKey.isEmpty()) {
-                    yield null;
-                }
-                IncomingMessage msg = baseMessage(openId, chatId, chatType, messageId, threadId);
-                msg.messageType = ImTypes.MESSAGE_TYPE_FILE;
-                msg.fileKey = fileKey;
-                msg.fileName = file.path("file_name").asText("");
-                yield msg;
-            }
-            case "image" -> {
-                JsonNode image = MAPPER.readTree(rawContent.isEmpty() ? "{}" : rawContent);
-                String imageKey = image.path("image_key").asText("");
-                if (imageKey.isEmpty()) {
-                    yield null;
-                }
-                IncomingMessage msg = baseMessage(openId, chatId, chatType, messageId, threadId);
-                msg.messageType = ImTypes.MESSAGE_TYPE_IMAGE;
-                msg.fileKey = imageKey;
-                msg.fileName = imageKey + ".png";
-                yield msg;
-            }
-            case "post" -> {
-                JsonNode post = MAPPER.readTree(rawContent.isEmpty() ? "{}" : rawContent);
-                List<String> parts = new ArrayList<>();
-                String title = post.path("title").asText("");
-                if (!title.isEmpty()) {
-                    parts.add(title);
-                }
-                for (JsonNode line : post.path("content")) {
-                    StringBuilder lineText = new StringBuilder();
-                    for (JsonNode element : line) {
-                        String tag = element.path("tag").asText("");
-                        if ("text".equals(tag) || "a".equals(tag)) {
-                            lineText.append(element.path("text").asText(""));
-                        }
-                    }
-                    String trimmed = lineText.toString().trim();
-                    if (!trimmed.isEmpty()) {
-                        parts.add(trimmed);
-                    }
-                }
-                String content = String.join("\n", parts);
-                if (isGroup) {
-                    content = stripBotMention(content);
-                }
-                content = content.trim();
-                yield content.isEmpty() ? null
-                        : textMessage(openId, chatId, chatType, messageId, threadId, content);
-            }
-            default -> {
-                log.info("[{}] Ignoring unsupported message type: {}", region.label(), messageType);
-                yield null;
-            }
-        };
+        return callbackOps.parseCallback(exchange);
     }
 
-    /** 对照 Go：群聊剥离 {@code @_user_xxx } 前缀（可连续多个）。 */
+    /** 薄委托：见 {@link FeishuCallbackOps#stripBotMention}（LarkEventConverter 消费）。 */
     static String stripBotMention(String content) {
-        String value = content == null ? "" : content;
-        while (value.startsWith("@_user_")) {
-            int idx = value.indexOf(' ');
-            if (idx < 0) {
-                break;
-            }
-            value = value.substring(idx + 1);
-        }
-        return value;
+        return FeishuCallbackOps.stripBotMention(content);
     }
 
-    private IncomingMessage baseMessage(String openId, String chatId, String chatType,
-                                        String messageId, String threadId) {
-        IncomingMessage msg = new IncomingMessage();
-        msg.platform = region.platform();
-        msg.userId = openId;
-        msg.userName = "";
-        msg.chatId = chatId;
-        msg.chatType = chatType;
-        msg.messageId = messageId;
-        msg.threadId = threadId;
-        return msg;
-    }
-
-    private IncomingMessage textMessage(String openId, String chatId, String chatType,
-                                        String messageId, String threadId, String content) {
-        IncomingMessage msg = baseMessage(openId, chatId, chatType, messageId, threadId);
-        msg.messageType = ImTypes.MESSAGE_TYPE_TEXT;
-        msg.content = content == null ? "" : content;
-        return msg;
-    }
 
     // ── 发送（reply 优先，可回落 send-message） ───────────────────────────────
 
@@ -904,15 +729,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
         return token;
     }
 
-    /** 对照 {@code decrypt}：未配 encrypt_key 直接报错；否则走共享的 feishu 解密（AES-256-CBC）。 */
-    byte[] decrypt(String encrypted) throws Exception {
-        if (encryptKey.isEmpty()) {
-            throw new IllegalStateException("encrypt_key not configured");
-        }
-        return FeishuWecomCrypt.feishuDecrypt(encryptKey, encrypted);
-    }
-
-    private static JsonNode readTree(byte[] body) throws Exception {
+    static JsonNode readTree(byte[] body) throws Exception {
         if (body == null || body.length == 0) {
             return MAPPER.createObjectNode();
         }
