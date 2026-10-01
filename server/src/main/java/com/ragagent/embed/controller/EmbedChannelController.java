@@ -19,7 +19,6 @@ import com.ragagent.embed.EmbedTokens;
 import com.ragagent.embed.domain.EmbedChannelEntity;
 import com.ragagent.embed.filter.EmbedAuthFilter;
 import com.ragagent.embed.service.EmbedChannelService;
-import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.mcp.controller.AgentToolApprovalController;
 import com.ragagent.mcp.dto.ResolveToolApprovalRequest;
 import com.ragagent.mcp.controller.McpOAuthController;
@@ -89,6 +88,9 @@ public class EmbedChannelController {
     /** 管理面协作者（对照 Go 管理段）。 */
     final EmbedChannelMgmtOps mgmtOps;
 
+    /** 公开面协作者（对照 Go 公开段）。 */
+    final EmbedChannelPublicOps publicOps;
+
     public EmbedChannelController(EmbedChannelService service,
                                   SessionService sessionService,
                                   SessionRepository sessionRepository,
@@ -110,6 +112,7 @@ public class EmbedChannelController {
         this.knowledgeQaController = knowledgeQaController;
         this.fileProxyService = fileProxyService;
         this.mgmtOps = new EmbedChannelMgmtOps(this);
+        this.publicOps = new EmbedChannelPublicOps(this);
     }
 
     // ═══════════════════ 请求体（对照 Go embedChannelRequest） ═══════════════════
@@ -184,117 +187,33 @@ public class EmbedChannelController {
         return mgmtOps.stats(channelId);
     }
 
-    // ═══════════════════ 公开面（EmbedAuthFilter 已跑） ═══════════════════
 
-    /** 对照 ExchangeEmbedSession：只有 publish token 能换 session token。 */
     @PostMapping("/api/v1/embed/{channel_id}/exchange")
     public ResponseEntity<Map<String, Object>> exchange(@PathVariable("channel_id") String channelId) {
-        EmbedChannelEntity ch = channel(request0());
-        String auth = trim(request0().getHeader("Authorization"));
-        boolean publishToken = auth.startsWith("Embed ")
-                && !EmbedTokens.isSessionToken(auth.substring("Embed ".length()));
-        if (!publishToken) {
-            return plainError(403, "publish token required");
-        }
-        EmbedChannelService.IssueResult result;
-        try {
-            result = service.issueSessionToken(ch.getId());
-        } catch (EmbedError e) {
-            if (e.kind == EmbedError.Kind.SESSION_UNAVAILABLE) {
-                return plainError(503, "session tokens unavailable");
-            }
-            return plainError(500, "failed to issue session token");
-        }
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("expires_in", result.expiresIn());
-        data.put("session_token", result.token());
-        return ResponseEntity.ok(dataEnvelope(data));
+        return publicOps.exchange(channelId);
     }
 
-    /** 对照 GetEmbedConfig。 */
     @GetMapping("/api/v1/embed/{channel_id}/config")
     public ResponseEntity<Map<String, Object>> config(@PathVariable("channel_id") String channelId) {
-        EmbedChannelEntity ch = channel(request0());
-        return ResponseEntity.ok(dataEnvelope(service.publicConfig(ch)));
+        return publicOps.config(channelId);
     }
 
-    /** 对照 GetEmbedSuggestedQuestions。 */
     @GetMapping("/api/v1/embed/{channel_id}/suggested-questions")
     public ResponseEntity<Map<String, Object>> suggestedQuestions(
             @PathVariable("channel_id") String channelId,
             @RequestParam(name = "limit", required = false) String limit) {
-        EmbedChannelEntity ch = channel(request0());
-        if (!ch.isShowSuggestedQuestions()) {
-            Map<String, Object> data = new LinkedHashMap<>();
-            data.put("questions", new ArrayList<>());
-            return ResponseEntity.ok(dataEnvelope(data));
-        }
-        int limitInt = 0;
-        if (limit != null && !limit.isEmpty()) {
-            try {
-                int n = Integer.parseInt(limit);
-                if (n > 0) {
-                    limitInt = Math.min(n, 12);
-                }
-            } catch (NumberFormatException ignored) {
-                // Go：解析失败按"未指定"处理
-            }
-        }
-        com.fasterxml.jackson.databind.node.ArrayNode questions;
-        try {
-            questions = service.suggestedQuestions(ch, limitInt);
-        } catch (RuntimeException e) {
-            return plainError(500, "failed to load suggested questions");
-        }
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("questions", questions == null ? new ArrayList<>() : questions);
-        return ResponseEntity.ok(dataEnvelope(data));
+        return publicOps.suggestedQuestions(channelId, limit);
     }
 
-    /** 对照 GetEmbedChunk。 */
     @GetMapping("/api/v1/embed/{channel_id}/chunks/{chunk_id}")
     public ResponseEntity<Map<String, Object>> chunk(@PathVariable("chunk_id") String chunkId) {
-        EmbedChannelEntity ch = channel(request0());
-        String cid = LogSanitizer.sanitize(chunkId);
-        if (cid.isEmpty()) {
-            return plainError(400, "chunk_id is required");
-        }
-        try {
-            Chunk chunk = service.embedChunk(ch, cid);
-            return ResponseEntity.ok(dataEnvelope(chunk));
-        } catch (EmbedChannelService.ChunkNotFoundError e) {
-            return plainError(404, "chunk not found");
-        } catch (EmbedChannelService.ChunkForbiddenError e) {
-            return plainError(403, "chunk not accessible");
-        }
+        return publicOps.chunk(chunkId);
     }
 
-    /** 对照 CreateEmbedSession：201 {id, sig}。 */
     @PostMapping("/api/v1/embed/{channel_id}/sessions")
     public ResponseEntity<Map<String, Object>> createSession(
             @PathVariable("channel_id") String channelId) {
-        EmbedChannelEntity ch = channel(request0());
-        long tenantId = currentTenant();
-        Session created;
-        try {
-            created = sessionService.createSession(
-                    EmbedChannelService.newEmbedSession(tenantId, ch.getId()));
-        } catch (RuntimeException e) {
-            return plainError(500, "failed to create session");
-        }
-        String owner = SessionOwnerIds.EMBED_SESSION_PREFIX + tenantId + ":" + ch.getId()
-                + ":" + created.getId();
-        try {
-            sessionRepository.setOwnerId(tenantId, created.getId(), owner);
-            created.setUserId(owner);
-        } catch (RuntimeException e) {
-            // 对照 Go：Warnf 后继续
-        }
-        String sig = EmbedTokens.signHandle(ch, created.getId());
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("id", created.getId());
-        data.put("sig", sig);
-        return ResponseEntity.status(201).body(dataEnvelope(data));
+        return publicOps.createSession(channelId);
     }
 
     // ═══════════════════ QA / 文件代理委托（W5d 收口） ═══════════════════
@@ -737,7 +656,7 @@ public class EmbedChannelController {
         return tid == null ? 0L : tid;
     }
 
-    private static EmbedChannelEntity channel(jakarta.servlet.http.HttpServletRequest request) {
+    static EmbedChannelEntity channel(jakarta.servlet.http.HttpServletRequest request) {
         Object ch = request.getAttribute(EmbedAuthFilter.CHANNEL_ATTRIBUTE);
         if (!(ch instanceof EmbedChannelEntity entity)) {
             throw BizException.unauthorized("unauthorized");
@@ -746,7 +665,7 @@ public class EmbedChannelController {
     }
 
     /** MockMvc/Servlet 通用取当前请求（对照 gin c）。 */
-    private static jakarta.servlet.http.HttpServletRequest request0() {
+    static jakarta.servlet.http.HttpServletRequest request0() {
         var attrs = org.springframework.web.context.request.RequestContextHolder
                 .currentRequestAttributes();
         return ((org.springframework.web.context.request.ServletRequestAttributes) attrs).getRequest();
