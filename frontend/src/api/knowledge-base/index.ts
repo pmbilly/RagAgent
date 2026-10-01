@@ -5,7 +5,7 @@ import type { AuditLog, AuditOutcome, ListAuditLogResponse } from '@/api/tenant/
 export type KnowledgeBaseActivity = AuditLog;
 
 export interface ListKnowledgeBaseActivityParams {
-  after_id?: number;
+  afterId?: number;
   limit?: number;
   action?: string;
   outcome?: AuditOutcome;
@@ -17,7 +17,7 @@ export async function listKnowledgeBaseActivity(
   params: ListKnowledgeBaseActivityParams = {},
 ): Promise<ListAuditLogResponse> {
   const query = new URLSearchParams();
-  if (params.after_id) query.set('after_id', String(params.after_id));
+  if (params.afterId) query.set('afterId', String(params.afterId));
   if (params.limit) query.set('limit', String(params.limit));
   if (params.action) query.set('action', params.action);
   if (params.outcome) query.set('outcome', params.outcome);

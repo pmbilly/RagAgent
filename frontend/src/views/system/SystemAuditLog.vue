@@ -50,18 +50,18 @@
           >
             <template #created_at="{ row }">
               <div class="audit-time">
-                <span class="audit-time-date">{{ formatAuditDatePart(row.created_at) }}</span>
-                <span class="audit-time-clock">{{ formatAuditTimePart(row.created_at) }}</span>
+                <span class="audit-time-date">{{ formatAuditDatePart(row.createdAt) }}</span>
+                <span class="audit-time-clock">{{ formatAuditTimePart(row.createdAt) }}</span>
               </div>
             </template>
             <template #actor="{ row }">
               <div class="audit-actor">
                 <span class="audit-actor-name">
-                  {{ row.actor_user_id ? auditActorLabel(row.actor_user_id) :
+                  {{ row.actorUserId ? auditActorLabel(row.actorUserId) :
                     t('system.globalSettings.audit.systemActor') }}
                 </span>
-                <span v-if="row.actor_role" class="audit-actor-role">
-                  {{ auditActorRoleLabel(row.actor_role) }}
+                <span v-if="row.actorRole" class="audit-actor-role">
+                  {{ auditActorRoleLabel(row.actorRole) }}
                 </span>
               </div>
             </template>
@@ -208,7 +208,7 @@ const auditDetailVisible = ref(false)
 const selectedAuditEntry = ref<AuditLog | null>(null)
 
 const auditColumns = computed(() => [
-  { colKey: 'created_at', title: t('system.globalSettings.audit.columns.time'), width: 120 },
+  { colKey: 'createdAt', title: t('system.globalSettings.audit.columns.time'), width: 120 },
   { colKey: 'actor', title: t('system.globalSettings.audit.columns.actor'), width: 180 },
   { colKey: 'action', title: t('system.globalSettings.audit.columns.action'), width: 150 },
   {
@@ -303,22 +303,22 @@ function auditDetailsObject(row: AuditLog): Record<string, unknown> | null {
 function auditTargetKey(row: AuditLog): string {
   const details = auditDetailsObject(row)
   if (row.action === 'system.setting_changed') {
-    if (row.target_type === 'tenant_storage_quota') {
+    if (row.targetType === 'tenant_storage_quota') {
       return t('system.globalSettings.audit.target.bulkQuota')
     }
     if (details && typeof details.key === 'string' && details.key) return details.key
-    return row.target_id || row.target_type || ''
+    return row.targetId || row.targetType || ''
   }
   if (
     row.action === 'system.admin_promoted'
     || row.action === 'system.admin_revoked'
     || row.action === 'system.user_password_reset'
   ) {
-    if (!details) return row.target_user_id ? row.target_user_id.slice(0, 8) : ''
+    if (!details) return row.targetUserId ? row.targetUserId.slice(0, 8) : ''
     const name = typeof details.target_username === 'string' ? details.target_username : ''
     const mail = typeof details.target_email === 'string' ? details.target_email : ''
     if (name && mail) return `${name} (${mail})`
-    return name || mail || (row.target_user_id ? row.target_user_id.slice(0, 8) : '')
+    return name || mail || (row.targetUserId ? row.targetUserId.slice(0, 8) : '')
   }
   if (
     row.action === 'system.queue_task_retried'
@@ -327,16 +327,16 @@ function auditTargetKey(row: AuditLog): string {
     || row.action === 'system.queue_task_deleted'
   ) {
     const queue = details && typeof details.queue === 'string' ? details.queue : ''
-    const taskID = details && typeof details.task_id === 'string' ? details.task_id : row.target_id
+    const taskID = details && typeof details.task_id === 'string' ? details.task_id : row.targetId
     return queue && taskID ? `${queue}:${taskID}` : taskID || queue
   }
   if (row.action === 'system.queue_archived_purged') {
     const queue = details && typeof details.queue === 'string' ? details.queue : ''
-    return queue || row.target_id || ''
+    return queue || row.targetId || ''
   }
-  if (row.target_user_id) return row.target_user_id.slice(0, 8)
-  if (row.target_id) {
-    return row.target_type ? `${row.target_type}:${row.target_id}` : row.target_id
+  if (row.targetUserId) return row.targetUserId.slice(0, 8)
+  if (row.targetId) {
+    return row.targetType ? `${row.targetType}:${row.targetId}` : row.targetId
   }
   return ''
 }
@@ -345,7 +345,7 @@ function auditTargetDiff(row: AuditLog): string {
   const details = auditDetailsObject(row)
   if (!details) return ''
   if (row.action === 'system.setting_changed') {
-    if (row.target_type === 'tenant_storage_quota') {
+    if (row.targetType === 'tenant_storage_quota') {
       const affected = typeof details.affected === 'number' ? details.affected : null
       const gb = typeof details.quota_gb === 'number' ? details.quota_gb : null
       if (affected !== null && gb !== null) {
@@ -406,11 +406,11 @@ function formatAuditDateTime(s: string | undefined): string {
 }
 
 function auditActorDisplay(row: AuditLog): string {
-  if (!row.actor_user_id) {
+  if (!row.actorUserId) {
     return t('system.globalSettings.audit.systemActor')
   }
-  const name = auditActorLabel(row.actor_user_id)
-  return row.actor_role ? `${name} (${auditActorRoleLabel(row.actor_role)})` : name
+  const name = auditActorLabel(row.actorUserId)
+  return row.actorRole ? `${name} (${auditActorRoleLabel(row.actorRole)})` : name
 }
 
 function auditSummaryFields(row: AuditLog): AuditDetailField[] {
@@ -418,7 +418,7 @@ function auditSummaryFields(row: AuditLog): AuditDetailField[] {
     {
       key: 'time',
       label: t('system.globalSettings.audit.columns.time'),
-      value: formatAuditDateTime(row.created_at),
+      value: formatAuditDateTime(row.createdAt),
     },
     {
       key: 'actor',
@@ -460,32 +460,32 @@ function auditSummaryFields(row: AuditLog): AuditDetailField[] {
 
 function auditIdentifierFields(row: AuditLog): AuditDetailField[] {
   const fields: AuditDetailField[] = []
-  if (row.actor_user_id) {
+  if (row.actorUserId) {
     fields.push({
       key: 'actorId',
       label: t('system.globalSettings.audit.expanded.actorId'),
-      value: row.actor_user_id,
+      value: row.actorUserId,
     })
   }
-  if (row.target_user_id) {
+  if (row.targetUserId) {
     fields.push({
       key: 'targetUserId',
       label: t('system.globalSettings.audit.expanded.targetUserId'),
-      value: row.target_user_id,
+      value: row.targetUserId,
     })
   }
-  if (row.target_type) {
+  if (row.targetType) {
     fields.push({
       key: 'targetType',
       label: t('system.globalSettings.audit.expanded.targetType'),
-      value: row.target_type,
+      value: row.targetType,
     })
   }
-  if (row.target_id) {
+  if (row.targetId) {
     fields.push({
       key: 'targetId',
       label: t('system.globalSettings.audit.expanded.targetId'),
-      value: row.target_id,
+      value: row.targetId,
     })
   }
   return fields
@@ -493,18 +493,18 @@ function auditIdentifierFields(row: AuditLog): AuditDetailField[] {
 
 function auditRequestFields(row: AuditLog): AuditDetailField[] {
   const fields: AuditDetailField[] = []
-  if (row.request_method) {
+  if (row.requestMethod) {
     fields.push({
       key: 'method',
       label: t('system.globalSettings.audit.drawer.requestMethod'),
-      value: row.request_method,
+      value: row.requestMethod,
     })
   }
-  if (row.request_path) {
+  if (row.requestPath) {
     fields.push({
       key: 'path',
       label: t('system.globalSettings.audit.columns.path'),
-      value: row.request_path,
+      value: row.requestPath,
     })
   }
   return fields
@@ -515,7 +515,7 @@ const auditDetailTitle = computed(() =>
 )
 
 const auditDetailDescription = computed(() =>
-  selectedAuditEntry.value ? formatAuditDateTime(selectedAuditEntry.value.created_at) : '',
+  selectedAuditEntry.value ? formatAuditDateTime(selectedAuditEntry.value.createdAt) : '',
 )
 
 function openAuditDetail(context: { row: AuditLog }) {
@@ -541,16 +541,16 @@ async function loadAuditLog(reset: boolean) {
   auditError.value = ''
   try {
     const resp = await listSystemAuditLog({
-      after_id: reset ? undefined : auditCursor.value || undefined,
+      afterId: reset ? undefined : auditCursor.value || undefined,
       limit: AUDIT_PAGE_SIZE,
     })
-    if (resp.success) {
-      const rows = resp.data || []
+    if (Array.isArray(resp.items)) {
+      const rows = resp.items || []
       auditEntries.value = reset ? rows : [...auditEntries.value, ...rows]
-      auditCursor.value = resp.next_cursor || 0
-      auditHasMore.value = !!resp.next_cursor && rows.length > 0
+      auditCursor.value = resp.nextCursor || 0
+      auditHasMore.value = !!resp.nextCursor && rows.length > 0
     } else {
-      auditError.value = resp.message || t('system.globalSettings.audit.errors.generic')
+      auditError.value = t('system.globalSettings.audit.errors.generic')
     }
   } catch (err: any) {
     const status = err?.status

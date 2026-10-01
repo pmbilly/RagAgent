@@ -39,9 +39,9 @@ import org.springframework.web.bind.annotation.RestController;
  * </ul>
  *
  * <h2>响应形态</h2>
- * <p>三个端点都是 {@link AuditLogListResponse}：{@code {"success":true,"data":[...],"next_cursor":N}}
- * ——<b>不带</b> {@code {"data":...,"success":true}} 那种 R 信封。错误则走
- * {@code GlobalExceptionHandler} 的 AppError 信封（租户 ID 非法 400、KB 权限 403、查询失败 500）。</p>
+ * <p>三个端点都是 {@link AuditLogListResponse}：{@code {"items":[...],"nextCursor":N}}
+ * （游标分页形态）。错误则走统一错误体
+ * {@code {"error":{code,message,details}}}（租户 ID 非法 400、KB 权限 403、查询失败 500）。</p>
  *
  * <h2>分页语义</h2>
  * <p>游标是单调递增的 id（不是 created_at——重复时间戳不会打断翻页）：
@@ -74,7 +74,7 @@ public class AuditLogController {
     @GetMapping("/api/v1/tenants/{id}/audit-log")
     public ResponseEntity<AuditLogListResponse> listTenantAuditLog(
             @PathVariable("id") String rawTenantId,
-            @RequestParam(value = "after_id", required = false) String afterId,
+            @RequestParam(value = "afterId", required = false) String afterId,
             @RequestParam(value = "limit", required = false) String limit,
             @RequestParam(value = "action", required = false) String action,
             @RequestParam(value = "outcome", required = false) String outcome,
@@ -119,7 +119,7 @@ public class AuditLogController {
     @GetMapping("/api/v1/knowledge-bases/{id}/activity")
     public ResponseEntity<AuditLogListResponse> listKnowledgeBaseActivity(
             @PathVariable("id") String kbId,
-            @RequestParam(value = "after_id", required = false) String afterId,
+            @RequestParam(value = "afterId", required = false) String afterId,
             @RequestParam(value = "limit", required = false) String limit,
             @RequestParam(value = "action", required = false) String action,
             @RequestParam(value = "outcome", required = false) String outcome,
@@ -174,7 +174,7 @@ public class AuditLogController {
      */
     @GetMapping("/api/v1/system/admin/audit-log")
     public ResponseEntity<AuditLogListResponse> listSystemAuditLog(
-            @RequestParam(value = "after_id", required = false) String afterId,
+            @RequestParam(value = "afterId", required = false) String afterId,
             @RequestParam(value = "limit", required = false) String limit,
             @RequestParam(value = "action", required = false) String action,
             @RequestParam(value = "outcome", required = false) String outcome,

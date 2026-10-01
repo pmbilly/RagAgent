@@ -39,7 +39,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
  *
  * <p><b>三条断言直接抄自对运行中 Go dev server 的实测</b>（2026-09-18）：</p>
  * <ul>
- *   <li>空页响应体是 {@code {"success":true,"data":[],"next_cursor":0}}——
+ *   <li>空页响应体是 {@code {"items":[],"nextCursor":0}}——
  *       Go 的 {@code []*types.AuditLog} 经 GORM {@code Find} 后是<b>非 nil 空切片</b>，
  *       序列化成 {@code []} 而不是 {@code null}（与 Wiki 的 nil slice 不同）；</li>
  *   <li>非法租户 ID 是 400 统一错误体 {@code {"error":{"code":1010,...}}}；</li>
@@ -119,11 +119,9 @@ class AuditLogControllerTest {
 
         String body = perform("/api/v1/tenants/7/audit-log");
 
-        assertThat(body).contains("\"success\":true");
-        assertThat(body).contains("\"next_cursor\":95");   // 本页最小 id
-        // 键序对照 Go 的 struct 声明序：success → data → next_cursor
-        assertThat(body).startsWith("{\"success\":true,\"data\":[");
-        assertThat(body).endsWith(",\"next_cursor\":95}");
+        assertThat(body).contains("\"nextCursor\":95");   // 本页最小 id
+        assertThat(body).startsWith("{\"items\":[");
+        assertThat(body).endsWith(",\"nextCursor\":95}");
     }
 
     /** 对照 {@code TestAuditLogHandler_PassesQueryFiltersThrough}：五个参数逐一直传。 */
@@ -136,7 +134,7 @@ class AuditLogControllerTest {
         });
 
         perform("/api/v1/tenants/7/audit-log",
-                "after_id", "100", "limit", "25",
+                "afterId", "100", "limit", "25",
                 "action", "rbac.access_denied", "outcome", "denied", "actor", "u-probing");
 
         AuditLogQuery q = seen.get();
@@ -151,9 +149,8 @@ class AuditLogControllerTest {
     }
 
     /**
-     * 对照 {@code TestAuditLogHandler_EmptyResultProducesZeroCursor}：
-     * {@code next_cursor=0} 是文档化的"没有更老的行"信号——前端据此停止翻页。
-     * 响应体逐字节对照实测的 Go 输出（<b>{@code []} 不是 {@code null}</b>）。
+ * {@code nextCursor=0} 是文档化的"没有更老的行"信号——前端据此停止翻页。
+     * 响应体逐字节钉住（<b>{@code []} 不是 {@code null}</b>）。
      */
     @Test
     void tenantListEmptyResultProducesZeroCursor() throws Exception {
@@ -161,7 +158,7 @@ class AuditLogControllerTest {
 
         mvc.perform(get("/api/v1/tenants/7/audit-log"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("{\"success\":true,\"data\":[],\"next_cursor\":0}"));
+                .andExpect(content().string("{\"items\":[],\"nextCursor\":0}"));
     }
 
     /**
@@ -182,7 +179,7 @@ class AuditLogControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
-    /** 对照 Go 的容错解析：垃圾 after_id / 非正 limit 一律塌成默认值，不 400。 */
+    /** 容错解析：垃圾 afterId / 非正 limit 一律塌成默认值，不 400。 */
     @Test
     void tenantListToleratesGarbageCursor() throws Exception {
         AtomicReference<AuditLogQuery> seen = new AtomicReference<>();
@@ -192,7 +189,7 @@ class AuditLogControllerTest {
         });
 
         mvc.perform(get("/api/v1/tenants/7/audit-log")
-                        .param("after_id", "abc")
+                        .param("afterId", "abc")
                         .param("limit", "-1"))
                 .andExpect(status().isOk());
 
@@ -200,7 +197,7 @@ class AuditLogControllerTest {
         assertThat(seen.get().limit()).isZero();
     }
 
-    /** 负数 after_id 也归 0（Go 用 ParseUint，负号即解析失败）。 */
+    /** 负数 afterId 也归 0（解析失败即塌成默认值）。 */
     @Test
     void tenantListToleratesNegativeCursor() throws Exception {
         AtomicReference<AuditLogQuery> seen = new AtomicReference<>();
@@ -209,7 +206,7 @@ class AuditLogControllerTest {
             return List.of();
         });
 
-        perform("/api/v1/tenants/7/audit-log", "after_id", "-5");
+        perform("/api/v1/tenants/7/audit-log", "afterId", "-5");
         assertThat(seen.get().afterId()).isZero();
     }
 
@@ -243,7 +240,7 @@ class AuditLogControllerTest {
         context(7L, "creator", "viewer");
 
         String body = perform("/api/v1/knowledge-bases/kb-1/activity",
-                "after_id", "30", "limit", "10", "outcome", "partial");
+                "afterId", "30", "limit", "10", "outcome", "partial");
 
         AuditLogQuery q = seen.get();
         assertThat(q.scopeType()).isEqualTo("knowledge_base");
@@ -252,7 +249,7 @@ class AuditLogControllerTest {
         assertThat(q.limit()).isEqualTo(10);
         assertThat(q.outcome()).isEqualTo("partial");
         assertThat(q.unscopedOnly()).isFalse();
-        assertThat(body).endsWith(",\"next_cursor\":21}");
+        assertThat(body).endsWith(",\"nextCursor\":21}");
     }
 
     /**
@@ -301,7 +298,7 @@ class AuditLogControllerTest {
 
         mvc.perform(get("/api/v1/knowledge-bases/kb-1/activity"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("{\"success\":true,\"data\":[],\"next_cursor\":0}"));
+                .andExpect(content().string("{\"items\":[],\"nextCursor\":0}"));
     }
 
     /** KB 不存在 → 404 AppError 信封（实测 Go：{@code {"error":{"code":1003,...}}}）。 */
@@ -344,8 +341,8 @@ class AuditLogControllerTest {
         String body = perform("/api/v1/system/admin/audit-log");
 
         assertThat(seenTenant.get()).isZero();
-        assertThat(body).startsWith("{\"success\":true,\"data\":[");
-        assertThat(body).endsWith(",\"next_cursor\":42}");
+        assertThat(body).startsWith("{\"items\":[");
+        assertThat(body).endsWith(",\"nextCursor\":42}");
     }
 
     /** 对照 {@code TestSystemAuditLogHandler_PassesQueryFiltersThrough}。 */
@@ -359,7 +356,7 @@ class AuditLogControllerTest {
         });
 
         perform("/api/v1/system/admin/audit-log",
-                "after_id", "200", "limit", "10",
+                "afterId", "200", "limit", "10",
                 "action", "system.setting_changed", "outcome", "success", "actor", "u-admin-1");
 
         AuditLogQuery q = seen.get();
@@ -377,9 +374,9 @@ class AuditLogControllerTest {
     void systemAuditEmptyResultProducesZeroCursor() throws Exception {
         harness((tenantId, q) -> List.of());
 
-        mvc.perform(get("/api/v1/system/admin/audit-log").param("after_id", "10"))
+        mvc.perform(get("/api/v1/system/admin/audit-log").param("afterId", "10"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("{\"success\":true,\"data\":[],\"next_cursor\":0}"));
+                .andExpect(content().string("{\"items\":[],\"nextCursor\":0}"));
     }
 
     /** 对照 {@code TestSystemAuditLogHandler_GarbageCursorAndLimitTolerated}。 */
@@ -392,7 +389,7 @@ class AuditLogControllerTest {
         });
 
         mvc.perform(get("/api/v1/system/admin/audit-log")
-                        .param("after_id", "abc")
+                        .param("afterId", "abc")
                         .param("limit", "-1"))
                 .andExpect(status().isOk());
 

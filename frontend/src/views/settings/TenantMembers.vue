@@ -426,8 +426,8 @@
               >
                 <template #created_at="{ row }">
                   <div class="audit-time">
-                    <span class="audit-time-date">{{ formatAuditDatePart(row.created_at) }}</span>
-                    <span class="audit-time-clock">{{ formatAuditTimePart(row.created_at) }}</span>
+                    <span class="audit-time-date">{{ formatAuditDatePart(row.createdAt) }}</span>
+                    <span class="audit-time-clock">{{ formatAuditTimePart(row.createdAt) }}</span>
                   </div>
                 </template>
                 <template #actor="{ row }">
@@ -436,8 +436,8 @@
                       {{ row.actor_userId ? actorDisplayName(row.actor_userId) :
                         $t('tenantMember.audit.systemActor') }}
                     </span>
-                    <span v-if="row.actor_role" class="audit-actor-role">
-                      {{ $t('tenantMember.role.' + row.actor_role) }}
+                    <span v-if="row.actorRole" class="audit-actor-role">
+                      {{ $t('tenantMember.role.' + row.actorRole) }}
                     </span>
                   </div>
                 </template>
@@ -454,9 +454,9 @@
                   </div>
                 </template>
                 <template #request_path="{ row }">
-                  <span v-if="row.request_path" class="audit-path">
-                    <span v-if="row.request_method" class="audit-method">{{ row.request_method }}</span>
-                    {{ row.request_path }}
+                  <span v-if="row.requestPath" class="audit-path">
+                    <span v-if="row.requestMethod" class="audit-method">{{ row.requestMethod }}</span>
+                    {{ row.requestPath }}
                   </span>
                   <span v-else class="audit-target-empty">—</span>
                 </template>
@@ -472,17 +472,17 @@
                         <span class="audit-expanded-label">{{ $t('tenantMember.audit.expanded.actorId') }}</span>
                         <span class="audit-expanded-value mono">{{ row.actor_userId || '—' }}</span>
                       </div>
-                      <div v-if="row.target_user_id" class="audit-expanded-cell">
+                      <div v-if="row.targetUserId" class="audit-expanded-cell">
                         <span class="audit-expanded-label">{{ $t('tenantMember.audit.expanded.targetUserId') }}</span>
-                        <span class="audit-expanded-value mono">{{ row.target_user_id }}</span>
+                        <span class="audit-expanded-value mono">{{ row.targetUserId }}</span>
                       </div>
-                      <div v-if="row.target_type" class="audit-expanded-cell">
+                      <div v-if="row.targetType" class="audit-expanded-cell">
                         <span class="audit-expanded-label">{{ $t('tenantMember.audit.expanded.targetType') }}</span>
-                        <span class="audit-expanded-value mono">{{ row.target_type }}</span>
+                        <span class="audit-expanded-value mono">{{ row.targetType }}</span>
                       </div>
-                      <div v-if="row.target_id" class="audit-expanded-cell">
+                      <div v-if="row.targetId" class="audit-expanded-cell">
                         <span class="audit-expanded-label">{{ $t('tenantMember.audit.expanded.targetId') }}</span>
-                        <span class="audit-expanded-value mono">{{ row.target_id }}</span>
+                        <span class="audit-expanded-value mono">{{ row.targetId }}</span>
                       </div>
                     </div>
                     <div class="audit-expanded-details">
@@ -981,7 +981,7 @@ async function doRevokeInvitation(row: TenantInvitation) {
 // without eating horizontal budget the diff column needs.
 
 const auditColumns = computed(() => [
-  { colKey: 'created_at', title: t('tenantMember.audit.columns.time'), width: 120 },
+  { colKey: 'createdAt', title: t('tenantMember.audit.columns.time'), width: 120 },
   { colKey: 'actor', title: t('tenantMember.audit.columns.actor'), width: 180 },
   { colKey: 'action', title: t('tenantMember.audit.columns.action'), width: 130 },
   {
@@ -1086,9 +1086,9 @@ function auditDetailsObject(row: AuditLog): Record<string, unknown> | null {
 }
 
 function auditTargetSubject(row: AuditLog): string {
-  if (row.target_user_id) return actorDisplayName(row.target_user_id)
-  if (row.target_id) {
-    return row.target_type ? `${row.target_type}:${row.target_id}` : row.target_id
+  if (row.targetUserId) return actorDisplayName(row.targetUserId)
+  if (row.targetId) {
+    return row.targetType ? `${row.targetType}:${row.targetId}` : row.targetId
   }
   return ''
 }
@@ -1143,24 +1143,24 @@ async function loadAuditLog(reset: boolean) {
   auditError.value = ''
   try {
     const resp = await listAuditLog(activeTenantId.value, {
-      after_id: reset ? undefined : auditCursor.value || undefined,
+      afterId: reset ? undefined : auditCursor.value || undefined,
       limit: AUDIT_PAGE_SIZE,
     })
-    if (resp.success) {
-      const rows = resp.data || []
+    if (Array.isArray(resp.items)) {
+      const rows = resp.items || []
       if (reset) {
         auditEntries.value = rows
       } else {
         auditEntries.value = [...auditEntries.value, ...rows]
       }
-      auditCursor.value = resp.next_cursor || 0
+      auditCursor.value = resp.nextCursor || 0
       // The server returns next_cursor=0 when the page is empty OR
       // when the last row is the smallest possible id. Both mean
       // "stop paginating".
-      auditHasMore.value = !!resp.next_cursor && rows.length > 0
+      auditHasMore.value = !!resp.nextCursor && rows.length > 0
       auditLoadedOnce.value = true
     } else {
-      auditError.value = resp.message || t('tenantMember.errors.generic')
+      auditError.value = t('tenantMember.errors.generic')
     }
   } catch (err: any) {
     const status = err?.status

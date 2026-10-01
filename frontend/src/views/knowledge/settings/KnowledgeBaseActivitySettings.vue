@@ -144,8 +144,8 @@
               </template>
               <template #created_at="{ row }">
                 <div class="audit-time">
-                  <span class="audit-time-date">{{ formatDatePart(row.created_at) }}</span>
-                  <span class="audit-time-clock">{{ formatTimePart(row.created_at) }}</span>
+                  <span class="audit-time-date">{{ formatDatePart(row.createdAt) }}</span>
+                  <span class="audit-time-clock">{{ formatTimePart(row.createdAt) }}</span>
                 </div>
               </template>
               <template #action="{ row }">
@@ -325,7 +325,7 @@ const actionFilterList = computed(() => {
 })
 
 const columns = computed(() => [
-  { colKey: 'created_at', title: t('knowledgeEditor.activity.columns.time'), width: 116 },
+  { colKey: 'createdAt', title: t('knowledgeEditor.activity.columns.time'), width: 116 },
   {
     colKey: 'action',
     title: 'action-title',
@@ -389,7 +389,7 @@ const detailTitle = computed(() =>
 )
 
 const detailDescription = computed(() =>
-  selectedEntry.value ? formatDateTime(selectedEntry.value.created_at) : '',
+  selectedEntry.value ? formatDateTime(selectedEntry.value.createdAt) : '',
 )
 
 function details(entry: KnowledgeBaseActivity): Record<string, unknown> {
@@ -467,17 +467,17 @@ function targetSubject(entry: KnowledgeBaseActivity): string {
   // Aggregate / clone / share events carry no human-readable name — fall back
   // to the localized object-type label so the column always has a meaningful
   // primary subject instead of being blank or showing a raw identifier.
-  return targetLabel(entry.target_type)
+  return targetLabel(entry.targetType)
 }
 
 function targetDiff(entry: KnowledgeBaseActivity): string {
   const value = details(entry)
   // Data source: the connector type is more identifying than a row count.
-  if (entry.target_type === 'data_source' && value.type) {
+  if (entry.targetType === 'data_source' && value.type) {
     return String(value.type)
   }
   // Share: surface the granted permission rather than the opaque share id.
-  if (entry.target_type === 'knowledge_base_share' && value.permission) {
+  if (entry.targetType === 'knowledge_base_share' && value.permission) {
     const key = `knowledgeEditor.activity.detailValues.${String(value.permission)}`
     return te(key) ? t(key) : String(value.permission)
   }
@@ -504,12 +504,12 @@ function targetDiff(entry: KnowledgeBaseActivity): string {
 }
 
 function actorLabel(entry: KnowledgeBaseActivity): string {
-  if (!entry.actor_user_id) return t('knowledgeEditor.activity.systemActor')
+  if (!entry.actorUserId) return t('knowledgeEditor.activity.systemActor')
   const me = authStore.user
-  if (me?.id === entry.actor_user_id) {
-    return me.username?.trim() || me.email?.trim() || entry.actor_user_id.slice(0, 8)
+  if (me?.id === entry.actorUserId) {
+    return me.username?.trim() || me.email?.trim() || entry.actorUserId.slice(0, 8)
   }
-  return entry.actor_user_id.slice(0, 8)
+  return entry.actorUserId.slice(0, 8)
 }
 
 function formatDatePart(value: string): string {
@@ -550,7 +550,7 @@ function summaryFields(entry: KnowledgeBaseActivity): DetailField[] {
     {
       key: 'time',
       label: t('knowledgeEditor.activity.columns.time'),
-      value: formatDateTime(entry.created_at),
+      value: formatDateTime(entry.createdAt),
     },
     {
       key: 'actor',
@@ -592,25 +592,25 @@ function summaryFields(entry: KnowledgeBaseActivity): DetailField[] {
 
 function identifierFields(entry: KnowledgeBaseActivity): DetailField[] {
   const fields: DetailField[] = []
-  if (entry.target_type) {
+  if (entry.targetType) {
     fields.push({
       key: 'targetType',
       label: t('knowledgeEditor.activity.expanded.targetType'),
-      value: targetLabel(entry.target_type),
+      value: targetLabel(entry.targetType),
     })
   }
-  if (entry.target_id) {
+  if (entry.targetId) {
     fields.push({
       key: 'targetId',
       label: t('knowledgeEditor.activity.expanded.targetId'),
-      value: entry.target_id,
+      value: entry.targetId,
     })
   }
-  if (entry.actor_user_id) {
+  if (entry.actorUserId) {
     fields.push({
       key: 'actorId',
       label: t('knowledgeEditor.activity.expanded.actorId'),
-      value: entry.actor_user_id,
+      value: entry.actorUserId,
     })
   }
   return fields
@@ -641,14 +641,14 @@ async function fetchPage(reset = false) {
   try {
     const response = await listKnowledgeBaseActivity(props.kbId, {
       limit: pageSize,
-      after_id: reset ? undefined : cursor.value || undefined,
+      afterId: reset ? undefined : cursor.value || undefined,
       outcome: outcome.value,
       action: action.value,
     })
-    const page = response.data || []
+    const page = response.items || []
     entries.value = reset ? page : [...entries.value, ...page]
-    cursor.value = response.next_cursor || 0
-    hasMore.value = !!response.next_cursor && page.length > 0
+    cursor.value = response.nextCursor || 0
+    hasMore.value = !!response.nextCursor && page.length > 0
     loadedOnce.value = true
   } catch (err: any) {
     error.value = err?.message || t('knowledgeEditor.activity.loadFailed')

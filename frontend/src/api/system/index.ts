@@ -554,14 +554,14 @@ import type { ListAuditLogParams, ListAuditLogResponse } from '@/api/tenant/audi
  * system.admin_revoked etc. — events emitted by SystemAdmin actions.
  *
  * Cursor-paginated by descending id: the first call should pass no
- * cursor, each subsequent page should pass `after_id =
- * previousResponse.next_cursor` until next_cursor comes back as 0.
+ * cursor, each subsequent page should pass `afterId =
+ * previousResponse.nextCursor` until nextCursor comes back as 0.
  */
 export async function listSystemAuditLog(
   params: ListAuditLogParams = {},
 ): Promise<ListAuditLogResponse> {
   const qs = new URLSearchParams()
-  if (params.after_id) qs.append('after_id', String(params.after_id))
+  if (params.afterId) qs.append('afterId', String(params.afterId))
   if (params.limit) qs.append('limit', String(params.limit))
   if (params.action) qs.append('action', params.action)
   if (params.outcome) qs.append('outcome', params.outcome)
