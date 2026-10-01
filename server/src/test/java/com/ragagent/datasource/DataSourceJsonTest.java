@@ -121,7 +121,7 @@ class DataSourceJsonTest {
         ds.setConflictStrategy("skip");
         ds.setSyncDeletions(true);
         ds.setLastSyncAt(ten());
-        ds.setLastSyncCursor(json("{\"last_schema_hash\":\"h\"}"));
+        ds.setLastSyncCursor(json("{\"lastSchemaHash\":\"h\"}"));
         ds.setLastSyncResult(json("{\"total\":3}"));
         ds.setErrorMessage("boom");
         ds.setSyncLogRetentionDays(14);
@@ -138,18 +138,18 @@ class DataSourceJsonTest {
                         + "\"syncSchedule\":\"0 */6 * * *\",\"syncMode\":\"full\",\"status\":\"paused\","
                         + "\"conflictStrategy\":\"skip\",\"syncDeletions\":true,"
                         + "\"lastSyncAt\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"lastSyncCursor\":{\"last_schema_hash\":\"h\"},"
+                        + "\"lastSyncCursor\":{\"lastSchemaHash\":\"h\"},"
                         + "\"lastSyncResult\":{\"total\":3},\"errorMessage\":\"boom\","
                         + "\"syncLogRetentionDays\":14,"
                         + "\"createdAt\":\"2026-09-18T10:00:00+08:00\","
                         + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\",\"deletedAt\":null,"
                         + "\"totalItemsSynced\":42,\"latestSyncLog\":"
-                        + "{\"id\":\"l1\",\"data_source_id\":\"\",\"tenant_id\":0,\"status\":\"\","
-                        + "\"started_at\":\"0001-01-01T00:00:00Z\",\"finished_at\":null,\"items_total\":0,"
-                        + "\"items_created\":0,\"items_updated\":0,\"items_deleted\":0,\"items_skipped\":0,"
-                        + "\"items_failed\":0,\"error_message\":\"\",\"result\":null,"
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}}");
+                        + "{\"id\":\"l1\",\"dataSourceId\":\"\",\"tenantId\":0,\"status\":\"\","
+                        + "\"startedAt\":\"0001-01-01T00:00:00Z\",\"finishedAt\":null,\"itemsTotal\":0,"
+                        + "\"itemsCreated\":0,\"itemsUpdated\":0,\"itemsDeleted\":0,\"itemsSkipped\":0,"
+                        + "\"itemsFailed\":0,\"errorMessage\":\"\",\"result\":null,"
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}}");
     }
 
     /** 三个 JSON 列都是 Go 的 {@code types.JSON}：**空就输出 {@code null}**，不省略键。 */
@@ -166,12 +166,12 @@ class DataSourceJsonTest {
     @Test
     void syncLogZeroMatchesGo() throws Exception {
         assertThat(write(new SyncLog())).isEqualTo(
-                "{\"id\":\"\",\"data_source_id\":\"\",\"tenant_id\":0,\"status\":\"\","
-                        + "\"started_at\":\"0001-01-01T00:00:00Z\",\"finished_at\":null,"
-                        + "\"items_total\":0,\"items_created\":0,\"items_updated\":0,\"items_deleted\":0,"
-                        + "\"items_skipped\":0,\"items_failed\":0,\"error_message\":\"\",\"result\":null,"
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"updated_at\":\"0001-01-01T00:00:00Z\"}");
+                "{\"id\":\"\",\"dataSourceId\":\"\",\"tenantId\":0,\"status\":\"\","
+                        + "\"startedAt\":\"0001-01-01T00:00:00Z\",\"finishedAt\":null,"
+                        + "\"itemsTotal\":0,\"itemsCreated\":0,\"itemsUpdated\":0,\"itemsDeleted\":0,"
+                        + "\"itemsSkipped\":0,\"itemsFailed\":0,\"errorMessage\":\"\",\"result\":null,"
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}");
     }
 
     @Test
@@ -195,14 +195,14 @@ class DataSourceJsonTest {
         log.setUpdatedAt(ten());
 
         assertThat(write(log)).isEqualTo(
-                "{\"id\":\"l1\",\"data_source_id\":\"d1\",\"tenant_id\":7,\"status\":\"success\","
-                        + "\"started_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"finished_at\":\"2026-09-18T10:00:05+08:00\","
-                        + "\"items_total\":1,\"items_created\":2,\"items_updated\":3,"
-                        + "\"items_deleted\":4,\"items_skipped\":5,\"items_failed\":6,"
-                        + "\"error_message\":\"e\",\"result\":{\"total\":1},"
-                        + "\"created_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"updated_at\":\"2026-09-18T10:00:00+08:00\"}");
+                "{\"id\":\"l1\",\"dataSourceId\":\"d1\",\"tenantId\":7,\"status\":\"success\","
+                        + "\"startedAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"finishedAt\":\"2026-09-18T10:00:05+08:00\","
+                        + "\"itemsTotal\":1,\"itemsCreated\":2,\"itemsUpdated\":3,"
+                        + "\"itemsDeleted\":4,\"itemsSkipped\":5,\"itemsFailed\":6,"
+                        + "\"errorMessage\":\"e\",\"result\":{\"total\":1},"
+                        + "\"createdAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\"}");
     }
 
     // ── DataSourceConfig ───────────────────────────────────────────────────
@@ -289,10 +289,11 @@ class DataSourceJsonTest {
     @Test
     void fetchedItemZeroMatchesGo() throws Exception {
         assertThat(write(new FetchedItem())).isEqualTo(
-                "{\"external_id\":\"\",\"title\":\"\",\"content\":null,\"content_type\":\"\","
-                        + "\"file_name\":\"\",\"url\":\"\",\"updated_at\":\"0001-01-01T00:00:00Z\","
-                        + "\"created_at\":\"0001-01-01T00:00:00Z\",\"metadata\":null,"
-                        + "\"is_deleted\":false,\"source_resource_id\":\"\"}");
+                "{\"externalId\":\"\",\"title\":\"\",\"content\":null,\"contentType\":\"\","
+                        + "\"fileName\":\"\",\"url\":\"\",\"updatedAt\":\"0001-01-01T00:00:00Z\","
+                        + "\"createdAt\":\"0001-01-01T00:00:00Z\",\"metadata\":null,"
+                        + "\"deleted\":false,\"sourceResourceId\":\"\","
+                        + "\"replacesSubtree\":false,\"subtreeKeep\":null}");
     }
 
     @Test
@@ -313,12 +314,12 @@ class DataSourceJsonTest {
         f.setSubtreeKeep(new ArrayList<>(List.of("c1", "c2")));
 
         assertThat(write(f)).isEqualTo(
-                "{\"external_id\":\"e1\",\"title\":\"t\",\"content\":\"aGVsbG8=\","
-                        + "\"content_type\":\"text/markdown\",\"file_name\":\"f.md\",\"url\":\"u\","
-                        + "\"updated_at\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"created_at\":\"2026-09-17T09:00:00+08:00\",\"metadata\":{\"a\":\"b\"},"
-                        + "\"is_deleted\":true,\"source_resource_id\":\"s1\","
-                        + "\"replaces_subtree\":true,\"subtree_keep\":[\"c1\",\"c2\"]}");
+                "{\"externalId\":\"e1\",\"title\":\"t\",\"content\":\"aGVsbG8=\","
+                        + "\"contentType\":\"text/markdown\",\"fileName\":\"f.md\",\"url\":\"u\","
+                        + "\"updatedAt\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"createdAt\":\"2026-09-17T09:00:00+08:00\",\"metadata\":{\"a\":\"b\"},"
+                        + "\"deleted\":true,\"sourceResourceId\":\"s1\","
+                        + "\"replacesSubtree\":true,\"subtreeKeep\":[\"c1\",\"c2\"]}");
     }
 
     /**
@@ -338,11 +339,16 @@ class DataSourceJsonTest {
         assertThat(write(f)).contains("\"content\":\"\"");
     }
 
-    /** {@code is_deleted} 的字段名去掉了 {@code is} 前缀——不能多吐一个 {@code deleted} 键。 */
+    /**
+     * §14.9q D2 后字段名即键名：只输出 {@code deleted}，**没有** {@code is_deleted} 这个并生属性。
+     *
+     * <p>（修正一条从未生效的断言：原文第二条子句写的是 {@code doesNotContain("\"deleted\":")}，
+     * 与第一条自相矛盾，等于没断言。）</p>
+     */
     @Test
-    void fetchedItemDoesNotLeakPinnedStyleIsProperty() throws Exception {
+    void fetchedItemDoesNotLeakIsDeletedProperty() throws Exception {
         String out = write(new FetchedItem());
-        assertThat(out).contains("\"is_deleted\":false").doesNotContain("\"deleted\":");
+        assertThat(out).contains("\"deleted\":false").doesNotContain("is_deleted");
     }
 
     // ── SyncCursor / SyncResult / SyncItemError ────────────────────────────
@@ -350,8 +356,8 @@ class DataSourceJsonTest {
     @Test
     void syncCursorZeroMatchesGo() throws Exception {
         assertThat(write(new SyncCursor())).isEqualTo(
-                "{\"last_sync_time\":\"0001-01-01T00:00:00Z\",\"connector_cursor\":null,"
-                        + "\"last_schema_hash\":\"\"}");
+                "{\"lastSyncTime\":\"0001-01-01T00:00:00Z\",\"connectorCursor\":null,"
+                        + "\"lastSchemaHash\":\"\"}");
     }
 
     @Test
@@ -365,15 +371,16 @@ class DataSourceJsonTest {
         c.setLastSchemaHash("h");
 
         assertThat(write(c)).isEqualTo(
-                "{\"last_sync_time\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"connector_cursor\":{\"n\":2,\"page_token\":\"p\"},"
-                        + "\"last_schema_hash\":\"h\"}");
+                "{\"lastSyncTime\":\"2026-09-18T10:00:00+08:00\","
+                        + "\"connectorCursor\":{\"n\":2,\"page_token\":\"p\"},"
+                        + "\"lastSchemaHash\":\"h\"}");
     }
 
     @Test
     void syncResultZeroMatchesGo() throws Exception {
         assertThat(write(new SyncResult())).isEqualTo(
-                "{\"total\":0,\"created\":0,\"updated\":0,\"deleted\":0,\"skipped\":0,\"failed\":0}");
+                "{\"total\":0,\"created\":0,\"updated\":0,\"deleted\":0,\"skipped\":0,\"failed\":0,"
+                        + "\"deletionFailed\":0,\"errors\":null,\"nextCursor\":null}");
     }
 
     @Test
@@ -400,34 +407,36 @@ class DataSourceJsonTest {
 
         assertThat(write(r)).isEqualTo(
                 "{\"total\":1,\"created\":2,\"updated\":3,\"deleted\":4,\"skipped\":5,\"failed\":6,"
-                        + "\"deletion_failed\":7,"
+                        + "\"deletionFailed\":7,"
                         + "\"errors\":[{\"title\":\"t\",\"code\":\"c\","
                         + "\"params\":{\"code\":\"1663\"},\"message\":\"m\"}],"
-                        + "\"next_cursor\":{\"last_sync_time\":\"0001-01-01T00:00:00Z\","
-                        + "\"connector_cursor\":null,\"last_schema_hash\":\"h\"}}");
+                        + "\"nextCursor\":{\"lastSyncTime\":\"0001-01-01T00:00:00Z\","
+                        + "\"connectorCursor\":null,\"lastSchemaHash\":\"h\"}}");
     }
 
-    /** 三个 omitempty 的处置**各不相同**：int 看 0、切片看 len、指针看 nil。 */
+    /** §1.6：空集合、零值与 null 一律**照写**（旧 Go 的三种 omitempty 都已退役）。 */
     @Test
-    void syncResultOmitsEmptyCollectionsAndZeroDeletionFailed() throws Exception {
+    void syncResultKeepsEmptyCollectionsAndZeroDeletionFailed() throws Exception {
         SyncResult r = new SyncResult();
         r.setErrors(new ArrayList<>());
         r.setNextCursor(new SyncCursor());
         assertThat(write(r))
-                .as("空 list 被省略，非 null 的 next_cursor 不省略")
-                .contains("\"next_cursor\":{")
-                .doesNotContain("\"errors\"");
+                .as("空 list 照写，非 null 的 nextCursor 也照写")
+                .contains("\"errors\":[]")
+                .contains("\"nextCursor\":{\"lastSyncTime\":\"0001-01-01T00:00:00Z\"");
 
         r.setErrors(null);
         r.setNextCursor(null);
         String out = write(r);
-        assertThat(out).doesNotContain("errors").doesNotContain("next_cursor")
-                .doesNotContain("deletion_failed");
+        assertThat(out).contains("\"errors\":null").contains("\"nextCursor\":null")
+                .contains("\"deletionFailed\":0");
     }
 
+    /** §1.6：四键恒输出（旧 Go 的 omitempty 会让零值对象成为 {@code {}}）。 */
     @Test
-    void syncItemErrorZeroMatchesGoAsEmptyObject() throws Exception {
-        assertThat(write(new SyncItemError())).isEqualTo("{}");
+    void syncItemErrorZeroMatchesGoAsFullObject() throws Exception {
+        assertThat(write(new SyncItemError())).isEqualTo(
+                "{\"title\":\"\",\"code\":\"\",\"params\":null,\"message\":\"\"}");
     }
 
     @Test
@@ -442,7 +451,8 @@ class DataSourceJsonTest {
 
         SyncItemError onlyMessage = new SyncItemError();
         onlyMessage.setMessage("m");
-        assertThat(write(onlyMessage)).isEqualTo("{\"message\":\"m\"}");
+        assertThat(write(onlyMessage)).isEqualTo(
+                "{\"title\":\"\",\"code\":\"\",\"params\":null,\"message\":\"m\"}");
     }
 
     /** 历史同步日志里每个 error 是个**裸 JSON 字符串**——必须解成 Message。 */
@@ -450,7 +460,8 @@ class DataSourceJsonTest {
     void syncItemErrorReadsLegacyBareString() throws Exception {
         SyncItemError legacy = JSONB.readValue("\"old failure\"", SyncItemError.class);
         assertThat(legacy.getMessage()).isEqualTo("old failure");
-        assertThat(write(legacy)).isEqualTo("{\"message\":\"old failure\"}");
+        assertThat(write(legacy)).isEqualTo(
+                "{\"title\":\"\",\"code\":\"\",\"params\":null,\"message\":\"old failure\"}");
 
         SyncItemError obj = JSONB.readValue("{\"title\":\"t\",\"code\":\"c\"}", SyncItemError.class);
         assertThat(obj.getTitle()).isEqualTo("t");
@@ -558,7 +569,7 @@ class DataSourceJsonTest {
         m.put("b", Map.of("z", 1, "a", 2));
         SyncCursor c = new SyncCursor();
         c.setConnectorCursor(m);
-        assertThat(write(c)).contains("\"connector_cursor\":{\"b\":{\"a\":2,\"z\":1}}");
+        assertThat(write(c)).contains("\"connectorCursor\":{\"b\":{\"a\":2,\"z\":1}}");
     }
 
     // ── 派生访问器 / 便捷方法 ──────────────────────────────────────────────
@@ -670,29 +681,30 @@ class DataSourceJsonTest {
                 "errorMessage", "syncLogRetentionDays", "createdAt", "updatedAt",
                 "deletedAt", "totalItemsSynced", "latestSyncLog");
 
-        assertKeyOrder(new SyncLog(), "id", "data_source_id", "tenant_id", "status", "started_at",
-                "finished_at", "items_total", "items_created", "items_updated", "items_deleted",
-                "items_skipped", "items_failed", "error_message", "result", "created_at",
-                "updated_at");
+        assertKeyOrder(new SyncLog(), "id", "dataSourceId", "tenantId", "status", "startedAt",
+                "finishedAt", "itemsTotal", "itemsCreated", "itemsUpdated", "itemsDeleted",
+                "itemsSkipped", "itemsFailed", "errorMessage", "result", "createdAt",
+                "updatedAt");
 
         assertKeyOrder(new DataSourceConfig(), "type", "credentials", "resourceIds", "settings");
 
         assertKeyOrder(new Resource(), "externalId", "name", "type", "description", "url",
                 "modifiedAt", "parentId", "hasChildren", "metadata");
 
-        assertKeyOrder(new FetchedItem(), "external_id", "title", "content", "content_type",
-                "file_name", "url", "updated_at", "created_at", "metadata", "is_deleted",
-                "source_resource_id");
+        assertKeyOrder(new FetchedItem(), "externalId", "title", "content", "contentType",
+                "fileName", "url", "updatedAt", "createdAt", "metadata", "deleted",
+                "sourceResourceId", "replacesSubtree", "subtreeKeep");
 
-        assertKeyOrder(new SyncCursor(), "last_sync_time", "connector_cursor", "last_schema_hash");
+        assertKeyOrder(new SyncCursor(), "lastSyncTime", "connectorCursor", "lastSchemaHash");
 
         assertKeyOrder(new SyncResult(), "total", "created", "updated", "deleted", "skipped",
-                "failed");
+                "failed", "deletionFailed", "errors", "nextCursor");
 
-        assertKeyOrder(new SyncItemError());
+        assertKeyOrder(new SyncItemError(), "title", "code", "params", "message");
 
         assertKeyOrder(new TaskInitiator("u", "admin"), "user_id", "role");
 
+        // DataSourceSyncPayload 属 D3（队列载荷），本批键名不动
         assertKeyOrder(new DataSourceSyncPayload(new TaskInitiator("u", "admin"), "t", "d", 1L,
                 "l", true, 2), "initiator", "user_id", "role", "trigger", "data_source_id",
                 "tenant_id", "sync_log_id", "force_full", "max_items");
@@ -876,10 +888,11 @@ class DataSourceJsonTest {
     @Test
     void syncResultAndCursorToJsonMatchGoMarshal() throws Exception {
         assertThat(MAPPER.writeValueAsString(new SyncResult().toJSON())).isEqualTo(
-                "{\"total\":0,\"created\":0,\"updated\":0,\"deleted\":0,\"skipped\":0,\"failed\":0}");
+                "{\"total\":0,\"created\":0,\"updated\":0,\"deleted\":0,\"skipped\":0,\"failed\":0,"
+                        + "\"deletionFailed\":0,\"errors\":null,\"nextCursor\":null}");
         assertThat(MAPPER.writeValueAsString(new SyncCursor().toJSON())).isEqualTo(
-                "{\"last_sync_time\":\"0001-01-01T00:00:00Z\",\"connector_cursor\":null,"
-                        + "\"last_schema_hash\":\"\"}");
+                "{\"lastSyncTime\":\"0001-01-01T00:00:00Z\",\"connectorCursor\":null,"
+                        + "\"lastSchemaHash\":\"\"}");
     }
 
     /** 解析方法的两态：SQL NULL（Java null）→ Go 的 {@code len == 0} 短路。 */

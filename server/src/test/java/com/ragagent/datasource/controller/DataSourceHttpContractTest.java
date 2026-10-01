@@ -664,9 +664,9 @@ class DataSourceHttpContractTest {
                 .header("Authorization", bearer));
         assertEquals(200, r.getResponse().getStatus(), raw(r));
         assertGoldenBody("ds-sync.json", raw(r));
-        // 计数器恒输出（无 omitempty），空串 error_message 也照输出
-        assertThat(raw(r)).contains("\"finished_at\":null").contains("\"error_message\":\"\"")   // sync log 的键属 D2，本批不动
-                .contains("\"items_total\":0").contains("\"result\":null");
+        // 计数器恒输出（无 omitempty），空串 errorMessage 也照输出
+        assertThat(raw(r)).contains("\"finishedAt\":null").contains("\"errorMessage\":\"\"")
+                .contains("\"itemsTotal\":0").contains("\"result\":null");
     }
 
     @Test

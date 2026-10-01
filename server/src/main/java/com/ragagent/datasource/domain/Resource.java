@@ -13,7 +13,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  * <h2>它是响应体</h2>
  * <p>{@code GET /datasources/:id/resources} 的 handler 直接
  * {@code c.JSON(200, resources)}——一个 {@code []Resource} 裸数组，
- * 没有 {@code data}/{@code success} 信封。所以下面的键序与三个 omitempty 是
+ * 没有 {@code data}/{@code success} 信封。所以下面的键序与"恒输出"口径是
  * **线上契约**。</p>
  *
  * <h2>Go 实录（{@code DataSourceJsonTest} 逐字节钉住）</h2>
@@ -58,13 +58,13 @@ public class Resource {
     /** 在外部系统里的最后修改时间。Go 是**值类型** {@code time.Time}：零值也输出字面量。 */
     private OffsetDateTime modifiedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    /** 层级资源才有；omitempty → 空串时整个键消失。 */
+    /** 层级资源才有。§1.6：空串照输出。 */
     private String parentId = "";
 
-    /** 还有可展开的子项；omitempty → {@code false} 时整个键消失。 */
+    /** 还有可展开的子项。§1.6：{@code false} 照输出。 */
     private boolean hasChildren;
 
-    /** 附加元数据；omitempty → nil / 空 map 时整个键消失（Go 对切片与 map 的 omitempty 都看 len）。 */
+    /** 附加元数据。§1.6：nil 时输出 {@code null}。 */
     @JsonSerialize(using = DataSourceMapSerializer.class)
     private Map<String, Object> metadata;
 

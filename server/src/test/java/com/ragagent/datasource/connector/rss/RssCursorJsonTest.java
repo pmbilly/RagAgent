@@ -121,11 +121,12 @@ class RssCursorJsonTest {
         sync.setConnectorCursor(rss.toMap());
 
         String json = sync.toJSON().toString();
-        // 键序：Go 对 map 恒按字母序输出（DataSourceMapSerializer 复刻）
+        // 键序：§14.9q D2 后外层 SyncCursor 键名＝字段名；connectorCursor 内层是 rss 私有键（不动），
+        // 且 Go 对 map 恒按字母序输出（DataSourceMapSerializer 复刻）
         assertThat(keyOrder(json)).containsExactly(
-                "last_sync_time", "connector_cursor", "feed_items", "feed_signals",
-                "last_sync_time", "last_schema_hash");
-        assertThat(json).contains("\"last_schema_hash\":\"\"");
+                "lastSyncTime", "connectorCursor", "feed_items", "feed_signals",
+                "last_sync_time", "lastSchemaHash");
+        assertThat(json).contains("\"lastSchemaHash\":\"\"");
         assertThat(json).contains("\"feed_items\"");
         assertThat(json).contains("\"guid-1\":\"h:abc\"");
     }

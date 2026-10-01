@@ -4,8 +4,6 @@ import com.ragagent.common.web.JsonMappers;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,7 +26,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  *   {"last_sync_time":"2026-09-18T10:00:00+08:00",
  *    "connector_cursor":{"n":2,"page_token":"p"},"last_schema_hash":"h"}
  * </pre>
- * <p>{@code connector_cursor} **没有 omitempty** → nil 时输出 {@code null}；
+ * <p>{@code connectorCursor} nil 时输出 {@code null}（§1.6 恒输出）；
  * 且它的键序按 Go 的 map 规则排序（{@code n} 在 {@code page_token} 前）。</p>
  *
  * <h2>GORM 隐式行为清单（约定 §3）</h2>
@@ -38,23 +36,19 @@ import com.ragagent.common.web.GoTimeSerializer;
  *   <li><b>默认排序</b>：无。</li>
  * </ol>
  */
-@JsonPropertyOrder({"last_sync_time", "connector_cursor", "last_schema_hash"})
 public class SyncCursor {
 
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 上次同步的时间（值类型零值也输出字面量）。 */
-    @JsonProperty("last_sync_time")
     private OffsetDateTime lastSyncTime = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    /** 连接器私有游标（分页 token、偏移量 …）。无 omitempty → nil 时输出 {@code null}。 */
-    @JsonProperty("connector_cursor")
+    /** 连接器私有游标（分页 token、偏移量 …）。§1.6：nil 时输出 {@code null}。 */
     @JsonSerialize(using = DataSourceMapSerializer.class)
     private Map<String, Object> connectorCursor;
 
     /** 上次全量同步的哈希，用来发现 schema 变化。 */
-    @JsonProperty("last_schema_hash")
     private String lastSchemaHash = "";
 
     public OffsetDateTime getLastSyncTime() { return lastSyncTime; }

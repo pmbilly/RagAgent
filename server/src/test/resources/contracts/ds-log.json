@@ -1,1 +1,1 @@
-{"created_at":"<ts>","data_source_id":"<uuid>","error_message":"","finished_at":null,"id":"<uuid>","items_created":0,"items_deleted":0,"items_failed":0,"items_skipped":0,"items_total":0,"items_updated":0,"result":null,"started_at":"<ts>","status":"running","tenant_id":10002,"updated_at":"<ts>"}
+{"createdAt":"<ts>","dataSourceId":"<uuid>","errorMessage":"","finishedAt":null,"id":"<uuid>","itemsCreated":0,"itemsDeleted":0,"itemsFailed":0,"itemsSkipped":0,"itemsTotal":0,"itemsUpdated":0,"result":null,"startedAt":"<ts>","status":"running","tenantId":10002,"updatedAt":"<ts>"}

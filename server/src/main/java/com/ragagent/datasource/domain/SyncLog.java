@@ -6,8 +6,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,7 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  *    "items_skipped":0,"items_failed":0,"error_message":"","result":null,
  *    "created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}
  * </pre>
- * <p><b>一个 omitempty 都没有</b>——{@code error_message} 空串照常输出、
+ * <p><b>键名＝字段名，所有键恒输出</b>（§1.6）——{@code errorMessage} 空串照常输出、
  * {@code finished_at} 为 nil 时输出 {@code null}、{@code result} 空时输出 {@code null}。</p>
  *
  * <h2>GORM 隐式行为清单（约定 §3）</h2>
@@ -66,79 +64,60 @@ import com.fasterxml.jackson.databind.JsonNode;
  * </ol>
  */
 @TableName(value = "sync_logs", autoResultMap = true)
-@JsonPropertyOrder({"id", "data_source_id", "tenant_id", "status", "started_at", "finished_at",
-        "items_total", "items_created", "items_updated", "items_deleted", "items_skipped",
-        "items_failed", "error_message", "result", "created_at", "updated_at"})
 public class SyncLog {
 
     @TableId(value = "id", type = IdType.INPUT)
-    @JsonProperty("id")
     private String id = "";
 
     /** 指向 {@code data_sources.id}（迁移里有 ON DELETE CASCADE 外键）。 */
     @TableField("data_source_id")
-    @JsonProperty("data_source_id")
     private String dataSourceId = "";
 
     @TableField("tenant_id")
-    @JsonProperty("tenant_id")
     private Long tenantId = 0L;
 
     /** running / success / partial / failed / canceled。 */
     @TableField("status")
-    @JsonProperty("status")
     private String status = "";
 
     /** 同步开始时间。Go 的 {@code BeforeCreate} 在零值时补 {@code time.Now().UTC()}。 */
     @TableField("started_at")
-    @JsonProperty("started_at")
     private OffsetDateTime startedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     /** 同步完成时间。指针 → nil 输出 {@code null}。 */
     @TableField("finished_at")
-    @JsonProperty("finished_at")
     private OffsetDateTime finishedAt;
 
     @TableField("items_total")
-    @JsonProperty("items_total")
     private int itemsTotal;
 
     @TableField("items_created")
-    @JsonProperty("items_created")
     private int itemsCreated;
 
     @TableField("items_updated")
-    @JsonProperty("items_updated")
     private int itemsUpdated;
 
     @TableField("items_deleted")
-    @JsonProperty("items_deleted")
     private int itemsDeleted;
 
     @TableField("items_skipped")
-    @JsonProperty("items_skipped")
     private int itemsSkipped;
 
     @TableField("items_failed")
-    @JsonProperty("items_failed")
     private int itemsFailed;
 
-    /** 失败时的错误详情。**无 omitempty**：空串照常输出。 */
+    /** 失败时的错误详情。§1.6：空串照常输出。 */
     @TableField("error_message")
-    @JsonProperty("error_message")
     private String errorMessage = "";
 
     /** 详细的同步结果（JSON）。Go 的 {@code types.JSON}：空时序列化成 {@code null}。 */
     @TableField(value = "result", typeHandler = PgJsonTypeHandler.class)
-    @JsonProperty("result")
     private JsonNode result;
 
     @TableField("created_at")
-    @JsonProperty("created_at")
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     @TableField("updated_at")
-    @JsonProperty("updated_at")
     private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
     public String getId() { return id; }

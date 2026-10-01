@@ -35,7 +35,7 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  *    "updated_at":"0001-01-01T00:00:00Z","deleted_at":null,"total_items_synced":0,
  *    "latest_sync_log":null}
  * </pre>
- * <p><b>一个 omitempty 都没有</b>——{@code scheduled}/{@code error_message} 空串照输出、
+ * <p><b>键名＝字段名，所有键恒输出</b>（§1.6）——{@code syncSchedule}/{@code errorMessage} 空串照输出、
  * 三个 JSON 列 null 照输出、{@code total_items_synced} 与 {@code latest_sync_log}
  * 即使不落库也在 JSON 里。</p>
  *
@@ -119,7 +119,7 @@ public class DataSource {
     @TableField(value = "config", typeHandler = PgJsonTypeHandler.class)
     private JsonNode config;
 
-    /** 定时同步的 cron 表达式（例如每 6 小时一次）。无 omitempty → 空串照输出。 */
+    /** 定时同步的 cron 表达式（例如每 6 小时一次）。§1.6：空串照输出。 */
     @TableField("sync_schedule")
     private String syncSchedule = "";
 
@@ -156,7 +156,7 @@ public class DataSource {
     @TableField(value = "last_sync_result", typeHandler = PgJsonTypeHandler.class)
     private JsonNode lastSyncResult;
 
-    /** status 为 {@code "error"} 时的错误消息。无 omitempty → 空串照输出。 */
+    /** status 为 {@code "error"} 时的错误消息。§1.6：空串照输出。 */
     @TableField("error_message")
     private String errorMessage = "";
 

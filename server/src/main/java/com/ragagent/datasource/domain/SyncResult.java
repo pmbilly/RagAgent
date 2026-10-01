@@ -3,9 +3,6 @@ package com.ragagent.datasource.domain;
 import com.ragagent.common.web.JsonMappers;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,13 +24,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *    "next_cursor":{"last_sync_time":"0001-01-01T00:00:00Z","connector_cursor":null,
  *                   "last_schema_hash":"h"}}
  * </pre>
- * <p>三个 omitempty 的处置**各不相同**，别一刀切：</p>
- * <ul>
- *   <li>{@code deletion_failed} 是 int → 0 省略（{@code NON_DEFAULT}）；</li>
- *   <li>{@code errors} 是切片 → nil **与空切片都省略**（{@code NON_EMPTY}）；</li>
- *   <li>{@code next_cursor} 是指针 → nil 省略（{@code NON_NULL}）。</li>
- * </ul>
- * <p>前六个计数器**没有** omitempty，所以零值也恒输出。</p>
+ * <p>§1.6：九个键**全部恒输出**（键名＝字段名）——{@code deletionFailed} 零值写 0、
+ * {@code errors} 写 {@code null}（nil 与空切片同形）、{@code nextCursor} 写 {@code null}。
+ * 旧 Go 里这三个 omitempty 的处置各不相同（NON_DEFAULT / NON_EMPTY / NON_NULL），
+ * 本仓统一为"显式 null / 零值照写"。</p>
  *
  * <h2>GORM 隐式行为清单（约定 §3）</h2>
  * <ol>
@@ -41,49 +35,35 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *       本类型不落表，只作为两列 jsonb 的载荷。</li>
  * </ol>
  */
-@JsonPropertyOrder({"total", "created", "updated", "deleted", "skipped", "failed",
-        "deletion_failed", "errors", "next_cursor"})
 public class SyncResult {
 
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 处理过的条目总数。 */
-    @JsonProperty("total")
     private int total;
 
-    @JsonProperty("created")
     private int created;
 
-    @JsonProperty("updated")
     private int updated;
 
-    @JsonProperty("deleted")
     private int deleted;
 
     /** 无变化的条目。 */
-    @JsonProperty("skipped")
     private int skipped;
 
-    @JsonProperty("failed")
     private int failed;
 
     /**
      * 删除失败（{@code failed} 的子集）。因为已经越过连接器游标，
-     * 通常只有下一次全量同步才会重试它们。omitempty → 0 省略。
+     * 通常只有下一次全量同步才会重试它们。§1.6：0 也恒输出。
      */
-    @JsonProperty("deletion_failed")
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int deletionFailed;
 
-    /** 逐条失败样本（有上限），显示在同步日志 UI 里。omitempty。 */
-    @JsonProperty("errors")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    /** 逐条失败样本（有上限），显示在同步日志 UI 里。§1.6：nil 写 {@code null}。 */
     private List<SyncItemError> errors;
 
-    /** 供下次增量同步用的新游标。omitempty。 */
-    @JsonProperty("next_cursor")
-    @JsonInclude(JsonInclude.Include.NON_NULL)
+    /** 供下次增量同步用的新游标。§1.6：nil 写 {@code null}。 */
     private SyncCursor nextCursor;
 
     public int getTotal() { return total; }

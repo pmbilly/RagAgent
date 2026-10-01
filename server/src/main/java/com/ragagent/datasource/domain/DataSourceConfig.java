@@ -28,7 +28,7 @@ import com.ragagent.common.crypto.CryptoService;
  *   带全部字段                     → {"type":"feishu","credentials":{"app_id":"x","b":true,"n":1},
  *                                    "resource_ids":["r1","r2"],"settings":{"folder_token":"ft"}}
  * </pre>
- * <p><b>四个键全部恒输出</b>（没有一个带 omitempty），{@code multimodal_enabled} 一个键都不出。</p>
+ * <p><b>四个键全部恒输出</b>（§1.6），{@code multimodalEnabled} 一个键都不出。</p>
  *
  * <h2>GORM 隐式行为清单（约定 §3）</h2>
  * <ol>

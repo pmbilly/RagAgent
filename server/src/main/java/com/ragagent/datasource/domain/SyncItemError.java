@@ -2,9 +2,6 @@ package com.ragagent.datasource.domain;
 
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -26,7 +23,8 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
  *   SyncItemError{全字段}              → {"title":"t","code":"c","params":{"code":"1663"},"message":"m"}
  *   SyncItemError{只填 Message}        → {"message":"m"}
  * </pre>
- * <p>⚠️ 四个键**全都带 omitempty**，所以零值对象序列化成 <b>{@code {}}</b>——
+ * <p>⚠️ §1.6 后四个键**全部恒输出**，零值对象是
+ * {@code {"title":"","code":"","params":null,"message":""}}（旧 Go 的 omitempty 会让它变成 {@code {}}）——
  * 不是 {@code null}、也不是带空串的对象。这是 {@link SyncResult#errors} 里最常见的形态。</p>
  *
  * <h2>{@code Display()} 的取值序</h2>
@@ -42,33 +40,24 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
  *       本类型不落表，只作为 {@code SyncResult.Errors} 的元素被序列化进 jsonb。</li>
  * </ol>
  */
-@JsonPropertyOrder({"title", "code", "params", "message"})
 @JsonDeserialize(using = SyncItemError.Deserializer.class)
 public class SyncItemError {
 
-    /** 文档标题（用户内容，不翻译）。omitempty。 */
-    @JsonProperty("title")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    /** 文档标题（用户内容，不翻译）。§1.6：恒输出。 */
     private String title = "";
 
     /**
      * 前端映射到本地化文案的稳定 key，例如
      * {@code "feishu_rate_limited"} → {@code datasource.syncError.feishu_rate_limited}。
-     * omitempty。
+     * §1.6：恒输出。
      */
-    @JsonProperty("code")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String code = "";
 
-    /** 本地化文案的插值参数，例如 {@code {"code":"1663"}}。omitempty。 */
-    @JsonProperty("params")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    /** 本地化文案的插值参数，例如 {@code {"code":"1663"}}。§1.6：恒输出。 */
     @JsonSerialize(using = DataSourceMapSerializer.class)
     private Map<String, String> params;
 
-    /** 客户端没有 Code 的 i18n key 时用的人话兜底。omitempty。 */
-    @JsonProperty("message")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    /** 客户端没有 Code 的 i18n key 时用的人话兜底。§1.6：恒输出。 */
     private String message = "";
 
     public String getTitle() { return title; }
