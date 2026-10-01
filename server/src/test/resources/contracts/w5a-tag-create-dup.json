@@ -1,1 +1,1 @@
-{"error":{"code":1005,"details":null,"message":"标签名称已存在"},"success":false}
+{"error":{"code":1005,"message":"标签名称已存在","details":null}}

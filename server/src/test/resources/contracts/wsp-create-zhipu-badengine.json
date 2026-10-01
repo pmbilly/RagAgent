@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"API key is required for Zhipu provider"},"success":false}
+{"error":{"code":1007,"message":"API key is required for Zhipu provider","details":null}}

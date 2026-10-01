@@ -1,1 +1,1 @@
-{"error":{"code":1002,"details":"OIDC login is disabled","message":"OIDC authorization unavailable"},"success":false}
+{"error":{"code":1002,"message":"OIDC authorization unavailable","details":"OIDC login is disabled"}}

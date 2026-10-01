@@ -1,1 +1,1 @@
-{"error":{"code":1005,"details":null,"message":"user is already an active member of the tenant"},"success":false}
+{"error":{"code":1005,"message":"user is already an active member of the tenant","details":null}}

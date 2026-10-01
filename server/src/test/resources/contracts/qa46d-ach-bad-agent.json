@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"Shared agent not found"},"success":false}
+{"error":{"code":1003,"message":"Shared agent not found","details":null}}

@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"Source knowledge base not found"},"success":false}
+{"error":{"code":1003,"message":"Source knowledge base not found","details":null}}

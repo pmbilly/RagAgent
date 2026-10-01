@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":"error code: 1010, error message: external_user_id contains invalid characters","message":"external_user_id is invalid"},"success":false}
+{"error":{"code":1010,"message":"external_user_id is invalid","details":"error code: 1010, error message: external_user_id contains invalid characters"}}

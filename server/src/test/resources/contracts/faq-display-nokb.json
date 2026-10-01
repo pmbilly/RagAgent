@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"FAQ knowledge not found in this knowledge base"},"success":false}
+{"error":{"code":1003,"message":"FAQ knowledge not found in this knowledge base","details":null}}

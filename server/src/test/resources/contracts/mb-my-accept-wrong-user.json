@@ -1,1 +1,1 @@
-{"error":{"code":1002,"details":null,"message":"only the invitee can accept or decline this invitation"},"success":false}
+{"error":{"code":1002,"message":"only the invitee can accept or decline this invitation","details":null}}

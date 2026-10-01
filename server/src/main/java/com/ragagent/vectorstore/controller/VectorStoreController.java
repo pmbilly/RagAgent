@@ -344,7 +344,6 @@ public class VectorStoreController {
     private static Map<String, Object> errorEnvelope(String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", message);
-        body.put("success", false);
         return body;
     }
 

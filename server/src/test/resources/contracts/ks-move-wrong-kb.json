@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"Knowledge item a2e00001-0000-0000-0000-000000000006 does not belong to the source knowledge base"},"success":false}
+{"error":{"code":1000,"message":"Knowledge item a2e00001-0000-0000-0000-000000000006 does not belong to the source knowledge base","details":null}}

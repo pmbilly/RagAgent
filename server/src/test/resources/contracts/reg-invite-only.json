@@ -1,1 +1,1 @@
-{"error":{"code":1002,"details":null,"message":"Registration is invite-only"},"success":false}
+{"error":{"code":1002,"message":"Registration is invite-only","details":null}}

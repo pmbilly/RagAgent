@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":"Key: 'updateTenantRequest.Name' Error:Field validation for 'Name' failed on the 'max' tag","message":"Invalid request data"},"success":false}
+{"error":{"code":1010,"message":"Invalid request data","details":"Key: 'updateTenantRequest.Name' Error:Field validation for 'Name' failed on the 'max' tag"}}

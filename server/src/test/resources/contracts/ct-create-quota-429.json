@@ -1,1 +1,1 @@
-{"error":{"code":1006,"details":null,"message":"reached self-service workspace quota; contact an administrator to raise the limit"},"success":false}
+{"error":{"code":1006,"message":"reached self-service workspace quota; contact an administrator to raise the limit","details":null}}

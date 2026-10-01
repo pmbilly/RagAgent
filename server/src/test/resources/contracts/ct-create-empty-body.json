@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":"EOF","message":"Invalid request parameters"},"success":false}
+{"error":{"code":1010,"message":"Invalid request parameters","details":"EOF"}}

@@ -1,1 +1,1 @@
-{"error":{"code":1002,"details":null,"message":"Cross-workspace access is disabled"},"success":false}
+{"error":{"code":1002,"message":"Cross-workspace access is disabled","details":null}}

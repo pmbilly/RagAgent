@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"writeMode must be explicit_only or auto"},"success":false}
+{"error":{"code":1000,"message":"writeMode must be explicit_only or auto","details":null}}

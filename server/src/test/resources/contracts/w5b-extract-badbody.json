@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"文本关系提取请求参数错误"},"success":false}
+{"error":{"code":1000,"message":"文本关系提取请求参数错误","details":null}}

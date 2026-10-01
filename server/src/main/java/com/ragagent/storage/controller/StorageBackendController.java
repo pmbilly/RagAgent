@@ -206,8 +206,7 @@ public class StorageBackendController {
             message = StorageBackendService.sanitizeConnectivity(e.getMessage());
         }
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", message); // gin.H 字母序 error < success
-        body.put("success", false);
+        body.put("error", message);
         return body;
     }
 

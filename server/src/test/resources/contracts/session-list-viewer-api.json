@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"error code: 1002, error message: listing channel sessions requires tenant admin or owner role"},"success":false}
+{"error":{"code":1007,"message":"error code: 1002, error message: listing channel sessions requires tenant admin or owner role","details":null}}

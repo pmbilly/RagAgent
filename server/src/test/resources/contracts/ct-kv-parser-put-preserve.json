@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"mineru_endpoint failed SSRF validation: SSRF validation failed: hostname mineru2.example.com resolves to restricted IP 198.18.0.187: restricted range 198.18.0.0/15"},"success":false}
+{"error":{"code":1010,"message":"mineru_endpoint failed SSRF validation: SSRF validation failed: hostname mineru2.example.com resolves to restricted IP 198.18.0.187: restricted range 198.18.0.0/15","details":null}}

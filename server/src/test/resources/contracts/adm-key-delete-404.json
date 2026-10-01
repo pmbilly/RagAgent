@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"Platform API key not found"},"success":false}
+{"error":{"code":1003,"message":"Platform API key not found","details":null}}

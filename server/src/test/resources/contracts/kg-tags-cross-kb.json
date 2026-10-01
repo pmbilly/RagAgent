@@ -1,1 +1,1 @@
-{"error":{"code":1002,"details":null,"message":"无权修改该知识库"},"success":false}
+{"error":{"code":1002,"message":"无权修改该知识库","details":null}}

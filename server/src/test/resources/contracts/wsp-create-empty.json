@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"EOF"},"success":false}
+{"error":{"code":1000,"message":"EOF","details":null}}

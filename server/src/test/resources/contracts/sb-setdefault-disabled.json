@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"only an active storage backend can be the default"},"success":false}
+{"error":{"code":1000,"message":"only an active storage backend can be the default","details":null}}

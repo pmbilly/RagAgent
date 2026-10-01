@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"web search provider not found"},"success":false}
+{"error":{"code":1003,"message":"web search provider not found","details":null}}

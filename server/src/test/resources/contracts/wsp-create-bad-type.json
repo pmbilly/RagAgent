@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"invalid provider type: bogus"},"success":false}
+{"error":{"code":1007,"message":"invalid provider type: bogus","details":null}}

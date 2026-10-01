@@ -42,8 +42,7 @@ import org.springframework.test.web.servlet.MvcResult;
  *
  * <p>没有 golden 文件（这四条端点尚未在 Go dev server 上录制），
  * 因此这里用**逐字段 + 键序**的结构化断言钉住契约：
- * {@code {"data":...,"success":true}} 的键序、{@code createdAt} 之后的
- * {@code token} 位置、以及 {@code DELETE} 的 {@code {"success":true}}（无 data 键）。</p>
+ * {@code createdAt} 之后的 {@code token} 位置、以及 {@code DELETE} 的 204（§2.1：无信封）。</p>
  *
  * <p>注意：本测试**不**覆盖"API Key 主体被门禁拒绝"（那需要 WebConfig 注册
  * {@code APIKeyGateInterceptor}，属主会话接线范围）；该语义由
@@ -156,7 +155,6 @@ class TenantAPIKeyControllerTest {
                 .andReturn();
 
         String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        // 顶层键序：data < success（gin.H 的 map 字母序）
         assertThat(keyOrder(body)).startsWith("id", "scopeType");
 
         JsonNode data = MAPPER.readTree(body);
@@ -210,7 +208,7 @@ class TenantAPIKeyControllerTest {
                         .content("{\"name\":\"no-caps\",\"fullAccess\":false}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1010,"
+                        "{\"error\":{\"code\":1010,"
                                 + "\"message\":\"capabilities are required for scoped API keys\","
                                 + "\"details\":null}}"));
     }
@@ -223,7 +221,7 @@ class TenantAPIKeyControllerTest {
                         .content("{\"name\":\"   \",\"fullAccess\":true}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1010,\"message\":\"name is required\","
+                        "{\"error\":{\"code\":1010,\"message\":\"name is required\","
                                 + "\"details\":null}}"));
     }
 
@@ -235,7 +233,7 @@ class TenantAPIKeyControllerTest {
                         .content("{\"name\":\"x\",\"fullAccess\":false,\"capabilities\":[\"chat\",\"bogus\"]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1010,"
+                        "{\"error\":{\"code\":1010,"
                                 + "\"message\":\"capabilities contains an unknown capability\","
                                 + "\"details\":null}}"));
     }
@@ -249,7 +247,7 @@ class TenantAPIKeyControllerTest {
                         .content("{\"name\":\"x\",\"fullAccess\":true,\"expiresAtUnix\":" + past + "}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1010,"
+                        "{\"error\":{\"code\":1010,"
                                 + "\"message\":\"expiresAtUnix must be in the future\"}}"));
     }
 
@@ -280,7 +278,7 @@ class TenantAPIKeyControllerTest {
                                 + "\"knowledgeBaseIds\":[\"kb-foreign\"]}"))
                 .andExpect(status().isForbidden())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1002,"
+                        "{\"error\":{\"code\":1002,"
                                 + "\"message\":\"knowledgeBaseIds contains a knowledge base outside this workspace\","
                                 + "\"details\":null}}"));
     }
@@ -294,7 +292,7 @@ class TenantAPIKeyControllerTest {
                                 + "\"knowledgeBaseIds\":[\"kb-nope\"]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1010,"
+                        "{\"error\":{\"code\":1010,"
                                 + "\"message\":\"knowledgeBaseIds contains an unknown knowledge base\","
                                 + "\"details\":null}}"));
     }
@@ -310,7 +308,7 @@ class TenantAPIKeyControllerTest {
                         .content("{\"name\":\"x\",\"fullAccess\":true}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1010,"
+                        "{\"error\":{\"code\":1010,"
                                 + "\"message\":\"workspace id must be a positive integer\"}}"));
     }
 
@@ -321,7 +319,7 @@ class TenantAPIKeyControllerTest {
                         .contentType("application/json"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1010,\"message\":\"Invalid request data\","
+                        "{\"error\":{\"code\":1010,\"message\":\"Invalid request data\","
                                 + "\"details\":\"EOF\"}}"));
     }
 
@@ -420,7 +418,7 @@ class TenantAPIKeyControllerTest {
                         .content("{\"name\":\"x\",\"fullAccess\":true}"))
                 .andExpect(status().isNotFound())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1003,\"message\":\"API key not found\","
+                        "{\"error\":{\"code\":1003,\"message\":\"API key not found\","
                                 + "\"details\":null}}"));
     }
 
@@ -432,7 +430,7 @@ class TenantAPIKeyControllerTest {
                         .content("{\"name\":\"x\",\"fullAccess\":true}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1000,\"message\":\"Invalid API key ID\"}}"));
+                        "{\"error\":{\"code\":1000,\"message\":\"Invalid API key ID\"}}"));
     }
 
     // ── 删除 ──
@@ -461,7 +459,7 @@ class TenantAPIKeyControllerTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
-                        "{\"success\":false,\"error\":{\"code\":1003,\"message\":\"API key not found\","
+                        "{\"error\":{\"code\":1003,\"message\":\"API key not found\","
                                 + "\"details\":null}}"));
     }
 

@@ -220,7 +220,7 @@ class SessionStreamControllerTest {
         String body = invoke(MESSAGE_ID, null, response);
 
         assertThat(response.getStatus()).isEqualTo(404);
-        assertThat(body).isEqualTo("{\"error\":\"No stream events found\",\"success\":false}");
+        assertThat(body).isEqualTo("{\"error\":\"No stream events found\"}");
     }
 
     // ── 回放 ────────────────────────────────────────────────────────────────
@@ -294,6 +294,6 @@ class SessionStreamControllerTest {
         assertThat(response.getStatus()).isEqualTo(404);
         assertThat(response.getContentType()).isEqualTo("application/json; charset=utf-8");
         assertThat(new String(response.getContentAsByteArray(), StandardCharsets.UTF_8))
-                .isEqualTo("{\"error\":\"Incomplete message not found\",\"success\":false}");
+                .isEqualTo("{\"error\":\"Incomplete message not found\"}");
     }
 }

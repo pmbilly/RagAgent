@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"invitation not found"},"success":false}
+{"error":{"code":1003,"message":"invitation not found","details":null}}

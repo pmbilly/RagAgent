@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"adding images to an existing chunk is not supported: resource://new.png"},"success":false}
+{"error":{"code":1007,"message":"adding images to an existing chunk is not supported: resource://new.png","details":null}}

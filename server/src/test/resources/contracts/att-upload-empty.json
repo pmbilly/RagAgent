@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"file size must be between 1 byte and 50MB"},"success":false}
+{"error":{"code":1000,"message":"file size must be between 1 byte and 50MB","details":null}}

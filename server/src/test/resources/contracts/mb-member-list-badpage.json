@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"page must be a positive integer"},"success":false}
+{"error":{"code":1010,"message":"page must be a positive integer","details":null}}

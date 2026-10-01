@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"相似问「问题A」不能与标准问相同"},"success":false}
+{"error":{"code":1000,"message":"相似问「问题A」不能与标准问相同","details":null}}

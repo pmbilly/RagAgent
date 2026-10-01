@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":"Key: 'TenantID' Error:Field validation for 'TenantID' failed on the 'required' tag","message":"Invalid workspace switch request"},"success":false}
+{"error":{"code":1010,"message":"Invalid workspace switch request","details":"Key: 'TenantID' Error:Field validation for 'TenantID' failed on the 'required' tag"}}

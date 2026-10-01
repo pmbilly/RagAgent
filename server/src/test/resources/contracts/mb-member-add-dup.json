@@ -1,1 +1,1 @@
-{"error":{"code":1005,"details":null,"message":"tenant membership already exists"},"success":false}
+{"error":{"code":1005,"message":"tenant membership already exists","details":null}}

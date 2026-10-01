@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"limit must be between 1 and 100"},"success":false}
+{"error":{"code":1010,"message":"limit must be between 1 and 100","details":null}}

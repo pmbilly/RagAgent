@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"host is required for qdrant"},"success":false}
+{"error":{"code":1010,"message":"host is required for qdrant","details":null}}

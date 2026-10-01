@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":"EOF","message":"Invalid refresh token request"},"success":false}
+{"error":{"code":1010,"message":"Invalid refresh token request","details":"EOF"}}

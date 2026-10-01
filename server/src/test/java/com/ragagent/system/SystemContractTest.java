@@ -267,7 +267,7 @@ class SystemContractTest {
         MvcResult r = mockMvc.perform(jsonBody(post("/api/v1/system/parser-engines/check"), sysAdmin, "nope"))
                 .andReturn();
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals("{\"error\":{\"code\":1000,\"details\":\"请求体格式不正确\",\"message\":\"请求参数不合法\"},\"success\":false}", raw(r));
+        assertEquals("{\"error\":{\"code\":1000,\"details\":\"请求体格式不正确\",\"message\":\"请求参数不合法\"}}", raw(r));
     }
 
     /** viewer 打 check → 403（Admin 门）。 */
@@ -284,17 +284,17 @@ class SystemContractTest {
         MvcResult r = mockMvc.perform(jsonBody(post("/api/v1/system/docreader/reconnect"), sysAdmin, "{}"))
                 .andReturn();
         assertEquals(400, r.getResponse().getStatus(), raw(r));
-        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"请提供 addr 参数\"},\"success\":false}", raw(r));
+        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"请提供 addr 参数\"}}", raw(r));
 
         MvcResult b = mockMvc.perform(jsonBody(post("/api/v1/system/docreader/reconnect"), sysAdmin,
                 "{\"addr\":\"   \"}")).andReturn();
         assertEquals(400, b.getResponse().getStatus(), raw(b));
-        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"addr 不能为空\"},\"success\":false}", raw(b));
+        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"addr 不能为空\"}}", raw(b));
 
         MvcResult j = mockMvc.perform(jsonBody(post("/api/v1/system/docreader/reconnect"), sysAdmin, "nope"))
                 .andReturn();
         assertEquals(400, j.getResponse().getStatus(), raw(j));
-        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"请提供 addr 参数\"},\"success\":false}", raw(j));
+        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"请提供 addr 参数\"}}", raw(j));
 
         MvcResult s = mockMvc.perform(jsonBody(post("/api/v1/system/docreader/reconnect"), sysAdmin,
                 "{\"addr\":\"http://169.254.169.254:50051\"}")).andReturn();
@@ -703,12 +703,12 @@ class SystemContractTest {
                 post("/api/v1/system/admin/runtime/queues/default/tasks/t1/actions/cancel")
                         .header("Authorization", sysAdmin)).andReturn();
         assertEquals(503, mutate.getResponse().getStatus(), raw(mutate));
-        assertEquals("{\"error\":{\"code\":1008,\"details\":null,\"message\":\"Task queue is unavailable\"},\"success\":false}", raw(mutate));
+        assertEquals("{\"error\":{\"code\":1008,\"details\":null,\"message\":\"Task queue is unavailable\"}}", raw(mutate));
 
         MvcResult purge = mockMvc.perform(delete("/api/v1/system/admin/runtime/queues/default/archived")
                 .header("Authorization", sysAdmin)).andReturn();
         assertEquals(503, purge.getResponse().getStatus(), raw(purge));
-        assertEquals("{\"error\":{\"code\":1008,\"details\":null,\"message\":\"Task queue is unavailable\"},\"success\":false}", raw(purge));
+        assertEquals("{\"error\":{\"code\":1008,\"details\":null,\"message\":\"Task queue is unavailable\"}}", raw(purge));
     }
 
     // ════════════════ /system/admin 组：配额批量应用 ════════════════

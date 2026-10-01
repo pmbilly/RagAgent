@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"Failed to get MCP service tools: failed to get MCP client: MCP service golden-mcp-renamed is not enabled"},"success":false}
+{"error":{"code":1007,"message":"Failed to get MCP service tools: failed to get MCP client: MCP service golden-mcp-renamed is not enabled","details":null}}

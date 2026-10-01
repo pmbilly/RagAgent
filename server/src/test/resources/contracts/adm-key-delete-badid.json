@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"Invalid API key ID"},"success":false}
+{"error":{"code":1000,"message":"Invalid API key ID","details":null}}

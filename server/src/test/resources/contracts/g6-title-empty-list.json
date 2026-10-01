@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"no KnowledgeQA model available for title generation"},"success":false}
+{"error":{"code":1007,"message":"no KnowledgeQA model available for title generation","details":null}}

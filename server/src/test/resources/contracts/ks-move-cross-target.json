@@ -1,1 +1,1 @@
-{"error":{"code":1002,"details":null,"message":"No permission to access target knowledge base"},"success":false}
+{"error":{"code":1002,"message":"No permission to access target knowledge base","details":null}}

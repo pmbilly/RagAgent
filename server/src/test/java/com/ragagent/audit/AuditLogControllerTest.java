@@ -42,7 +42,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
  *   <li>空页响应体是 {@code {"success":true,"data":[],"next_cursor":0}}——
  *       Go 的 {@code []*types.AuditLog} 经 GORM {@code Find} 后是<b>非 nil 空切片</b>，
  *       序列化成 {@code []} 而不是 {@code null}（与 Wiki 的 nil slice 不同）；</li>
- *   <li>非法租户 ID 是 400 {@code {"error":{"code":1010,...}},"success":false}；</li>
+ *   <li>非法租户 ID 是 400 统一错误体 {@code {"error":{"code":1010,...}}}；</li>
  *   <li>非创建者读他人 KB 活动流是 <b>403 守卫形态</b>（纯字符串），
  *       因为线上是 {@code g.OwnedKBOrAdmin()} 中间件先拒。</li>
  * </ul>
@@ -174,8 +174,8 @@ class AuditLogControllerTest {
 
         mvc.perform(get("/api/v1/tenants/not-a-number/audit-log"))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string("{\"error\":{\"code\":1010,\"details\":null,"
-                        + "\"message\":\"workspace id must be a positive integer\"},\"success\":false}"));
+                .andExpect(content().string("{\"error\":{\"code\":1010,"
+                        + "\"message\":\"workspace id must be a positive integer\",\"details\":null}}"));
 
         // 0 也不是合法空间 ID（对照 Go 的 `err != nil || v == 0`）
         mvc.perform(get("/api/v1/tenants/0/audit-log"))
@@ -225,7 +225,7 @@ class AuditLogControllerTest {
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
 
         assertThat(body).contains("db: connection refused");
-        assertThat(body).contains("\"success\":false");
+        assertThat(body).contains("\"error\":{\"code\":");
     }
 
     // ── GET /knowledge-bases/{id}/activity ───────────────────────────────
@@ -267,9 +267,9 @@ class AuditLogControllerTest {
 
         mvc.perform(get("/api/v1/knowledge-bases/kb-1/activity"))
                 .andExpect(status().isForbidden())
-                .andExpect(content().string("{\"error\":{\"code\":1002,\"details\":null,"
-                        + "\"message\":\"knowledge base activity is only available in the owner workspace\"},"
-                        + "\"success\":false}"));
+                .andExpect(content().string("{\"error\":{\"code\":1002,"
+                        + "\"message\":\"knowledge base activity is only available in the owner workspace\","
+                        + "\"details\":null}}"));
     }
 
     /**
@@ -313,8 +313,8 @@ class AuditLogControllerTest {
 
         mvc.perform(get("/api/v1/knowledge-bases/no-such-kb/activity"))
                 .andExpect(status().isNotFound())
-                .andExpect(content().string("{\"error\":{\"code\":1003,\"details\":null,"
-                        + "\"message\":\"knowledge base not found\"},\"success\":false}"));
+                .andExpect(content().string("{\"error\":{\"code\":1003,"
+                        + "\"message\":\"knowledge base not found\",\"details\":null}}"));
     }
 
     /** 未附加角色时回落 Viewer（对照 Go {@code TenantRoleFromContext} 的 fail-closed 默认）。 */

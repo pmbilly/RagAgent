@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"memory not found"},"success":false}
+{"error":{"code":1003,"message":"memory not found","details":null}}

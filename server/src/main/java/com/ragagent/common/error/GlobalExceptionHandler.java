@@ -12,9 +12,9 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * 对照 Go middleware/error_handler.go：
- * - AppError → 其 HTTPCode + {"success": false, "error": {code, message, details}}
- * - 其他异常 → 500 + {"success": false, "error": {1007, "Internal server error"}}
+ * 统一错误形态（契约标准 §2 第 4 条）：
+ * - BizException → 其 HTTPCode + {@code {"error": {code, message, details}}}
+ * - 其他异常 → 500 + {@code {"error": {1007, "Internal server error"}}}
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -211,19 +211,16 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 与 Go ErrorHandler 的 JSON 字节序一致。
-     * 实测 Go 信封是 gin.H（map），encoding/json 对 map 键按字母序输出：
-     * {"error":{"code":N,"details":...,"message":"..."},"success":false}
-     * （2026-09-17 用运行中的 Go dev server 实测确认，修正了骨架期的插入序假设）
+     * 错误体 = {@code {"error":{"code","message","details"}}}（键序按契约标准声明序；
+     * details 可为 null——可空字段显式输出）。
      */
     private Map<String, Object> errorBody(AppError e) {
         Map<String, Object> error = new LinkedHashMap<>();
         error.put("code", e.code());
-        error.put("details", e.details());
         error.put("message", e.message());
+        error.put("details", e.details());
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", error);
-        body.put("success", false);
         return body;
     }
 }

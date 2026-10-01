@@ -1,1 +1,1 @@
-{"error":{"code":1005,"details":null,"message":"cannot demote or remove the last active owner of the tenant"},"success":false}
+{"error":{"code":1005,"message":"cannot demote or remove the last active owner of the tenant","details":null}}

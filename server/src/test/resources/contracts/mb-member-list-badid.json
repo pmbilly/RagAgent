@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"workspace id must be a positive integer"},"success":false}
+{"error":{"code":1010,"message":"workspace id must be a positive integer","details":null}}

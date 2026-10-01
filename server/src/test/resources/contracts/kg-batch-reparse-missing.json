@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"some knowledge entries were not found"},"success":false}
+{"error":{"code":1000,"message":"some knowledge entries were not found","details":null}}

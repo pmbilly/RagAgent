@@ -208,9 +208,9 @@ class WikiHttpContractTest {
         String body = body(perform(get("/api/v1/knowledgebase/" + KB_FOREIGN + "/wiki/pages")
                 .header("Authorization", "Bearer " + token)));
 
-        assertTrue(body.startsWith("{\"error\":{\"code\":1002,\"details\":null,\"message\":\""),
-                "跨空间拒绝必须是全局错误信封（键字母序）：" + body);
-        assertTrue(body.endsWith("\"success\":false}"), body);
+        assertTrue(body.startsWith("{\"error\":{\"code\":1002,\"message\":\""),
+                "跨空间拒绝必须是统一错误体：" + body);
+        assertTrue(body.endsWith("\"details\":null}}"), body);
         assertTrue(body.contains("Permission denied to access this knowledge base"), body);
     }
 

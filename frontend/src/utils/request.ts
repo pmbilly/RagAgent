@@ -185,7 +185,7 @@ instance.interceptors.response.use(
 
     const { status, data } = error.response;
     // 将HTTP状态码一并抛出，方便上层判断401等场景
-    // 后端返回格式: { success: false, error: { code, message, details } }
+    // 后端错误体统一为: { error: { code, message, details } }
     // 提取 error.message 作为顶层 message，方便前端使用 error?.message 获取
     let errorMessage: string | undefined;
     if (typeof data === 'object') {

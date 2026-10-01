@@ -1,1 +1,1 @@
-{"error":{"code":1002,"details":null,"message":"API keys cannot assign the owner role"},"success":false}
+{"error":{"code":1002,"message":"API keys cannot assign the owner role","details":null}}

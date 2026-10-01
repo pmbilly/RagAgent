@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":"Key: 'acceptInvitationByTokenRequest.Token' Error:Field validation for 'Token' failed on the 'required' tag","message":"token is required"},"success":false}
+{"error":{"code":1010,"message":"token is required","details":"Key: 'acceptInvitationByTokenRequest.Token' Error:Field validation for 'Token' failed on the 'required' tag"}}

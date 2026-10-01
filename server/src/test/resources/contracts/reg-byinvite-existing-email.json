@@ -1,1 +1,1 @@
-{"error":{"code":1005,"details":null,"message":"this email already has an account; please log in to join the workspace"},"success":false}
+{"error":{"code":1005,"message":"this email already has an account; please log in to join the workspace","details":null}}

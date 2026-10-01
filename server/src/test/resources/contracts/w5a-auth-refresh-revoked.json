@@ -1,1 +1,1 @@
-{"error":{"code":1001,"details":"refresh token is revoked","message":"Token refresh failed"},"success":false}
+{"error":{"code":1001,"message":"Token refresh failed","details":"refresh token is revoked"}}

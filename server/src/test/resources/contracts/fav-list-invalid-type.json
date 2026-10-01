@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"invalid favorite resource type"},"success":false}
+{"error":{"code":1000,"message":"invalid favorite resource type","details":null}}

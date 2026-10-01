@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"page_size must be between 1 and 100"},"success":false}
+{"error":{"code":1010,"message":"page_size must be between 1 and 100","details":null}}

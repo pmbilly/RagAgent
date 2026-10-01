@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"storage backend not found"},"success":false}
+{"error":{"code":1003,"message":"storage backend not found","details":null}}

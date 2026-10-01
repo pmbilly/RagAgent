@@ -1,1 +1,1 @@
-{"error":{"code":2402,"details":"limit: 65536","message":"text exceeds preview limit"},"success":false}
+{"error":{"code":2402,"message":"text exceeds preview limit","details":"limit: 65536"}}

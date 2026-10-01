@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"Key: 'storageBackendRequest.Name' Error:Field validation for 'Name' failed on the 'required' tag\nKey: 'storageBackendRequest.Provider' Error:Field validation for 'Provider' failed on the 'required' tag"},"success":false}
+{"error":{"code":1000,"message":"Key: 'storageBackendRequest.Name' Error:Field validation for 'Name' failed on the 'required' tag\nKey: 'storageBackendRequest.Provider' Error:Field validation for 'Provider' failed on the 'required' tag","details":null}}

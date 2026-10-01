@@ -1,1 +1,1 @@
-{"error":{"code":1005,"details":null,"message":"a pending invitation for this user already exists"},"success":false}
+{"error":{"code":1005,"message":"a pending invitation for this user already exists","details":null}}

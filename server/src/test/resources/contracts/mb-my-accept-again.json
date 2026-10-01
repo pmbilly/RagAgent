@@ -1,1 +1,1 @@
-{"error":{"code":1005,"details":null,"message":"invitation is no longer pending"},"success":false}
+{"error":{"code":1005,"message":"invitation is no longer pending","details":null}}

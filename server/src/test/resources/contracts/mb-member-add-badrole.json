@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"role must be one of owner/admin/contributor/viewer"},"success":false}
+{"error":{"code":1010,"message":"role must be one of owner/admin/contributor/viewer","details":null}}

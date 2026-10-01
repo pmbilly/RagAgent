@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"SSRF validation failed: hostname 127.0.0.1 is restricted"},"success":false}
+{"error":{"code":1007,"message":"SSRF validation failed: hostname 127.0.0.1 is restricted","details":null}}

@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"only text chunks can be edited"},"success":false}
+{"error":{"code":1007,"message":"only text chunks can be edited","details":null}}

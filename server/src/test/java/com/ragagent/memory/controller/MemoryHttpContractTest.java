@@ -561,14 +561,14 @@ class MemoryHttpContractTest {
 
         MvcResult created = createItem("{\"kind\":\"fact\",\"content\":\"x\",\"importance\":1}");
         assertEquals(400, created.getResponse().getStatus(), raw(created));
-        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"memory is disabled\"},"
-                + "\"success\":false}", raw(created));
+        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"memory is disabled\"}}",
+                raw(created));
 
         MvcResult consolidated =
                 perform(post("/api/v1/memory/consolidate").header("Authorization", bearer()));
         assertEquals(400, consolidated.getResponse().getStatus(), raw(consolidated));
-        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"memory is disabled\"},"
-                + "\"success\":false}", raw(consolidated));
+        assertEquals("{\"error\":{\"code\":1000,\"details\":null,\"message\":\"memory is disabled\"}}",
+                raw(consolidated));
     }
 
     // ══════════════════════════ 路由 / API-Key 策略 ══════════════════════════

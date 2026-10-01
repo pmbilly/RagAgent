@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"chunk content cannot be empty"},"success":false}
+{"error":{"code":1007,"message":"chunk content cannot be empty","details":null}}

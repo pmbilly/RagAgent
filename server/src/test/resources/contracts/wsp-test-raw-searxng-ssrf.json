@@ -1,1 +1,1 @@
-{"error":"failed to create provider: invalid SearXNG base_url: SSRF validation failed: hostname 127.0.0.1 is restricted","success":false}
+{"error":"failed to create provider: invalid SearXNG base_url: SSRF validation failed: hostname 127.0.0.1 is restricted"}

@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"Failed to parse chunk overlap"},"success":false}
+{"error":{"code":1000,"message":"Failed to parse chunk overlap","details":null}}

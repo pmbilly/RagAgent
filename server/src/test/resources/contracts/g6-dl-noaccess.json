@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"artifact not accessible"},"success":false}
+{"error":{"code":1003,"message":"artifact not accessible","details":null}}

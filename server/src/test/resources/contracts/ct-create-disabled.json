@@ -1,1 +1,1 @@
-{"error":{"code":2005,"details":null,"message":"self-service workspace creation is disabled; join a workspace by invitation"},"success":false}
+{"error":{"code":2005,"message":"self-service workspace creation is disabled; join a workspace by invitation","details":null}}

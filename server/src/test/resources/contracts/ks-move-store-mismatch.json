@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"source and target knowledge bases use different vector stores; use reparse mode for moves"},"success":false}
+{"error":{"code":1000,"message":"source and target knowledge bases use different vector stores; use reparse mode for moves","details":null}}

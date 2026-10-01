@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"redirect_uri is required"},"success":false}
+{"error":{"code":1010,"message":"redirect_uri is required","details":null}}

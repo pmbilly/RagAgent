@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"内容不能为空"},"success":false}
+{"error":{"code":1010,"message":"内容不能为空","details":null}}

@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"model is currently downloading"},"success":false}
+{"error":{"code":1007,"message":"model is currently downloading","details":null}}

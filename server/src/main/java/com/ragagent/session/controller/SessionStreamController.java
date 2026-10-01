@@ -320,17 +320,14 @@ public class SessionStreamController {
     // ── 辅助 ───────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code c.JSON(status, gin.H{"success": false, "error": msg})}。
-     *
-     * <p>gin.H 是 map，序列化时**按键排序**，所以线上字节是
-     * {@code {"error":"…","success":false}}——不是源码里的书写顺序。</p>
+     * SSE 起流前的 JSON 错误体：{@code {"error":"…"}}（与全局纯字符串错误形态同族）。
      *
      * <p>只能在 SSE 头写出**之前**调用：一旦开始流就不可能退回 JSON 了。</p>
      */
     static void writeJsonError(HttpServletResponse response, int status, String message) throws IOException {
         response.setStatus(status);
         response.setContentType("application/json; charset=utf-8");
-        String body = "{\"error\":\"" + escapeJsonString(message) + "\",\"success\":false}";
+        String body = "{\"error\":\"" + escapeJsonString(message) + "\"}";
         response.getOutputStream().write(body.getBytes(StandardCharsets.UTF_8));
         response.getOutputStream().flush();
     }

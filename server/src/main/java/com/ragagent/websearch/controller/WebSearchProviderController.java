@@ -408,11 +408,10 @@ public class WebSearchProviderController {
         return body;
     }
 
-    /** gin.H：{"error": msg, "success": false}（字母序 error < success） */
+    /** 纯字符串错误体：{"error": msg}（不进全局信封，对照 Go handler 的 c.JSON 直写） */
     public static Map<String, Object> errorEnvelope(String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", message);
-        body.put("success", false);
         return body;
     }
 

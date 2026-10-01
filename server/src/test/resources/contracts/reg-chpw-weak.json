@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":"password_policy","message":"Password policy violation"},"success":false}
+{"error":{"code":1010,"message":"Password policy violation","details":"password_policy"}}

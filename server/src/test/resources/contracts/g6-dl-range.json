@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"artifact index out of range"},"success":false}
+{"error":{"code":1003,"message":"artifact index out of range","details":null}}

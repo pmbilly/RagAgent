@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"Key: 'ModelTestRequest.ModelName' Error:Field validation for 'ModelName' failed on the 'required' tag"},"success":false}
+{"error":{"code":1000,"message":"Key: 'ModelTestRequest.ModelName' Error:Field validation for 'ModelName' failed on the 'required' tag","details":null}}

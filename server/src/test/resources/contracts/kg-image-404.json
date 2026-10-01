@@ -1,1 +1,1 @@
-{"error":{"code":1007,"details":null,"message":"chunk not found"},"success":false}
+{"error":{"code":1007,"message":"chunk not found","details":null}}

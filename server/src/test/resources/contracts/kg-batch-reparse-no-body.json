@@ -1,1 +1,1 @@
-{"error":{"code":1000,"details":null,"message":"invalid batch reparse knowledge request parameters"},"success":false}
+{"error":{"code":1000,"message":"invalid batch reparse knowledge request parameters","details":null}}

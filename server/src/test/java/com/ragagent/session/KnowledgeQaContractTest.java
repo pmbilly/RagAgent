@@ -53,14 +53,14 @@ class KnowledgeQaContractTest {
         return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
-    /** 错误信封契约：code/message/details/success 语义断言（键序已归一，PR4）。 */
+    /** 错误体契约：code/message/details 语义断言（键序已归一，PR4；success 键已退役）。 */
     private void assertEnvelope(String goldenName, int expectedCode, String expectedMessage) throws Exception {
         var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(golden(goldenName));
         assertTrue(root.path("error").path("code").asInt() == expectedCode, goldenName + " code");
         assertTrue(expectedMessage.equals(root.path("error").path("message").asText()),
                 goldenName + " message: " + root.path("error").path("message").asText());
         assertTrue(root.path("error").path("details").isNull(), goldenName + " details");
-        assertTrue(root.path("success").isBoolean() && !root.path("success").asBoolean(), goldenName + " success");
+        assertTrue(!root.has("success"), goldenName + " 不得有 success 键");
     }
 
     @Test

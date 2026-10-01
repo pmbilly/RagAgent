@@ -1,1 +1,1 @@
-{"error":{"code":1002,"details":"tenant membership not found","message":"workspace switch failed"},"success":false}
+{"error":{"code":1002,"message":"workspace switch failed","details":"tenant membership not found"}}

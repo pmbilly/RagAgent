@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"unsupported engine type: postgres"},"success":false}
+{"error":{"code":1010,"message":"unsupported engine type: postgres","details":null}}

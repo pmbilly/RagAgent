@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"Attachment not found"},"success":false}
+{"error":{"code":1003,"message":"Attachment not found","details":null}}

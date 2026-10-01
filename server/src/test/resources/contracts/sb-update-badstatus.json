@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"status must be active or disabled"},"success":false}
+{"error":{"code":1010,"message":"status must be active or disabled","details":null}}

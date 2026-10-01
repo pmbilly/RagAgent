@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"expires_in_seconds must be between 1 and 3600"},"success":false}
+{"error":{"code":1010,"message":"expires_in_seconds must be between 1 and 3600","details":null}}

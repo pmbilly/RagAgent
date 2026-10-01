@@ -1,1 +1,1 @@
-{"error":{"code":1003,"details":null,"message":"Session not found"},"success":false}
+{"error":{"code":1003,"message":"Session not found","details":null}}

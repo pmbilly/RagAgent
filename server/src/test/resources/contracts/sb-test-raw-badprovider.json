@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"storage provider \"bogus\" is not allowed"},"success":false}
+{"error":{"code":1010,"message":"storage provider \"bogus\" is not allowed","details":null}}

@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"path_prefix must be a relative path without parent traversal"},"success":false}
+{"error":{"code":1010,"message":"path_prefix must be a relative path without parent traversal","details":null}}

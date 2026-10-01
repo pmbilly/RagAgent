@@ -1,1 +1,1 @@
-{"error":{"code":1010,"details":null,"message":"mode must be tenant, direct_header, or signed_token"},"success":false}
+{"error":{"code":1010,"message":"mode must be tenant, direct_header, or signed_token","details":null}}

@@ -1,1 +1,1 @@
-{"error":{"code":1002,"details":null,"message":"该存储引擎已被禁用"},"success":false}
+{"error":{"code":1002,"message":"该存储引擎已被禁用","details":null}}
