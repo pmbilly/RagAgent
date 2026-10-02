@@ -197,26 +197,26 @@ public final class AgentResponses {
         starters.put("items", s == null ? null : strList(s.get("items")));
         starters.put("count", s == null ? 0 : s.path("count").asInt(0));
         Map<String, Object> fu = new LinkedHashMap<>();
-        JsonNode f = q.get("follow_ups");
+        JsonNode f = q.get("followUps");
         fu.put("enabled", f != null && f.path("enabled").asBoolean(false));
         fu.put("mode", f == null ? "" : text(f, "mode"));
         fu.put("count", f == null ? 0 : f.path("count").asInt(0));
         if (f != null && !text(f, "modelId").isEmpty()) {
             fu.put("modelId", text(f, "modelId"));
         }
-        if (f != null && !text(f, "additional_instruction").isEmpty()) {
-            fu.put("additional_instruction", text(f, "additional_instruction"));
+        if (f != null && !text(f, "additionalInstruction").isEmpty()) {
+            fu.put("additionalInstruction", text(f, "additionalInstruction"));
         }
         if (f != null && f.get("categories") != null && f.get("categories").isArray() && f.get("categories").size() > 0) {
             fu.put("categories", strList(f.get("categories")));
         }
-        fu.put("max_context_turns", f == null ? 0 : f.path("max_context_turns").asInt(0));
-        fu.put("suppress_on_fallback", f != null && f.path("suppress_on_fallback").asBoolean(false));
-        fu.put("suppress_when_answer_asks_question", f != null && f.path("suppress_when_answer_asks_question").asBoolean(false));
-        fu.put("knowledge_fallback", f != null && f.path("knowledge_fallback").asBoolean(false));
-        fu.put("allow_regenerate", f != null && f.path("allow_regenerate").asBoolean(false));
+        fu.put("maxContextTurns", f == null ? 0 : f.path("maxContextTurns").asInt(0));
+        fu.put("suppressOnFallback", f != null && f.path("suppressOnFallback").asBoolean(false));
+        fu.put("suppressWhenAnswerAsksQuestion", f != null && f.path("suppressWhenAnswerAsksQuestion").asBoolean(false));
+        fu.put("knowledgeFallback", f != null && f.path("knowledgeFallback").asBoolean(false));
+        fu.put("allowRegenerate", f != null && f.path("allowRegenerate").asBoolean(false));
         outer.put("starters", starters);
-        outer.put("follow_ups", fu);
+        outer.put("followUps", fu);
         m.put("questionSuggestions", outer);
     }
 

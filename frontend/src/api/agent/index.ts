@@ -15,18 +15,18 @@ export interface QuestionSuggestionConfig {
     items: string[];
     count: number;
   };
-  follow_ups: {
+  followUps: {
     enabled: boolean;
     mode: 'generated' | 'knowledge' | 'hybrid';
     count: number;
     modelId?: string;
-    additional_instruction?: string;
+    additionalInstruction?: string;
     categories: Array<'clarify' | 'deepen' | 'action'>;
-    max_context_turns: number;
-    suppress_on_fallback: boolean;
-    suppress_when_answer_asks_question: boolean;
-    knowledge_fallback: boolean;
-    allow_regenerate: boolean;
+    maxContextTurns: number;
+    suppressOnFallback: boolean;
+    suppressWhenAnswerAsksQuestion: boolean;
+    knowledgeFallback: boolean;
+    allowRegenerate: boolean;
   };
 }
 

@@ -153,7 +153,7 @@ public class MessageSuggestionService {
         boolean enabled = followUps != null
                 && Boolean.TRUE.equals(followUps.get("enabled"));
         boolean allowRegenerate = followUps != null
-                && Boolean.TRUE.equals(followUps.get("allow_regenerate"));
+                && Boolean.TRUE.equals(followUps.get("allowRegenerate"));
 
         if (regenerate && (config == null || !enabled || !allowRegenerate)) {
             // writeError 按 "not allowed" 子串落 400
@@ -180,7 +180,7 @@ public class MessageSuggestionService {
         if (config == null || !enabled) {
             return suppress(set, "disabled");
         }
-        boolean suppressOnFallback = boolVal(followUps, "suppress_on_fallback");
+        boolean suppressOnFallback = boolVal(followUps, "suppressOnFallback");
         if (message.isFallback() && suppressOnFallback) {
             return suppress(set, "fallback_answer");
         }
@@ -189,7 +189,7 @@ public class MessageSuggestionService {
             return suppress(set, "empty_answer");
         }
         boolean suppressWhenAnswerAsksQuestion =
-                boolVal(followUps, "suppress_when_answer_asks_question");
+                boolVal(followUps, "suppressWhenAnswerAsksQuestion");
         if (suppressWhenAnswerAsksQuestion && MessageSuggestionPipeline.answerEndsWithQuestion(answer)) {
             return suppress(set, "answer_asks_question");
         }
@@ -314,7 +314,7 @@ public class MessageSuggestionService {
             count = 3;
         }
         GenerationContext context =
-                buildGenerationContext(message, MessageSuggestionPipeline.intVal(followUps, "max_context_turns"));
+                buildGenerationContext(message, MessageSuggestionPipeline.intVal(followUps, "maxContextTurns"));
         List<SuggestionItem> generated = new ArrayList<>();
         List<SuggestionItem> knowledge = new ArrayList<>();
         int[] usage = new int[2]; // promptTokens, completionTokens
@@ -331,7 +331,7 @@ public class MessageSuggestionService {
         }
 
         boolean needKnowledge = MODE_KNOWLEDGE.equals(mode) || MODE_HYBRID.equals(mode)
-                || (modelErr != null && boolVal(followUps, "knowledge_fallback"));
+                || (modelErr != null && boolVal(followUps, "knowledgeFallback"));
         if (needKnowledge) {
             int knowledgeLimit = count;
             if (MODE_GENERATED.equals(mode)) {
@@ -389,7 +389,7 @@ public class MessageSuggestionService {
         MessageExecutionContext ec = message.getExecutionContext();
         String language = WikiLanguageSupport.resolveLanguageName(ec == null ? null : ec.getLocale());
         String systemPrompt = buildSuggestionSystemPrompt(count, language, joined);
-        String instruction = strVal(followUps, "additional_instruction").trim();
+        String instruction = strVal(followUps, "additionalInstruction").trim();
         if (!instruction.isEmpty()) {
             systemPrompt += " Additional agent instruction: " + instruction;
         }
@@ -582,7 +582,7 @@ public class MessageSuggestionService {
         if (config == null) {
             return null;
         }
-        Object raw = config.get("follow_ups");
+        Object raw = config.get("followUps");
         @SuppressWarnings("unchecked")
         Map<String, Object> followUps = raw instanceof Map ? (Map<String, Object>) raw : null;
         return followUps;

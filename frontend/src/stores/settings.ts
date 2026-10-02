@@ -431,17 +431,17 @@ export const useSettingsStore = defineStore("settings", {
         if (!tag.id || !tag.kbId) return scopes;
         (scopes[tag.kbId] ||= []).push(tag.id);
         return scopes;
-      }, {})).map(([knowledge_base_id, ids]) => ({
-        knowledge_base_id,
-        tag_ids: [...new Set(ids)],
+      }, {})).map(([knowledgeBaseId, ids]) => ({
+        knowledgeBaseId,
+        tagIds: [...new Set(ids)],
       }));
       return {
-        // A tag's parent KB is only an ownership hint, not an explicit whole-KB
-        // selection. Keep it in tag_scopes so the backend cannot widen a tag to
-        // every document in that KB.
-        knowledge_base_ids: selectedKBs.length > 0 ? selectedKBs : undefined,
-        knowledge_ids: selectedFiles.length > 0 ? selectedFiles : undefined,
-        tag_scopes: tagScopes.length > 0 ? tagScopes : undefined,
+        // 标签的父 KB 只是归属提示、不是显式的整库选择。必须带上 tagScopes，
+        // 否则后端会把标签放大到该 KB 下的每个文档（B19：键名需与 api/agent 的
+        // camel 契约一致，此前写成 snake 被静默丢弃）。
+        knowledgeBaseIds: selectedKBs.length > 0 ? selectedKBs : undefined,
+        knowledgeIds: selectedFiles.length > 0 ? selectedFiles : undefined,
+        tagScopes: tagScopes.length > 0 ? tagScopes : undefined,
         limit,
       };
     },

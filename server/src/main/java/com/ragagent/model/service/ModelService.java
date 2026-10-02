@@ -385,24 +385,25 @@ public class ModelService implements ModelGateway  {
         if (config == null) {
             return bindings;
         }
-        if (modelId.equals(text(config.get("model_id")))) {
+        // agent 配置树自 B18/B19 起键名 = Java 字段名（camel）——此处按 camel 读取
+        if (modelId.equals(text(config.get("modelId")))) {
             bindings.add("chat_model");
         }
-        if (modelId.equals(text(config.get("rerank_model_id")))) {
+        if (modelId.equals(text(config.get("rerankModelId")))) {
             bindings.add("rerank_model");
         }
-        if (modelId.equals(text(config.get("vlm_model_id")))) {
+        if (modelId.equals(text(config.get("vlmModelId")))) {
             bindings.add("vlm_model");
         }
-        if (modelId.equals(text(config.get("asr_model_id")))) {
+        if (modelId.equals(text(config.get("asrModelId")))) {
             bindings.add("asr_model");
         }
-        if (modelId.equals(text(config.get("query_understand_model_id")))) {
+        if (modelId.equals(text(config.get("queryUnderstandModelId")))) {
             bindings.add("query_understand_model");
         }
-        JsonNode followUps = config.get("question_suggestions");
-        if (followUps != null && followUps.get("follow_ups") != null) {
-            if (modelId.equals(text(followUps.get("follow_ups").get("model_id")))) {
+        JsonNode followUps = config.get("questionSuggestions");
+        if (followUps != null && followUps.get("followUps") != null) {
+            if (modelId.equals(text(followUps.get("followUps").get("modelId")))) {
                 bindings.add("follow_up_model");
             }
         }

@@ -35,7 +35,7 @@ test('智能体中允许继承或关闭的可选模型可以恢复为空', () =>
   assert.match(rerank, /:clearable="!needsRerankModel"/)
   assertClearable(modelSelectorTag(agentEditor, 'formData.config.queryUnderstandModelId'))
   assertClearable(modelSelectorTag(agentEditor, 'formData.config.asrModelId'))
-  assertClearable(modelSelectorTag(agentEditor, 'formData.config.questionSuggestions.follow_ups.modelId'))
+  assertClearable(modelSelectorTag(agentEditor, 'formData.config.questionSuggestions.followUps.modelId'))
 })
 
 test('知识库仅在模型确实可选时允许恢复为空', () => {

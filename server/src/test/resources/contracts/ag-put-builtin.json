@@ -62,7 +62,7 @@
         "items": [],
         "count": 6
       },
-      "follow_ups": {
+      "followUps": {
         "enabled": false,
         "mode": "hybrid",
         "count": 3,
@@ -71,11 +71,11 @@
           "deepen",
           "action"
         ],
-        "max_context_turns": 2,
-        "suppress_on_fallback": true,
-        "suppress_when_answer_asks_question": true,
-        "knowledge_fallback": true,
-        "allow_regenerate": false
+        "maxContextTurns": 2,
+        "suppressOnFallback": true,
+        "suppressWhenAnswerAsksQuestion": true,
+        "knowledgeFallback": true,
+        "allowRegenerate": false
       }
     }
   },

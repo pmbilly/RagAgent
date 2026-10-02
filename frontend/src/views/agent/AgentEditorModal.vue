@@ -1026,18 +1026,18 @@
                         <p class="desc">{{ $t('agentEditor.questionSuggestions.enableFollowUpsDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.questionSuggestions.follow_ups.enabled"
+                        <t-switch v-model="formData.config.questionSuggestions.followUps.enabled"
                           :aria-label="$t('agentEditor.questionSuggestions.enableFollowUps')" />
                       </div>
                     </div>
 
-                    <template v-if="formData.config.questionSuggestions.follow_ups.enabled">
+                    <template v-if="formData.config.questionSuggestions.followUps.enabled">
                       <div class="setting-row">
                         <div class="setting-info">
                           <label>{{ $t('agentEditor.questionSuggestions.sourceMode') }}</label>
                         </div>
                         <div class="setting-control">
-                          <t-select v-model="formData.config.questionSuggestions.follow_ups.mode"
+                          <t-select v-model="formData.config.questionSuggestions.followUps.mode"
                             :options="followUpSuggestionModeOptions" />
                         </div>
                       </div>
@@ -1047,12 +1047,12 @@
                           <label>{{ $t('agentEditor.questionSuggestions.count') }}</label>
                         </div>
                         <div class="setting-control">
-                          <t-input-number v-model="formData.config.questionSuggestions.follow_ups.count"
+                          <t-input-number v-model="formData.config.questionSuggestions.followUps.count"
                             :min="1" :max="5" theme="column" />
                         </div>
                       </div>
 
-                      <div v-if="formData.config.questionSuggestions.follow_ups.mode !== 'knowledge'"
+                      <div v-if="formData.config.questionSuggestions.followUps.mode !== 'knowledge'"
                         class="setting-row">
                         <div class="setting-info">
                           <label>{{ $t('agentEditor.questionSuggestions.model') }}</label>
@@ -1060,10 +1060,10 @@
                         </div>
                         <div class="setting-control">
                           <ModelSelector model-type="KnowledgeQA"
-                            :selected-model-id="formData.config.questionSuggestions.follow_ups.modelId"
+                            :selected-model-id="formData.config.questionSuggestions.followUps.modelId"
                             :all-models="allModels"
                             clearable
-                            @update:selected-model-id="(val: string) => formData.config.questionSuggestions.follow_ups.modelId = val"
+                            @update:selected-model-id="(val: string) => formData.config.questionSuggestions.followUps.modelId = val"
                             @add-model="handleAddModel('summary')" />
                         </div>
                       </div>
@@ -1078,7 +1078,7 @@
                         </div>
                         <div class="setting-control">
                           <t-input-number
-                            v-model="formData.config.questionSuggestions.follow_ups.max_context_turns"
+                            v-model="formData.config.questionSuggestions.followUps.maxContextTurns"
                             :min="1" :max="5" theme="column" />
                         </div>
                       </div>
@@ -1088,7 +1088,7 @@
                           <label>{{ $t('agentEditor.questionSuggestions.categories') }}</label>
                         </div>
                         <div class="setting-control setting-control-full">
-                          <t-checkbox-group v-model="formData.config.questionSuggestions.follow_ups.categories"
+                          <t-checkbox-group v-model="formData.config.questionSuggestions.followUps.categories"
                             :options="followUpCategoryOptions" />
                         </div>
                       </div>
@@ -1099,7 +1099,7 @@
                         </div>
                         <div class="setting-control setting-control-full">
                           <t-textarea
-                            v-model="formData.config.questionSuggestions.follow_ups.additional_instruction"
+                            v-model="formData.config.questionSuggestions.followUps.additionalInstruction"
                             :placeholder="$t('agentEditor.questionSuggestions.instructionPlaceholder')"
                             :maxlength="2000" :autosize="{ minRows: 3, maxRows: 8 }" />
                         </div>
@@ -1111,10 +1111,10 @@
                         </div>
                         <div class="setting-control setting-control-full">
                           <div class="suggestion-checkboxes">
-                            <t-checkbox v-model="formData.config.questionSuggestions.follow_ups.suppress_on_fallback">{{ $t('agentEditor.questionSuggestions.suppressFallback') }}</t-checkbox>
-                            <t-checkbox v-model="formData.config.questionSuggestions.follow_ups.suppress_when_answer_asks_question">{{ $t('agentEditor.questionSuggestions.suppressQuestion') }}</t-checkbox>
-                            <t-checkbox v-model="formData.config.questionSuggestions.follow_ups.knowledge_fallback">{{ $t('agentEditor.questionSuggestions.knowledgeFallback') }}</t-checkbox>
-                            <t-checkbox v-model="formData.config.questionSuggestions.follow_ups.allow_regenerate">{{ $t('agentEditor.questionSuggestions.allowRegenerate') }}</t-checkbox>
+                            <t-checkbox v-model="formData.config.questionSuggestions.followUps.suppressOnFallback">{{ $t('agentEditor.questionSuggestions.suppressFallback') }}</t-checkbox>
+                            <t-checkbox v-model="formData.config.questionSuggestions.followUps.suppressWhenAnswerAsksQuestion">{{ $t('agentEditor.questionSuggestions.suppressQuestion') }}</t-checkbox>
+                            <t-checkbox v-model="formData.config.questionSuggestions.followUps.knowledgeFallback">{{ $t('agentEditor.questionSuggestions.knowledgeFallback') }}</t-checkbox>
+                            <t-checkbox v-model="formData.config.questionSuggestions.followUps.allowRegenerate">{{ $t('agentEditor.questionSuggestions.allowRegenerate') }}</t-checkbox>
                           </div>
                         </div>
                       </div>
@@ -2431,18 +2431,18 @@ const defaultFormData = {
         items: [] as string[],
         count: 6,
       },
-      follow_ups: {
+      followUps: {
         enabled: false,
         mode: 'hybrid' as 'generated' | 'knowledge' | 'hybrid',
         count: 3,
         modelId: '',
-        additional_instruction: '',
+        additionalInstruction: '',
         categories: ['clarify', 'deepen', 'action'] as Array<'clarify' | 'deepen' | 'action'>,
-        max_context_turns: 2,
-        suppress_on_fallback: true,
-        suppress_when_answer_asks_question: true,
-        knowledge_fallback: true,
-        allow_regenerate: false,
+        maxContextTurns: 2,
+        suppressOnFallback: true,
+        suppressWhenAnswerAsksQuestion: true,
+        knowledgeFallback: true,
+        allowRegenerate: false,
       },
     },
     // 已废弃字段（保留兼容）
@@ -3044,11 +3044,11 @@ watch(() => props.visible, async (val) => {
           ...(agentData.config.questionSuggestions?.starters || {}),
           items: agentData.config.questionSuggestions?.starters?.items || [],
         },
-        follow_ups: {
-          ...defaultFormData.config.questionSuggestions.follow_ups,
-          ...(agentData.config.questionSuggestions?.follow_ups || {}),
-          categories: agentData.config.questionSuggestions?.follow_ups?.categories
-            || [...defaultFormData.config.questionSuggestions.follow_ups.categories],
+        followUps: {
+          ...defaultFormData.config.questionSuggestions.followUps,
+          ...(agentData.config.questionSuggestions?.followUps || {}),
+          categories: agentData.config.questionSuggestions?.followUps?.categories
+            || [...defaultFormData.config.questionSuggestions.followUps.categories],
         },
       };
       // 确保数组字段存在

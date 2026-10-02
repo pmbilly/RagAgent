@@ -173,16 +173,16 @@ class AgentContractTest {
                 400, "ag-create-blank-name.json");
         assertGolden(postH("/api/v1/agents", bearer,
                 "{\"name\":\"ag-bad-count\",\"config\":{\"questionSuggestions\":{\"starters\":"
-                + "{\"enabled\":true,\"mode\":\"curated\",\"count\":9},\"follow_ups\":{\"enabled\":false}}}}"),
+                + "{\"enabled\":true,\"mode\":\"curated\",\"count\":9},\"followUps\":{\"enabled\":false}}}}"),
                 400, "ag-create-bad-starters-count.json");
         assertGolden(postH("/api/v1/agents", bearer,
                 "{\"name\":\"ag-bad-mode\",\"config\":{\"questionSuggestions\":{\"starters\":"
-                + "{\"enabled\":true,\"mode\":\"nonsense\",\"count\":2},\"follow_ups\":{\"enabled\":false}}}}"),
+                + "{\"enabled\":true,\"mode\":\"nonsense\",\"count\":2},\"followUps\":{\"enabled\":false}}}}"),
                 400, "ag-create-bad-starter-mode.json");
         assertGolden(postH("/api/v1/agents", bearer,
                 "{\"name\":\"ag-bad-item\",\"config\":{\"questionSuggestions\":{\"starters\":"
                 + "{\"enabled\":true,\"mode\":\"curated\",\"items\":[\"  \"],\"count\":1},"
-                + "\"follow_ups\":{\"enabled\":false}}}}"),
+                + "\"followUps\":{\"enabled\":false}}}}"),
                 400, "ag-create-empty-starter-item.json");
         // ── 5) creator 筛选 ──
         assertGolden(getH("/api/v1/agents?creator=mine", bearer), 200, "ag-list-mine.json");
@@ -342,11 +342,11 @@ class AgentContractTest {
         + "\"intentPrompts\":{\"greeting\":\"hi there\"},"
         + "\"questionSuggestions\":{"
         + "\"starters\":{\"enabled\":true,\"mode\":\"curated\",\"items\":[\"问题A\",\"问题B\"],\"count\":2},"
-        + "\"follow_ups\":{\"enabled\":true,\"mode\":\"hybrid\",\"count\":2,\"modelId\":\"fu-model\","
-        + "\"additional_instruction\":\"be nice\",\"categories\":[\"clarify\",\"deepen\"],"
-        + "\"max_context_turns\":3,\"suppress_on_fallback\":true,"
-        + "\"suppress_when_answer_asks_question\":true,\"knowledge_fallback\":true,"
-        + "\"allow_regenerate\":true}}}}";
+        + "\"followUps\":{\"enabled\":true,\"mode\":\"hybrid\",\"count\":2,\"modelId\":\"fu-model\","
+        + "\"additionalInstruction\":\"be nice\",\"categories\":[\"clarify\",\"deepen\"],"
+        + "\"maxContextTurns\":3,\"suppressOnFallback\":true,"
+        + "\"suppressWhenAnswerAsksQuestion\":true,\"knowledgeFallback\":true,"
+        + "\"allowRegenerate\":true}}}}";
 
     private static final String INIT_REQUEST = "{"
         + "\"llm\":{\"source\":\"remote\",\"modelName\":\"ag-init-llm\",\"baseUrl\":\"\",\"apiKey\":\"sk-init\"},"

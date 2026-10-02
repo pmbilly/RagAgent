@@ -83,16 +83,16 @@ public final class AgentConfigJson {
         starters.put("mode", SUGGESTION_HYBRID);
         starters.putArray("items");
         starters.put("count", 6);
-        ObjectNode fu = qs.putObject("follow_ups");
+        ObjectNode fu = qs.putObject("followUps");
         fu.put("enabled", false);
         fu.put("mode", SUGGESTION_HYBRID);
         fu.put("count", 3);
         ArrayNode cats = fu.putArray("categories");
         cats.add("clarify").add("deepen").add("action");
-        fu.put("max_context_turns", 2);
-        fu.put("suppress_on_fallback", true);
-        fu.put("suppress_when_answer_asks_question", true);
-        fu.put("knowledge_fallback", true);
+        fu.put("maxContextTurns", 2);
+        fu.put("suppressOnFallback", true);
+        fu.put("suppressWhenAnswerAsksQuestion", true);
+        fu.put("knowledgeFallback", true);
         return qs;
     }
 
@@ -109,15 +109,15 @@ public final class AgentConfigJson {
         if (items == null || items.isNull()) {
             starters.putArray("items");
         }
-        ObjectNode fu = objectAt(qs, "follow_ups");
+        ObjectNode fu = objectAt(qs, "followUps");
         if (fu.path("mode").asText("").isEmpty()) {
             fu.put("mode", SUGGESTION_HYBRID);
         }
         if (fu.path("count").asInt(0) <= 0) {
             fu.put("count", 3);
         }
-        if (fu.path("max_context_turns").asInt(0) <= 0) {
-            fu.put("max_context_turns", 2);
+        if (fu.path("maxContextTurns").asInt(0) <= 0) {
+            fu.put("maxContextTurns", 2);
         }
         JsonNode cats = fu.get("categories");
         if (cats == null || cats.isNull() || !cats.isArray() || cats.isEmpty()) {
@@ -148,12 +148,12 @@ public final class AgentConfigJson {
         if (sCount < 1 || sCount > 8) {
             return "starter suggestion count must be between 1 and 8";
         }
-        JsonNode fu = qs.get("follow_ups");
+        JsonNode fu = qs.get("followUps");
         int fCount = fu == null ? 0 : fu.path("count").asInt(0);
         if (fCount < 1 || fCount > 5) {
             return "follow-up suggestion count must be between 1 and 5";
         }
-        int mct = fu == null ? 0 : fu.path("max_context_turns").asInt(0);
+        int mct = fu == null ? 0 : fu.path("maxContextTurns").asInt(0);
         if (mct < 1 || mct > 5) {
             return "follow-up max_context_turns must be between 1 and 5";
         }
@@ -179,7 +179,7 @@ public final class AgentConfigJson {
             }
         }
         if (fu != null) {
-            String instr = fu.path("additional_instruction").asText("").trim();
+            String instr = fu.path("additionalInstruction").asText("").trim();
             if (instr.codePointCount(0, instr.length()) > 2000) {
                 return "follow-up additional_instruction exceeds 2000 characters";
             }

@@ -2786,6 +2786,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B16 静默失效定向扫描** | 枚举「静默丢数据」机制点并逐对核写读词汇 | P1 | 中 | ✅ **完成（2026-10-02）**——未发现新缺陷（负面结果如实记录）；产出两个此前不存在的守卫（EPP 运行时守卫 + 契约面键名防回流守卫，均含红态证明）；附带盘出 B17 换锚欠账清单。详见 15.1.1 |
 | **B17 换锚收尾** | 残余逐字段 `@JsonProperty`（我方 ≈57）按「零风险 / 动形状 / 冻结」判定后分批清 | P2 | 小~中 | ✅ **完成（2026-10-02）**——判定批（三类 + 承重注解判据）+ 安全子集 6 处 + **websearch 请求键 camel 收口**（真机 A/B 实证）；其中 **agent 配置面**原判「不做」，后经用户决定由 **B18** 完成（见下一行）。详见 15.1.1 |
 | **B18 agent 配置面换锚** | 见 15.1.1 |
+| **B19 前端契约键收口 + 守卫** | 前端 snake 契约键排查 + 嵌套层 + 双侧守卫进 CI | P2 | 中 | ✅ **完成（2026-10-02）**——修掉两处静默缺陷（B18 的 ModelService 回归、前端 tagScopes 链路断）+ 嵌套 7 键 camel + V3 扩到 66 键（并修 WHERE 漏行）；新增前端契约键棘轮（进 CI）与后端键名守卫测试。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3087,6 +3088,19 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **方法论沉淀（写进记忆）**：换锚/重命名类专项的"键面清单"会系统性低估纠缠度——**必须先按面判定、用词边界正则防子串误伤、并在分支上试改探半径**；判"做/不做"以实测半径为准。
 
 
+
+**✅ B19 前端契约键收口 + 双侧守卫（2026-10-02）**
+- **发现并修掉两处真缺陷（都属「静默失效」类）**：
+  1. **B18 回归**：`ModelService.agentBindings`（扫 agent 配置算「模型被谁引用」）**漏改**——B18 只改了 agentm/session/im 白名单，把该文件误判成「model 域」。后果：`chat_model`/`rerank_model`/`vlm_model`/`asr_model`/`query_understand_model`/`follow_up_model` 六类绑定**静默丢失**，而当时 4711 条测试全绿。已修。
+  2. **前端 `tagScopes` 链路断**：`stores/settings.ts` 产出 snake（`knowledge_base_ids`/`knowledge_ids`/`tag_scopes` + 内层 `knowledge_base_id`/`tag_ids`），而 `api/agent` 侧收 camel，**中间没有映射** ⇒ 建议问题的范围（当前 KB/文件/标签）被静默丢弃——而该范围按其注释正是「防止后端把标签放大到整个 KB」的护栏。已修（store 改产 camel）。
+- **嵌套层收口（B18 遗留）**：`questionSuggestions` 下的 7 个键（`followUps`/`maxContextTurns`/`suppressOnFallback`/`suppressWhenAnswerAsksQuestion`/`knowledgeFallback`/`allowRegenerate`/`additionalInstruction`）→ camel：后端 4 文件 33 处 + 前端 3 文件 40 处 + 夹具 17 个 247 处 + 测试 10 处。
+- **落库迁移**：`V3__agent_config_keys_camel.sql` 扩到 **66 键**（含嵌套；函数本就递归）。⚠️ **修正 WHERE**：原条件只看**顶层**键 ⇒ 会漏掉「顶层已 camel、嵌套仍 snake」的行（实测残留 3 行）；改为「转换结果确有变化才更新」（jsonb 键序规范化 ⇒ 无改名时等值）。重跑后残留 **0**。
+- **两个新守卫（本批最重要产出）**：
+  1. `scripts/check-fe-contract-keys.py` + 基线 `scripts/fe-snake-contracts.baseline.json`（42 条，逐条带豁免理由）**接入 CI guards job**：前端一旦出现「后端只认 camel」的 snake 契约键即红（只许减不许增）。
+  2. `AgentConfigKeyUsageTest`：键表**直接解析 V3 迁移**（单一来源），扫描主代码禁止再以 snake 读写 agent 配置键；带「同文件写读对豁免」（如 model-usage 载荷自洽）。**它当场抓出 `ModelService` 两处遗漏**——这类缺陷属源码级扫描才能兜住的盲区（测试全绿也照样漏）。
+- **判定口径（写进两份守卫的注释）**：*这个键是不是「我们定义的、跨进程 JSON 字段」？是 ⇒ camel；否 ⇒ 看那一层的规范（DB=snake、Spring 配置=kebab、环境变量=UPPER_SNAKE、第三方=照抄）。*
+- **登记（未做）**：① `api/knowledge-base` 的 `start_time`/`end_time`：前端仍拼、后端该端点**未声明** ⇒ 筛选不生效（要修的是接线或补参数，属产品取舍）；② `api/auth` 的 `owner_id`：前端**死字段**（后端 API 无此名，前端有 `|| user.id` 兜底）；③ `types/knowledgeProcess.ts` 那批 snake 属逐文档 `process_overrides` 面（已定「未来补后端」，届时一并 camel）。
+- 闸门：后端 4711 用例 + `spotlessCheck` 绿；前端 `vue-tsc` 0 错 + **690 用例绿**；迁移已在 dev 应用且残留 0。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
