@@ -57,8 +57,10 @@ export function createWebSearchProvider(data: Partial<WebSearchProviderEntity>) 
 }
 
 // List all web search providers for the current tenant
-export function listWebSearchProviders() {
-  return get('/api/v1/web-search-providers')
+export async function listWebSearchProviders(): Promise<{ data: WebSearchProviderEntity[] }> {
+  // 后端 200 裸数组（§2.1）；适配成消费端既有的 { data } 契约
+  const resp = (await get('/api/v1/web-search-providers')) as unknown as WebSearchProviderEntity[]
+  return { data: Array.isArray(resp) ? resp : [] }
 }
 
 // Get a single web search provider by ID

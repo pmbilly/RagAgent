@@ -87,13 +87,13 @@ export interface WikiGraphData {
 
 export interface WikiStats {
   totalPages: number;
-  pages_by_type: Record<string, number>;
-  total_links: number;
-  orphan_count: number;
-  recent_updates: WikiPage[];
-  pending_tasks: number;
-  pending_issues: number;
-  is_active: boolean;
+  pagesByType: Record<string, number>;
+  totalLinks: number;
+  orphanCount: number;
+  recentUpdates: WikiPage[];
+  pendingTasks: number;
+  pendingIssues: number;
+  active: boolean;
 }
 
 export interface WikiPageIssue {

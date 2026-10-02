@@ -54,17 +54,17 @@ export function listKnowledgeBases(params?: {
 // reachable by the server.
 //
 //   - source 'env'    → KB uses the tenant's env-configured store
-//                       (RETRIEVE_DRIVER). vector_store_id is null and
-//                       vector_store_name is the localized "System
-//                       default" label; vector_store_engine_type still
-//                       reports the underlying engine (e.g. "postgres").
+//                       (RETRIEVE_DRIVER). id is null and
+//                       name is the localized "System default" label;
+//                       engineType still reports the underlying engine
+//                       (e.g. "postgres").
 //   - source 'user'   → KB is bound to a tenant-owned VectorStore.
-//                       vector_store_id / name / engine_type are real.
+//                       id / name / engineType are real.
 //   - source 'shared' → KB belongs to a different tenant and is
 //                       readable via cross-organization sharing. The
-//                       server strips vector_store_id and engine_type
-//                       to avoid leaking the owner tenant's store
-//                       inventory; only this source marker arrives.
+//                       server strips id and engineType to avoid
+//                       leaking the owner tenant's store inventory;
+//                       only this source marker arrives.
 //   - status 'unavailable' → the binding cannot be reached right now
 //                       (deleted row, registry miss, transient infra
 //                       failure). Operators recover via the global
@@ -73,11 +73,11 @@ export type VectorStoreSource = 'env' | 'user' | 'shared' | 'unavailable';
 export type VectorStoreStatus = 'available' | 'unavailable';
 
 export interface KnowledgeBaseStoreView {
-  vector_store_id?: string | null;
-  vector_store_name?: string;
-  vector_store_engine_type?: string;
-  vector_store_source?: VectorStoreSource;
-  vector_store_status?: VectorStoreStatus;
+  id?: string | null;
+  name?: string;
+  engineType?: string;
+  source?: VectorStoreSource;
+  status?: VectorStoreStatus;
 }
 
 export function createKnowledgeBase(data: {
@@ -305,17 +305,17 @@ export interface KnowledgeFolderNode {
   /** Last segment of the path, used as the row label. */
   name: string;
   /** Documents stored directly in this folder. */
-  document_count: number;
+  documentCount: number;
   /** Documents in this folder plus every descendant folder. */
-  total_count: number;
+  totalCount: number;
   children?: KnowledgeFolderNode[];
 }
 
 export interface KnowledgeFolderTree {
   /** Documents that are not part of any uploaded folder. */
-  root_document_count: number;
+  rootDocumentCount: number;
   /** Documents in the whole knowledge base. */
-  total_document_count: number;
+  totalDocumentCount: number;
   folders: KnowledgeFolderNode[];
 }
 

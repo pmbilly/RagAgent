@@ -47,7 +47,7 @@ const props = defineProps<{
   traceAvailableById: Record<string, boolean>;
   tagList: Tag[];
   /** Sub-folders of the folder currently being browsed. */
-  folders?: Array<{ path: string; name: string; total_count: number }>;
+  folders?: Array<{ path: string; name: string; totalCount: number }>;
   /** Every folder of the knowledge base, for the "move to folder" picker. */
   folderOptions?: FolderOption[];
   /**
@@ -331,7 +331,7 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
           <span class="folder-card__title">{{ folder.name }}</span>
         </div>
         <div class="folder-card__footer">
-          {{ t('knowledgeBase.folderTree.folderCardCount', { count: folder.total_count }) }}
+          {{ t('knowledgeBase.folderTree.folderCardCount', { count: folder.totalCount }) }}
         </div>
       </div>
 

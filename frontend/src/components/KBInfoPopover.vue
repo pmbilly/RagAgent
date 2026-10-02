@@ -110,30 +110,30 @@
             </div>
           </section>
           <section
-            v-if="kbInfo.vector_store_source || kbInfo.storage_provider_config?.provider"
+            v-if="kbInfo.vectorStore?.source || kbInfo.storageProvider"
             class="setting-drawer__section"
           >
             <h4 class="setting-drawer__section-title">
               {{ t('knowledgeBase.infoCard.binding') }}
             </h4>
-            <div v-if="kbInfo.vector_store_source" class="kb-info-card-row">
+            <div v-if="kbInfo.vectorStore?.source" class="kb-info-card-row">
               <span class="kb-info-card-label">{{ t('knowledgeBase.infoCard.vectorStore') }}</span>
               <span class="kb-info-card-value">
                 <VectorStoreBadge
-                  :source="kbInfo.vector_store_source"
-                  :name="kbInfo.vector_store_name"
-                  :engine-type="kbInfo.vector_store_engine_type"
-                  :status="kbInfo.vector_store_status"
+                  :source="kbInfo.vectorStore.source"
+                  :name="kbInfo.vectorStore.name"
+                  :engine-type="kbInfo.vectorStore.engineType"
+                  :status="kbInfo.vectorStore.status"
                 />
               </span>
             </div>
             <div
-              v-if="kbInfo.storage_provider_config?.provider"
+              v-if="kbInfo.storageProvider"
               class="kb-info-card-row"
             >
               <span class="kb-info-card-label">{{ t('knowledgeBase.infoCard.fileStorage') }}</span>
               <span class="kb-info-card-value kb-info-card-value-mono">
-                {{ kbInfo.storage_provider_config.provider }}
+                {{ kbInfo.storageProvider }}
               </span>
             </div>
           </section>
@@ -143,7 +143,7 @@
     <button
       type="button"
       class="kb-info-button"
-      :class="{ 'has-warning': kbInfo?.vector_store_status === 'unavailable' }"
+      :class="{ 'has-warning': kbInfo?.vectorStore?.status === 'unavailable' }"
     >
       <t-icon name="info-circle" size="16px" />
     </button>
@@ -215,22 +215,22 @@ const roleTagTheme = computed<RoleTheme>(() => {
   return 'default'
 })
 
-// KB.UpdatedAt is auto-bumped by GORM only when the KB row itself is
+// KB.updatedAt is auto-bumped only when the KB row itself is
 // touched (rename, config edit, …). For a freshly created KB whose
-// only mutations were document uploads, updated_at == created_at and
+// only mutations were document uploads, updatedAt == createdAt and
 // surfacing "last updated" alongside "created at" reads as
 // duplicated noise. Hide the row in that case and let it reappear
 // once the KB metadata is actually edited.
 const hasDistinctUpdate = computed<boolean>(() => {
-  const created = props.kbInfo?.created_at
-  const updated = props.kbInfo?.updated_at
+  const created = props.kbInfo?.createdAt
+  const updated = props.kbInfo?.updatedAt
   if (!updated) return false
   if (!created) return true
   return new Date(updated).getTime() !== new Date(created).getTime()
 })
 
 const lastUpdatedLabel = computed<string>(() => {
-  const raw = props.kbInfo?.updated_at
+  const raw = props.kbInfo?.updatedAt
   return raw ? formatStringDate(new Date(raw)) : ''
 })
 
@@ -264,7 +264,7 @@ const capabilities = computed<Array<{ key: string; label: string; theme: Capabil
 })
 
 const chunkingStrategyLabel = computed<string>(() => {
-  const raw: string = (props.kbInfo?.chunking_config?.strategy || '').toLowerCase()
+  const raw: string = (props.kbInfo?.chunkingConfig?.strategy || '').toLowerCase()
   const key = (raw === '' || raw === 'recursive') ? 'legacy' : raw
   const path = `knowledgeEditor.chunking.strategies.${key}.label`
   const translated = t(path)

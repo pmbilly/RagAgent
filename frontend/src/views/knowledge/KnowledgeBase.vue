@@ -84,7 +84,7 @@ const uploading = ref(false);
 const kbLoading = ref(false);
 const docListLoading = ref(true);
 const isFAQ = computed(() => (kbInfo.value?.type || '') === 'faq');
-const isWiki = computed(() => !!kbInfo.value?.indexing_strategy?.wikiEnabled);
+const isWiki = computed(() => !!kbInfo.value?.indexingStrategy?.wikiEnabled);
 const validTabs = ['documents', 'wiki', 'graph'] as const
 type KbTab = typeof validTabs[number]
 const initTab = validTabs.includes(route.query.tab as any) ? (route.query.tab as KbTab) : 'documents'
@@ -131,9 +131,9 @@ const fetchWikiStatusOnce = async () => {
     const data = res?.data || res
     if (!data) return
     wikiStatus.value = {
-      pendingTasks: data.pending_tasks || 0,
-      isActive: !!data.is_active,
-      pendingIssues: data.pending_issues || 0,
+      pendingTasks: data.pendingTasks || 0,
+      isActive: !!data.active,
+      pendingIssues: data.pendingIssues || 0,
     }
     // 活跃时轮询，空闲时停掉定时器，避免无谓请求
     if (wikiIsIndexing.value) {
@@ -172,12 +172,11 @@ onUnmounted(() => {
 })
 const missingStorageEngine = computed(() => {
   if (!kbInfo.value || isFAQ.value) return false
-  // storage_backend_id is authoritative; storage_provider_config.provider is a
+  // storageBackendId is authoritative; storageProvider is a
   // compatibility projection for older clients. Either being present means the
   // KB has a bound storage instance and uploads should not be blocked.
-  if (kbInfo.value.storage_backend_id) return false
-  const spc = kbInfo.value.storage_provider_config
-  return !spc || !spc.provider
+  if (kbInfo.value.storageBackendId) return false
+  return !kbInfo.value.storageProvider
 })
 const parserEngines = computed<ParserEngineInfo[]>(() => editorResources.parserEngines);
 
@@ -1525,7 +1524,7 @@ const ensureDocumentKbReady = () => {
     return false;
   }
   // Embedding model only required when RAG indexing is enabled
-  const strategy = (kbInfo.value as any).indexing_strategy
+  const strategy = (kbInfo.value as any).indexingStrategy
   const needsEmbedding = !strategy || strategy.vectorEnabled || strategy.keywordEnabled
   if (needsEmbedding && !kbInfo.value.embeddingModelId) {
     MessagePlugin.warning(t('knowledgeBase.notInitialized'));

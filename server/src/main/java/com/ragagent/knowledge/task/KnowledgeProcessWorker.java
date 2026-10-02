@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.concurrent.Executors;
 import java.util.List;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
@@ -408,9 +409,13 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     }
 
     private FinalizingPlan planFinalizing(KnowledgeBase kb, List<Chunk> chunks) {
+        // wiki 子任务必须能解析出合成模型才入队：缺模型时 ingest 批次必然失败并反复
+        // 重试（MaxRetry 次退避），而该子任务槽一直被占住 → 文档永远停在 finalizing。
+        // 模型后来补齐时，KB 侧触发（上传/重解析）会重新入队，此处跳过不丢功能。
         boolean wiki = kb.getIndexingStrategy() != null
                 && kb.getIndexingStrategy().isWikiEnabled()
-                && !chunks.isEmpty();
+                && !chunks.isEmpty()
+                && hasWikiSynthesisModel(kb);
         List<Chunk> graphChunks = kb.getIndexingStrategy() != null
                 && kb.getIndexingStrategy().isGraphEnabled()
                         ? GraphChunkSelector.selectGraphChunks(chunks)
@@ -547,6 +552,25 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
     /** KB 是否配置了摘要模型。 */
     private static boolean hasSummaryModel(KnowledgeBase kb) {
         return kb != null && kb.getSummaryModelId() != null && !kb.getSummaryModelId().isEmpty();
+    }
+
+    /**
+     * wiki 合成模型是否可解析——与 ingest 侧同一口径：{@code wikiConfig.synthesisModelId}
+     * 优先，空则回落 KB 的 {@code summaryModelId}。
+     *
+     * <p>刻意读 camelCase 键：{@code knowledge_bases.wiki_config} 的 Java 值类型
+     * {@code wiki.domain.WikiConfig} 无线名注解，读写都是 Java 字段名。</p>
+     */
+    private static boolean hasWikiSynthesisModel(KnowledgeBase kb) {
+        if (kb == null) {
+            return false;
+        }
+        JsonNode wikiConfig = kb.getWikiConfig();
+        if (wikiConfig != null && wikiConfig.isObject()
+                && !wikiConfig.path("synthesisModelId").asText("").isEmpty()) {
+            return true;
+        }
+        return hasSummaryModel(kb);
     }
 
     /**

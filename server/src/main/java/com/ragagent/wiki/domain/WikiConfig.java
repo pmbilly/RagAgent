@@ -15,9 +15,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 以 {@code JsonNode} 承载，本类是<b>值类型</b>，另提供 {@link #toJson()} /
  * {@link #fromJson(String)} 两个等价入口供 service 使用。</p>
  *
- * <p>JSON 契约（键名为 snake，§11 登记边界；顺序 = {@code @JsonPropertyOrder} 声明序）：</p>
+ * <p>JSON 契约（键名 = Java 字段名）：</p>
  * <ul>
- *   <li>{@code synthesis_model_id} / {@code max_pages_per_ingest} 恒输出；</li>
+ *   <li>{@code synthesisModelId} / {@code maxPagesPerIngest} 恒输出；</li>
  *   <li>其余字段空串/0 整键省略（{@code @JsonInclude(NON_EMPTY)} 对 String，
  *       {@code NON_DEFAULT} 对 int）。</li>
  * </ul>
@@ -25,6 +25,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * <p>读路径<b>容忍未知属性</b>：历史行里会有 {@code enabled} / {@code auto_ingest}
  * 等已退役的键，Jackson 默认会报错——故本类的
  * {@link #fromJson(String)} 用配了 {@code FAIL_ON_UNKNOWN_PROPERTIES=false} 的 mapper。</p>
+ *
+ * <p><b>写侧必须用本类的字段名</b>：{@code knowledge_bases.wiki_config} 由 KB 更新请求的
+ * {@code config.wiki_config} 原样落库（知识库模块不重写内层键）。历史前端按 snake 键书写
+ * （{@code synthesis_model_id} / {@code max_pages_per_ingest} …），这些键<b>会被静默忽略</b>
+ * ——表现为「界面选了合成模型但 wiki ingest 报 missing_synthesis_model」。</p>
  */
 public class WikiConfig {
 

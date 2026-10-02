@@ -86,7 +86,7 @@
                     {{ $t('mentionDetail.faqCount', { count: detailCache[item.id].data.chunkCount ?? detailCache[item.id].data.count ?? 0 }) }}
                   </span>
                   <span v-else>
-                    {{ $t('mentionDetail.kbCount', { count: detailCache[item.id].data.knowledge_count ?? detailCache[item.id].data.count ?? 0 }) }}
+                    {{ $t('mentionDetail.kbCount', { count: detailCache[item.id].data.knowledgeCount ?? detailCache[item.id].data.count ?? 0 }) }}
                   </span>
                 </div>
               </template>

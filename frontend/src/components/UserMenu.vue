@@ -566,7 +566,7 @@ const loadUserInfo = async () => {
       if (Array.isArray(membershipsSync)) {
         authStore.setMemberships(membershipsSync)
       }
-      const canCreateTenant = response.capabilities?.can_create_tenant
+      const canCreateTenant = response.capabilities?.canCreateTenant
       if (typeof canCreateTenant === 'boolean') {
         authStore.setCanCreateTenant(canCreateTenant)
       }

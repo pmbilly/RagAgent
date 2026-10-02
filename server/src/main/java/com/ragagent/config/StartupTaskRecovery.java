@@ -23,9 +23,10 @@ import com.ragagent.knowledge.repository.KnowledgeSpanRepository;
  *   <li><b>知识解析</b>（仅 Lite——REDIS_ADDR 未配置）：parse_status ∈
  *       {pending, processing, finalizing, deleting} 的行 → failed +
  *       "Task interrupted due to application restart" + pending_subtasks_count=0。
- *       finalizing 且唯一未决子槽是持久化 wiki op 的行<b>排除</b>——wiki ingest 独立落库，
- *       启动后能重建触发器收尾（照 Go 的 NOT-EXISTS 子查询）；复位成功后按行取消孤儿
- *       span（LatestAttempt + CancelAllOpenSpans，errorCode=SERVER_RESTART）。</li>
+ *       Go 原文对「finalizing 且唯一未决子槽是持久化 wiki op」的行做了 NOT-EXISTS 排除
+ *       （理由：wiki ingest 独立落库、启动后能重建触发器收尾）——单机形态下该理由不成立，
+ *       故 Lite 路径已改为一并复位（详见 {@link #listStuckKnowledgeIds(boolean)}）；复位
+ *       成功后按行取消孤儿 span（LatestAttempt + CancelAllOpenSpans，errorCode=SERVER_RESTART）。</li>
  *   <li><b>摘要生成</b>（仅 Lite）：summary_status ∈ {pending, processing} → failed。</li>
  *   <li><b>数据源同步日志</b>（两种模式都跑）：status=running → failed +
  *       "Sync interrupted due to application restart" + finished_at=now；分布式模式
@@ -95,8 +96,21 @@ public class StartupTaskRecovery {
         return addr != null && !addr.isEmpty();
     }
 
-    /** 照 stuckKnowledgeParseQuery：可复位状态 + wiki 独槽排除（NOT-EXISTS 子查询照抄）。 */
-    private List<String> listStuckKnowledgeIds() {
+    /**
+     * 照 stuckKnowledgeParseQuery：可复位状态 + wiki 独槽排除（NOT-EXISTS 子查询照抄）。
+     *
+     * <p>Lite（{@code distributed=false}）<b>不再排除</b> wiki 独槽行：Go 原文的排除理由是
+     * 「wiki ingest 独立落库，启动后能重建触发器收尾」，而单机形态下队列在进程内、随重启消失，
+     * <b>没有任何组件会重建触发器</b>（B0 走查实测：重启后该 wiki op 一直躺着，文档永远停在
+     * finalizing、卡片一直显示「优化中」）。复位为失败让用户可手动重试（重试即重新触发 ingest）。</p>
+     */
+    private List<String> listStuckKnowledgeIds(boolean distributed) {
+        if (!distributed) {
+            return jdbc.queryForList("SELECT id FROM knowledges WHERE parse_status IN (?, ?, ?, ?)",
+                    String.class,
+                    Knowledge.PARSE_PENDING, Knowledge.PARSE_PROCESSING,
+                    Knowledge.PARSE_FINALIZING, Knowledge.PARSE_DELETING);
+        }
         return jdbc.queryForList("SELECT id FROM knowledges WHERE parse_status IN (?, ?, ?, ?) "
                 + "AND NOT (parse_status = ? AND pending_subtasks_count = 1 AND EXISTS ("
                 + "SELECT 1 FROM task_pending_ops "
@@ -115,7 +129,7 @@ public class StartupTaskRecovery {
         if (distributed) {
             return;
         }
-        List<String> stuckIds = listStuckKnowledgeIds();
+        List<String> stuckIds = listStuckKnowledgeIds(distributed);
         if (stuckIds.isEmpty()) {
             return;
         }

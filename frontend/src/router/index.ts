@@ -274,13 +274,13 @@ async function hydrateSessionFromToken(authStore: ReturnType<typeof useAuthStore
       authStore.setMemberships(memberships)
     }
 
-    const canCreateTenant = response.capabilities?.can_create_tenant
+    const canCreateTenant = response.capabilities?.canCreateTenant
     if (typeof canCreateTenant === 'boolean') {
       authStore.setCanCreateTenant(canCreateTenant)
     }
 
     authStore.setAutoAcceptInvitation(
-      response.capabilities?.auto_accept_invitation === true,
+      response.capabilities?.autoAcceptInvitation === true,
     )
 
     return true

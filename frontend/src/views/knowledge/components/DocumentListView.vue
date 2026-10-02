@@ -39,7 +39,7 @@ const props = defineProps<{
   tagList: Tag[];
   loading?: boolean;
   /** Sub-folders of the folder currently being browsed. */
-  folders?: Array<{ path: string; name: string; total_count: number }>;
+  folders?: Array<{ path: string; name: string; totalCount: number }>;
   /** Every folder of the knowledge base, for the "move to folder" picker. */
   folderOptions?: FolderOption[];
   /**
@@ -292,7 +292,7 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
         <div class="cell cell-tag"></div>
         <div class="cell cell-source">
           <span class="row-folder-meta">
-            {{ t('knowledgeBase.folderTree.folderCardCount', { count: folder.total_count }) }}
+            {{ t('knowledgeBase.folderTree.folderCardCount', { count: folder.totalCount }) }}
           </span>
         </div>
         <div class="cell cell-size"></div>
@@ -433,7 +433,7 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
                     @click.stop="emit('move-select-target', kb)">
                     <t-icon class="icon" name="root-list" />
                     <span class="move-target-name">{{ kb.name }}</span>
-                    <span v-if="kb.knowledge_count !== undefined" class="move-target-count">{{ kb.knowledge_count }}</span>
+                    <span v-if="kb.knowledgeCount !== undefined" class="move-target-count">{{ kb.knowledgeCount }}</span>
                   </div>
                 </template>
               </div>

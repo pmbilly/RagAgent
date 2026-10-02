@@ -922,10 +922,10 @@ const loadKBData = async (
       // response.
       vectorStoreId: '',
       vectorStoreInfo: {
-        source: kb.vector_store_source,
-        name: kb.vector_store_name,
-        engineType: kb.vector_store_engine_type,
-        status: kb.vector_store_status,
+        source: kb.vectorStore?.source,
+        name: kb.vectorStore?.name,
+        engineType: kb.vectorStore?.engineType,
+        status: kb.vectorStore?.status,
       },
     }
     initialStorageProvider.value = formData.value.storageProvider
@@ -1379,7 +1379,7 @@ const doSubmit = async () => {
         }
       }
       if (formData.value.type !== 'faq') {
-        updateConfig.auto_tag_config = data.auto_tag_config
+        updateConfig.auto_tag_config = data.autoTagConfig
         updateConfig.indexing_strategy = {
           vector_enabled: formData.value.indexingStrategy?.vectorEnabled ?? true,
           keyword_enabled: formData.value.indexingStrategy?.keywordEnabled ?? true,
@@ -1416,7 +1416,7 @@ const doSubmit = async () => {
           tableMetadataInstructions: formData.value?.chunkingConfig.tableMetadataInstructions ?? ''
         },
         multimodal: {
-          enabled: !!data.vlm_config?.enabled
+          enabled: !!data.vlmConfig?.enabled
         },
         storageBackendId: formData.value?.storageBackendId || '',
         storageProvider: data.storageProvider || 'local',
@@ -1426,12 +1426,12 @@ const doSubmit = async () => {
           tags: data.extractConfig?.tags || [],
           nodes: data.extractConfig?.nodes || [],
           relations: data.extractConfig?.relations || [],
-          customInstructions: data.extractConfig?.customInstructions || ''
+          customInstructions: data.extractConfig?.custom_instructions || ''
         },
         questionGeneration: {
           enabled: data.questionGenerationConfig?.enabled || false,
-          questionCount: data.questionGenerationConfig?.questionCount || 3,
-          customInstructions: data.questionGenerationConfig?.customInstructions || ''
+          questionCount: data.questionGenerationConfig?.question_count || 3,
+          customInstructions: data.questionGenerationConfig?.custom_instructions || ''
         }
       }
 

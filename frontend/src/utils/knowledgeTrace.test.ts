@@ -9,27 +9,27 @@ import {
 
 function graphChunk(index: number, overrides: Partial<KnowledgeTraceNode> = {}): KnowledgeTraceNode {
   return {
-    span_id: `graph-${index}`,
-    parent_span_id: 'postprocess',
+    spanId: `graph-${index}`,
+    parentSpanId: 'postprocess',
     name: `postprocess.graph.chunk[${index}]`,
     kind: 'subspan',
     status: 'done',
-    started_at: `2026-07-21T08:00:0${index}.000Z`,
-    finished_at: `2026-07-21T08:00:0${index + 2}.000Z`,
-    duration_ms: 2000,
+    startedAt: `2026-07-21T08:00:0${index}.000Z`,
+    finishedAt: `2026-07-21T08:00:0${index + 2}.000Z`,
+    durationMs: 2000,
     ...overrides,
   }
 }
 
 test('groups graph chunks and reports their wall-clock duration', () => {
   const summary: KnowledgeTraceNode = {
-    span_id: 'summary',
+    spanId: 'summary',
     name: 'postprocess.summary',
     kind: 'subspan',
     status: 'done',
   }
   const stage: KnowledgeTraceNode = {
-    span_id: 'postprocess',
+    spanId: 'postprocess',
     name: 'postprocess',
     kind: 'stage',
     status: 'done',
@@ -43,7 +43,7 @@ test('groups graph chunks and reports their wall-clock duration', () => {
   const graph = grouped.children?.[1]
   assert.equal(graph?.name, 'postprocess.graph')
   assert.equal(graph?.status, 'done')
-  assert.equal(graph?.duration_ms, 3000)
+  assert.equal(graph?.durationMs, 3000)
   assert.equal(graph?.children?.length, 2)
   assert.deepEqual(graph?.output, {
     chunk_count: 2,
@@ -53,25 +53,25 @@ test('groups graph chunks and reports their wall-clock duration', () => {
 
 test('keeps graph group live while any graph chunk is running', () => {
   const stage: KnowledgeTraceNode = {
-    span_id: 'postprocess',
+    spanId: 'postprocess',
     name: 'postprocess',
     kind: 'stage',
     status: 'done',
     children: [
       graphChunk(0),
-      graphChunk(1, { status: 'running', finished_at: null, duration_ms: undefined }),
+      graphChunk(1, { status: 'running', finishedAt: null, durationMs: undefined }),
     ],
   }
 
   const graph = groupPostprocessGraphSpans(stage).children?.[0]
   assert.equal(graph?.status, 'running')
-  assert.equal(graph?.finished_at, null)
-  assert.equal(graph?.duration_ms, undefined)
+  assert.equal(graph?.finishedAt, null)
+  assert.equal(graph?.durationMs, undefined)
 })
 
 test('surfaces a failed graph chunk on the aggregate graph row', () => {
   const stage: KnowledgeTraceNode = {
-    span_id: 'postprocess',
+    spanId: 'postprocess',
     name: 'postprocess',
     kind: 'stage',
     status: 'done',
@@ -80,29 +80,29 @@ test('surfaces a failed graph chunk on the aggregate graph row', () => {
 
   const graph = groupPostprocessGraphSpans(stage).children?.[0]
   assert.equal(graph?.status, 'failed')
-  assert.equal(graph?.duration_ms, 3000)
+  assert.equal(graph?.durationMs, 3000)
 })
 
 test('keeps the aggregate running until all graph chunks are terminal', () => {
   const stage: KnowledgeTraceNode = {
-    span_id: 'postprocess',
+    spanId: 'postprocess',
     name: 'postprocess',
     kind: 'stage',
     status: 'done',
     children: [
       graphChunk(0, { status: 'failed' }),
-      graphChunk(1, { status: 'running', finished_at: null, duration_ms: undefined }),
+      graphChunk(1, { status: 'running', finishedAt: null, durationMs: undefined }),
     ],
   }
 
   const graph = groupPostprocessGraphSpans(stage).children?.[0]
   assert.equal(graph?.status, 'running')
-  assert.equal(graph?.duration_ms, undefined)
+  assert.equal(graph?.durationMs, undefined)
 })
 
 test('leaves postprocess unchanged when it has no graph chunks', () => {
   const stage: KnowledgeTraceNode = {
-    span_id: 'postprocess',
+    spanId: 'postprocess',
     name: 'postprocess',
     kind: 'stage',
     status: 'done',

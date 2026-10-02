@@ -12,11 +12,15 @@ export interface RetrievalConfig {
 }
 
 // Get tenant retrieval config via KV API
-export function getTenantRetrievalConfig() {
-  return get('/api/v1/tenants/kv/retrieval-config')
+export async function getTenantRetrievalConfig(): Promise<{ data: RetrievalConfig }> {
+  // 后端 200 裸配置对象（§2.1）；适配成消费端既有的 { data } 契约
+  const resp = (await get('/api/v1/tenants/kv/retrieval-config')) as unknown as RetrievalConfig
+  return { data: resp }
 }
 
 // Update tenant retrieval config via KV API
-export function updateTenantRetrievalConfig(config: RetrievalConfig) {
-  return put('/api/v1/tenants/kv/retrieval-config', config)
+export async function updateTenantRetrievalConfig(config: RetrievalConfig): Promise<{ data: RetrievalConfig }> {
+  // 后端 200 裸配置对象（§2.1）；适配成消费端既有的 { data } 契约
+  const resp = (await put('/api/v1/tenants/kv/retrieval-config', config)) as unknown as RetrievalConfig
+  return { data: resp }
 }

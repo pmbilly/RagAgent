@@ -46,13 +46,17 @@ export interface MessageSearchResult {
 }
 
 // Get tenant chat history config via KV API
-export function getTenantChatHistoryConfig() {
-  return get('/api/v1/tenants/kv/chat-history-config')
+export async function getTenantChatHistoryConfig(): Promise<{ data: ChatHistoryConfig }> {
+  // 后端 200 裸配置对象（§2.1）；适配成消费端既有的 { data } 契约
+  const resp = (await get('/api/v1/tenants/kv/chat-history-config')) as unknown as ChatHistoryConfig
+  return { data: resp }
 }
 
 // Update tenant chat history config via KV API
-export function updateTenantChatHistoryConfig(config: ChatHistoryConfig) {
-  return put('/api/v1/tenants/kv/chat-history-config', config)
+export async function updateTenantChatHistoryConfig(config: ChatHistoryConfig): Promise<{ data: ChatHistoryConfig }> {
+  // 后端 200 裸配置对象（§2.1）；适配成消费端既有的 { data } 契约
+  const resp = (await put('/api/v1/tenants/kv/chat-history-config', config)) as unknown as ChatHistoryConfig
+  return { data: resp }
 }
 
 // Get chat history KB statistics

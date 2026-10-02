@@ -35,12 +35,12 @@
               </template>
             </t-popup>
           </div>
-          <div v-if="stats && stats.pending_issues > 0" class="wiki-global-issues-status graph-issues-badge"
+          <div v-if="stats && stats.pendingIssues > 0" class="wiki-global-issues-status graph-issues-badge"
             @click="showGlobalIssuesDrawer = true">
             <t-icon name="error-circle" style="color: var(--td-warning-color);" />
             <span class="queue-text">{{ $t('knowledgeEditor.wikiBrowser.globalIssuesCount', {
               count:
-                stats.pending_issues
+                stats.pendingIssues
             })
             }}</span>
           </div>
@@ -166,19 +166,19 @@
       <!-- Left Panel: Page List -->
       <aside class="wiki-sidebar">
         <div class="wiki-sidebar-header">
-          <div v-if="stats && (stats.pending_tasks > 0 || stats.is_active)" class="wiki-queue-status">
+          <div v-if="stats && (stats.pendingTasks > 0 || stats.active)" class="wiki-queue-status">
             <t-loading size="small" />
             <span class="queue-text">{{ $t('knowledgeEditor.wikiBrowser.queueStatus', {
-              count: stats.pending_tasks || 0
+              count: stats.pendingTasks || 0
             }) }}</span>
           </div>
           <!-- Global Issues -->
-          <div v-if="stats && stats.pending_issues > 0" class="wiki-global-issues-status"
+          <div v-if="stats && stats.pendingIssues > 0" class="wiki-global-issues-status"
             @click="showGlobalIssuesDrawer = true">
             <t-icon name="error-circle" style="color: var(--td-warning-color);" />
             <span class="queue-text">{{ $t('knowledgeEditor.wikiBrowser.globalIssuesCount', {
               count:
-                stats.pending_issues
+                stats.pendingIssues
             }) }}</span>
           </div>
           <t-input v-model="searchQuery" :placeholder="$t('knowledgeEditor.wikiBrowser.searchPlaceholder')" clearable
@@ -1198,7 +1198,7 @@ const groupedPages = computed(() => {
   // Stats are reported per real pageType; the knowledge tab sums its members
   // so the count is available before the first page request completes.
   const statTotal = (tab: string) => {
-    const byType = stats.value?.pages_by_type
+    const byType = stats.value?.pagesByType
     if (!byType) return 0
     if (tab === KNOWLEDGE_TAB) return KNOWLEDGE_TYPES.reduce((sum, t) => sum + (byType[t] || 0), 0)
     return byType[tab] || 0
@@ -2863,14 +2863,14 @@ async function loadStats() {
     // Notify parent so it can reflect wiki status (e.g. indexing badge in the breadcrumb)
     if (stats.value) {
       emit('status-change', {
-        pendingTasks: stats.value.pending_tasks || 0,
-        isActive: !!stats.value.is_active,
-        pendingIssues: stats.value.pending_issues || 0,
+        pendingTasks: stats.value.pendingTasks || 0,
+        isActive: !!stats.value.active,
+        pendingIssues: stats.value.pendingIssues || 0,
       })
     }
 
     // Poll if there are pending tasks or wiki ingest is active
-    if (stats.value && (stats.value.pending_tasks > 0 || stats.value.is_active)) {
+    if (stats.value && (stats.value.pendingTasks > 0 || stats.value.active)) {
       if (!statsTimer) {
         statsTimer = setInterval(() => {
           loadStats()

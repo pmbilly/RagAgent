@@ -1,22 +1,22 @@
 /** Whether GET /knowledge/:id/spans returned a real trace (not legacy placeholder-only). */
 export function knowledgeSpansPayloadHasTrace(
-  data: { trace?: { span_id?: string }; current_attempt?: number } | null | undefined,
+  data: { trace?: { spanId?: string }; currentAttempt?: number } | null | undefined,
 ): boolean {
   if (!data?.trace) return false
-  return !!(data.trace.span_id || (data.current_attempt ?? 0) > 0)
+  return !!(data.trace.spanId || (data.currentAttempt ?? 0) > 0)
 }
 
 export interface KnowledgeTraceNode {
-  span_id?: string
-  parent_span_id?: string
+  spanId?: string
+  parentSpanId?: string
   name: string
   kind: string
   status: string
-  started_at?: string | null
-  finished_at?: string | null
-  duration_ms?: number
-  error_code?: string
-  error_message?: string
+  startedAt?: string | null
+  finishedAt?: string | null
+  durationMs?: number
+  errorCode?: string
+  errorMessage?: string
   input?: unknown
   output?: unknown
   metadata?: unknown
@@ -40,11 +40,11 @@ function timestamp(value?: string | null): number | null {
 }
 
 function nodeEnd(node: KnowledgeTraceNode): number | null {
-  const finished = timestamp(node.finished_at)
+  const finished = timestamp(node.finishedAt)
   if (finished !== null) return finished
-  const started = timestamp(node.started_at)
-  if (started !== null && typeof node.duration_ms === 'number' && node.duration_ms >= 0) {
-    return started + node.duration_ms
+  const started = timestamp(node.startedAt)
+  if (started !== null && typeof node.durationMs === 'number' && node.durationMs >= 0) {
+    return started + node.durationMs
   }
   return null
 }
@@ -70,7 +70,7 @@ export function groupPostprocessGraphSpans(
   if (graphChildren.length === 0) return stage
 
   const starts = graphChildren
-    .map(child => timestamp(child.started_at))
+    .map(child => timestamp(child.startedAt))
     .filter((value): value is number => value !== null)
   const ends = graphChildren
     .map(nodeEnd)
@@ -85,14 +85,14 @@ export function groupPostprocessGraphSpans(
   }, {})
 
   const group: KnowledgeTraceNode = {
-    span_id: `virtual:postprocess.graph:${stage.span_id || 'stage'}`,
-    parent_span_id: stage.span_id,
+    spanId: `virtual:postprocess.graph:${stage.spanId || 'stage'}`,
+    parentSpanId: stage.spanId,
     name: 'postprocess.graph',
     kind: 'group',
     status,
-    started_at: start === null ? null : new Date(start).toISOString(),
-    finished_at: end === null ? null : new Date(end).toISOString(),
-    duration_ms: start !== null && end !== null ? Math.max(0, end - start) : undefined,
+    startedAt: start === null ? null : new Date(start).toISOString(),
+    finishedAt: end === null ? null : new Date(end).toISOString(),
+    durationMs: start !== null && end !== null ? Math.max(0, end - start) : undefined,
     input: { chunk_count: graphChildren.length },
     output: { chunk_count: graphChildren.length, status_counts: counts },
     children: graphChildren,

@@ -17,20 +17,20 @@ type SpanNode = KnowledgeTraceNode
 
 interface LastError {
   name: string
-  error_code: string
-  error_message: string
-  finished_at?: string
+  errorCode: string
+  errorMessage: string
+  finishedAt?: string
 }
 
 interface SpansResponse {
-  knowledge_id: string
+  knowledgeId: string
   attempt: number
   latestAttempt: number
-  current_attempt?: number
+  currentAttempt?: number
   parseStatus: string
-  current_stage?: string
+  currentStage?: string
   trace: SpanNode
-  last_error?: LastError | null
+  lastError?: LastError | null
 }
 
 // IMPORTANT: Vue 3 coerces missing Boolean props to `false`, NOT
@@ -196,7 +196,7 @@ function formatRelativeTime(ts: number): string {
 // processing time, so do not present it as (for example) multimodal time.
 function formatSpanDuration(node: SpanNode): string {
   if (node.status === 'skipped' || node.status === 'pending') return '—'
-  return formatDuration(node.duration_ms)
+  return formatDuration(node.durationMs)
 }
 
 function isPolling(status?: string): boolean {
@@ -253,7 +253,7 @@ const isLive = computed<boolean>(() => {
 })
 
 // Walk every node in the tree and return the freshest updated_at /
-// finished_at timestamp we can see. Used by the quiescent grace
+// finishedAt timestamp we can see. Used by the quiescent grace
 // window below to decide "did this trace finish recently, or is it
 // just an old completed one we shouldn't waste polls on?"
 function spanTreeLastActivity(node?: SpanNode): number {
@@ -261,8 +261,8 @@ function spanTreeLastActivity(node?: SpanNode): number {
   let max = 0
   const stamps: (string | null | undefined)[] = [
     (node as any).updated_at,
-    node.finished_at,
-    node.started_at,
+    node.finishedAt,
+    node.startedAt,
     (node as any).created_at,
   ]
   for (const s of stamps) {
@@ -367,7 +367,7 @@ async function fetchSpans(opts: { manual?: boolean } = {}) {
       const expanded = new Set(expandedRows.value)
       expanded.add('__root__')
       const autoExpand = (n: SpanNode) => {
-        const key = n.span_id || `stage:${n.name}`
+        const key = n.spanId || `stage:${n.name}`
         const kids = n.children || []
         if (kids.length > 0 && !userToggledRows.value.has(key)) {
           expanded.add(key)
@@ -586,7 +586,7 @@ onBeforeUnmount(() => {
 // ---------- Waterfall helpers ----------
 
 function rowKey(node: SpanNode, fallback: string): string {
-  return node.span_id || fallback
+  return node.spanId || fallback
 }
 
 function parseTime(s?: string | null): number | null {
@@ -596,15 +596,15 @@ function parseTime(s?: string | null): number | null {
 }
 
 function nodeStart(node: SpanNode): number | null {
-  return parseTime(node.started_at || undefined)
+  return parseTime(node.startedAt || undefined)
 }
 
 function nodeEnd(node: SpanNode): number | null {
-  const e = parseTime(node.finished_at || undefined)
+  const e = parseTime(node.finishedAt || undefined)
   if (e !== null) return e
   const s = nodeStart(node)
-  if (s !== null && typeof node.duration_ms === 'number' && node.duration_ms > 0) {
-    return s + node.duration_ms
+  if (s !== null && typeof node.durationMs === 'number' && node.durationMs > 0) {
+    return s + node.durationMs
   }
   return null
 }
@@ -649,7 +649,7 @@ const t0 = computed<number | null>(() => {
 const tEnd = computed<number | null>(() => {
   const root = traceRoot.value
   if (!root) return null
-  const direct = parseTime(root.finished_at || undefined)
+  const direct = parseTime(root.finishedAt || undefined)
   const all: number[] = []
   collectEnds(root, all)
   let candidate: number | null = direct
@@ -670,14 +670,14 @@ const tEnd = computed<number | null>(() => {
 
 const totalMs = computed<number>(() => {
   if (t0.value === null || tEnd.value === null) return 0
-  // The trace's own duration_ms only covers the parsing pipeline up to
+  // The trace's own durationMs only covers the parsing pipeline up to
   // FinalizeAttempt. Async post-processing subspans (summary / question /
   // graph) keep producing rows AFTER the root closes — so the time axis
   // must scale to the latest descendant end, otherwise their bars get
   // clipped past the right edge. Take the max of (root duration, observed
   // span tail) regardless of polling state.
   const observed = Math.max(0, tEnd.value - t0.value)
-  const traceDur = data.value?.trace?.duration_ms
+  const traceDur = data.value?.trace?.durationMs
   if (typeof traceDur === 'number' && traceDur > 0) {
     return Math.max(traceDur, observed)
   }
@@ -785,7 +785,7 @@ function barStyle(node: SpanNode): Record<string, string> {
   if (!total || t0.value === null) return { display: 'none' }
   const start = nodeStart(node)
   if (start === null) return { display: 'none' }
-  // For a span with no recorded finished_at, use "now" as the end
+  // For a span with no recorded finishedAt, use "now" as the end
   // whenever it's plausibly still running — either the trace overall
   // is live, or this individual span's status says it's in flight.
   // Without the second clause, postprocess subspans that survived past
@@ -801,7 +801,7 @@ function barStyle(node: SpanNode): Record<string, string> {
 }
 
 // Wrapping outline bar — when a span's children extend past the parent's
-// own finished_at (typical for postprocess: stage closes in ~9ms but its
+// own finishedAt (typical for postprocess: stage closes in ~9ms but its
 // async summary/question subspans run for tens of seconds), we render a
 // faint outline from the parent's start to the latest descendant end.
 // This makes "this stage's downstream work took N seconds total" visible
@@ -863,7 +863,7 @@ function liveElapsedMs(node: SpanNode): number {
 }
 
 function isPlaceholder(node: SpanNode): boolean {
-  return !node.span_id && !node.started_at
+  return !node.spanId && !node.startedAt
 }
 
 function isRowExpanded(key: string): boolean {
@@ -1175,7 +1175,7 @@ const headerStatusTheme = computed(() => {
 })
 
 const showLastError = computed(() =>
-  Boolean(data.value?.last_error && data.value?.parseStatus === 'failed'),
+  Boolean(data.value?.lastError && data.value?.parseStatus === 'failed'),
 )
 
 const stagesStatDisplay = computed(() => {
@@ -1223,8 +1223,8 @@ const headMetaParts = computed(() => {
       n: postprocess.running,
     }))
   }
-  if (attemptTabs.value.length === 0 && data.value.current_attempt) {
-    parts.push(t('knowledgeStages.attempt', { n: data.value.current_attempt }))
+  if (attemptTabs.value.length === 0 && data.value.currentAttempt) {
+    parts.push(t('knowledgeStages.attempt', { n: data.value.currentAttempt }))
   }
   if (lastFetchedAt.value && isLive.value) {
     let updated = formatRelativeTime(lastFetchedAt.value)
@@ -1303,10 +1303,10 @@ function identityFields(row: FlatRow): IdentityField[] {
   if (row.hasChildren) {
     out.push({ key: 'children', label: t('knowledgeStages.detail.childCount'), value: String((row.node.children || []).length), mono: true, copyable: false })
   }
-  if (node.span_id) out.push({ key: 'span_id', label: 'span_id', value: node.span_id, mono: true, copyable: true })
-  if (node.parent_span_id) out.push({ key: 'parent_span_id', label: 'parent_span_id', value: node.parent_span_id, mono: true, copyable: true })
-  if (data.value?.knowledge_id) out.push({ key: 'knowledge_id', label: 'knowledge_id', value: data.value.knowledge_id, mono: true, copyable: true })
-  if (data.value?.current_attempt) out.push({ key: 'attempt', label: t('knowledgeStages.head.attempt'), value: `#${data.value.current_attempt}`, mono: true, copyable: false })
+  if (node.spanId) out.push({ key: 'spanId', label: 'spanId', value: node.spanId, mono: true, copyable: true })
+  if (node.parentSpanId) out.push({ key: 'parentSpanId', label: 'parentSpanId', value: node.parentSpanId, mono: true, copyable: true })
+  if (data.value?.knowledgeId) out.push({ key: 'knowledgeId', label: 'knowledgeId', value: data.value.knowledgeId, mono: true, copyable: true })
+  if (data.value?.currentAttempt) out.push({ key: 'attempt', label: t('knowledgeStages.head.attempt'), value: `#${data.value.currentAttempt}`, mono: true, copyable: false })
   return out
 }
 
@@ -1315,7 +1315,7 @@ interface StageRowSummary {
   name: string
   label: string
   status: string
-  duration_ms?: number
+  durationMs?: number
   pct: number
 }
 
@@ -1325,8 +1325,8 @@ const stageBreakdown = computed<StageRowSummary[]>(() => {
     name: s.name,
     label: t(`knowledgeStages.stage.${s.name}`),
     status: s.status,
-    duration_ms: s.duration_ms,
-    pct: typeof s.duration_ms === 'number' && s.duration_ms > 0 ? Math.min(100, (s.duration_ms / total) * 100) : 0,
+    durationMs: s.durationMs,
+    pct: typeof s.durationMs === 'number' && s.durationMs > 0 ? Math.min(100, (s.durationMs / total) * 100) : 0,
   }))
 })
 
@@ -1503,18 +1503,18 @@ const processConfigLines = computed<string[]>(() => {
             </button>
           </div>
 
-          <div v-if="showLastError && data?.last_error" class="kp-last-error" role="alert">
+          <div v-if="showLastError && data?.lastError" class="kp-last-error" role="alert">
             <div class="kp-last-error-bar" />
             <div class="kp-last-error-body">
               <div class="kp-last-error-row">
                 <span class="kp-last-error-glyph">!</span>
-                <span class="kp-last-error-title">{{ localizedErrorTitle(data.last_error.error_code) }}</span>
-                <span v-if="data.last_error.error_code" class="kp-last-error-code kp-mono">{{ data.last_error.error_code
+                <span class="kp-last-error-title">{{ localizedErrorTitle(data.lastError.errorCode) }}</span>
+                <span v-if="data.lastError.errorCode" class="kp-last-error-code kp-mono">{{ data.lastError.errorCode
                   }}</span>
               </div>
-              <div class="kp-last-error-suggestion">{{ localizedErrorSuggestion(data.last_error.error_code) }}</div>
-              <div v-if="data.last_error.error_message" class="kp-last-error-raw kp-mono">{{
-                data.last_error.error_message }}
+              <div class="kp-last-error-suggestion">{{ localizedErrorSuggestion(data.lastError.errorCode) }}</div>
+              <div v-if="data.lastError.errorMessage" class="kp-last-error-raw kp-mono">{{
+                data.lastError.errorMessage }}
               </div>
             </div>
           </div>
@@ -1673,7 +1673,7 @@ const processConfigLines = computed<string[]>(() => {
                   <div class="kp-kv">
                     <div class="kp-kv-row">
                       <span class="kp-kv-key">{{ t('knowledgeStages.detail.started') }}</span>
-                      <span class="kp-kv-val kp-mono">{{ formatTime(selectedRow.node.started_at) }}</span>
+                      <span class="kp-kv-val kp-mono">{{ formatTime(selectedRow.node.startedAt) }}</span>
                     </div>
                     <div class="kp-kv-row">
                       <span class="kp-kv-key">{{ t('knowledgeStages.detail.finished') }}</span>
@@ -1682,7 +1682,7 @@ const processConfigLines = computed<string[]>(() => {
                           <span class="kp-kv-running">{{ t('knowledgeStages.detail.inProgress') }}</span>
                         </template>
                         <template v-else>
-                          {{ formatTime(selectedRow.node.finished_at) }}
+                          {{ formatTime(selectedRow.node.finishedAt) }}
                         </template>
                       </span>
                     </div>
@@ -1748,27 +1748,27 @@ const processConfigLines = computed<string[]>(() => {
                       </div>
                       <span class="kp-breakdown-dur kp-mono">{{ s.status === 'skipped' || s.status === 'pending'
                         ? '—'
-                        : formatDuration(s.duration_ms) }}</span>
+                        : formatDuration(s.durationMs) }}</span>
                     </div>
                   </div>
                 </div>
 
                 <!-- Error -->
                 <div
-                  v-if="(selectedRow.node.status === 'failed' || selectedRow.node.status === 'cancelled') && (selectedRow.node.error_code || selectedRow.node.error_message)"
+                  v-if="(selectedRow.node.status === 'failed' || selectedRow.node.status === 'cancelled') && (selectedRow.node.errorCode || selectedRow.node.errorMessage)"
                   class="kp-error-block">
                   <div class="kp-error-head">
                     <span class="kp-error-glyph">!</span>
-                    <span class="kp-error-title">{{ localizedErrorTitle(selectedRow.node.error_code) ||
+                    <span class="kp-error-title">{{ localizedErrorTitle(selectedRow.node.errorCode) ||
                       t('knowledgeStages.detail.error') }}</span>
-                    <span v-if="selectedRow.node.error_code" class="kp-error-code kp-mono">{{
-                      selectedRow.node.error_code }}</span>
+                    <span v-if="selectedRow.node.errorCode" class="kp-error-code kp-mono">{{
+                      selectedRow.node.errorCode }}</span>
                   </div>
-                  <pre v-if="selectedRow.node.error_message"
-                    class="kp-error-msg kp-mono">{{ selectedRow.node.error_message }}</pre>
+                  <pre v-if="selectedRow.node.errorMessage"
+                    class="kp-error-msg kp-mono">{{ selectedRow.node.errorMessage }}</pre>
                 </div>
 
-                <div v-if="!selectedRow.node.span_id && !selectedRow.node.started_at" class="kp-detail-hint">
+                <div v-if="!selectedRow.node.spanId && !selectedRow.node.startedAt" class="kp-detail-hint">
                   {{ t('knowledgeStages.detail.placeholderHint') }}
                 </div>
               </template>
@@ -2497,7 +2497,7 @@ const processConfigLines = computed<string[]>(() => {
 
 /* Wrapping outline bar — shows the full window from this span's start
    to the latest descendant end. Used when async children extend past
-   the parent's own finished_at (e.g. postprocess stage closes fast but
+   the parent's own finishedAt (e.g. postprocess stage closes fast but
    its summary/question subspans run for a long time). */
 .kp-bar-wrap {
   position: absolute;

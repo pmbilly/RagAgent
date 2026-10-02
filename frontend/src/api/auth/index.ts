@@ -20,7 +20,7 @@ export interface LoginResponse {
     tenantId: number
     canAccessAllTenants?: boolean
     isSystemAdmin?: boolean
-    is_active: boolean
+    isActive: boolean
     createdAt: string
     updatedAt: string
   }
@@ -325,8 +325,8 @@ export interface MembershipInfo {
  * 获取当前用户信息
  */
 export interface AuthCapabilities {
-  can_create_tenant: boolean
-  auto_accept_invitation: boolean
+  canCreateTenant: boolean
+  autoAcceptInvitation: boolean
 }
 
 export async function getCurrentUser(): Promise<{ user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenantRequired?: boolean; capabilities?: AuthCapabilities; preferenceDefaults?: { browserSearchInstructions: string } }> {

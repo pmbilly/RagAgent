@@ -80,8 +80,8 @@ const syncOIDCUserContext = async () => {
   if (Array.isArray(memberships)) {
     authStore.setMemberships(memberships)
   }
-  if (typeof capabilities?.can_create_tenant === 'boolean') {
-    authStore.setCanCreateTenant(capabilities.can_create_tenant)
+  if (typeof capabilities?.canCreateTenant === 'boolean') {
+    authStore.setCanCreateTenant(capabilities.canCreateTenant)
   }
   // Same active-vs-home reconciliation as Login.vue: if the OIDC login
   // landed us in a non-home tenant (because the backend honoured a

@@ -43,12 +43,13 @@
    M6（mcp `@JsonInclude` 恒输出）；`SourceRegistry` 878→534、`UserService` 876→748 切片出榜；
    4 个登记例外复核结论入册（§14.3）。**至此 ⭐ 第 4 条所列全部剩余工作完成：
    复查批后全仓 `@JsonProperty` 余量 913 处全部是登记冻结面（§14.6）**。
-4. **下一步（2026-10-02 更新）**：§15 计划已完成 **B1 契约文档 v1.1 / B2 金片对比器统一（GoldenContract 上线，
-   字节级对比清零）/ B3 `@JsonInclude` 恒输出化（真面 68 处；yunzhijia 第三方回退；KB config 双轨登记 B3b）/
-   B4 零值哨兵（结论：不改，已知例外）/ B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行）。
-   **剩余待做**：**B0 端到端真实走查（P0，下一刀）**——起服（后端 8083 + 前端 dev）按 §15.1 的
-   14 条链路清单逐域走查（API 形状 × 视图渲染 × 控制台报错逐条记录）；随后 B5 lf_* 评估 /
-   B6 getenv 收敛 151 处 / B9 Go 锚点随批 / B10 ArchUnit 进 CI / B11 多模块 / B3b（可选，见 15.1.1）。
+4. **下一步（2026-10-02 更新）**：§15 计划已完成 **B0 端到端真实走查（P0，2026-10-02 收官，修 15 处断点）/
+   B1 契约文档 v1.1 / B2 金片对比器统一（GoldenContract 上线，字节级对比清零）/ B3 `@JsonInclude` 恒输出化
+   （真面 68 处；yunzhijia 第三方回退；KB config 双轨登记 B3b）/ B4 零值哨兵（结论：不改，已知例外）/
+   B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行与 §15.1.1）。
+   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ B6 getenv 收敛 151 处 / B9 Go 锚点随批 / B10 ArchUnit 进 CI /
+   B11 多模块（最后做）。**B0 新登记 5 项残留见 §15.1.1**——其中 **B3b′（`wiki_config` 内层键三方不一致，
+   界面选的 wiki 合成模型被静默忽略）已升格为可复现真实缺陷，建议优先立项**。
    **新会话接手**：直接读 §15.1 批次表（状态列）+ §15.1.1 执行记录 + §15.2 纪律五条（开工前必读）+
    §15.3 非目标冻结清单；做完一批把 ✅ 与记录写回 §15.1。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
@@ -2766,7 +2767,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 
 | 批 | 内容 | 优先级 | 量级 | 状态 |
 |---|---|---|---|---|
-| **B0 端到端真实走查** | 起服（后端 8083 + 前端 dev）按域走查 14 条链路：注册/登录/**令牌刷新**/登出 → 空间创建/切换/成员邀请/**审计页** → KB 创建/摄取/**处理时间线**/预览 → 检索/对话（SSE）→ wiki 浏览/编辑 → datasource（RSS 桩）同步/凭据 → im 渠道 CRUD → vectorstore/storage 设置 → 收藏/技能目录/模型调试/系统运行时页。每条记录 API 形状 × 视图渲染 × 控制台报错 | **P0** | 1-2 天 | ⬜ **待做（下一刀）**——复查两批的断点全是静态闸门盲区，同类问题只能靠走查兜底 |
+| **B0 端到端真实走查** | 起服（后端 8083 + 前端 dev）按域走查 14 条链路：注册/登录/**令牌刷新**/登出 → 空间创建/切换/成员邀请/**审计页** → KB 创建/摄取/**处理时间线**/预览 → 检索/对话（SSE）→ wiki 浏览/编辑 → datasource（RSS 桩）同步/凭据 → im 渠道 CRUD → vectorstore/storage 设置 → 收藏/技能目录/模型调试/系统运行时页。每条记录 API 形状 × 视图渲染 × 控制台报错 | **P0** | 1-2 天 | ✅ **完成（2026-10-02）**——14 条链路全走通，修 15 处断点（前端 12：裸体未适配 8 + 字段漂移 4 族；后端 2）+ 1 处 dev 环境配置；登记 5 项残留（含 B3b′ 升格）。详见 15.1.1 |
 | **B1 契约文档同步** | `docs/knowledge-api-contract-v1.md` v1.0→v1.1：错误体、裸信封/裸数组、游标分页、恒输出、204 语义、七域差异表 | P0 | 小 | ✅ |
 | **B2 金片对比器统一** | `support/GoldenContract` 共享基建（deep 归一 + strip + 单一 refresh 开关）；字节级（`goldenBytes`/裸 compare）与语义级双轨并存 → 语义单轨，存量字节级测试逐个迁移 | P0 | 中 | ✅ |
 | **B3 `@JsonInclude` 恒输出化** | 真面 68 处（19 文件：wiki domain 全家 + websearch 三 DTO + VectorStoreTypes）；冻结面豁免（tenantconfig/LLM 载荷/event/tracing/common/agent/stream + connector + lf_*）；每域重录夹具 + 前端键集合核对 | P1 | 中 | ✅（**B3b 已登记**：KB 更新请求 `faq_config/wiki_config/...` 外层 dispatch 键+内层业务键是落库 jsonb 透传三方咬合面，改键=落库格式变更，独立可选批） |
@@ -2795,6 +2796,18 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 **✅ B7**：依赖级口径（声明+构造赋值 ≤2 次）实锤断成员 19 处全清——只注入不读取字段 3（`PluginSearchParallel`）+ 死 logger 8 + 死 `ObjectMapper` 3 + 死 `Pattern` 1 + 死私有方法 4（含孤立 javadoc 清理）+ 冗余 import 4（javadoc 行规避后复核）。66 处历史候选复核为零。
 
 **✅ B8**：全限定名注解 177+6 → 0（14 文件，注入前逐文件同名符号冲突扫描）；`@JsonIgnoreProperties` 48 处评估**保留**——14 个严格 mapper 读取点全是外部/不可信 JSON（第三方 API 响应/OAuth 文档/租户落库/Redis blob），注解是正确纵深防御；WEB 侧 8 个读路径已宽松，冗余但无害（§2 第 12 条勿批量删）。
+
+**✅ B0（2026-10-02，走查批收官）**：后端 8083（postgres 驱动）+ 前端 5173 + 桩 LLM（127.0.0.1:18090，`b0-stub-chat`）+ 桩 RSS（127.0.0.1:18091）起服，按域走查 14 条链路，每条「API 形状 × 视图渲染 × 控制台报错」三录。
+- **走通（实测状态码 + 截图）**：注册/登录/刷新/登出；空间创建·切换·成员邀请·成员列表·审计页；KB 创建·上传·摄取（docreader 解析→分块→嵌入→索引，处理时间线四段）·预览·删除；检索（关键词/向量/混合，返回命中）；对话 SSE（`agent_query → query_understand → knowledge_search → references → answer 流 → complete`）；wiki 浏览页与 tab 呈现；datasource（RSS 桩）创建·同步（2 条入库）·资源树·日志·删除；im 渠道 CRUD（创建/总览不含凭据/toggle/更新/删除 204）；vectorstore·storage·parser 设置页；收藏（星标 + `/user/favorites`）；技能目录/智能体页；模型管理；系统运行时·审计·全局设置（临时提权 smokeuser 验证后未回退，dev 数据）。
+- **修 15 处断点（前端 12 + 后端 2 + 环境 1）**：
+  - **前端 A 类·裸体未适配（8 处）**：服务端 §2.1 早改成裸对象/裸数组，前端 API 层仍 `as ListXxxResponse` 强转 → 消费端 `data` 恒 `undefined`。命中：system KV 四件（`prompt-templates`/`parser-engine-config`/`storage-engine-config`/`retrieval-config` 的读与写）、tenant `invitations` 五个入口、`chat-history`、`web-search-provider`、`api/knowledge-base` 的 `vector_store_*` → `id/name/engineType` 注释口径。**实测症状**：成员管理页整块弹「U1 参数不可解析」红条（`data.invitations` 为 undefined，邀请列表也不渲染）；修后成员表 + 待接受邀请正常。
+  - **前端 B 类·字段读取漂移（视图层读 snake，服务端已 camelCase，共 4 处族）**：① wiki stats 四键（`pending_issues/pending_tasks/is_active/pages_by_type`）→ wiki 头部徽标与类型分桶恒空；② folderTree 计数键（`root_document_count` 等）+ 两个文档视图 + 测试夹具 → 文件夹计数恒 0（`vue-tsc` 报 17 错）；③ `KnowledgeBase.vue` 三处：`item_count`→`documentCount`（卡片计数恒 0）、`storageConfig.provider`→`defaultProvider` 与 KV 的 `default_provider/provider/storage_type`（双触发「尚未选择存储引擎」误报）、`resource_type/resource_id`→camel（收藏星标失效）；④ 其余同族：`KBInfoPopover`、`knowledge-processing-timeline`+`utils/knowledgeTrace`（含测试）、`UploadConfirmDialog`、`TagEditDialog`/`BatchTagDialog`、`AgentEditorModal`、`KnowledgeBaseEditorModal`、`api/auth` 的 `is_active`。**最重一例**：检索引擎设置（⌘K 面板）`embedding_top_k`→`embeddingTopK`——表单恒显默认 5，用户保存即被覆盖（静默改写用户配置，走查抓出）。
+  - **后端 2**：⑩ `KnowledgeProcessWorker.planFinalizing` wiki 子任务入队前先校验合成模型可解析（原先无模型也占槽入队 → ingest 重试 11 次后死信、**文档永远 finalizing**，实测复现）；⑪ `StartupTaskRecovery` Lite 模式不再排除「wiki 独槽」finalizing 行（Go 原文「启动后能重建触发器」在单机形态不成立——实测重启后无人触发，卡片永远「优化中」；重启后该行已实际复位为 failed 可重试）。
+  - **环境 1**：`.env` 补 `DOCREADER_ADDR=localhost:50051`（连接态判据是「该 env 是否为空」而非探活，缺失时 `/system/parser-engines` 报 `connected:false`、内置引擎显示「不可用」、KB 页提示「暂无可解析引擎」，而解析其实正常）。
+- **登记 5 项残留**：① **B3b 升格为真实缺陷（B3b′）**——KB 更新请求 `wiki_config` 内层键是 snake（前端写）而 Java 值类型 `wiki.domain.WikiConfig` 读 camelCase（无线名注解）→ **界面选的 wiki 合成模型被静默忽略**（实测：写入 `synthesis_model_id` 后 ingest 仍报 `missing_synthesis_model`）；修需一次落库键迁移 + 前端 payload + 读回三处同批。② wiki op 永久失败时无人释放槽位（死信路径缺 `WikiFinalizePort.finalizeWikiSubtask` 调用）——⑩ 只挡「无模型」这一新发生，运行期其它永久失败仍会搁浅。③ 孤儿 wiki op 不重放（Lite 重启后持久化 op 不再触发；⑪ 让文档不卡，但该文 wiki 内容要等下一次 KB 触发补生成）。④ `views/settings/StorageEngineSettings.vue` 是孤儿组件（`Settings.vue` 用该别名 import 的实为 `StorageBackendSettings.vue`）→ 存储引擎 KV 表单 UI 不可达。⑤ 每次登录都会打一发 `POST /auth/auto-setup` → 403「auto-setup is only available in lite edition」（控制台噪音，会掩住真 403；前端若能从 `/auth/config` 拿到版本信号即可前置跳过）。
+- **未走**：第三方 connector 真凭据面（飞书/Notion/GitLab 等）、embed 渠道公开面、mcp OAuth（无桩、属 §14.6 冻结面）。
+- **闸门**：前端 `vue-tsc` 0 错 + `npm test` 690 绿；后端 `spotlessCheck` 绿 + config/knowledge/wiki/system/session/datasource 六域测试全绿；上述每处修复都有真实服务复验（成员表与邀请列表出现、横幅消失、wiki/图谱 tab 出现、`/system/parser-engines` 转 `connected:true`、新文档 `completed + pending 0`、旧卡死文档复位 failed）。
+- **教训**：「api 类型文件对齐 ≠ 消费端对齐」在本轮被证伪到第 9 例，且**类型断言把漂移全藏住**——凡是 `get<T>()` 泛型断言过的响应，消费端读错键 TS 一声不吭；这类断点只能靠「真数据 × 真渲染」走查兜底（VII 复查两批的静态闸门盲区判断成立）。
 
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）

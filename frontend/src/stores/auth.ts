@@ -367,12 +367,12 @@ export const useAuthStore = defineStore('auth', () => {
         setMemberships(list)
       }
 
-      const createCapability = response.capabilities?.can_create_tenant
+      const createCapability = response.capabilities?.canCreateTenant
       if (typeof createCapability === 'boolean') {
         setCanCreateTenant(createCapability)
       }
 
-      setAutoAcceptInvitation(response.capabilities?.auto_accept_invitation === true)
+      setAutoAcceptInvitation(response.capabilities?.autoAcceptInvitation === true)
 
       return true
     } catch {

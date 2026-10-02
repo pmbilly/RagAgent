@@ -3416,13 +3416,13 @@ watch(() => chatResources.allModels, (list) => {
 });
 
 const mapKbToOption = (kb: any) => {
-  const strategy = kb.indexing_strategy;
+  const strategy = kb.indexingStrategy;
   const caps: KBCapabilities | undefined = kb.capabilities;
   return {
     label: kb.name,
     value: kb.id,
     type: kb.type || 'document',
-    count: kb.type === 'faq' ? (kb.chunk_count || 0) : (kb.knowledge_count || 0),
+    count: kb.type === 'faq' ? (kb.chunkCount || 0) : (kb.knowledgeCount || 0),
     shared: false,
     ragEnabled: caps ? (caps.vector || caps.keyword) : (!strategy || strategy.vectorEnabled || strategy.keywordEnabled),
     wikiEnabled: caps ? caps.wiki : (strategy?.wikiEnabled || false),

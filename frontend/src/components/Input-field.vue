@@ -1119,7 +1119,7 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
         if (detail) {
           count = detail.type === 'faq'
             ? Number(detail.chunkCount || 0)
-            : Number(detail.knowledge_count || 0);
+            : Number(detail.knowledgeCount || 0);
         }
       }
       return {
@@ -1213,7 +1213,7 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
       if (res.items && Array.isArray(res.items)) {
         let files = res.items;
         const rawTotal = typeof res.total === 'number' ? res.total : undefined;
-        const apiPageSize = res.data.length;
+        const apiPageSize = res.items.length;
         // 按当前 @ 会话的兼容 KB 集合过滤：
         //   - 非智能体场景：`mentionAllowedKbIds` 为 null，跳过；
         //   - 智能体场景：'selected' 会把 ID 收敛到用户勾的 KB，

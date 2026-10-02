@@ -51,7 +51,7 @@
         </div>
         <div v-if="availableTagsList.length > 0" class="tag-edit-chips">
           <button v-for="tag in availableTagsList" :key="tag.id" type="button" class="tag-edit-chip"
-            :title="tag.knowledge_count !== undefined ? `${tag.name} (${tag.knowledge_count})` : tag.name"
+            :title="tag.knowledgeCount !== undefined ? `${tag.name} (${tag.knowledgeCount})` : tag.name"
             @click="toggleTag(tag.id)">
             {{ tag.name }}
           </button>
@@ -96,7 +96,7 @@ interface Tag {
   id: string;
   name: string;
   color?: string;
-  knowledge_count?: number;
+  knowledgeCount?: number;
 }
 
 const props = defineProps<{

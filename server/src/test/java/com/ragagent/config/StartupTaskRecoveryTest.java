@@ -16,8 +16,8 @@ import com.ragagent.TestSchema;
 
 /**
  * 启动恢复（对照 Go {@code container/reset_pending_tasks.go}）的 H2 钉子：
- * Lite 模式下卡在处理态的知识/摘要行复位为 failed + 重启文案 + 子任务计数清零、
- * wiki 独槽的 finalizing 行排除（持久化 wiki op 可重建触发器收尾）、
+ * Lite 模式下卡在处理态的知识/摘要行复位为 failed + 重启文案 + 子任务计数清零
+ * （含 wiki 独槽的 finalizing 行——单机形态下无人重建触发器）、
  * 同步日志按模式复位（Lite 全量 / 分布式只判 30 分钟陈旧窗）。
  * 复位行不再产生孤儿 running span（SERVER_RESTART 取消）。
  */
@@ -65,8 +65,9 @@ class StartupTaskRecoveryTest {
         assertReset(finalizingNoOp);
         assertReset(deleting);
         assertThat(parseStatus(completed)).isEqualTo("completed");
-        // wiki 独槽的 finalizing 行保持存活（启动后重建触发器收尾）
-        assertThat(parseStatus(wikiOnlySlot)).isEqualTo("finalizing");
+        // wiki 独槽的 finalizing 行也复位：Lite 下队列在进程内、随重启消失，
+        // 没有任何组件会重建触发器（B0 走查实测该 op 一直躺着、文档永远 finalizing）
+        assertReset(wikiOnlySlot);
     }
 
     @Test

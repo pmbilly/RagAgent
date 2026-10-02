@@ -114,8 +114,8 @@ function flattenFolders(
       path: node.path,
       name: node.name,
       depth,
-      documentCount: node.document_count,
-      totalCount: node.total_count,
+      documentCount: node.documentCount,
+      totalCount: node.totalCount,
       hasChildren,
     })
     if (hasChildren && expanded.has(node.path)) {
@@ -139,8 +139,8 @@ export function buildFolderRows(
     path: ROOT_FOLDER_PATH,
     name: '',
     depth: 0,
-    documentCount: tree?.root_document_count ?? 0,
-    totalCount: tree?.total_document_count ?? 0,
+    documentCount: tree?.rootDocumentCount ?? 0,
+    totalCount: tree?.totalDocumentCount ?? 0,
     hasChildren: folders.length > 0,
   }
   if (!root.hasChildren || !expanded.has(ROOT_FOLDER_PATH)) return [root]

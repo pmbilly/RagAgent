@@ -25,24 +25,24 @@ const folders = [
   {
     path: 'handbook',
     name: 'handbook',
-    document_count: 1,
-    total_count: 4,
+    documentCount: 1,
+    totalCount: 4,
     children: [
       {
         path: 'handbook/onboarding',
         name: 'onboarding',
-        document_count: 2,
-        total_count: 3,
+        documentCount: 2,
+        totalCount: 3,
         children: [
-          { path: 'handbook/onboarding/day-one', name: 'day-one', document_count: 1, total_count: 1 },
+          { path: 'handbook/onboarding/day-one', name: 'day-one', documentCount: 1, totalCount: 1 },
         ],
       },
     ],
   },
-  { path: 'design', name: 'design', document_count: 1, total_count: 1 },
+  { path: 'design', name: 'design', documentCount: 1, totalCount: 1 },
 ]
 
-const tree = { root_document_count: 2, total_document_count: 7, folders }
+const tree = { rootDocumentCount: 2, totalDocumentCount: 7, folders }
 
 test('a plain single-file upload into the root sends no path-qualified name', () => {
   assert.equal(buildUploadFileName({ name: 'report.pdf' }, ROOT_FOLDER_PATH), undefined)
@@ -139,7 +139,7 @@ test('expanding a folder whose parent is collapsed keeps it hidden', () => {
 })
 
 test('a knowledge base without folders shows a root row with no toggle', () => {
-  const rows = buildFolderRows({ root_document_count: 3, total_document_count: 3, folders: [] }, new Set([ROOT_FOLDER_PATH]))
+  const rows = buildFolderRows({ rootDocumentCount: 3, totalDocumentCount: 3, folders: [] }, new Set([ROOT_FOLDER_PATH]))
   assert.equal(rows.length, 1)
   assert.equal(rows[0].hasChildren, false)
 })

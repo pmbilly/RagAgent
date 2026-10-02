@@ -134,9 +134,24 @@ export async function listTenantInvitations(
   options: ListTenantInvitationsParams = {},
 ): Promise<ListInvitationsResponse> {
   const qs = buildTenantInvitationsQuery(options)
-  return (await get(
+  const resp = (await get(
     `/api/v1/tenants/${tenantId}/invitations${qs}`,
-  )) as unknown as ListInvitationsResponse
+  )) as unknown as {
+    invitations: TenantInvitation[]
+    page?: number
+    pageSize?: number
+    total: number
+  }
+  // 后端 200 裸 {invitations,page,pageSize,total}（§2.1）；适配成既有的 success/data 契约
+  return {
+    success: true,
+    data: {
+      invitations: resp?.invitations ?? [],
+      total: resp?.total ?? 0,
+      page: resp?.page,
+      pageSize: resp?.pageSize,
+    },
+  }
 }
 
 /**
@@ -152,10 +167,12 @@ export async function createInvitation(
   tenantId: number,
   body: CreateInvitationRequest,
 ): Promise<CreateInvitationResponse> {
-  return (await post(
+  // 后端 201 裸邀请投影（auto-accept 开启时改回成员投影）；适配成 success/data 契约
+  const resp = (await post(
     `/api/v1/tenants/${tenantId}/invitations`,
     body,
-  )) as unknown as CreateInvitationResponse
+  )) as unknown as TenantInvitation | TenantMember
+  return { success: true, data: resp }
 }
 
 /**
@@ -168,9 +185,9 @@ export async function revokeInvitation(
   tenantId: number,
   invId: number,
 ): Promise<SimpleResponse> {
-  return (await del(
-    `/api/v1/tenants/${tenantId}/invitations/${invId}`,
-  )) as unknown as SimpleResponse
+  // 后端 204 无体（§2.1）；适配成既有的 success 契约
+  await del(`/api/v1/tenants/${tenantId}/invitations/${invId}`)
+  return { success: true }
 }
 
 /**
@@ -201,9 +218,11 @@ export async function listMyInvitations(
  * Backend: GET /api/v1/me/invitations/pending-count (authenticated).
  */
 export async function getMyPendingInvitationCount(): Promise<PendingCountResponse> {
-  return (await get(
+  const resp = (await get(
     `/api/v1/me/invitations/pending-count`,
-  )) as unknown as PendingCountResponse
+  )) as unknown as { pendingCount: number }
+  // 后端 200 裸 {pendingCount}（§2.1）；适配成既有的 success/data 契约
+  return { success: true, data: { pendingCount: resp?.pendingCount ?? 0 } }
 }
 
 /**
@@ -213,9 +232,11 @@ export async function getMyPendingInvitationCount(): Promise<PendingCountRespons
  * Backend: POST /api/v1/me/invitations/:inv_id/accept (authenticated).
  */
 export async function acceptInvitation(invId: number): Promise<AcceptInvitationResponse> {
-  return (await post(
+  // 后端 200 裸 {membership,tenantName}（§2.1）；适配成既有的 success/data 契约
+  const resp = (await post(
     `/api/v1/me/invitations/${invId}/accept`,
-  )) as unknown as AcceptInvitationResponse
+  )) as unknown as AcceptInvitationResponse['data']
+  return { success: true, data: resp }
 }
 
 /**
@@ -226,10 +247,12 @@ export async function acceptInvitation(invId: number): Promise<AcceptInvitationR
 export async function acceptInvitationByToken(
   token: string,
 ): Promise<AcceptInvitationByTokenResponse> {
-  return (await post(
+  // 后端 200 裸 {membership,tenantName}（§2.1）；适配成既有的 success/data 契约
+  const resp = (await post(
     `/api/v1/me/invitations/accept-by-token`,
     { token },
-  )) as unknown as AcceptInvitationByTokenResponse
+  )) as unknown as AcceptInvitationByTokenResponse['data']
+  return { success: true, data: resp }
 }
 
 /**
@@ -237,9 +260,9 @@ export async function acceptInvitationByToken(
  * Backend: POST /api/v1/me/invitations/:inv_id/decline (authenticated).
  */
 export async function declineInvitation(invId: number): Promise<SimpleResponse> {
-  return (await post(
-    `/api/v1/me/invitations/${invId}/decline`,
-  )) as unknown as SimpleResponse
+  // 后端 204 无体（§2.1）；适配成既有的 success 契约
+  await post(`/api/v1/me/invitations/${invId}/decline`)
+  return { success: true }
 }
 
 // ---- share-link API ----------------------------------------------------
@@ -268,8 +291,10 @@ export async function createInviteLink(
   tenantId: number,
   body: CreateInviteLinkRequest,
 ): Promise<CreateInviteLinkResponse> {
-  return (await post(
+  // 后端 201 裸邀请投影（§2.1）；适配成既有的 success/data 契约
+  const resp = (await post(
     `/api/v1/tenants/${tenantId}/invite-links`,
     body,
-  )) as unknown as CreateInviteLinkResponse
+  )) as unknown as TenantInvitation
+  return { success: true, data: resp }
 }

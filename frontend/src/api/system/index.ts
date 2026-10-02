@@ -95,8 +95,10 @@ export function getSystemInfo(): Promise<SystemInfo> {
   return get('/api/v1/system/info')
 }
 
-export function getPromptTemplates(): Promise<{ data: PromptTemplatesConfig }> {
-  return get('/api/v1/tenants/kv/prompt-templates')
+export async function getPromptTemplates(): Promise<{ data: PromptTemplatesConfig }> {
+  // 后端 200 裸配置对象（§2.1）；适配成消费端既有的 { data } 契约
+  const resp = (await get('/api/v1/tenants/kv/prompt-templates')) as unknown as PromptTemplatesConfig
+  return { data: resp }
 }
 
 export interface ParserEngineInfo {
@@ -157,12 +159,16 @@ export function checkParserEngines(config: ParserEngineConfig): Promise<ParserEn
   return post('/api/v1/system/parser-engines/check', config)
 }
 
-export function getParserEngineConfig(): Promise<{ data: ParserEngineConfig }> {
-  return get('/api/v1/tenants/kv/parser-engine-config')
+export async function getParserEngineConfig(): Promise<{ data: ParserEngineConfig }> {
+  // 后端 200 裸配置对象（§2.1）；适配成消费端既有的 { data } 契约
+  const resp = (await get('/api/v1/tenants/kv/parser-engine-config')) as unknown as ParserEngineConfig
+  return { data: resp }
 }
 
-export function updateParserEngineConfig(config: ParserEngineConfig): Promise<{ data: ParserEngineConfig }> {
-  return put('/api/v1/tenants/kv/parser-engine-config', config)
+export async function updateParserEngineConfig(config: ParserEngineConfig): Promise<{ data: ParserEngineConfig }> {
+  // 后端 200 裸配置对象（§2.1）；适配成消费端既有的 { data } 契约
+  const resp = (await put('/api/v1/tenants/kv/parser-engine-config', config)) as unknown as ParserEngineConfig
+  return { data: resp }
 }
 
 export function reconnectDocReader(addr: string): Promise<ParserEnginesResponse> {
@@ -241,12 +247,16 @@ export interface GetStorageEngineStatusResponse {
   minioEnvAvailable: boolean
 }
 
-export function getStorageEngineConfig(): Promise<{ data: StorageEngineConfig }> {
-  return get('/api/v1/tenants/kv/storage-engine-config')
+export async function getStorageEngineConfig(): Promise<{ data: StorageEngineConfig }> {
+  // 后端 200 裸配置对象（§2.1）；适配成消费端既有的 { data } 契约
+  const resp = (await get('/api/v1/tenants/kv/storage-engine-config')) as unknown as StorageEngineConfig
+  return { data: resp }
 }
 
-export function updateStorageEngineConfig(config: StorageEngineConfig): Promise<{ data: StorageEngineConfig }> {
-  return put('/api/v1/tenants/kv/storage-engine-config', config)
+export async function updateStorageEngineConfig(config: StorageEngineConfig): Promise<{ data: StorageEngineConfig }> {
+  // 后端 200 裸配置对象（§2.1）；适配成消费端既有的 { data } 契约
+  const resp = (await put('/api/v1/tenants/kv/storage-engine-config', config)) as unknown as StorageEngineConfig
+  return { data: resp }
 }
 
 export function getStorageEngineStatus(): Promise<GetStorageEngineStatusResponse> {
