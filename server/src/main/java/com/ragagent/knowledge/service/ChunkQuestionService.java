@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.prompt.AgentPromptPlaceholders;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
+import com.ragagent.common.retrieval.RetrievalDriverProperties;
 import com.ragagent.common.prompt.PromptInstructions;
 import com.ragagent.common.settings.ConversationProperties;
 import com.ragagent.knowledge.domain.Chunk;
@@ -64,6 +65,8 @@ public class ChunkQuestionService {
     private final TenantService tenantService;
     private final ConversationProperties conversationProps;
     private final ChunkAccessGuard guard;
+    /** RETRIEVE_DRIVER（B6 批 3：属性绑定）。 */
+    private final RetrievalDriverProperties driverProperties;
 
     public ChunkQuestionService(ChunkRepository chunkRepository,
                                 KnowledgeBaseMapper kbMapper,
@@ -73,7 +76,8 @@ public class ChunkQuestionService {
                                 TenantStoreOwnership storeOwnership,
                                 TenantService tenantService,
                                 ConversationProperties conversationProps,
-                                ChunkAccessGuard guard) {
+                                ChunkAccessGuard guard,
+                                RetrievalDriverProperties driverProperties) {
         this.chunkRepository = chunkRepository;
         this.kbMapper = kbMapper;
         this.chunkVectorIndexer = chunkVectorIndexer;
@@ -83,6 +87,7 @@ public class ChunkQuestionService {
         this.tenantService = tenantService;
         this.conversationProps = conversationProps;
         this.guard = guard;
+        this.driverProperties = driverProperties;
     }
 
     /** 元数据可能含未知键（历史行/新增字段）→ 宽松读。 */
@@ -557,7 +562,7 @@ public class ChunkQuestionService {
         } catch (RuntimeException e) {
             tenant = null;
         }
-        return EffectiveEngines.of(tenant);
+        return EffectiveEngines.of(tenant, driverProperties.driver());
     }
 
     /**

@@ -64,9 +64,9 @@ public final class EffectiveEngines {
 
     /**
      * 对照 {@code Tenant.GetEffectiveEngines}：租户显式配置优先，否则按
-     * {@code RETRIEVE_DRIVER} 派生默认。
+     * {@code RETRIEVE_DRIVER} 派生默认（驱动串由调用方注入——B6 批 3 起不再读进程环境）。
      */
-    public static List<RetrieverEngineParams> of(Tenant tenant) {
+    public static List<RetrieverEngineParams> of(Tenant tenant, String retrieveDriver) {
         if (tenant != null && tenant.getRetrieverEngines() != null
                 && tenant.getRetrieverEngines().has("engines")
                 && tenant.getRetrieverEngines().get("engines").isArray()
@@ -79,13 +79,12 @@ public final class EffectiveEngines {
             }
             return out;
         }
-        return defaults();
+        return defaults(retrieveDriver);
     }
 
     /** 对照 {@code GetDefaultRetrieverEngines}：按 RETRIEVE_DRIVER 逐段映射并去重。 */
-    public static List<RetrieverEngineParams> defaults() {
+    public static List<RetrieverEngineParams> defaults(String driver) {
         List<RetrieverEngineParams> out = new ArrayList<>();
-        String driver = System.getenv("RETRIEVE_DRIVER");
         if (driver == null || driver.isBlank()) {
             return out;
         }

@@ -148,7 +148,7 @@ public class VectorStoreController {
     public ResponseEntity<?> getStore(@PathVariable("id") String id) {
         long tenantId = requireTenant();
         if (EnvVectorStores.isEnvStoreId(id)) {
-            VectorStore env = EnvVectorStores.find(System.getenv("RETRIEVE_DRIVER"), System::getenv, id);
+            VectorStore env = service.findEnvStore(id);
             if (env == null) {
                 throw notFoundPure();
             }
@@ -198,7 +198,7 @@ public class VectorStoreController {
     public ResponseEntity<?> testStoreByID(@PathVariable("id") String id) {
         long tenantId = requireTenant();
         if (EnvVectorStores.isEnvStoreId(id)) {
-            VectorStore env = EnvVectorStores.find(System.getenv("RETRIEVE_DRIVER"), System::getenv, id);
+            VectorStore env = service.findEnvStore(id);
             if (env == null) {
                 throw notFoundPure();
             }

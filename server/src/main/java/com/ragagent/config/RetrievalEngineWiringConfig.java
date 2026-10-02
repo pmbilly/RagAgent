@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.ragagent.common.retrieval.RetrievalDriverProperties;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.retrieval.engine.VectorStoreService;
 import com.ragagent.retrieval.engine.EngineFactory;
@@ -57,13 +58,14 @@ public class RetrievalEngineWiringConfig {
     @Bean
     public EngineRegistry retrievalEngineRegistry(VectorStoreRepository storeRepo, SsrfGuard guard,
                                                   PgVectorEngineRepository pgAdapter,
-                                                  OpenSearchAuditSinkAdapter osAuditSink) {
+                                                  OpenSearchAuditSinkAdapter osAuditSink,
+                                                  RetrievalDriverProperties driverProperties) {
         // DB-store 工厂带 OpenSearch 的 audit sink（照 Go createOpenSearchEngine 的
         // WithAuditSink；其它引擎忽略 sink——Go 同）
         EngineRegistry registry = new EngineRegistry(storeRepo,
                 store -> EngineFactory.createFromStore(store, guard, osAuditSink));
         // Go: strings.Split(os.Getenv("RETRIEVE_DRIVER"), ",")——不 trim，精确匹配
-        String driver = System.getenv("RETRIEVE_DRIVER");
+        String driver = driverProperties.driver();
         String[] drivers = driver == null ? new String[] {""} : driver.split(",");
         registerEnvStores(registry, drivers, pgAdapter, osAuditSink, guard);
         return registry;

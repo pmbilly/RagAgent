@@ -14,6 +14,7 @@ import java.util.Set;
 import javax.sql.DataSource;
 
 import com.ragagent.storage.domain.StorageBackend;
+import com.ragagent.common.retrieval.RetrievalDriverProperties;
 import com.ragagent.common.storage.StorageAllowList;
 import com.ragagent.storage.mapper.StorageBackendRepository;
 import org.springframework.beans.factory.ObjectProvider;
@@ -55,6 +56,8 @@ public class SystemInfoService {
     private final ObjectProvider<BuildProperties> buildProperties;
     /** 图库仓储（D 批）：引擎名按**真实驱动**报告（对照 Go 的 neo4jDriver != nil 判定）。 */
     private final com.ragagent.retrieval.graph.RetrieveGraphRepository graphRepository;
+    /** RETRIEVE_DRIVER（B6 批 3：属性绑定，取代裸 env 读；未配置 → 页面显示「未配置」）。 */
+    private final RetrievalDriverProperties driverProperties;
 
     /** 覆盖项（配置/测试可固定值）；为空则取构建信息或运行时值。edition 无构建注入。 */
     @Value("${weknora.system.version:}")
@@ -72,11 +75,13 @@ public class SystemInfoService {
                              StorageBackendRepository backendRepository,
                              DataSource dataSource,
                              ObjectProvider<BuildProperties> buildProperties,
-                             com.ragagent.retrieval.graph.RetrieveGraphRepository graphRepository) {
+                             com.ragagent.retrieval.graph.RetrieveGraphRepository graphRepository,
+                             RetrievalDriverProperties driverProperties) {
         this.allowList = allowList;
         this.backendRepository = backendRepository;
         this.dataSource = dataSource;
         this.buildProperties = buildProperties;
+        this.driverProperties = driverProperties;
         this.graphRepository = graphRepository;
     }
 
@@ -141,7 +146,7 @@ public class SystemInfoService {
     }
 
     private String engineList(boolean keyword) {
-        String retrieveDriver = System.getenv("RETRIEVE_DRIVER");
+        String retrieveDriver = driverProperties.driver();
         if (retrieveDriver == null || retrieveDriver.isEmpty()) {
             return "未配置";
         }

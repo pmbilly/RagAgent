@@ -34,9 +34,14 @@ final class HybridStoreGroupOps {
 
     private final TenantStoreOwnership storeOwnership;
 
-    HybridStoreGroupOps(HybridSearchService service, TenantStoreOwnership storeOwnership) {
+    /** RETRIEVE_DRIVER 原始串（B6 批 3 起由调用方注入，本类不读进程环境）。 */
+    private final String retrieveDriver;
+
+    HybridStoreGroupOps(HybridSearchService service, TenantStoreOwnership storeOwnership,
+            String retrieveDriver) {
         this.service = service;
         this.storeOwnership = storeOwnership;
+        this.retrieveDriver = retrieveDriver;
     }
 
     /**
@@ -54,7 +59,8 @@ final class HybridStoreGroupOps {
 
         // env-store 组的租户有效引擎（Go 从 ctx 的 TenantInfo 取——按当前租户行解析，
         // 引擎列表为空 = RETRIEVE_DRIVER 未配置 = 检索全关，Go 实测行为）。
-        List<RetrieverEngineParams> tenantEngines = EffectiveEngines.of(service.currentTenant());
+        List<RetrieverEngineParams> tenantEngines =
+                EffectiveEngines.of(service.currentTenant(), retrieveDriver);
 
         List<StoreGroup> groups = new ArrayList<>(buckets.size());
         for (List<KnowledgeBaseSearchFacts> groupKbs : buckets.values()) {

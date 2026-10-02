@@ -31,6 +31,7 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 import com.ragagent.retrieval.engine.KeywordsVectorHybridRetrieveEngineService;
 import com.ragagent.retrieval.engine.PgVectorRetrieveRepository;
 import com.ragagent.retrieval.engine.RetrieveEngineException;
+import com.ragagent.common.retrieval.RetrievalDriverProperties;
 import com.ragagent.retrieval.engine.RetrieveEngineRegistry;
 import com.ragagent.retrieval.engine.RetrieverEngineParams;
 import com.ragagent.retrieval.engine.TenantStoreOwnership;
@@ -71,7 +72,8 @@ class HybridSearchServiceStoreGroupTest {
         registry = mock(RetrieveEngineRegistry.class);
         ownership = mock(TenantStoreOwnership.class);
         service = new HybridSearchService(kbGateway, documentGateway, chunkGateway, modelGateway,
-                tenantService, embeddingGateway, pgRepository, registry, ownership);
+                tenantService, embeddingGateway, pgRepository, registry, ownership,
+                new RetrievalDriverProperties(null)); // 与改前一致：未配置驱动 → 有效引擎为空
     }
 
     private KnowledgeBaseSearchFacts kb(String id, String vectorStoreId,

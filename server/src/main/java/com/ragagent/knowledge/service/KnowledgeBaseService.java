@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.service;
 
 import com.ragagent.common.knowledge.KnowledgeBaseFacts;
+import com.ragagent.common.retrieval.RetrievalDriverProperties;
 import com.ragagent.common.knowledge.KnowledgeBaseGateway;
 import com.ragagent.common.knowledge.KnowledgeBaseProvisioner;
 import com.ragagent.common.knowledge.KnowledgeBaseSearchFacts;
@@ -76,7 +77,8 @@ public class KnowledgeBaseService
                                 TenantService tenantService,
                                 UserService userService,
                                 RetrieveEngineRegistry retrieveEngineRegistry,
-                                TenantStoreOwnership storeOwnership) {
+                                TenantStoreOwnership storeOwnership,
+                                RetrievalDriverProperties driverProperties) {
         this.kbMapper = kbMapper;
         this.knowledgeMapper = knowledgeMapper;
         this.chunkMapper = chunkMapper;
@@ -86,7 +88,7 @@ public class KnowledgeBaseService
         this.userService = userService;
         this.retrieveEngineRegistry = retrieveEngineRegistry;
         this.storeOwnership = storeOwnership;
-        String env = System.getenv("RETRIEVE_DRIVER");
+        String env = driverProperties.driver();
         this.retrieveDriver = env == null || env.isBlank() ? "postgres" : env;
     }
 

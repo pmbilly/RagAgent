@@ -26,6 +26,7 @@ import com.ragagent.vectorstore.domain.VectorStoreEngines;
 import com.ragagent.vectorstore.mapper.VectorStoreRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.ragagent.common.retrieval.RetrievalDriverProperties;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -60,20 +61,37 @@ public class VectorStoreConfigService {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
     /** 构造期派生一次的 env stores（对照 Go startup 缓存） */
+    private final EnvVectorStores.EnvLookup envLookup;
+
+    /** RETRIEVE_DRIVER（B6 批 3：属性绑定，取代裸 env 读）。 */
+    private final RetrievalDriverProperties driverProperties;
+
     private final List<VectorStore> envStores;
 
     public VectorStoreConfigService(VectorStoreRepository repo, SsrfGuard ssrfGuard,
-            JdbcTemplate jdbc, TransactionTemplate tx) {
+            JdbcTemplate jdbc, TransactionTemplate tx,
+            RetrievalDriverProperties driverProperties, EnvVectorStores.EnvLookup envLookup) {
         this.repo = repo;
         this.ssrfGuard = ssrfGuard;
         this.jdbc = jdbc;
         this.tx = tx;
-        String driver = System.getenv("RETRIEVE_DRIVER");
-        this.envStores = EnvVectorStores.build(driver, System::getenv);
+        this.envLookup = envLookup;
+        this.driverProperties = driverProperties;
+        this.envStores = EnvVectorStores.build(driverProperties.driver(), envLookup);
     }
 
     public List<VectorStore> envStores() {
         return envStores;
+    }
+
+    /**
+     * 按 id 取进程级（{@code __env_*}）向量库；不存在返回 null。
+     *
+     * <p>env 族查找面由 {@link EnvVectorStores.EnvLookup} bean 提供（B6 批 3 前调用方
+     * 自传 {@code System::getenv}）。</p>
+     */
+    public VectorStore findEnvStore(String id) {
+        return EnvVectorStores.find(driverProperties.driver(), envLookup, id);
     }
 
     public VectorStore getByID(long tenantId, String id) {

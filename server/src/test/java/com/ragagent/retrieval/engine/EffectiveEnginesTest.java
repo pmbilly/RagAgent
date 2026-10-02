@@ -23,6 +23,9 @@ import com.ragagent.auth.domain.Tenant;
  */
 class EffectiveEnginesTest {
 
+    /** B6 批 3 起驱动串由调用方注入（读点不再读进程环境）——测试用固定值。 */
+    private static final String DRIVER = "postgres,elasticsearch";
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
@@ -40,7 +43,7 @@ class EffectiveEnginesTest {
         Tenant tenant = new Tenant();
         tenant.setRetrieverEngines(root);
 
-        List<RetrieverEngineParams> engines = EffectiveEngines.of(tenant);
+        List<RetrieverEngineParams> engines = EffectiveEngines.of(tenant, DRIVER);
         assertEquals(2, engines.size());
         assertEquals(new RetrieverEngineParams("vector", "elasticsearch"), engines.get(0));
         assertEquals(new RetrieverEngineParams("keywords", "elasticsearch"), engines.get(1));
@@ -56,14 +59,14 @@ class EffectiveEnginesTest {
         Tenant tenant = new Tenant();
         tenant.setRetrieverEngines(root);
 
-        assertEquals(EffectiveEngines.defaults(), EffectiveEngines.of(tenant));
+        assertEquals(EffectiveEngines.defaults(DRIVER), EffectiveEngines.of(tenant, DRIVER));
     }
 
     @Test
     @DisplayName("tenant 为 null / 无 retriever_engines → 同样回落默认")
     void missingTenantFallsBackToDefaults() {
-        assertEquals(EffectiveEngines.defaults(), EffectiveEngines.of(null));
-        assertEquals(EffectiveEngines.defaults(), EffectiveEngines.of(new Tenant()));
+        assertEquals(EffectiveEngines.defaults(DRIVER), EffectiveEngines.of(null, DRIVER));
+        assertEquals(EffectiveEngines.defaults(DRIVER), EffectiveEngines.of(new Tenant(), DRIVER));
     }
 
     @Test

@@ -11,7 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 // 使 common/auth 不再反向依赖 config）。新增共享配置类时把包加进这个列表——别写 com.ragagent 根包扫描，
 // 那会把 session 等处"未注册"的配置类一并绑定，属行为变化。
 @ConfigurationPropertiesScan({"com.ragagent.config", "com.ragagent.common.tenant", "com.ragagent.common.settings",
-        "com.ragagent.storage.config", "com.ragagent.tracing.langfuse"})
+        "com.ragagent.storage.config", "com.ragagent.tracing.langfuse", "com.ragagent.common.retrieval"})
 public class RagAgentApplication {
 
     public static void main(String[] args) {

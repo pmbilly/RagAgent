@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.pipeline.SearchParams;
+import com.ragagent.common.retrieval.RetrievalDriverProperties;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.ErrorCode;
@@ -111,7 +112,7 @@ public class HybridSearchService {
             KnowledgeDocumentGateway documentGateway, ChunkSearchGateway chunkGateway,
             ModelGateway modelGateway, TenantService tenantService, EmbeddingGateway embeddingGateway,
             PgVectorRetrieveRepository pgRepository, RetrieveEngineRegistry engineRegistry,
-            TenantStoreOwnership storeOwnership) {
+            TenantStoreOwnership storeOwnership, RetrievalDriverProperties driverProperties) {
         this.kbGateway = kbGateway;
         this.documentGateway = documentGateway;
         this.chunkGateway = chunkGateway;
@@ -122,7 +123,7 @@ public class HybridSearchService {
         this.engineRegistry = engineRegistry;
         this.storeOwnership = storeOwnership;
         this.fusionOps = new HybridFusionOps(this);
-        this.storeGroupOps = new HybridStoreGroupOps(this, storeOwnership);
+        this.storeGroupOps = new HybridStoreGroupOps(this, storeOwnership, driverProperties.driver());
         this.resultOps = new HybridResultOps(this);
     }
 
