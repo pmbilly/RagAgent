@@ -81,8 +81,8 @@ public class WebSearchProviderController {
     /** 对照 TestProviderRequest：provider required；parameters 可选 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record TestProviderRequest(
-            @JsonProperty("provider") String provider,
-            @JsonProperty("parameters") WebSearchProviderParams parameters) {}
+            String provider,
+            WebSearchProviderParams parameters) {}
 
     @PostMapping("/test")
     public ResponseEntity<?> testProviderRaw(@RequestBody(required = false) String rawBody) {
@@ -149,9 +149,9 @@ public class WebSearchProviderController {
     /** 对照 UpdateProviderRequest：无 required 字段；merge 规则见下 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record UpdateProviderRequest(
-            @JsonProperty("name") String name,
-            @JsonProperty("description") String description,
-            @JsonProperty("parameters") WebSearchProviderParams parameters,
+            String name,
+            String description,
+            WebSearchProviderParams parameters,
             @JsonProperty("is_default") Boolean isDefault) {}
 
     @PutMapping("/{id}")

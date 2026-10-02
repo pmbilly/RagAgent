@@ -3055,6 +3055,11 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **二类：键名≠字段名（会动线上形状，B17 主体）**：`AgentConfig` 12（snake → camel 的最大单点，落库 jsonb，按 §2 第 11 条 + §2 第 2 条走 dev 库迁移 SQL，参照 model 域先例）、`websearch` 的 `is_default` 1（另须按 §2 第 4 条顺带把布尔字段去 `is` 前缀）、`AuthSessionOps` 等零星项。
 - **三类：冻结面（不做）**：`MemoryExtractionLlm` 10 / `NewSlugFromCitation` 7 / `MemoryExtractPayload` 9（LLM 载荷）等。
 - **附带**：`@JsonProperty` 与 `@JsonPropertyOrder` 混算过是本次口径错源——**统计契约注解要按 `@JsonProperty(` 精确匹配**。
+- **安全子集已落地（6 处，全量绿）**：复核发现 9 条失败**只源于 `TenantCreateOps`（普通类的包级字段）**；**record 组件**（Jackson 经访问器识别）与 **public 字段**不受影响。据此只重放 `websearch/controller`（record 5 处）+ `websearch/dto`（public 字段 1 处）→ `spotlessCheck` 绿 + 全量测试绿（4710 用例）⇒ **判据经实证**：*record 组件 / public 字段 / 有访问器 ⇒ 可删；包级字段 ⇒ 注解承重，先给可见性*。`auth` 三文件的同类注解（包级字段）**保持原样**，待"给可见性"的小批一并处理。
+- **B17 剩余＝两个域级换锚面（都需前后端同批 + 落库迁移，各自独立一批）**：
+  ① **agent 配置面**：`agent/AgentConfig`（12 snake）+ `AgentConfigJson`（默认值/校验，键面 **≈60 个 snake**）+ `BuiltinAgentRegistry.CONFIG_KEYS`（≈60 键全集过滤）+ `session/service/AgentConfigAssembler`（≈20 个 `path("snake")` 读取点）+ 内置 agent 定义文件 + `custom_agents.config` jsonb 迁移 + `ag-*.json` 夹具重录 + 前端 `api/agent/index.ts` 类型（`max_iterations` 等）。
+  ② **websearch provider 面**：响应 DTO（Java 侧已是 camel，但**线上输出 snake** —— 需先定位其序列化路径）+ 请求 DTO 的 `is_default`（按 §2 第 4 条连带改布尔前缀）+ `parameters` jsonb（`base_url`/`extra_config` 等）+ **43 个 `wsp-*.json` 夹具** + 前端映射层。
+  建议顺序：**① 先做**（§2 第 11 条点名"落库格式走 Java 字段名"，且是 §11.2 最后一块边界），②随后。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
