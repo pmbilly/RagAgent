@@ -123,7 +123,7 @@ public class SessionKnowledgeQaService {
     }
 
     public SessionQaResolution.MentionScope restrictMentionsToAgentScope(
-            com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg,
+            com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode agentCfg,
             long sessionTenantId, List<String> kbIds, List<String> knowledgeIds) {
         return resolution.restrictMentionsToAgentScope(agent, agentCfg, sessionTenantId, kbIds, knowledgeIds);
     }

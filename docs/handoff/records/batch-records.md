@@ -471,3 +471,12 @@
 - **agent 根 package-info 更新**（补子包地图：`tools` / `compaction` / `skills` / `domain` / `support` / `modelcontext`）。
 - **验证**：编译绿；守卫绿（环 0 / 依赖 config 1 / L2→L3 6 条——chatpipeline→agent 与 session→agent 均单向，无新增）；全量 **4713** 绿 + `spotlessCheck` 绿。
 
+**✅ B36（2026-10-03，`agentm` 并入 `agent`：顶层包 30 → 29）**
+- **拍板**：用户 2026-10-03 定「agentm 合并到 agent」。
+- **形态**：`agentm`（20 文件，标准五件套）→ `agent/management/`（子域形态，先例 = `auth/apikey/`）；agent 域由此获得唯一 HTTP 面（此前是纯引擎域）。
+- **执行**：① `git mv` 三处——main 包 / test 包 / **资源目录** `resources/agentm` → `resources/agent/management`；② 全仓替换 `com.ragagent.agentm` → `com.ragagent.agent.management`（**61 个 java 文件**，含 MyBatis `typeHandler=` 注解串里的 FQN）；③ 资源路径字符串 `"agentm/` → `"agent/management/`（10 处，跨 7 个 loader 类）；④ 文案清理 12 处（javadoc/注释，含 `{@code agentm.service.X}` 简写形态）；⑤ 脚本 3 处（`acceptance.sh` 批次域列表去 agentm/modelcontext、`record-w5b-golden.sh` 注释路径）。
+- **顺手修正**：`AsrTestAudio` 的错误文案写的是 `agentm/asr_test.wav`，实际资源在 `initialization/asr_test.wav`（既有笔误）。
+- **残留（刻意保留）**：3 处历史说明（`agent/management`、`agent`、`initialization` 的 package-info 提到"由 agentm 并入/拆出"）。
+- **验证**：编译绿；守卫绿（环 0 / 依赖 config 1 / L2→L3 6 条——embed/im/session/auth 对 `agent.management` 的引用属 L3→L3 域间，无新增违例）；全量 **4713** 绿 + `spotlessCheck` 绿。
+- **无需改动项（已核对）**：`@ConfigurationPropertiesScan` 名单不含 agentm；`@MapperScan("com.ragagent.**.mapper")` 通配；资源目录改名后全部 loader 路径同步（核心 prompt 装载有测试覆盖）。
+

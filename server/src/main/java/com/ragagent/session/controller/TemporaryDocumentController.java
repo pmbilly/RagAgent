@@ -246,7 +246,7 @@ public class TemporaryDocumentController {
      * （照 Go 注释"Tenant-level rules remain the final fallback"）。
      */
     private static TemporaryDocumentService.CreateOptions agentOptions(
-            com.ragagent.agentm.domain.CustomAgentEntity agent,
+            com.ragagent.agent.management.domain.CustomAgentEntity agent,
             String ext, String parserEngine) {
         TemporaryDocumentService.CreateOptions options = TemporaryDocumentService.CreateOptions
                 .empty().withParserEngine(parserEngine == null ? "" : parserEngine.strip());

@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>为什么需要它：这一列是 jsonb、形状由 {@link KnowledgeBaseChunkingConfig} 等值类型决定，
  * 但**没有任何 HTTP 端点契约测试覆盖它**——改了字段名或去掉输出都可能悄无声息地改变落库形状，
- * 而前端知识库编辑器与 agentm 的初始化端点都在读它。本测试把形状钉死：
+ * 而前端知识库编辑器与 agent.management 的初始化端点都在读它。本测试把形状钉死：
  *
  * <ul>
  *   <li><b>键名 = Java 字段名</b>（camelCase；防回退成 snake）；</li>
@@ -47,7 +47,7 @@ class KnowledgeBaseConfigJsonContractTest {
         assertEquals(Set.of("chunkSize", "chunkOverlap", "separators", "parserEngineRules",
                 "enableParentChild", "parentChunkSize", "childChunkSize", "strategy",
                 "tokenLimit", "languages", "tableMetadataInstructions"), keysOf(n),
-                "分块配置的键集合变了——落库 jsonb 形状随之改变，需同步前端与 agentm 初始化端点");
+                "分块配置的键集合变了——落库 jsonb 形状随之改变，需同步前端与 agent.management 初始化端点");
 
         // 字段一律输出：null / false / 0 都要在
         assertTrue(n.has("separators") && n.get("separators").isNull(), "null 字段必须显式输出");

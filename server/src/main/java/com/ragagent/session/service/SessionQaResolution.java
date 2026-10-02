@@ -36,7 +36,7 @@ final class SessionQaResolution {
         chatOverrides.applyAgentOverridesToChatManage(req, cm);
     }
 
-    Prompts resolveCustomAgentPrompts(com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode c) {
+    Prompts resolveCustomAgentPrompts(com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode c) {
         return chatOverrides.resolveCustomAgentPrompts(agent, c);
     }
 
@@ -47,18 +47,18 @@ final class SessionQaResolution {
         return mentionTagScope.resolveKnowledgeBases(req);
     }
 
-    public MentionScope restrictMentionsToAgentScope(com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId, List<String> kbIds, List<String> knowledgeIds) {
+    public MentionScope restrictMentionsToAgentScope(com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId, List<String> kbIds, List<String> knowledgeIds) {
         return mentionTagScope.restrictMentionsToAgentScope(agent, agentCfg, sessionTenantId, kbIds, knowledgeIds);
     }
 
-    public List<QaSupport.TagScope> restrictTagScopesToAgentScope(com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId, List<QaSupport.TagScope> tagScopes) {
+    public List<QaSupport.TagScope> restrictTagScopesToAgentScope(com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId, List<QaSupport.TagScope> tagScopes) {
         return mentionTagScope.restrictTagScopesToAgentScope(agent, agentCfg, sessionTenantId, tagScopes);
     }
 
     /** KB 范围簇（§14.9c 刀 9）。 */
     private final QaKbScope kbScope;
 
-    public List<String> resolveKnowledgeBasesFromAgent(com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId) {
+    public List<String> resolveKnowledgeBasesFromAgent(com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId) {
         return kbScope.resolveKnowledgeBasesFromAgent(agent, agentCfg, sessionTenantId);
     }
 
@@ -158,7 +158,7 @@ final class SessionQaResolution {
 
     static String templateContentByIdAndFile(String id, String file) {
         try (java.io.InputStream in = SessionKnowledgeQaService.class.getClassLoader()
-                .getResourceAsStream("agentm/prompt_templates/" + file)) {
+                .getResourceAsStream("agent/management/prompt_templates/" + file)) {
             if (in == null) {
                 return null;
             }

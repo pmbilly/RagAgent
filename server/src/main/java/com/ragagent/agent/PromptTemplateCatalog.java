@@ -13,7 +13,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 /**
  * 提示词模板目录，供 {@code GET /api/v1/tenants/kv/prompt-templates} 消费。
  *
- * <p>模板文件 vendored 到 classpath {@code agentm/prompt_templates/}，
+ * <p>模板文件 vendored 到 classpath {@code agent/management/prompt_templates/}，
  * 启动时装载一次（进程内缓存）。</p>
  *
  * <p>JSON 保真点：</p>
@@ -61,7 +61,7 @@ public final class PromptTemplateCatalog {
                          List<Template> intentPrompts) {}
 
     /** 模板文件目录（graph_extraction/generate_questions 不装载——handler 不消费）。 */
-    private static final String DIR = "agentm/prompt_templates/";
+    private static final String DIR = "agent/management/prompt_templates/";
 
     private static volatile Config cached;
 

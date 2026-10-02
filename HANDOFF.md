@@ -708,6 +708,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B33 包结构守卫修复** | B6 批 10 引入的 5 组环（工具放错层）归位到底层 | P2 | 小 | ✅ **完成（2026-10-02）**——`AppEnvLookup` → `common/deployment`、`StorageRuntimeEnv` → `common/storage`，`ImageResolver` 脱开 storage 直连；守卫回绿（环 5 → **0**、依赖 config 11 → **1**、L2→L3 回 6 条）；全量 4713 + spotlessCheck 绿。详见 15.1.1 |
 | **B34 agent/tools 分包** | 94 文件单层 → 根（框架/共享/通用）+ 5 能力子包（wiki/knowledge/sql/data/web） | P2 | 中 | ✅ **完成（2026-10-02）**——MCP 族因与 `ToolRegistry` 同包紧耦合（含 protected 互访，实测约 40 处）暂留根并登记；可见性放宽 8 处逐条登记；测试镜像 12 个跟移；全量 4713 + spotlessCheck 绿、守卫绿。详见 15.1.1 |
 | **B35 modelcontext 并入 agent** | 顶层包 31 → 30（用户 2026-10-02 拍板） | P2 | 小 | ✅ **完成（2026-10-02）**——13 文件 → `agent/modelcontext/`（test 3 同移），23 文件改包路径零残留；守卫绿、全量 4713 + spotlessCheck 绿。详见 15.1.1 |
+| **B36 agentm 并入 agent** | 顶层包 30 → 29（用户 2026-10-03 拍板） | P2 | 小 | ✅ **完成（2026-10-03）**——`agentm`（20 文件）→ `agent/management/`（先例 `auth/apikey/`），含资源目录改名 + 61 文件包路径 + 10 处 loader 路径 + 12 处文案 + 3 处脚本；顺手修正 AsrTestAudio 的过时错误文案；守卫绿、全量 4713 + spotlessCheck 绿。详见 15.1.1 |
 
 ### 15.1.1 执行记录（索引：正文已移出，按批号 Ctrl-F）
 
@@ -763,6 +764,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | ✅ B33（2026-10-02，包结构守卫红灯修复：两个工具类归位到最低层） | **✅ B33（2026-10-02，包结构守卫红灯修复：两个工具类归位到最低层）**——B6 批 10 引入的环 5 组 / 依赖 config 1→11 全清：`AppEnvLookup` → `common/deployment`、`StorageRuntimeEnv` → `common/storage`，`ImageResolver` 脱开 storage；守卫回绿；全量 4713 + spotlessCheck 绿。 |
 | ✅ B34（2026-10-02，agent/tools 分包：根 + 5 能力子包） | **✅ B34（2026-10-02，agent/tools 分包）**——94 文件 → wiki 30 / knowledge 11 / sql 5 / data 4 / web 2 + 根 42（框架 + 跨族共享 + 通用单件 + MCP 族）；MCP 因与 `ToolRegistry` 同包紧耦合暂留根（登记）；可见性放宽 8 处逐条登记；测试镜像 12 个跟移；全量 4713 + spotlessCheck + 守卫绿。 |
 | ✅ B35（2026-10-02，modelcontext 并入 agent） | **✅ B35（2026-10-02，modelcontext 并入 agent）**——顶层包 31 → **30**：13 文件 → `agent/modelcontext/`（test 3 同移）+ 23 文件改包路径（含 FQN/javadoc，零残留）；守卫绿、全量 4713 + spotlessCheck 绿。 |
+| ✅ B36（2026-10-03，agentm 并入 agent） | **✅ B36（2026-10-03，agentm 并入 agent）**——顶层包 30 → **29**：`agentm`（20 文件）→ `agent/management/`（子域形态，先例 `auth/apikey/`）；资源目录 `resources/agentm` → `resources/agent/management`；61 文件包路径 + 10 处 loader 资源路径 + 12 处文案 + 3 处脚本；顺手修 AsrTestAudio 过时文案；守卫绿、全量 4713 + spotlessCheck 绿。 |
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

@@ -64,7 +64,7 @@ final class QaMentionTagScope {
         return new SessionKnowledgeQaService.KnowledgeResolution(kbIds, knowledgeIds);
     }
     public SessionQaResolution.MentionScope restrictMentionsToAgentScope(
-            com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg,
+            com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode agentCfg,
             long sessionTenantId, List<String> kbIds, List<String> knowledgeIds) {
         List<String> allowed = kbScope.resolveKnowledgeBasesFromAgent(agent, agentCfg, sessionTenantId);
         if (allowed.isEmpty()) {
@@ -105,7 +105,7 @@ final class QaMentionTagScope {
         return new SessionQaResolution.MentionScope(filteredKbs, filteredKnowledge);
     }
     public List<QaSupport.TagScope> restrictTagScopesToAgentScope(
-            com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg,
+            com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode agentCfg,
             long sessionTenantId, List<QaSupport.TagScope> tagScopes) {
         if (tagScopes == null || tagScopes.isEmpty()) {
             return new ArrayList<>();

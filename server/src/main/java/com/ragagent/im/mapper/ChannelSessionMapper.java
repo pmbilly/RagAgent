@@ -52,7 +52,7 @@ public interface ChannelSessionMapper {
             + "created_at, updated_at, deleted_at) "
             + "VALUES (#{e.id}, #{e.platform}, #{e.userId}, #{e.chatId}, #{e.threadId}, "
             + "#{e.sessionId}, #{e.tenantId}, #{e.agentId}, #{e.imChannelId}, #{e.status}, "
-            + "#{e.metadata,typeHandler=com.ragagent.agentm.mapper.JsonbRawStringTypeHandler}, "
+            + "#{e.metadata,typeHandler=com.ragagent.agent.management.mapper.JsonbRawStringTypeHandler}, "
             + "#{now}, #{now}, NULL)")
     int insert(@Param("e") ChannelSessionEntity e, @Param("now") OffsetDateTime now);
 

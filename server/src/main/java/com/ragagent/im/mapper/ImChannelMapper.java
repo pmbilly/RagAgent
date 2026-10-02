@@ -77,7 +77,7 @@ public interface ImChannelMapper extends BaseMapper<ImChannelEntity> {
             + "created_at, updated_at) VALUES "
             + "(#{e.id}, #{e.tenantId}, #{e.agentId}, #{e.platform}, #{e.name}, #{e.enabled}, "
             + "#{e.mode}, #{e.outputMode}, #{e.knowledgeBaseId}, #{e.botIdentity}, #{e.sessionMode}, "
-            + "#{e.credentials,typeHandler=com.ragagent.agentm.mapper.JsonbRawStringTypeHandler}, "
+            + "#{e.credentials,typeHandler=com.ragagent.agent.management.mapper.JsonbRawStringTypeHandler}, "
             + "#{e.createdAt}, #{e.updatedAt})")
     void insertChannel(@Param("e") ImChannelEntity e);
 
@@ -86,7 +86,7 @@ public interface ImChannelMapper extends BaseMapper<ImChannelEntity> {
             + "name = #{e.name}, enabled = #{e.enabled}, mode = #{e.mode}, "
             + "output_mode = #{e.outputMode}, knowledge_base_id = #{e.knowledgeBaseId}, "
             + "bot_identity = #{e.botIdentity}, session_mode = #{e.sessionMode}, "
-            + "credentials = #{e.credentials,typeHandler=com.ragagent.agentm.mapper.JsonbRawStringTypeHandler}, "
+            + "credentials = #{e.credentials,typeHandler=com.ragagent.agent.management.mapper.JsonbRawStringTypeHandler}, "
             + "updated_at = #{e.updatedAt} "
             + "WHERE id = #{e.id} AND deleted_at IS NULL")
     int saveChannel(@Param("e") ImChannelEntity e);

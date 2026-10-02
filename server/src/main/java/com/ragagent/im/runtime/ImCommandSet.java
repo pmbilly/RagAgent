@@ -60,7 +60,7 @@ public final class ImCommandSet {
     public static final class AgentCfgView {
         private final JsonNode cfg;
 
-        public AgentCfgView(com.ragagent.agentm.domain.CustomAgentEntity agent) {
+        public AgentCfgView(com.ragagent.agent.management.domain.CustomAgentEntity agent) {
             JsonNode parsed = null;
             if (agent != null && agent.getConfig() != null && !agent.getConfig().isEmpty()) {
                 try {

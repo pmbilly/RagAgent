@@ -1,8 +1,8 @@
 package com.ragagent.im.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.agentm.domain.CustomAgentEntity;
-import com.ragagent.agentm.service.AgentConfigJson;
+import com.ragagent.agent.management.domain.CustomAgentEntity;
+import com.ragagent.agent.management.service.AgentConfigJson;
 import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.runtime.ImFormat;
 import com.ragagent.session.domain.Message;

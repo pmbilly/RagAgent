@@ -34,12 +34,12 @@ public class ImChannelService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final ImChannelMapper mapper;
-    private final com.ragagent.agentm.mapper.CustomAgentMapper agentMapper;
-    private final com.ragagent.agentm.service.BuiltinAgentRegistry registry;
+    private final com.ragagent.agent.management.mapper.CustomAgentMapper agentMapper;
+    private final com.ragagent.agent.management.service.BuiltinAgentRegistry registry;
 
     public ImChannelService(ImChannelMapper mapper,
-                            com.ragagent.agentm.mapper.CustomAgentMapper agentMapper,
-                            com.ragagent.agentm.service.BuiltinAgentRegistry registry) {
+                            com.ragagent.agent.management.mapper.CustomAgentMapper agentMapper,
+                            com.ragagent.agent.management.service.BuiltinAgentRegistry registry) {
         this.mapper = mapper;
         this.agentMapper = agentMapper;
         this.registry = registry;
@@ -235,7 +235,7 @@ public class ImChannelService {
             throw new IllegalArgumentException("agent_id is required");
         }
         // 对照 Go：GetAgentByID 失败或 tenant 不匹配 → "agent not found"
-        com.ragagent.agentm.domain.CustomAgentEntity agent;
+        com.ragagent.agent.management.domain.CustomAgentEntity agent;
         try {
             agent = agentMapper.getByIDAndTenant(trimmed, channel.getTenantId() == null
                     ? 0 : channel.getTenantId());

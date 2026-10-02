@@ -8,7 +8,7 @@
 
 | 性质 | 包 | 判定 |
 |---|---|---|
-| **业务域（20）** | knowledge、agent、agentm、initialization、wiki、session、datasource、memory、mcp、auth（含 `apikey/` 子域）、audit、im、storage、model、system、websearch、embed、vectorstore、favorite、evaluation | 有 `controller/service/domain/dto/mapper/repository` 六件套，HTTP 面明确 |
+| **业务域（19）** | knowledge、agent（含 `management/` 子域，2026-10-03 由 `agentm` 并入）、initialization、wiki、session、datasource、memory、mcp、auth（含 `apikey/` 子域）、audit、im、storage、model、system、websearch、embed、vectorstore、favorite、evaluation | 有 `controller/service/domain/dto/mapper/repository` 六件套，HTTP 面明确 |
 | **库式域（4）** | `llm`、`retrieval`、`chatpipeline`、`event` | **无 controller 是对的**——被其他域调用的引擎/管线（`retrieval` 被 chatpipeline 19 文件、knowledge 10、session 7 消费） |
 | **基础设施（7）** | `common`、`config`、`stream`、`modelcontext`、`tracing`、`embedding`、`rerank`（`searchutil`/`storageurl`/`webfetch` 已并入宿主域，见 §3.5）| 横切能力；`common` 被 **30 个包**依赖（位置正确） |
 
@@ -112,8 +112,8 @@ B33 已归位：`AppEnvLookup` → `common/deployment`、`StorageRuntimeEnv` →
       4 个控制器改走服务层/领域类型（`MemoryController`/`SessionController`/`MessageSuggestionController`/
       `StorageBackendController`）——做法是把仓储的嵌套返回类型提成领域类型
       （`memory/domain/MemoryPage`、`session/domain/SessionPage`、`session/domain/MessageSuggestionSetNotFoundException`）
-      与在服务上加读面方法，而不是给控制器开新面；`agentm/dto/AgentResponses` 的 dto→service 倒挂同法
-      （`CustomAgentService.Result` → `agentm/dto/CustomAgentResult`）。
+      与在服务上加读面方法，而不是给控制器开新面；`agent/management/dto/AgentResponses`（原 `agentm/dto/`，B36 并入后路径）的 dto→service 倒挂同法
+      （`CustomAgentService.Result` → `agent/management/dto/CustomAgentResult`）。
 
 ## 3.5 目标结构（重组后）
 
@@ -121,7 +121,7 @@ B33 已归位：`AppEnvLookup` → `common/deployment`、`StorageRuntimeEnv` →
 
 ```
 L4  config                      组合根：Spring 装配；**只出不进**（任何域不得依赖它）
-L3  业务域                       knowledge agent agentm session wiki datasource im memory mcp auth
+L3  业务域                       knowledge agent session wiki datasource im memory mcp auth
                                  audit model storage system websearch embedchannel favorite evaluation
      └ 同级之间：禁直连对方 mapper/实体；跨域走**窄接口（port）或事件**
 L2  能力层                       llm retrieval embedding rerank chatpipeline
@@ -139,7 +139,7 @@ L1  平台                         common event stream tracing
 | `apikey` | `auth/apikey` | ✅ **已并入（2026-09-30）**：一次消掉 `apikey ⇄ auth` 与 `apikey ⇄ knowledge` 两组环 |
 | `embed` | `embedchannel` | 与 `embedding` 名字太近，语义不同（业务渠道 vs provider 客户端）|
 | `modelcontext` | `agent/modelcontext` | ✅ **已并入（2026-10-02，B35）**：模型输出上下文协议层（13 文件）；消费方 agent/chatpipeline/session 改包路径；顶层包 31 → 30 |
-| `agentm` | ✅ **已拆分（2026-09-30）**：`agentm`（智能体管理）+ `initialization`（初始化/模型能力）| 原为混装（Go 期同组）；拆后各域职责单一，`ExtractPrompts` 随 init 半区（它引用 `chatpipeline`，未下沉）|
+| `agentm` | ✅ **已并入 `agent`（2026-10-03，B36）**：`agentm`（20 文件）→ `agent/management/`（子域形态，先例 `auth/apikey/`）| 2026-09-30 先与 `initialization` 分离（拆掉 Go 期混装），本次再并入 agent——名字的 "m"（management 缩写）无处解释，且与 agent 同族；agent 域由此获得唯一 HTTP 面 |
 
 其余域**保留顶层**：`knowledge agent session wiki datasource im memory mcp auth audit model storage
 system websearch favorite evaluation common config event stream tracing`。

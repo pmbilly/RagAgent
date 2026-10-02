@@ -13,8 +13,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.agentm.domain.CustomAgentEntity;
-import com.ragagent.agentm.service.CustomAgentService;
+import com.ragagent.agent.management.domain.CustomAgentEntity;
+import com.ragagent.agent.management.service.CustomAgentService;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.im.domain.ChannelSessionEntity;

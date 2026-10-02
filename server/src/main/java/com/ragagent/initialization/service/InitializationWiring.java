@@ -9,7 +9,7 @@ import com.ragagent.llm.extract.ExtractPrompts;
 import com.ragagent.llm.ollama.OllamaService;
 
 /**
- * agentm 模块的进程级装配：
+ * agent.management 的进程级装配：
  * <ul>
  *   <li>{@link OllamaService} 单例 bean。
  *       注意 {@code isAvailable} 标志是跨请求共享状态——"已可用则跳过

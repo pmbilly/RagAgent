@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.ragagent.agentm.mapper.JsonbRawStringTypeHandler;
+import com.ragagent.agent.management.mapper.JsonbRawStringTypeHandler;
 
 /**
  * IM 渠道会话：平台 (user×chat[×thread]) 组合 ↔ WeKnora 会话的映射

@@ -19,11 +19,11 @@ public final class AsrTestAudio {
         try (InputStream in = AsrTestAudio.class.getClassLoader()
                 .getResourceAsStream("initialization/asr_test.wav")) {
             if (in == null) {
-                throw new IllegalStateException("missing resource agentm/asr_test.wav");
+                throw new IllegalStateException("missing resource initialization/asr_test.wav");
             }
             return in.readAllBytes();
         } catch (IOException e) {
-            throw new IllegalStateException("failed to load agentm/asr_test.wav", e);
+            throw new IllegalStateException("failed to load initialization/asr_test.wav", e);
         }
     }
 }

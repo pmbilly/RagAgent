@@ -534,7 +534,7 @@ public class WebConfig implements WebMvcConfigurer {
         // 波 3 子批 1（对照 routes_infra.go RegisterSandboxConfigRoutes，Go L52-74）：
         // 静态段（workspace-policy/templates/query）先于 /:id 通配登记（AntPathMatcher
         // 取首个命中）；:id/sandboxes 在 :id 之前。List/Get 是 Viewer+，其余 Admin+。
-        // GET /skills（指令型技能目录，agentm/SkillsCatalogController）：选择器数据源，
+        // GET /skills（指令型技能目录，agent/management/SkillsCatalogController）：选择器数据源，
         // Viewer+（对照 routes_agent.go RegisterSkillRoutes 的 GET /skills Viewer）。
         rbac.addRule("GET", "/api/v1/skills", TenantRole.VIEWER, false);
         // ── 波 3 agents 批：agents CRUD 家族（对照 routes_agent.go RegisterCustomAgentRoutes）──

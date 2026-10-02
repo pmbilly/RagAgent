@@ -12,9 +12,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.agentm.mapper.CustomAgentMapper;
-import com.ragagent.agentm.service.CustomAgentService;
-import com.ragagent.agentm.domain.CustomAgentEntity;
+import com.ragagent.agent.management.mapper.CustomAgentMapper;
+import com.ragagent.agent.management.service.CustomAgentService;
+import com.ragagent.agent.management.domain.CustomAgentEntity;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.embed.EmbedError;
 import com.ragagent.embed.EmbedTokens;
@@ -239,7 +239,7 @@ public class EmbedChannelService {
         } catch (RuntimeException e) {
             throw EmbedError.operationFailed();
         }
-        if (row == null && com.ragagent.agentm.service.BuiltinAgentRegistry.isBuiltinAgentID(id)) {
+        if (row == null && com.ragagent.agent.management.service.BuiltinAgentRegistry.isBuiltinAgentID(id)) {
             // 对照 GetAgentByID 的内建注册表兜底：内建 agent 视为存在（租户内）
             return virtualBuiltin(id, tenantId);
         }
@@ -642,7 +642,7 @@ public class EmbedChannelService {
         };
     }
 
-    /** 对照 SuggestedQuestions（L338-348）：委托 agentm 的同语义实现。 */
+    /** 对照 SuggestedQuestions（L338-348）：委托 agent.management 的同语义实现。 */
     public ArrayNode suggestedQuestions(EmbedChannelEntity ch, int limit) {
         if (ch == null || !ch.isShowSuggestedQuestions()) {
             return null;

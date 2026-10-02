@@ -11,7 +11,7 @@ import java.util.Map;
  * 提示词占位符的统一渲染。
  *
  * <p>这里只收 agent 模式用到的子集（agent_system_prompt 字段与渲染）。
- * 完整的字段表已在 agentm 的 {@code AgentPlaceholders}（HTTP 面）落地，勿重复。</p>
+ * 完整的字段表已在 agent.management 的 {@code AgentPlaceholders}（HTTP 面）落地，勿重复。</p>
  *
  * <p><b>自动值</b>（调用方未提供时补齐）：{{current_time}} 只用日期不用时钟——
  * 秒级变化会打断 provider 前缀缓存；{{current_week}} 星期名；{{yesterday}} 昨日日期。

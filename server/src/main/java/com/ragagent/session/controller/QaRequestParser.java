@@ -2,8 +2,8 @@ package com.ragagent.session.controller;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
-import com.ragagent.agentm.domain.CustomAgentEntity;
-import com.ragagent.agentm.service.AgentConfigJson;
+import com.ragagent.agent.management.domain.CustomAgentEntity;
+import com.ragagent.agent.management.service.AgentConfigJson;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.session.domain.Message;

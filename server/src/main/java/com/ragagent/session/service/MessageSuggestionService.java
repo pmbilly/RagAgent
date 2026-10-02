@@ -12,8 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import com.ragagent.agentm.service.AgentSuggestedQuestions;
-import com.ragagent.agentm.service.CustomAgentService;
+import com.ragagent.agent.management.service.AgentSuggestedQuestions;
+import com.ragagent.agent.management.service.CustomAgentService;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;

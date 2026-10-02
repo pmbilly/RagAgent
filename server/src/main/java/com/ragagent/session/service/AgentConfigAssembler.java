@@ -5,7 +5,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.ragagent.agent.tools.ToolDefinitions;
-import com.ragagent.agentm.service.AgentConfigJson;
+import com.ragagent.agent.management.service.AgentConfigJson;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -302,7 +302,7 @@ final class AgentConfigAssembler {
             new com.fasterxml.jackson.databind.ObjectMapper();
     private static String templateContentByIdAndFile(String id, String file) {
         try (java.io.InputStream in = SessionAgentQaService.class.getClassLoader()
-                .getResourceAsStream("agentm/prompt_templates/" + file)) {
+                .getResourceAsStream("agent/management/prompt_templates/" + file)) {
             if (in == null) {
                 return null;
             }

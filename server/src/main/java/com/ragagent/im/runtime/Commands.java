@@ -47,7 +47,7 @@ public final class Commands {
         /** 绑定 agent 的显示名（未绑定为空）。 */
         public String agentName = "";
         /** 绑定的 agent 配置（可为 null；/search 读 KBSelectionMode）。 */
-        public com.ragagent.agentm.domain.CustomAgentEntity customAgent;
+        public com.ragagent.agent.management.domain.CustomAgentEntity customAgent;
         /** 渠道级输出模式（"stream"/"full"）。 */
         public String channelOutputMode = "";
     }

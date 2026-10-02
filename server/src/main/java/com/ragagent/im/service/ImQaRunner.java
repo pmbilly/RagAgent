@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.ragagent.agentm.domain.CustomAgentEntity;
+import com.ragagent.agent.management.domain.CustomAgentEntity;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.event.EventBus;
 import com.ragagent.event.EventType;

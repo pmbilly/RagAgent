@@ -47,7 +47,7 @@ public final class QaSupport {
         public String query = "";
         public Session session;
         /** 已解析的 agent（id/config 树）；null = 未指定或未解析到 */
-        public com.ragagent.agentm.domain.CustomAgentEntity agentRow;
+        public com.ragagent.agent.management.domain.CustomAgentEntity agentRow;
         /** agent 的 config 树（ensureDefaults 后的 ObjectNode） */
         public com.fasterxml.jackson.databind.node.ObjectNode agentConfig;
         public Message assistantMessage;
@@ -508,7 +508,7 @@ public final class QaSupport {
         public String query = "";
         public String assistantMessageId = "";
         public String summaryModelId = "";
-        public com.ragagent.agentm.domain.CustomAgentEntity agentRow;
+        public com.ragagent.agent.management.domain.CustomAgentEntity agentRow;
         public com.fasterxml.jackson.databind.node.ObjectNode agentConfig;
         public boolean sharedAgentReadOnly;
         public List<String> knowledgeBaseIds = new ArrayList<>();

@@ -11,7 +11,7 @@
 #     11434 &（Go server 不设 OLLAMA_BASE_URL → 缺省 localhost:11434，与 Java 测试
 #     JVM 的 in-JVM stub 同位）。
 #
-# 场景与 server/src/test/java/com/ragagent/agentm/W5bInitializationContractTest.java
+# 场景与 server/src/test/java/com/ragagent/agent/management/W5bInitializationContractTest.java
 # 一一对应；掩码：uuid/时间戳/ollama 错误内文。
 #
 # 用法：

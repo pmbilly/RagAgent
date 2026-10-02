@@ -59,7 +59,7 @@ import jakarta.servlet.http.HttpServletResponse;
  * <ul>
  *   <li>共享 agent 解析（W5α2 已收口）：resolveAgent 共享优先、source==0 才回落 own；
  *       GetSharedAgentForTenant 的 ApplyBuiltinAgentLocalization 只覆盖
- *       name/description/avatar（QA 消费 config/tenant，不进字节契约），随 agentm 装配层
+ *       name/description/avatar（QA 消费 config/tenant，不进字节契约），随 agent.management 装配层
  *       统一补齐；access.WithSharedAgent 的 KB grant 机制（检索授权收窄）随检索面
  *       专项收口——Java 检索租户已取 agentRow.tenantId（等价执行范围）。</li>
  *   <li>图片上传/附件的存储写入与 VLM 分析：saveImageAttachments 的对象存储写入

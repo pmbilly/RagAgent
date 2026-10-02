@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.agentm.service.AgentConfigJson;
+import com.ragagent.agent.management.service.AgentConfigJson;
 import com.ragagent.chatpipeline.ChatManage;
 
 /**
@@ -123,7 +123,7 @@ final class QaChatManageOverrides {
         }
     }
     SessionQaResolution.Prompts resolveCustomAgentPrompts(
-            com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode c) {
+            com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode c) {
         if (c == null) {
             return new SessionQaResolution.Prompts("", "");
         }

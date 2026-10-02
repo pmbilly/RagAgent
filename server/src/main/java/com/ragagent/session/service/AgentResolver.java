@@ -4,8 +4,8 @@ import java.io.IOException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.agentm.domain.CustomAgentEntity;
-import com.ragagent.agentm.service.CustomAgentService;
+import com.ragagent.agent.management.domain.CustomAgentEntity;
+import com.ragagent.agent.management.service.CustomAgentService;
 import com.ragagent.common.context.TenantContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

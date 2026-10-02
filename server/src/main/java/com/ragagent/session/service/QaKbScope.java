@@ -27,7 +27,7 @@ final class QaKbScope {
     }
 
     public List<String> resolveKnowledgeBasesFromAgent(
-            com.ragagent.agentm.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId) {
+            com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId) {
         if (agentCfg == null) {
             return new ArrayList<>();
         }

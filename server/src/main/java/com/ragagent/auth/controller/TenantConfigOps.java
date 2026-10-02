@@ -53,7 +53,7 @@ final class TenantConfigOps {
             case "prompt-templates" ->
                     com.ragagent.agent.PromptTemplateCatalog.toJson(
                             com.ragagent.agent.PromptTemplateCatalog.load(),
-                            com.ragagent.agentm.service.BuiltinAgentRegistry
+                            com.ragagent.agent.management.service.BuiltinAgentRegistry
                                     .localeFromRequest(request.getHeader("Accept-Language")));
             case "parser-engine-config" -> getParserEngine();
             case "storage-engine-config" -> getStorageEngine();

@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 /**
  * agent 运行时配置。
  *
- * <h2>⚠️ 与 {@code agentm.service.AgentConfigJson} 不是同一个类型</h2>
+ * <h2>⚠️ 与 {@code agent.management.service.AgentConfigJson} 不是同一个类型</h2>
  * <p>{@code AgentConfigJson} 是 <b>配置树校验件</b>（custom_agents.config jsonb 的
  * 默认值补全/校验），本类是 <b>运行时消费面</b>：引擎（engine/observe/act/think/
  * finalize）从这里读本轮执行的参数。存储面归 {@code AgentConfigJson}，

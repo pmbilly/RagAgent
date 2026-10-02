@@ -8,8 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * agent 系统提示词模板的选取与装载。
  *
- * <p>模板文件 vendored 到 {@code agentm/prompt_templates/agent_system_prompt.yaml}，
- * 启动时从 classpath 装载。yaml 解析沿用 agentm BuiltinAgentRegistry 的
+ * <p>模板文件 vendored 到 {@code agent/management/prompt_templates/agent_system_prompt.yaml}，
+ * 启动时从 classpath 装载。yaml 解析沿用 agent.management BuiltinAgentRegistry 的
  * snakeyaml → ObjectNode 组合（classpath 无 jackson-dataformat-yaml）。</p>
  */
 public final class AgentPromptTemplates {
@@ -77,7 +77,7 @@ public final class AgentPromptTemplates {
      */
     public static List<PromptTemplate> loadAgentSystemPromptTemplates() {
         try (var in = AgentPromptTemplates.class.getClassLoader()
-                .getResourceAsStream("agentm/prompt_templates/agent_system_prompt.yaml")) {
+                .getResourceAsStream("agent/management/prompt_templates/agent_system_prompt.yaml")) {
             if (in == null) {
                 return List.of();
             }

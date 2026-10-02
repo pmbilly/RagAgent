@@ -11,7 +11,7 @@ import com.ragagent.common.prompt.MessageAttachmentsPrompt;
 import com.ragagent.common.session.PipelineUsedMemoryView;
 import com.ragagent.knowledge.service.FaqEntryQueryService;
 import com.ragagent.agent.AgentEngine;
-import com.ragagent.agentm.service.AgentConfigJson;
+import com.ragagent.agent.management.service.AgentConfigJson;
 import com.ragagent.event.Event;
 import com.ragagent.event.EventBus;
 import com.ragagent.event.payload.ErrorData;
