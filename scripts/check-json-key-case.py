@@ -59,6 +59,20 @@ BASELINE: dict[str, set[str]] = {
     'wiki/service/ingest/WikiIngestCitePipeline.java': {'new_slugs'},
     # 既有内部 jsonb 状态键（改名需迁移存量行，登记不动）
     'wiki/service/ingest/WikiIngestMapPhase.java': {'new_slugs'},
+    # ── B26 逐面判定后登记的例外 ────────────────────────────────────────────
+    # datasource 配置 jsonb（settings/credentials 里的键，存量面）
+    'datasource/dto/DataSourceResponse.java': {'feed_urls'},
+    # MCP 元数据**存量形态**（mcp_services.metadata 的序列化形状，用于算体积）
+    'mcp/service/McpMetadataService.java': {'service_id', 'server_name', 'server_version',
+                                            'server_description', 'synced_at'},
+    # 提示词模板**变量**（数据值，模板里就是 {{server_name}}）
+    'mcp/controller/McpUsageInstructionsOps.java': {'server_name'},
+    # 审计 details jsonb（前端按历史读，存量面）
+    'audit/service/AuditLogService.java': {'raw_path', 'required_role'},
+    # MyBatis 列名写入点（.set("列名") 非 JSON 键；扫描器按文本匹配的已知假阳性）
+    'knowledge/service/KnowledgeFileService.java': {'content_revision', 'enable_status',
+        'error_message', 'file_hash', 'file_name', 'file_path', 'file_size', 'file_type',
+        'parse_status', 'processed_at', 'summary_status'},
 }
 
 PATTERNS = (

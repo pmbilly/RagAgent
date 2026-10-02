@@ -1,1 +1,1 @@
-{"id":"<uuid>","tenantId":10002,"name":"wsp-golden-ddg","provider":"duckduckgo","description":"d","parameters":{"engineId":"e2","baseUrl":"","proxyUrl":"","extraConfig":{"k":"v"}},"isDefault":false,"createdAt":null,"updatedAt":"<ts>","credentials":{"api_key":{"configured":false}}}
+{"id":"<uuid>","tenantId":10002,"name":"wsp-golden-ddg","provider":"duckduckgo","description":"d","parameters":{"engineId":"e2","baseUrl":"","proxyUrl":"","extraConfig":{"k":"v"}},"isDefault":false,"createdAt":null,"updatedAt":"<ts>","credentials":{"apiKey":{"configured":true}}}

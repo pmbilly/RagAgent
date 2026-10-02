@@ -41,7 +41,7 @@ public class WebSearchProviderCredentialsController {
         this.service = service;
     }
 
-    /** 对照 webSearchCredentialsPutRequest：api_key 为**指针**——null = 查询状态语义 */
+    /** 对照 webSearchCredentialsPutRequest：apiKey 为**指针**——null = 查询状态语义 */
     @PutMapping("/{id}/credentials")
     public ResponseEntity<?> put(@PathVariable("id") String id,
             @RequestBody(required = false) String rawBody) {
@@ -67,7 +67,7 @@ public class WebSearchProviderCredentialsController {
     public ResponseEntity<?> deleteField(@PathVariable("id") String id,
             @PathVariable("field") String field) {
         long tenantId = tenantId();
-        if (!"api_key".equals(field)) {
+        if (!"apiKey".equals(field)) {
             throw BizException.badRequest("unknown credential field: " + field);
         }
         try {
@@ -112,7 +112,7 @@ public class WebSearchProviderCredentialsController {
         } catch (Exception e) {
             throw BizException.badRequest(GoJsonBindError.message(rawBody, e.getMessage()));
         }
-        JsonNode key = body.get("api_key");
+        JsonNode key = body.get("apiKey");
         return key == null || key.isNull() ? null : key.asText();
     }
 

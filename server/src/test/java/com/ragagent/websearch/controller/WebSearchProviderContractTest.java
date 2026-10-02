@@ -304,10 +304,10 @@ class WebSearchProviderContractTest {
         compareAndStatus("wsp-cred-delete-badfield.json", 400, "DELETE",
                 base + "/" + ddg + "/credentials/notkey", owner, null);
         compareAndStatus("wsp-cred-delete.json", 204, "DELETE",
-                base + "/" + ddg + "/credentials/api_key", owner, null);
+                base + "/" + ddg + "/credentials/apiKey", owner, null);
         compareAndStatus("wsp-get-after-clear.json", 200, "GET", base + "/" + ddg, owner, null);
         compareAndStatus("wsp-cred-delete-404.json", 500, "DELETE",
-                base + "/" + UNKNOWN + "/credentials/api_key", owner, null);
+                base + "/" + UNKNOWN + "/credentials/apiKey", owner, null);
     }
 
     // ── 6) test 端点（确定性分支）+ 删除 ───────────────────────────────

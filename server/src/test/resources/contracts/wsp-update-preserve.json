@@ -1,1 +1,1 @@
-{"id":"<uuid>","tenantId":10002,"name":"wsp-def-one","provider":"duckduckgo","description":"","parameters":{"engineId":"","baseUrl":"","proxyUrl":"","extraConfig":null},"isDefault":false,"createdAt":null,"updatedAt":"<ts>","credentials":{"api_key":{"configured":false}}}
+{"id":"<uuid>","tenantId":10002,"name":"wsp-def-one","provider":"duckduckgo","description":"","parameters":{"engineId":"","baseUrl":"","proxyUrl":"","extraConfig":null},"isDefault":false,"createdAt":null,"updatedAt":"<ts>","credentials":{"apiKey":{"configured":false}}}

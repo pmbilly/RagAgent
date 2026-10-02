@@ -2793,6 +2793,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B23 孤儿夹具审计** | 夹具「真被引用」判定（行为式，不按名猜） | P3 | 小 | ✅ **工具 + 首审完成（2026-10-02）**——1344 个夹具中 115 个为孤儿（≈8.6%，聚类见 15.1.1）；本批未删，等拍板 |
 | **B24 换锚长尾回头扫** | 注解面清零；新增 payload 键面盘点与棘轮 | P3 | 中 | 🟡 **盘点完成（2026-10-02）**——注解真债 0；Map/JsonNode 写键面 ≈309 键/119 文件（第三方族已冻结、FE 可见 42 键为批甲）；工具与边界已落。详见 15.1.1 |
 | **B25 批甲（首面）** | 模板标志位收口 + 引用/进度载荷判冻结 | P3 | 小 | ✅ **完成（2026-10-02）**——`hasKnowledgeBase`/`hasWebSearch` 收口（YAML 输入面未动）；引用载荷因落库+回放+前端重建而冻结；并纠正 B24 筛子的「FE 可见」低估 |
+| **B26 批甲续（websearch 凭据面）** | 逐面看消费者链 | P2 | 中 | 🐞 **修掉真 bug（2026-10-02）**——凭据面三处键名错位（保存静默失效 / 删除 400 / 徽标恒「未配置」），金鹰记录的缺陷态一并纠正；另四面判冻结并入 BASELINE |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3160,6 +3161,17 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **筛子缺陷（自我纠正）**：B24 的「FE 可见」分桶是按**引号形式** grep 的，而前端大量使用**属性声明/访问**（`knowledge_title: string;`、`x.knowledge_title`）⇒ 该桶**系统性低估**（`ReferencesSupport` 曾被我判成「未外露」）。本批两面已用非引号写法复核；B24 表里其余「未外露/仅夹具」项在批乙须**重筛一遍**。
 - **仍待判（留批乙）**：`chatpipeline/support/SearchSupport`（`dropped_id`/`kept_id`/`match_type`，疑似检索调试载荷）、`chatpipeline/PipelineBuilder`（`chat_stream`/`rag_stream`/`chat_history_stream`，管线步名/事件名）。
 - 闸门：后端全量 **4713** 绿 + `spotlessCheck` 绿；前端 `vue-tsc` 绿 + `tsx --test` **690** 绿 + 契约键棘轮无新增。
+
+**🐞 B26（2026-10-02，批甲续：websearch 凭据面全链修复 + 其余四面判冻结）**
+- **真 bug（B14 同类，由「逐面看消费者链」挖出）**：websearch provider 的**凭据面三处键名错位**——前端全按 camel、后端全按 snake ⇒
+  ① `PUT /web-search-providers/{id}/credentials` 读 `body.get("api_key")`，而前端与**金鹰里录制的走查请求体**都是 `{"apiKey": …}` ⇒ **保存凭据静默失效**；
+  ② `DELETE …/credentials/{field}` 只认 `api_key`、前端传 `apiKey` ⇒ **删除报 400**；
+  ③ 响应 `credentials` map 键是 `api_key`，而前端 `credentialMeta` 按 `field.key='apiKey'` 索引 ⇒ **徽标恒显示「未配置」**。
+- **金鹰忠实记录了缺陷态**：`wsp-cred-put.json`、`wsp-get-after-cred.json` 里都是 `configured:false`（「存了也没存上」）；修复后据实纠正为 `true`，并核对其余 `wsp-*` 夹具（共 11 个改键名）。
+- **修复**：`WebSearchProviderResponse`、`WebSearchProviderCredentialsController`（读体 / 删除路径段 / 注释）、`WebSearchProviderService.clearCredential` 统一 camel；夹具与测试内的删除路径同步；**前端无需改**（它本来就是对的）。
+- **验证**：契约测试（MockMvc 走真实 handler + 真实库）现在观察到 `configured:true`＝「PUT 真的存上了」的**绿灯证明**；websearch 域 47 用例绿、后端全量 **4713** 绿 + `spotlessCheck` 绿；前端 `vue-tsc` 绿 + **690** 绿 + 棘轮无新增。未另起真机（该契约测试即端到端）。
+- **其余四面判冻结/登记**（逐条给理由，已入扫描器 BASELINE）：`datasource/dto/DataSourceResponse` 的 `feed_urls`（datasource 配置 jsonb·存量）；`McpMetadataService` 与 `McpUsageInstructionsOps` 的 `server_name`（存量 metadata 形态 + 提示词模板**变量**＝数据值）；`AuditLogService` 的 `raw_path`/`required_role`（审计 details jsonb·前端按历史读）；`KnowledgeFileService` 的 `.set("列名")`（**MyBatis 列名，非 JSON 键**＝扫描器按文本匹配的已知假阳性）。
+- **方法论再次验证**：桶启发式只作粗排；**定性必须看消费者链**——本批真 bug 正是这样挖出的（若按名字批量 camel 化，`api_key` 这类内部标识符/第三方键会被一起改坏）。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

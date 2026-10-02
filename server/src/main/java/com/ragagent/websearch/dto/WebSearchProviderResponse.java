@@ -51,7 +51,7 @@ public class WebSearchProviderResponse {
         r.updatedAt = e.getUpdatedAt();
         // Go 恒构造 map（即使 api_key 为空）→ omitempty 不触发，键恒在
         Map<String, CredentialFieldMetadata> creds = new LinkedHashMap<>();
-        creds.put("api_key", new CredentialFieldMetadata(params != null && !params.getApiKey().isEmpty()));
+        creds.put("apiKey", new CredentialFieldMetadata(params != null && !params.getApiKey().isEmpty()));
         r.credentials = creds;
         return r;
     }

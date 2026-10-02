@@ -110,7 +110,7 @@ public class WebSearchProviderService {
 
     /** Go ClearProviderCredential：幂等（本就为空 → no-op） */
     public void clearCredential(long tenantId, String id, String field) {
-        if (!"api_key".equals(field)) {
+        if (!"apiKey".equals(field)) {
             throw failed("unknown credential field: " + field);
         }
         WebSearchProvider existing = repo.getByID(tenantId, id);
