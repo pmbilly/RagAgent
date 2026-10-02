@@ -53,7 +53,7 @@ class WikiContractTest {
     private static final OffsetDateTime TS = OffsetDateTime.of(2026, 9, 18, 10, 0, 0, 123456000, ZoneOffset.ofHours(8));
 
     private static final Pattern TS_PATTERN = Pattern.compile(
-            "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})");
+            "\"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})\"");
     private static final Pattern UUID_KEY_PATTERN = Pattern.compile(
             "\"(id|knowledge_base_id|parent_id|last_editor_id)\":"
                     + "\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
@@ -151,7 +151,7 @@ class WikiContractTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         String createdBody = created.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertEquals(mask(golden("wiki-page-create.json")), mask(createdBody),
+        assertEquals(goldenChecked("wiki-page-create.json", createdBody), mask(createdBody),
                 "create 应返回裸实体且与 golden 一致（掩码后）");
         assertFalse(createdBody.contains("\"success\""), "wiki 响应无 success/data 信封: " + createdBody);
 
@@ -188,7 +188,7 @@ class WikiContractTest {
                 .andExpect(status().isOk())
                 .andReturn();
         String updatedBody = updated.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertEquals(mask(golden("wiki-page-update.json")), mask(updatedBody),
+        assertEquals(goldenChecked("wiki-page-update.json", updatedBody), mask(updatedBody),
                 "update 应与 golden 一致（掩码后，含 version=2）");
 
         // 6. revisions → {revisions,total,current_version}
@@ -313,6 +313,23 @@ class WikiContractTest {
 
     private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
+
+    /** {@code -Dcontract.refresh=true} 时把掩码后的实际响应写回夹具（B3 重录用）。 */
+    private static final boolean REFRESH_FIXTURES = Boolean.getBoolean("contract.refresh");
+
+    private static String goldenChecked(String name, String actualBody) throws Exception {
+        String masked = mask(actualBody);
+        if (REFRESH_FIXTURES) {
+            var resource = new org.springframework.core.io.ClassPathResource("contracts/" + name);
+            java.nio.file.Path file = java.nio.file.Path.of("src/test/resources/contracts", name);
+            if (!java.nio.file.Files.exists(file)) {
+                file = java.nio.file.Path.of("server/src/test/resources/contracts", name);
+            }
+            java.nio.file.Files.writeString(file, masked + "\n");
+            return masked;
+        }
+        return mask(golden(name)).strip();
+    }
 
     private static String golden(String name) throws Exception {
         // PR4 语义比较：键序/HTML 转义归一后返回（非 JSON 文本原样），断言侧不变

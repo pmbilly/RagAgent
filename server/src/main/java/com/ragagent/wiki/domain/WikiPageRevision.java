@@ -8,7 +8,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * wiki_page_revisions 表实体（表结构以 migrations/versioned/000075_wiki_page_revisions.up.sql
@@ -55,7 +54,6 @@ public class WikiPageRevision {
     private String status = "";
 
     /** 正文快照；空时 JSON 省略（列表场景本就不取正文） */
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String content = "";
 
     private String summary = "";

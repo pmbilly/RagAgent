@@ -3,7 +3,6 @@ package com.ragagent.websearch.domain;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * 对照 Go {@code types.WebSearchProviderParameters}（internal/types/web_search_provider.go）。
@@ -16,21 +15,20 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * 忽略未知键；裸 SQL / 未来演进写入的 parameters 可能带本类不认识的键——
  * 没有它会整行读不出来（§9「波 2 FAQ 补充」教训，本批 config 列逐个挂）。</p>
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class WebSearchProviderParams {
 
     /** API key（落库加密；响应永不回显） */
-        private String apiKey = "";
+    private String apiKey = "";
 
     /** Google CSE engine id */
-        private String engineId = "";
+    private String engineId = "";
 
     /** 自托管搜索引擎地址（SearXNG） */
-        private String baseUrl = "";
+    private String baseUrl = "";
 
     /** 出站代理（仅隧道官方 API） */
-        private String proxyUrl = "";
+    private String proxyUrl = "";
 
     /** provider 特有的非秘密扩展配置 */
         private Map<String, String> extraConfig;

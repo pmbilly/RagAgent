@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * 结构化 wiki 索引响应里的一行。JSON 键为 snake（§11 登记边界，前端按此解析）。
@@ -21,21 +20,16 @@ public class WikiIndexEntry {
     private String summary = "";
 
     @TableField(value = "parent_slug")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String parentSlug = "";
 
     @TableField(value = "category_path", typeHandler = WikiStringListTypeHandler.class)
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private List<String> categoryPath = new ArrayList<>();
+        private List<String> categoryPath = new ArrayList<>();
 
     @TableField(value = "wiki_path")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String wikiPath = "";
 
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int depth;
 
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int sortOrder;
 
     public String getSlug() { return slug; }

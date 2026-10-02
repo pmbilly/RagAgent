@@ -1,6 +1,5 @@
 package com.ragagent.wiki.domain;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * 单条 wiki 体检发现。
@@ -48,7 +47,6 @@ public class WikiLintIssue {
      * 或陈旧引用对应的 knowledge id。AutoFix 用这个<b>结构化字段</b>而不是解析
      * Description 文本。
      */
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String targetSlug = "";
 
     private String description = "";

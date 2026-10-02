@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * WikiPage 的瘦投影。
@@ -37,12 +36,10 @@ public class WikiPageLite {
     private String status = "";
 
     @TableField(value = "aliases", typeHandler = WikiStringListTypeHandler.class)
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private List<String> aliases = new ArrayList<>();
+        private List<String> aliases = new ArrayList<>();
 
     @TableField(value = "out_links", typeHandler = WikiStringListTypeHandler.class)
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private List<String> outLinks = new ArrayList<>();
+        private List<String> outLinks = new ArrayList<>();
 
     public String getSlug() { return slug; }
     public void setSlug(String v) { this.slug = v == null ? "" : v; }

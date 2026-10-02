@@ -3,7 +3,6 @@ package com.ragagent.wiki.domain;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * wiki 链接图谱的类型集合：service 入参（{@link WikiGraph.Request}）与可视化响应
@@ -64,20 +63,17 @@ public final class WikiGraph {
      * 前端用 {@code truncated} 决定是否显示"显示 X / 共 Y"提示并开启 ego 展开。
      */
         public static final class Meta {
-        private String mode = "";
+    private String mode = "";
         /** 过滤/限流之前该知识库的节点总数 */
-        private int total;
+    private int total;
         /** 实际返回的节点数 */
-        private int returned;
+    private int returned;
         /** Returned < Total（过滤后）时为 true */
-        private boolean truncated;
-        @JsonInclude(JsonInclude.Include.NON_EMPTY)
-        private String center = "";
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        private int depth;
+    private boolean truncated;
+                private String center = "";
+                private int depth;
         /** 返回节点里为当前用户点亮了几个 */
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        private int familiarCount;
+                private int familiarCount;
 
         public String getMode() { return mode; }
         public void setMode(String v) { this.mode = v == null ? "" : v; }
@@ -103,17 +99,16 @@ public final class WikiGraph {
 
     /** 图谱中的一个节点 */
         public static final class Node {
-        private String slug = "";
-        private String title = "";
-        private String pageType = "";
+    private String slug = "";
+    private String title = "";
+    private String pageType = "";
         /** 入链 + 出链数量 */
-        private int linkCount;
+    private int linkCount;
         /**
          * 本页由该用户反复引用的文档构建而来时为 true。它是个人叠加层、不是页面属性：
          * 两个人看同一个 wiki 会看到不同的高亮。
          */
-        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        private boolean familiar;
+                private boolean familiar;
 
         public String getSlug() { return slug; }
         public void setSlug(String v) { this.slug = v == null ? "" : v; }
@@ -134,9 +129,9 @@ public final class WikiGraph {
     /** 图谱中的一条有向边 */
         public static final class Edge {
         /** 源 slug */
-        private String source = "";
+    private String source = "";
         /** 目标 slug */
-        private String target = "";
+    private String target = "";
 
         public Edge() {}
 

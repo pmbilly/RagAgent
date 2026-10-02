@@ -3,7 +3,6 @@ package com.ragagent.vectorstore.dto;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * 对照 Go {@code types.GetVectorStoreTypes()}（types/vectorstore.go L665-784）：
@@ -12,7 +11,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * （非法/负值回落 1）。条目与字段顺序、每个 default 的有无（interface 持 false 也会
  * 输出 {@code "default":false}）= Go 数组/struct 字面量形态（契约）。
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public final class VectorStoreTypes {
 
     private VectorStoreTypes() {
@@ -203,22 +201,20 @@ public final class VectorStoreTypes {
         return t;
     }
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class TypeInfo {
+        public static class TypeInfo {
         public String type;
         public String displayName;
         public List<FieldInfo> connectionFields;
         public List<FieldInfo> indexFields;
     }
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class FieldInfo {
+        public static class FieldInfo {
         public String name;
         public String type;
         public boolean required;
         public boolean sensitive;
         public Object defaultValue;
-        @JsonInclude(JsonInclude.Include.NON_NULL) public String description;
+        public String description;
         public boolean immutable;
 
         public Double min;

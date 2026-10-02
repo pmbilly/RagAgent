@@ -741,8 +741,8 @@ class WikiHttpContractTest {
         assertTrue(body.startsWith("{\"nodes\":["), body);
         assertTrue(body.contains("\"mode\":\"overview\""), body);
         assertTrue(body.contains("\"slug\":\"entity/acme\""), body);
-        // depth 为 0（默认值）→ omitempty 省略；limit 夹在 500
-        assertFalse(body.contains("\"depth\":0"), body);
+        // depth 恒输出（§1.6）：默认值 0 显式出现；limit 夹在 500
+        assertTrue(body.contains("\"depth\":0"), body);
     }
 
     @Test

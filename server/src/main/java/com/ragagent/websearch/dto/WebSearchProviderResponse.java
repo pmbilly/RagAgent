@@ -5,7 +5,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ragagent.websearch.domain.WebSearchProvider;
 
@@ -17,7 +16,6 @@ import com.ragagent.websearch.domain.WebSearchProvider;
  * <p>proxy_url / extra_config 仅 Admin+（或全量/管理租户设置能力的 API key）可见——
  * 对照 {@code CanViewIntegrationSecrets}；不可见时 proxy_url 置空串、extra_config 置 nil。</p>
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class WebSearchProviderResponse {
 
     public String id;
@@ -71,16 +69,11 @@ public class WebSearchProviderResponse {
     }
 
     /** 对照 WebSearchProviderParametersDTO：除 api_key 外的全部参数（非秘密） */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class ParametersDTO {
-            @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        public String engineId = "";
-            @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        public String baseUrl = "";
-            @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        public String proxyUrl = "";
-            @JsonInclude(JsonInclude.Include.NON_NULL)
-        public Map<String, String> extraConfig;
+        public static class ParametersDTO {
+                    public String engineId = "";
+                    public String baseUrl = "";
+                    public String proxyUrl = "";
+                    public Map<String, String> extraConfig;
     }
 
     /** 对照 dto.CredentialFieldMetadata */

@@ -3,7 +3,6 @@ package com.ragagent.wiki.domain;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * 列出 wiki 页面的过滤 / 分页请求。JSON 键为 snake（§11 登记边界，前端按此解析）。
@@ -18,28 +17,22 @@ public class WikiPageListRequest {
     private String knowledgeBaseId = "";
 
     /** 按类型过滤；可带逗号分隔的多类型（"entity,concept"），按逗号切分 */
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String pageType = "";
 
     /** 按状态过滤 */
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String status = "";
 
     /** 全文检索词 */
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String query = "";
 
     /** 精确的文件夹归属（"" = 根）；<b>null = 不过滤</b> */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     private String folderId;
 
     /** 精确的目录路径（按 {@link WikiCategoryPaths#trimFolderSegments} 归一化后比较） */
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private List<String> categoryPath = new ArrayList<>();
+        private List<String> categoryPath = new ArrayList<>();
 
     /** 精确的目录层级深度，含 0（根）；<b>null = 不过滤</b> */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private Integer categoryDepth;
+        private Integer categoryDepth;
 
     /** 分页页码（1 起）；&lt;1 时按 1 处理 */
     private int page;

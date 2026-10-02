@@ -1,7 +1,6 @@
 package com.ragagent.wiki.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -44,31 +43,24 @@ public class WikiConfig {
      * （见 {@link WikiExtractionGranularity#normalize(String)}）。
      * 类型刻意保持 String：历史行/未设置的值是 ""，JSON 往返须保留空串。
      */
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String extractionGranularity = "";
 
     /** 控制生成 summary/entity/index 文案的语气、结构与侧重（引用与合并规则仍归系统所有） */
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String contentInstructions = "";
 
     /** 告诉候选抽取要强调哪些领域概念，但不替换稳定的 JSON/引用协议 */
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String extractionInstructions = "";
 
     /** 单批（batch）认领并处理的待办数；0 → 硬编码默认 5 */
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestBatchSize;
 
     /** Map 阶段（逐文档抽取 + 摘要 + chunk 引用）的并发上限；0 → 默认 10 */
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestMapParallel;
 
     /** Reduce 阶段（逐 slug 写页面）的并发上限；0 → 默认 10 */
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestReduceParallel;
 
     /** 本知识库可同时运行的 ingest 批次数上限（共享 worker 池）；0 → 默认 4 */
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int ingestMaxInflight;
 
     // ── *OrDefault 系列：实例方法在字段非正时回落 fallback；静态入口承载

@@ -3,7 +3,6 @@ package com.ragagent.wiki.domain;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * 结构化 wiki 索引响应的类型集合（条目类型因需被 MyBatis 映射，单独成文件
@@ -21,11 +20,10 @@ public final class WikiIndex {
      * 表示该类型的窗口已经到底。</p>
      */
         public static final class Group {
-        private String type = "";
-        private long total;
+    private String type = "";
+    private long total;
         private List<WikiIndexEntry> items = new ArrayList<>();
-        @JsonInclude(JsonInclude.Include.NON_EMPTY)
-        private String nextCursor = "";
+                private String nextCursor = "";
 
         public String getType() { return type; }
         public void setType(String v) { this.type = v == null ? "" : v; }
@@ -48,8 +46,8 @@ public final class WikiIndex {
      * 使索引读取成本恒为 O(page_size)，与知识库规模无关。</p>
      */
         public static final class Response {
-        private String intro = "";
-        private int version;
+    private String intro = "";
+    private int version;
         private List<Group> groups = new ArrayList<>();
 
         public String getIntro() { return intro; }

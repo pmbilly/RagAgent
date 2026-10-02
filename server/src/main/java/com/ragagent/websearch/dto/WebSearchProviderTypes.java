@@ -5,14 +5,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * 对照 Go {@code types.GetWebSearchProviderTypes()}（internal/types/web_search_provider.go
  * L176-372）：/web-search-providers/types 与旧版 /web-search/providers 共用的静态元数据。
  * 条目顺序 = Go 数组字面量顺序（契约，勿排序/增删）。
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public final class WebSearchProviderTypes {
 
     private WebSearchProviderTypes() {
@@ -180,20 +178,16 @@ public final class WebSearchProviderTypes {
         return t;
     }
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class TypeInfo {
+        public static class TypeInfo {
                 public String id;
                 public String name;
                 public boolean requiresApiKey;
-                @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-        public boolean supportsOptionalApiKey;
+                        public boolean supportsOptionalApiKey;
                 public boolean requiresEngineId;
                 public boolean requiresBaseUrl;
                 public boolean supportsProxy;
                 public String description;
-                @JsonInclude(JsonInclude.Include.NON_NULL)
-        public String docsUrl;
-                @JsonInclude(JsonInclude.Include.NON_NULL)
-        public List<Map<String, Object>> configFields;
+                        public String docsUrl;
+                        public List<Map<String, Object>> configFields;
     }
 }

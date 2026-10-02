@@ -136,14 +136,14 @@ class WikiDomainTest {
         assertThat(node.has("deletedAt")).isTrue();
         assertThat(node.get("deletedAt").isNull()).isTrue();
 
-        // omitempty：空串 / 0 整键省略
-        assertThat(node.has("parentSlug")).isFalse();
-        assertThat(node.has("folderId")).isFalse();
-        assertThat(node.has("categoryPath")).isFalse();
-        assertThat(node.has("depth")).isFalse();
-        assertThat(node.has("sortOrder")).isFalse();
-        assertThat(node.has("lastEditSource")).isFalse();
-        assertThat(node.has("lastEditorId")).isFalse();
+        // 恒输出（§1.6）：空串 / 0 显式输出，不再整键省略
+        assertThat(node.has("parentSlug")).isTrue();
+        assertThat(node.has("folderId")).isTrue();
+        assertThat(node.has("categoryPath")).isTrue();
+        assertThat(node.has("depth")).isTrue();
+        assertThat(node.has("sortOrder")).isTrue();
+        assertThat(node.has("lastEditSource")).isTrue();
+        assertThat(node.has("lastEditorId")).isTrue();
 
         // ⚠️ 便捷方法必须 @JsonIgnore：否则会写进 jsonb 并让回读炸 UnrecognizedPropertyException
         assertThat(node.has("sourceKnowledgeIDs")).isFalse();
@@ -253,12 +253,12 @@ class WikiDomainTest {
 
     /** Go 的 Value() 用 omitempty：空串 / 0 的字段整键省略 */
     @Test
-    void wikiConfigOmitsEmptyOptionalFields() throws Exception {
+    void wikiConfigKeepsEmptyOptionalFields() throws Exception {
         WikiConfig config = new WikiConfig();
         config.setSynthesisModelId("m-1");
         JsonNode node = JSON.readTree(config.toJson());
-        assertThat(node.has("extractionGranularity")).isFalse();
-        assertThat(node.has("ingestBatchSize")).isFalse();
+        assertThat(node.has("extractionGranularity")).isTrue();
+        assertThat(node.has("ingestBatchSize")).isTrue();
         assertThat(node.get("maxPagesPerIngest").asInt()).isZero();
         assertThat(node.get("synthesisModelId").asText()).isEqualTo("m-1");
         // ⚠️ *OrDefault 便捷方法必须 @JsonIgnore，否则会被写进 wiki_config jsonb
@@ -427,8 +427,8 @@ class WikiDomainTest {
         assertThat(liteJson.has("pageType")).isTrue();
         assertThat(liteJson.has("outLinks")).isTrue();
         assertThat(liteJson.has("page_type")).isFalse();
-        // omitempty：空 aliases 整键省略
-        assertThat(liteJson.has("aliases")).isFalse();
+        // 恒输出（§1.6）：空数组显式输出 []
+        assertThat(liteJson.has("aliases")).isTrue();
 
         WikiIndexEntry entry = new WikiIndexEntry();
         entry.setSlug("entity/a");
@@ -438,9 +438,9 @@ class WikiDomainTest {
         JsonNode entryJson = JSON.readTree(JSON.writeValueAsString(entry));
         assertThat(entryJson.has("wikiPath")).isTrue();
         assertThat(entryJson.has("categoryPath")).isTrue();
-        assertThat(entryJson.has("sortOrder")).isFalse();
+        assertThat(entryJson.has("sortOrder")).isTrue();
         assertThat(entryJson.has("sort_order")).isFalse();
-        assertThat(entryJson.has("parentSlug")).isFalse();
+        assertThat(entryJson.has("parentSlug")).isTrue();
         assertThat(entryJson.has("depth")).isTrue();
 
         WikiPageRevision rev = new WikiPageRevision();
@@ -450,8 +450,8 @@ class WikiDomainTest {
         assertThat(revJson.has("pageId")).isTrue();
         assertThat(revJson.has("editSource")).isTrue();
         assertThat(revJson.has("editedAt")).isTrue();
-        // content 是 omitempty
-        assertThat(revJson.has("content")).isFalse();
+        // content 恒输出（§1.6）
+        assertThat(revJson.has("content")).isTrue();
     }
 
     /** 图谱与索引的嵌套类型键名 */

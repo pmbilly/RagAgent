@@ -2,7 +2,6 @@ package com.ragagent.wiki.domain;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * 一次 wiki 体检的完整报告。
@@ -15,8 +14,7 @@ public class WikiLintReport {
     private String knowledgeBaseId = "";
 
     /** 见类注释：空时保持 null 而非 [] */
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    private List<WikiLintIssue> issues;
+        private List<WikiLintIssue> issues;
 
     /** 0-100；只在 {@code stats.totalPages > 0} 时扣分，否则恒为 100 */
     private int healthScore;

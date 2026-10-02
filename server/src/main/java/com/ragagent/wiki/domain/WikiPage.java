@@ -9,7 +9,6 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.PgJsonTypeHandler;
@@ -83,7 +82,6 @@ public class WikiPage {
 
     /** 语义父页面 slug（可为空）；页面仅按 FolderID 归组时留空 */
     @TableField(value = "parent_slug")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String parentSlug = "";
 
     /**
@@ -92,25 +90,20 @@ public class WikiPage {
      * 每次写入时重算，好让 list/index/search 查询不必 join wiki_folders。
      */
     @TableField(value = "folder_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String folderId = "";
 
     /** 目录面包屑，如 ["AI", "LLM 应用", "RAG"]；FolderID 标识的文件夹链的派生缓存 */
     @TableField(value = "category_path", typeHandler = WikiStringListTypeHandler.class)
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<String> categoryPath = new ArrayList<>();
 
     /** 由 page_type + category_path + title 派生的可排序规范化路径，让大目录排序廉价 */
     @TableField(value = "wiki_path")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String wikiPath = "";
 
     /** = categoryPath.size()，缓存用于过滤/展示 */
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int depth;
 
     /** 排序权重，让生成或手工编辑的页面能在 title 之前控制同级顺序 */
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int sortOrder;
 
     /**
@@ -161,12 +154,10 @@ public class WikiPage {
      * wiki_page_revisions，因此每个历史版本各自保留作者类型。
      */
     @TableField(value = "last_edit_source")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String lastEditSource = "";
 
     /** 产生当前版本的调用方用户 id（后台管道写入留空） */
     @TableField(value = "last_editor_id")
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String lastEditorId = "";
 
     /** 创建时间 */
