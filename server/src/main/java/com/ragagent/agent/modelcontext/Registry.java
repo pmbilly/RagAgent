@@ -1,4 +1,4 @@
-package com.ragagent.modelcontext;
+package com.ragagent.agent.modelcontext;
 
 import java.util.ArrayList;
 import java.util.List;

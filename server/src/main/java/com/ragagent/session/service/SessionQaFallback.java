@@ -10,7 +10,7 @@ import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.StreamResponse;
-import com.ragagent.modelcontext.Registry;
+import com.ragagent.agent.modelcontext.Registry;
 
 /**
  * 知识问答降级协作者:固定文案兜底与模型兜底的消息准备与响应。

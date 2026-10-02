@@ -1,4 +1,4 @@
-package com.ragagent.modelcontext;
+package com.ragagent.agent.modelcontext;
 
 /**
  * 防止私有的部分 <ref/> 标签漏进 SSE、同时保持其他内容正常流式输出

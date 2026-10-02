@@ -138,7 +138,7 @@ L1  平台                         common event stream tracing
 | `webfetch` | `agent/support` | ✅ **已并入（2026-09-30，批 1）**：agent 的抓取能力 |
 | `apikey` | `auth/apikey` | ✅ **已并入（2026-09-30）**：一次消掉 `apikey ⇄ auth` 与 `apikey ⇄ knowledge` 两组环 |
 | `embed` | `embedchannel` | 与 `embedding` 名字太近，语义不同（业务渠道 vs provider 客户端）|
-| `modelcontext` | **仍待定**：并入 `agent/modelcontext` 或保留顶层 | 目前只被 agent 用；`agent ⇄ modelcontext` 环也可用"伴生类型归位"解 |
+| `modelcontext` | `agent/modelcontext` | ✅ **已并入（2026-10-02，B35）**：模型输出上下文协议层（13 文件）；消费方 agent/chatpipeline/session 改包路径；顶层包 31 → 30 |
 | `agentm` | ✅ **已拆分（2026-09-30）**：`agentm`（智能体管理）+ `initialization`（初始化/模型能力）| 原为混装（Go 期同组）；拆后各域职责单一，`ExtractPrompts` 随 init 半区（它引用 `chatpipeline`，未下沉）|
 
 其余域**保留顶层**：`knowledge agent session wiki datasource im memory mcp auth audit model storage

@@ -1,4 +1,4 @@
-package com.ragagent.modelcontext;
+package com.ragagent.agent.modelcontext;
 
 import com.fasterxml.jackson.databind.JsonNode;
 

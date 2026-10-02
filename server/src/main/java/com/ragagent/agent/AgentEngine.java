@@ -36,7 +36,7 @@ import com.ragagent.event.EventType;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.FunctionDef;
 import com.ragagent.llm.domain.TokenUsage;
-import com.ragagent.modelcontext.Registry;
+import com.ragagent.agent.modelcontext.Registry;
 import com.ragagent.tracing.langfuse.LangfuseManager;
 import com.ragagent.tracing.langfuse.Span;
 

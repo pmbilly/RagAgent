@@ -1,4 +1,4 @@
-package com.ragagent.modelcontext;
+package com.ragagent.agent.modelcontext;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -10,7 +10,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import static com.ragagent.modelcontext.GoRecording46A.*;
+import static com.ragagent.agent.modelcontext.GoRecording46A.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.llm.ToolResult;

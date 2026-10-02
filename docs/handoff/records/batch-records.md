@@ -464,3 +464,10 @@
 - **验证**：编译绿；守卫绿（环 0 / 依赖 config 1 / L2→L3 6 条）；全量 **4713** 绿 + `spotlessCheck` 绿；rename 识别 R093~R099；**忠实性核验**——非 package/import 的改动行只有上述 8 处可见性放宽 + package-info。
 - **踩坑实录（harness 复用要点）**：① 先改文本后 `git mv` ⇒ 「同包判定」用旧包名 → 漏加 import；② 删除行后未重算 `last_import` 索引 → import 插进类体（`illegal start of type`），已重置重跑；③ 域外文件的词边界命中含同名类误报（`GoPath` 与 datasource/connector/gitlab 同名、`McpOAuthSupport` 与 mcp/protocol 同名、wiki 域嵌套 `RepairResult`）⇒ 域外只做「import/FQN 路径改写」，不新增 import。
 
+**✅ B35（2026-10-02，`modelcontext` 并入 `agent`：顶层包 31 → 30）**
+- **拍板**：用户 2026-10-02 定「并入 agent」（§3.5 登记的两个选项之一）。
+- **执行**：`git mv` 顶层 `modelcontext/`（13 文件）→ `agent/modelcontext/`（test 3 文件同移）；全仓 23 个文件的 `com.ragagent.modelcontext` → `com.ragagent.agent.modelcontext`（含正文 FQN 与 javadoc `{@link}` 引用，零残留）。
+- **语义**：模型输出上下文协议层（`SourceRegistry` / `HandleTable` / `StreamDecoder` / `ToolPolicy` / `ModelOutput` / `GoHtml` 等），依赖 llm(12) + common(6)；消费方 = agent(3) / chatpipeline(2) / session(2)。
+- **agent 根 package-info 更新**（补子包地图：`tools` / `compaction` / `skills` / `domain` / `support` / `modelcontext`）。
+- **验证**：编译绿；守卫绿（环 0 / 依赖 config 1 / L2→L3 6 条——chatpipeline→agent 与 session→agent 均单向，无新增）；全量 **4713** 绿 + `spotlessCheck` 绿。
+

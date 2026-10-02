@@ -1,4 +1,4 @@
-package com.ragagent.modelcontext;
+package com.ragagent.agent.modelcontext;
 
 /**
  * 流式安全的句柄解码（对照 Go internal/modelcontext/stream.go，全文移植）：

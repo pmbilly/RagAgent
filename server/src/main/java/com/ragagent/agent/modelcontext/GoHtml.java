@@ -1,4 +1,4 @@
-package com.ragagent.modelcontext;
+package com.ragagent.agent.modelcontext;
 
 /**
  * Go html 包两个函数的等价（internal/modelcontext 引用的全部面）。

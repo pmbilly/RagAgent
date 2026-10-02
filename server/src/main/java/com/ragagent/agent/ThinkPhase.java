@@ -28,7 +28,7 @@ import com.ragagent.agent.domain.AgentState;
 import com.ragagent.agent.tools.MessageSanitizer;
 import com.ragagent.agent.tools.ThinkBlocks;
 import com.ragagent.agent.tools.ThinkStreamSplitter;
-import com.ragagent.modelcontext.StreamDecoder;
+import com.ragagent.agent.modelcontext.StreamDecoder;
 import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.llm.domain.TokenUsage;
 

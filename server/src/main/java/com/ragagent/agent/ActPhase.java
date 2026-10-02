@@ -31,7 +31,7 @@ import com.ragagent.event.Event;
 import com.ragagent.event.EventType;
 import com.ragagent.event.TenantContextSnapshot;
 import com.ragagent.llm.domain.ChatResponse;
-import com.ragagent.modelcontext.Registry;
+import com.ragagent.agent.modelcontext.Registry;
 import com.ragagent.tracing.langfuse.LangfuseManager;
 import com.ragagent.tracing.langfuse.Span;
 
