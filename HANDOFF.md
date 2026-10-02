@@ -47,7 +47,7 @@
    B1 契约文档 v1.1 / B2 金片对比器统一（GoldenContract 上线，字节级对比清零）/ B3 `@JsonInclude` 恒输出化
    （真面 68 处；yunzhijia 第三方回退）/ **B3b KB 配置 jsonb 键名统一（camelCase + V2 存量迁移，2026-10-02 收官）** /
    B4 零值哨兵（结论：不改，已知例外）/ B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行与 §15.1.1）。
-   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **B6 getenv 收敛（🚧 批 1~6 已完成，余 57 处按 §15.1.1 清单继续；余量集中在 storage 静态路径族 / retrieval 引擎仓 / auth 无参构造器 / Gate 两处）** /
+   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **B6 getenv 收敛（🚧 批 1~7 已完成，余 50 处按 §15.1.1 清单继续；余量集中在 provider 环境族动态助手 / retrieval 引擎仓 / Gate 两处 / 零散单点）** /
    B9 Go 锚点随批 / B10 ArchUnit 进 CI / B11 多模块（最后做）。**B0 登记残留见 §15.1.1**（B3b′ 已修；其余 4 项含 `process_overrides` 写了不用、
    wiki 死信槽位无人释放、孤儿 wiki op 不重放、存储引擎设置孤儿组件）。
    **新会话接手**：直接读 §15.1 批次表（状态列）+ §15.1.1 执行记录 + §15.2 纪律五条（开工前必读）+
@@ -2774,7 +2774,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B3b KB 配置 jsonb 键名统一（camelCase）** | 由 B0 走查升格为真实缺陷：`knowledge_bases` 的 `*_config` 列三方咬合面（前端 payload / 服务端读取器 / 落库 jsonb）键名分裂，导致界面上的 wiki 合成模型、问题生成参数、索引开关被静默忽略。服务端读取器 + 更新路径 dispatch 键 + 前端 payload/读取/类型 + V2 存量迁移 + 列默认值（连带修掉「编辑弹窗恒打不开」的裸资源读取） | **P1** | 中 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B4 Go 零值时间哨兵 → null** | `0001-01-01T00:00:00Z`（AgentStep / agentm GO_ZERO_TIME / init goTime 系） | P1 | 小-中 | ✅ **结论：不改**（调查后判已知例外，见 15.1.1） |
 | **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键；先出判定再动刀 | P1 | 判定小 | ⬜ 待做（可判定后搁置——载具当前工作正常） |
-| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | 🚧 **批 1~6 完成（2026-10-02）**：storage 装配 / langfuse / 检索驱动 / 系统部署面（含 `GIN_MODE`→`WEKNORA_DEPLOYMENT_MODE`）/ 知识域单值 / common 静态工具族（**启动期快照口径确立**）——全仓 149→64（代码内 57）；余量清单与登记见 15.1.1 |
+| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | 🚧 **批 1~7 完成（2026-10-02）**：storage 装配 / langfuse / 检索驱动 / 系统部署面（含 `GIN_MODE`→`WEKNORA_DEPLOYMENT_MODE`）/ 知识域单值 / common 静态工具族（**启动期快照口径确立**）/ 存储静态单值族 + JWT——全仓 149→57（代码内 50）；余量清单与登记见 15.1.1 |
 | **B7 死成员清扫** | 只注入不读取依赖（依赖级口径）+ 死 logger/`ObjectMapper`/`Pattern`/私有方法/冗余 import | P1 | 小-中 | ✅ |
 | **B8 注解形态收尾** | 全限定名注解 → import 短名；`@JsonIgnoreProperties` 44 处接工厂评估 | P2 | 小 | ✅（FQ 177→0；`@JsonIgnoreProperties` 评估后保留） |
 | **B9 Go 锚点注释清洗** | ~6,000 处；按 §4 既定"随触碰清洗"继续；若专项则按域分批 | P2 | 大（专项）/零（随批） | ⬜ 建议随批，不立专项 |
@@ -2865,6 +2865,14 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **为什么不做构造注入**：`CryptoService`/`SsrfGuard` 在 MyBatis 类型处理器与出站工具类里是**手工 new** 的（不经 Spring，注入不进去）；`WikiLanguageSupport` 有 17 处静态调用点、`UploadLimits` 有 4 处跨域调用点——参数化会大面积牵动调用方。快照是这类值的正确承接（写清了边界：运行期要变的那是状态不是配置）。
 - 验证：新增 `RuntimeSnapshotTest`（纯 POJO，四值的安装/回落钉子 + 静态还原防互踩）；真机三处冒烟——① `MAX_FILE_SIZE_MB=1` 起服后上传 2.9MB 文件被拒（*文件大小不能超过1MB*，正是快照算出的文案）；② RSS 数据源同步抓到 `items=2`（白名单快照放行 127.0.0.1）；③ 写数据源凭据落库为 `enc:v1:…` 且回读 200（AES 快照可用）。`spotlessCheck` 绿 + 全量测试绿。
 - **登记（本批未动）**：① `Gate.pubsubChannel()` / `GateOptions.failCloseFromEnv()`（`WEKNORA_REDIS_NAMESPACE` / `WEKNORA_AGENT_TOOL_APPROVAL_FAIL_OPEN`）——`Gate` 是手工 new 的、`pubsubChannel()` 还被测试静态调用，改造要连带改测试；按本批口径做快照或走构造参数，独立小批即可。② **数据源同步的自动标签创建在后台线程恒失败**（日志 `failed to find/create auto-tag "x": knowledge base not found`，而同一个 KB 在请求上下文建标签是 200）——上下文丢失类缺陷，属 datasource 域，建议随该域批次查。③（小）`DELETE /datasource/{id}/credentials/credentials` 对「连接器不认定为密钥的残留字段」无效：走的是「无可清内容」分支，但仍把整份 config 重存一遍（副作用=重新加密）——garbage-in 边缘场景，登记不修。
+
+**🚧 B6 批 7（2026-10-02，存储静态单值族 + JWT 密钥）**：8 处清零（全仓 64→57，代码内 50）。
+- 新增属性类：`storage/config/LocalStorageEnvProperties`（`LOCAL_STORAGE_BASE_DIR`）、`storage/config/ResourceUrlModeProperties`（`RESOURCE_URL_MODE`）、`auth/config/JwtProperties`（`JWT_SECRET`）；扫描名单加 `com.ragagent.auth.config`。
+- 新增 `storage/config/StorageRuntimeEnv`（存储域启动期快照：本地存储根 + 全局存储类型 + 资源 URL 模式），由 `RuntimeSnapshotWiring` 安装；`StoragePaths`（3 处）/`TenantFileServiceResolver`/`FileServiceResolver`/`Mode` 改读快照。**同一 env 不存两份**：存储签名键（要求 ≥16 字节）与 AES 密钥（要求恰 32 字节）共用批 6 的同一份快照（新增 `CryptoService.rawAesKey()` 只读口）。
+- JWT：`JwtService`/`OidcStateCodec` 由无参构造器改**构造注入**（两者都是 `@Component` 且全仓无 `new Xxx()` 调用点）；「未配置时各自随机 32B 兜底」的行为逐字保留（因此未配 `JWT_SECRET` 的部署重启后旧令牌失效，属既有语义）。
+- 验证：真机冒烟——① 登录拿令牌 + 刷新 200（`refreshToken` camelCase 契约）；② 存量文档 `preview`/`download` 200（本地存储根快照生效）；③ **受控跨重启验证**：`JWT_SECRET` 置 ≥32 字节 → 取令牌 → 同密钥重启 → 旧令牌仍 200（`jwt.secret` 绑定生效）。`Mode` 的语义由 `ModeTest` 覆盖（快照未装 → HANDLE）。`spotlessCheck` 绿 + 全量测试绿。
+- **踩坑（值得记）**：把 `FileServiceResolver.localStorageBaseDir()` 判为死方法删掉后**编译立刻报错**——类内**非限定调用**（`localStorageBaseDir()`）不在 `grep "FileServiceResolver.localStorageBaseDir"` 的结果里。**死成员判定必须按方法名全仓扫（含类内调用）**，别按限定名扫。已恢复为快照改造版。
+- **登记（本批未动）**：① 动态 key 助手三处（`StorageFileResolver.env` 约 15 个调用点、`FileServiceFactory.envOr`、`StorageBackendService.env`）——getenv 点只有 3 个，但服务约 30 个 provider 家族读取（`MINIO_*`/`S3_*`/`OSS_*`/`OBS_*`/`APP_EXTERNAL_URL`/`STORAGE_TYPE`/`LOCAL_STORAGE_PATH_PREFIX`…），宜与批 1 的 `StorageProviderEnv` 类型化记录**合流**成专门一批。② `JWT_SECRET` 短于 32 字节时 jjwt 到**登录时**才抛 `UnsupportedKeyException`（文案含糊、运维难定位）——建议启动期校验 + 明确文案，独立小批。③ `AuthController` 的 refresh javadoc 仍引用 Go 的 `json:"refresh_token"`，而绑定实现只认 camelCase `refreshToken`（§2.1 契约 ✓、前端已对齐）——文档陈旧，随触碰修正。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

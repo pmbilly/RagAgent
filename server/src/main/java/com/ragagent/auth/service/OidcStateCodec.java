@@ -1,6 +1,7 @@
 package com.ragagent.auth.service;
 
 import java.nio.charset.StandardCharsets;
+import com.ragagent.auth.config.JwtProperties;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -40,8 +41,8 @@ public class OidcStateCodec {
 
     private final byte[] signingKey;
 
-    public OidcStateCodec() {
-        String env = System.getenv("JWT_SECRET");
+    public OidcStateCodec(JwtProperties properties) {
+        String env = properties.secret();
         String secret;
         if (env != null && !env.trim().isEmpty()) {
             secret = env.trim();

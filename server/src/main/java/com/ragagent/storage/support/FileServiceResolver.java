@@ -45,11 +45,11 @@ public class FileServiceResolver implements Resolver {
             {"local", "minio", "cos", "tos", "s3", "oss", "ks3", "obs", "dummy"};
 
     /**
-     * 本地存储的磁盘根（对照 Go {@code LocalStorageBaseDir}）——读 env
-     * {@code LOCAL_STORAGE_BASE_DIR}，缺省 {@code /data/files}。
+     * 本地存储的磁盘根（对照 Go {@code LocalStorageBaseDir}）——启动期快照
+     * （{@code LOCAL_STORAGE_BASE_DIR}，B6 批 7 前是裸 env 读），缺省 {@code /data/files}。
      */
     public static String localStorageBaseDir() {
-        String baseDir = System.getenv("LOCAL_STORAGE_BASE_DIR");
+        String baseDir = com.ragagent.storage.config.StorageRuntimeEnv.localStorageBaseDir();
         if (baseDir == null || baseDir.isBlank()) {
             return "/data/files";
         }

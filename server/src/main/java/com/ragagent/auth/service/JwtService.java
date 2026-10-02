@@ -1,6 +1,7 @@
 package com.ragagent.auth.service;
 
 import java.nio.charset.StandardCharsets;
+import com.ragagent.auth.config.JwtProperties;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -35,13 +36,13 @@ public class JwtService {
 
     private final SecretKey key;
 
-    public JwtService() {
-        this.key = new SecretKeySpec(getJwtSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+    public JwtService(JwtProperties properties) {
+        this.key = new SecretKeySpec(
+                getJwtSecret(properties.secret()).getBytes(StandardCharsets.UTF_8), "HmacSHA256");
     }
 
-    /** 对照 getJwtSecret()：JWT_SECRET env → 随机 32B base64 */
-    private static String getJwtSecret() {
-        String env = System.getenv("JWT_SECRET");
+    /** 对照 getJwtSecret()：{@code JWT_SECRET}（属性绑定）→ 未配置随机 32B base64 */
+    private static String getJwtSecret(String env) {
         if (env != null && !env.trim().isEmpty()) {
             return env.trim();
         }

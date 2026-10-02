@@ -78,7 +78,7 @@ public enum Mode {
      * {@link #HANDLE}——一个笔误应当降级到安全默认，而不是让每个请求都失败。
      */
     public static Mode defaultMode() {
-        String raw = System.getenv(ENV_VAR);
+        String raw = com.ragagent.storage.config.StorageRuntimeEnv.resourceUrlMode();
         if (raw == null || raw.isBlank()) {
             return HANDLE;
         }

@@ -39,6 +39,14 @@ public class CryptoService {
         configuredAesKey = raw == null ? "" : raw;
     }
 
+    /**
+     * 快照原始值——供同进程其它读点共用（如存储域的 URL 签名键，要求 ≥16 字节，与
+     * {@link #getAESKey()} 的「恰 32 字节」校验不同），避免同一 env 存两份快照。
+     */
+    public static String rawAesKey() {
+        return configuredAesKey;
+    }
+
     /** 对照 GetAESKey：非 32 字节返回 null */
     public byte[] getAESKey() {
         String key = configuredAesKey;

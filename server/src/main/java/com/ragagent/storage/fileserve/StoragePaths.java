@@ -236,7 +236,7 @@ public final class StoragePaths {
      * "本部署不能签名"（返回 null，不是空 key）。
      */
     public static byte[] systemHmacKey() {
-        String key = System.getenv("SYSTEM_AES_KEY");
+        String key = com.ragagent.common.crypto.CryptoService.rawAesKey();
         if (key == null || key.length() < 16) {
             return null;
         }
@@ -350,9 +350,9 @@ public final class StoragePaths {
 
     // ── 部署环境 ────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code files.go localStorageBaseDir}：env 缺省 /data/files。 */
+    /** 对照 Go {@code files.go localStorageBaseDir}：启动期快照缺省 /data/files。 */
     public static String localStorageBaseDir() {
-        String baseDir = System.getenv("LOCAL_STORAGE_BASE_DIR");
+        String baseDir = com.ragagent.storage.config.StorageRuntimeEnv.localStorageBaseDir();
         if (baseDir == null || baseDir.trim().isEmpty()) {
             return "/data/files";
         }
@@ -366,7 +366,7 @@ public final class StoragePaths {
 
     /** 对照 Go {@code resolve_tenant.go} 的全局 STORAGE_TYPE 读取（缺省 local，小写化）。 */
     public static String globalStorageType() {
-        String t = System.getenv("STORAGE_TYPE");
+        String t = com.ragagent.storage.config.StorageRuntimeEnv.storageType();
         if (t == null || t.trim().isEmpty()) {
             return "local";
         }

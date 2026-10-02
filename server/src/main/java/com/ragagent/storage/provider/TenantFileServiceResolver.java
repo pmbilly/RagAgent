@@ -75,7 +75,7 @@ public final class TenantFileServiceResolver {
 
     /** 对照 Go：{@code STORAGE_TYPE} 小写归一，空 → {@code local}。 */
     public static String globalStorageType() {
-        String v = System.getenv(ENV_STORAGE_TYPE);
+        String v = com.ragagent.storage.config.StorageRuntimeEnv.storageType();
         if (v == null || v.trim().isEmpty()) {
             return DEFAULT_STORAGE_TYPE;
         }
