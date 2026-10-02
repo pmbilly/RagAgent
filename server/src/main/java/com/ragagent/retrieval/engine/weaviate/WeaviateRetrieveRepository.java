@@ -133,7 +133,7 @@ public class WeaviateRetrieveRepository
                 return indexCfg.collectionName;
             }
         }
-        String env = System.getenv(ENV_WEAVIATE_COLLECTION);
+        String env = com.ragagent.retrieval.config.RetrievalEnvLookup.get(ENV_WEAVIATE_COLLECTION);
         if (env != null && !env.isEmpty()) {
             return env;
         }

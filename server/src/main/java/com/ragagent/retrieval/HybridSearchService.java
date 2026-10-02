@@ -652,7 +652,7 @@ public class HybridSearchService {
      * 失败/非正值一律回落 30s。
      */
     static long multiStoreRetrieveTimeout() {
-        String raw = System.getenv("MULTI_STORE_RETRIEVE_TIMEOUT_SEC");
+        String raw = com.ragagent.retrieval.config.RetrievalEnvLookup.get("MULTI_STORE_RETRIEVE_TIMEOUT_SEC");
         if (raw == null || raw.isEmpty()) {
             return MULTI_STORE_RETRIEVE_TIMEOUT_SEC_DEFAULT;
         }

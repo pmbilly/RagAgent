@@ -117,7 +117,7 @@ public class SqliteRetrieveRepository
         if (property != null && !property.trim().isEmpty()) {
             return property.trim();
         }
-        String env = System.getenv(ENV_SQLITE_PATH);
+        String env = com.ragagent.retrieval.config.RetrievalEnvLookup.get(ENV_SQLITE_PATH);
         if (env != null && !env.trim().isEmpty()) {
             return env.trim();
         }

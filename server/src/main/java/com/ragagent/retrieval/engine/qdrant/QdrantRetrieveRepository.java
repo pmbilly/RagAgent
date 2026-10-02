@@ -132,7 +132,7 @@ public class QdrantRetrieveRepository
                 return indexCfg.collectionName;
             }
         }
-        String env = System.getenv(ENV_QDRANT_COLLECTION);
+        String env = com.ragagent.retrieval.config.RetrievalEnvLookup.get(ENV_QDRANT_COLLECTION);
         if (env != null && !env.isEmpty()) {
             return env;
         }

@@ -136,7 +136,7 @@ public class TencentVectorDbRetrieveRepository
         if (database != null && !database.isEmpty()) {
             return database;
         }
-        String env = System.getenv(ENV_DATABASE);
+        String env = com.ragagent.retrieval.config.RetrievalEnvLookup.get(ENV_DATABASE);
         if (env != null && !env.isEmpty()) {
             return env;
         }
@@ -153,7 +153,7 @@ public class TencentVectorDbRetrieveRepository
                 return indexCfg.collectionPrefix;
             }
         }
-        String env = System.getenv(ENV_COLLECTION);
+        String env = com.ragagent.retrieval.config.RetrievalEnvLookup.get(ENV_COLLECTION);
         if (env != null && !env.isEmpty()) {
             return env;
         }
@@ -171,7 +171,7 @@ public class TencentVectorDbRetrieveRepository
         if (indexCfg != null && indexCfg.replicaNumber > 0) {
             return indexCfg.replicaNumber;
         }
-        String raw = System.getenv(ENV_REPLICA_NUMBER);
+        String raw = com.ragagent.retrieval.config.RetrievalEnvLookup.get(ENV_REPLICA_NUMBER);
         if (raw != null && !raw.trim().isEmpty()) {
             try {
                 int replicas = Integer.parseInt(raw.trim());

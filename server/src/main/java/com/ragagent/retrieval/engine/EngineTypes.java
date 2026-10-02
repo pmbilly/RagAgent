@@ -49,7 +49,7 @@ public final class EngineTypes {
         if (indexName != null && !indexName.isEmpty()) {
             return indexName;
         }
-        String env = envKey == null ? null : System.getenv(envKey);
+        String env = envKey == null ? null : com.ragagent.retrieval.config.RetrievalEnvLookup.get(envKey);
         if (env != null && !env.isEmpty()) {
             return env;
         }

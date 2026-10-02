@@ -6,11 +6,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 import com.ragagent.common.retrieval.RetrievalDriverProperties;
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.retrieval.engine.VectorStoreService;
 import com.ragagent.retrieval.engine.EngineFactory;
+import com.ragagent.retrieval.config.RetrievalEnvLookup;
 import com.ragagent.retrieval.engine.EngineRegistry;
 import com.ragagent.retrieval.engine.EngineTypes;
 import com.ragagent.retrieval.engine.KeywordsVectorHybridRetrieveEngineService;
@@ -47,6 +49,17 @@ import com.ragagent.vectorstore.mapper.VectorStoreRepository;
 public class RetrievalEngineWiringConfig {
 
     private static final Logger log = LoggerFactory.getLogger(RetrievalEngineWiringConfig.class);
+
+    /**
+     * 安装检索域环境查找面（B6 批 9）。
+     *
+     * <p>刻意的安装点：本域引擎在其 {@code @Bean} 方法里构造，而构造期就要读集合/索引名等
+     * env 回落值——放在本类构造器里装，必然早于任何引擎 bean；放进通用快照装配类则
+     * bean 实例化顺序不保证（会静默丢掉 env 里配的集合名）。</p>
+     */
+    public RetrievalEngineWiringConfig(Environment environment) {
+        RetrievalEnvLookup.install(EnvPropertyLookup.of(environment));
+    }
 
     @Bean
     public PgVectorEngineRepository pgVectorEngineRepository(PgVectorRetrieveRepository readRepo,

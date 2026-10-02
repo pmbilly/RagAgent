@@ -115,15 +115,15 @@ public class DorisRetrieveRepository
     public static DorisRetrieveRepository create(String addr, String httpBase, String username,
                                                  String password, String database,
                                                  IndexConfig indexCfg, SsrfGuard guard) {
-        DorisCompatMode.Configured configured =
-                DorisCompatMode.configured(System.getenv(DorisCompatMode.ENV_KEY));
+        String compatRaw = com.ragagent.retrieval.config.RetrievalEnvLookup.get(DorisCompatMode.ENV_KEY);
+        DorisCompatMode.Configured configured = DorisCompatMode.configured(compatRaw);
         String tableBaseName = resolveCollectionName(indexCfg);
         if (!configured.invalidRaw().isEmpty()) {
             log.warn("[Doris] Invalid {}={}, defaulting to {}",
                     DorisCompatMode.ENV_KEY, "\"" + configured.invalidRaw() + "\"",
                     DorisCompatMode.AUTO.wire());
         }
-        if (System.getenv(DorisCompatMode.ENV_KEY) == null) {
+        if (compatRaw == null) {
             log.info("[Doris] {} not set, defaulting to {} and probing on first use",
                     DorisCompatMode.ENV_KEY, DorisCompatMode.AUTO.wire());
         }
@@ -160,7 +160,7 @@ public class DorisRetrieveRepository
                 return indexCfg.collectionName;
             }
         }
-        String env = System.getenv(ENV_DORIS_TABLE_PREFIX);
+        String env = com.ragagent.retrieval.config.RetrievalEnvLookup.get(ENV_DORIS_TABLE_PREFIX);
         if (env != null && !env.isEmpty()) {
             return env;
         }

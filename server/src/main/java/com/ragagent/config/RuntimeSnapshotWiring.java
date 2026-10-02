@@ -1,7 +1,5 @@
 package com.ragagent.config;
 
-import java.util.Locale;
-
 import com.ragagent.common.crypto.CryptoEnvProperties;
 import com.ragagent.common.crypto.CryptoService;
 import com.ragagent.common.security.SsrfGuard;
@@ -50,11 +48,8 @@ public class RuntimeSnapshotWiring {
         StorageRuntimeEnv.install(localStorageEnvProperties.storageBaseDir(), storageTypeProperties.type(),
                 resourceUrlModeProperties.urlMode());
         // provider 家族键按**运行期键名**读：环境变量风格（MINIO_ENDPOINT）优先，
-        // 再回落属性风格（minio.endpoint，便于 --minio.endpoint=… / 属性源覆盖）
-        StorageEnvLookup.install(key -> {
-            String value = environment.getProperty(key);
-            return value != null ? value
-                    : environment.getProperty(key.toLowerCase(Locale.ROOT).replace('_', '.'));
-        });
+        // 再回落属性风格（minio.endpoint，便于命令行 / 属性源覆盖）；
+        // 同一语义与检索域共用（EnvPropertyLookup）
+        StorageEnvLookup.install(EnvPropertyLookup.of(environment));
     }
 }

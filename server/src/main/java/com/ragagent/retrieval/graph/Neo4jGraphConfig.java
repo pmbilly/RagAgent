@@ -30,23 +30,23 @@ public class Neo4jGraphConfig {
     static final long RETRY_INTERVAL_MS = 2000L;
 
     @Bean
-    public RetrieveGraphRepository retrieveGraphRepository() {
-        return new Neo4jGraphRepository(createDriverIfEnabled());
+    public RetrieveGraphRepository retrieveGraphRepository(Neo4jProperties properties) {
+        return new Neo4jGraphRepository(createDriverIfEnabled(properties));
     }
 
     /**
      * 对照 {@code initNeo4jClient}：未启用 → null；启用 → 重试建连；
      * 30 次仍失败 → 抛出（文案照 Go 的 {@code failed to connect to Neo4j after %d attempts}）。
      */
-    static Driver createDriverIfEnabled() {
-        String enable = System.getenv("NEO4J_ENABLE");
+    static Driver createDriverIfEnabled(Neo4jProperties properties) {
+        String enable = properties == null ? null : properties.enable();
         if (!"true".equals(enable == null ? "" : enable.toLowerCase())) {
             log.debug("NOT SUPPORT RETRIEVE GRAPH");
             return null;
         }
-        String uri = System.getenv("NEO4J_URI");
-        String username = System.getenv("NEO4J_USERNAME");
-        String password = System.getenv("NEO4J_PASSWORD");
+        String uri = properties.uri();
+        String username = properties.username();
+        String password = properties.password();
 
         RuntimeException last = null;
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {

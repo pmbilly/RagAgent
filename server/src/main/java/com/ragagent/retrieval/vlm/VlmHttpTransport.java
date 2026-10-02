@@ -97,7 +97,7 @@ public class VlmHttpTransport implements VlmClient.Transport {
 
     /** 对照 vlmHTTPTimeout：env 正整数秒生效，否则 180s。 */
     static Duration timeout() {
-        String raw = System.getenv("VLM_HTTP_TIMEOUT_SECONDS");
+        String raw = com.ragagent.retrieval.config.RetrievalEnvLookup.get("VLM_HTTP_TIMEOUT_SECONDS");
         if (raw != null && !raw.isBlank()) {
             try {
                 int secs = Integer.parseInt(raw.trim());
