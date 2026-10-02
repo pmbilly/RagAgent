@@ -47,7 +47,7 @@
    B1 契约文档 v1.1 / B2 金片对比器统一（GoldenContract 上线，字节级对比清零）/ B3 `@JsonInclude` 恒输出化
    （真面 68 处；yunzhijia 第三方回退）/ **B3b KB 配置 jsonb 键名统一（camelCase + V2 存量迁移，2026-10-02 收官）** /
    B4 零值哨兵（结论：不改，已知例外）/ B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行与 §15.1.1）。
-   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **B6 getenv 收敛（🚧 批 1 storage 装配已完成，余 105 处按域继续）** /
+   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **B6 getenv 收敛（🚧 批 1 storage 装配 + 批 2 langfuse 已完成，余 88 处按 §15.1.1 的 A/B 类清单继续）** /
    B9 Go 锚点随批 / B10 ArchUnit 进 CI / B11 多模块（最后做）。**B0 登记残留见 §15.1.1**（B3b′ 已修；其余 4 项含 `process_overrides` 写了不用、
    wiki 死信槽位无人释放、孤儿 wiki op 不重放、存储引擎设置孤儿组件）。
    **新会话接手**：直接读 §15.1 批次表（状态列）+ §15.1.1 执行记录 + §15.2 纪律五条（开工前必读）+
@@ -2774,7 +2774,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B3b KB 配置 jsonb 键名统一（camelCase）** | 由 B0 走查升格为真实缺陷：`knowledge_bases` 的 `*_config` 列三方咬合面（前端 payload / 服务端读取器 / 落库 jsonb）键名分裂，导致界面上的 wiki 合成模型、问题生成参数、索引开关被静默忽略。服务端读取器 + 更新路径 dispatch 键 + 前端 payload/读取/类型 + V2 存量迁移 + 列默认值（连带修掉「编辑弹窗恒打不开」的裸资源读取） | **P1** | 中 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B4 Go 零值时间哨兵 → null** | `0001-01-01T00:00:00Z`（AgentStep / agentm GO_ZERO_TIME / init goTime 系） | P1 | 小-中 | ✅ **结论：不改**（调查后判已知例外，见 15.1.1） |
 | **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键；先出判定再动刀 | P1 | 判定小 | ⬜ 待做（可判定后搁置——载具当前工作正常） |
-| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | 🚧 **批 1 完成（storage 装配，2026-10-02）**——单文件 46 处清零，全仓 149→105（代码内 100）；余量见 15.1.1 |
+| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | 🚧 **批 1（storage 装配）+ 批 2（langfuse）完成（2026-10-02）**——全仓 149→93（代码内 88）；余量清单与「静态上下文」口径见 15.1.1 |
 | **B7 死成员清扫** | 只注入不读取依赖（依赖级口径）+ 死 logger/`ObjectMapper`/`Pattern`/私有方法/冗余 import | P1 | 小-中 | ✅ |
 | **B8 注解形态收尾** | 全限定名注解 → import 短名；`@JsonIgnoreProperties` 44 处接工厂评估 | P2 | 小 | ✅（FQ 177→0；`@JsonIgnoreProperties` 评估后保留） |
 | **B9 Go 锚点注释清洗** | ~6,000 处；按 §4 既定"随触碰清洗"继续；若专项则按域分批 | P2 | 大（专项）/零（随批） | ⬜ 建议随批，不立专项 |
@@ -2826,6 +2826,18 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **验证**：新增 `DefaultStorageBackendProvisionerTest`（测试属性代替 env，钉子断言 s3 族全键 + `use_ssl` 缺省真 + `force_path_style`）；真机三分支冒烟——`STORAGE_TYPE=s3`（含缺省 use_ssl=true）、`STORAGE_TYPE=oss`（临时桶 → `use_temp_bucket`+`temp_*`）、缺省（`System LOCAL` + `{}`）三条落库结果与改前逐键一致；`spotlessCheck` 绿 + **后端全量测试绿**。
 - **踩坑（记给下一批）**：多次 `export A=B && nohup gradlew bootRun &` 后，**shell 的 export 会粘到后续命令**，导致「改了 env 重启却没变化」的假象；换变量族冒烟前先 `unset`，并核 `env | grep` 而不是只看日志。（另：bootRun 会 fork JVM，`pkill -f server:bootRun` 可能只杀 wrapper——要 `pkill -f RagAgentApplication` + 核 8083 端口。）
 - **余量（105 处，代码内 100）**：retrieval 11（`RETRIEVE_DRIVER`×7 + `RetrievalEngineWiringConfig`/引擎仓的 `ELASTICSEARCH_*`/`QDRANT_*` 等现场建驱动）、storage 余 9（`LOCAL_STORAGE_BASE_DIR`/`STORAGE_TYPE`/`SYSTEM_AES_KEY` 的**静态工具方法**读点，转 bean 会牵动调用方，需先定静态→bean 的过渡口径）、common 7（`SSRF_WHITELIST*`/`JWT_SECRET`/`WEKNORA_LANGUAGE`）、knowledge 5（`BATCH_EMBED_SIZE`/`DOCREADER_ADDR`）、auth 5（`WEKNORA_INVITATION_TTL` 等）、system 4（`GIN_MODE`——**Go 框架名残留**，值得先判定是否还有意义）、tracing/langfuse 12（`LangfuseConfig` 单文件）。
+
+**🚧 B6 批 2（2026-10-02，langfuse）**：`tracing/langfuse` 12 处清零（全仓 149→93，代码内 88）。
+- 新增 `tracing/langfuse/LangfuseEnvProperties`（前缀 `langfuse`，12 个 **String** 字段）；`LangfuseConfig.loadFromEnv()` → `fromEnv(LangfuseEnvProperties)`（默认值与解析规则逐条照抄：Go 时长串、十种真值写法、采样率越界忽略、0 采样率视为整体关闭）；`LangfuseWiring` 改构造注入；扫描名单加 `com.ragagent.tracing.langfuse`。
+- **为什么字段不用数字/布尔**：Go 的语义是「非法字面量静默回落默认值」，绑类型会把「写错一个字母」升级成启动失败——宽容语义优先。
+- 验证：真机冒烟 `LANGFUSE_*` 起服 → `[Langfuse] enabled host=https://langfuse.example.com flush_at=20 flush_interval=90000ms sample_rate=0.5`（`1m30s`→90000ms ✓、采样率 ✓、启用判据=有 keys ✓）；`spotlessCheck` 绿 + 全量测试绿。（`LangfuseRegistry.init` 的这行启用日志是整条链路的可观测量，后续 langfuse 相关批次继续用它做冒烟断言。）
+- **踩坑**：`export LANGFUSE_* && nohup gradlew bootRun &` 后必须 `unset`——shell 变量会粘到后续命令，否则下一批冒烟会被上一批的 env 污染（本批已按此收尾）。
+
+**B6 余量口径（下一批动手前先定，2026-10-02 侦察结论）**：剩 88 处代码内读取，按上下文分两类——
+- **A 类·bean 上下文（直接注入属性即可）**：`retrieval` 11（`RETRIEVE_DRIVER`×7 + `RetrievalEngineWiringConfig` 与各引擎仓的 `ELASTICSEARCH_*`/`QDRANT_*`/`MILVUS_*`/`WEAVIATE_*`/`TENCENT_VECTORDB_*` 现场建驱动）、`system` 13（`SystemSettingService` 6 / `SystemController` 4 / `SystemInfoService` 2 / `DeploymentCapabilitiesHolder` 1）、`datasource` 4（`DocxFetcher`）、`knowledge` 7（`KnowledgeBaseService` 3 / `HousekeepingService` 2 / `DocReaderClient` 2）、`model` 2、`vectorstore` 3、`initialization` 2、`session` 2、`mcp` 1、`embed` 1。
+- **B 类·静态/构造上下文（先定过渡口径）**：`common` 7（`CryptoService`/`SsrfGuard`/`WikiLanguageSupport`/`UploadLimits`/`StorageAllowList`/`Gate`/`GateOptions` 全是静态方法，SSRF 那处在静态初始化块）、`storage` 余 9（`StoragePaths`/`support/Mode`/`support/FileServiceResolver` 静态工具 + 动态 key 助手）、跨域单值 9（`JWT_SECRET`×2 在**无参构造器**里、`BATCH_EMBED_SIZE`×3 静态、`WEKNORA_LANGUAGE`×3 静态、`GIN_MODE`×1）。
+  **建议口径**：① 静态工具族（批大小/语言/SSRF/白名单）用「`@ConfigurationProperties` + 一个 `@Component` 启动时写入的静态快照持有者」——这几个都是启动期语义（进程内不变），成立，但持有者要写清「只允许启动期写入」；② `JwtService`/`OidcStateCodec` 这类无参构造器改构造注入（先核 `new Xxx()` 调用点）；③ `GIN_MODE` 先判定语义：Go 框架名残留，Java 侧真正问的是「是否生产部署」——建议改 `WEKNORA_DEPLOYMENT_MODE` 或复用既有部署信号，属对外配置变更，**需用户拍板**。
+
 
 
 

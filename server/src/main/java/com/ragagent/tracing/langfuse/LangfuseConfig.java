@@ -4,7 +4,7 @@ import java.util.Locale;
 
 /**
  * langfuse 运行配置（对照 Go internal/tracing/langfuse/config.go 全文）：
- * 纯环境变量驱动（LANGFUSE_*），默认值与解析规则逐条照抄——非法/非正值保持默认，
+ * 环境变量驱动（LANGFUSE_*，B6 批 2 起走 @ConfigurationProperties 绑定），默认值与解析规则逐条照抄——非法/非正值保持默认，
  * 有凭据（PUBLIC_KEY + SECRET_KEY）且未显式禁用时自动启用（与 Python SDK 一致）。
  *
  * <p>时长解析：Go 用 {@code time.ParseDuration}（失败再试 {@code Atoi} 毫秒…实为秒）。
@@ -32,16 +32,19 @@ public record LangfuseConfig(
     public static final int DEFAULT_QUEUE_SIZE = 2048;
     public static final long DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
-    /** 对照 LoadConfigFromEnv。 */
-    public static LangfuseConfig loadFromEnv() {
-        String host = firstNonEmpty(System.getenv("LANGFUSE_HOST"), DEFAULT_HOST);
-        String publicKey = trim(System.getenv("LANGFUSE_PUBLIC_KEY"));
-        String secretKey = trim(System.getenv("LANGFUSE_SECRET_KEY"));
-        String release = trim(System.getenv("LANGFUSE_RELEASE"));
-        String environment = trim(System.getenv("LANGFUSE_ENVIRONMENT"));
+    /**
+     * 对照 LoadConfigFromEnv：取值来自 {@link LangfuseEnvProperties}（env 名与 Go 一致），
+     * 默认值与解析规则逐条照抄。
+     */
+    public static LangfuseConfig fromEnv(LangfuseEnvProperties env) {
+        String host = firstNonEmpty(env.host(), DEFAULT_HOST);
+        String publicKey = trim(env.publicKey());
+        String secretKey = trim(env.secretKey());
+        String release = trim(env.release());
+        String environment = trim(env.environment());
 
         boolean enabled;
-        String enabledRaw = trim(System.getenv("LANGFUSE_ENABLED"));
+        String enabledRaw = trim(env.enabled());
         if (!enabledRaw.isEmpty()) {
             enabled = parseBool(enabledRaw);
         } else {
@@ -49,13 +52,13 @@ public record LangfuseConfig(
         }
 
         int flushAt = DEFAULT_FLUSH_AT;
-        int parsed = parseIntOrZero(trim(System.getenv("LANGFUSE_FLUSH_AT")));
+        int parsed = parseIntOrZero(trim(env.flushAt()));
         if (parsed > 0) {
             flushAt = parsed;
         }
 
         long flushIntervalMs = DEFAULT_FLUSH_INTERVAL_MS;
-        String flushRaw = trim(System.getenv("LANGFUSE_FLUSH_INTERVAL"));
+        String flushRaw = trim(env.flushInterval());
         if (!flushRaw.isEmpty()) {
             long d = parseGoDurationMs(flushRaw);
             if (d <= 0) {
@@ -68,13 +71,13 @@ public record LangfuseConfig(
         }
 
         int queueSize = DEFAULT_QUEUE_SIZE;
-        parsed = parseIntOrZero(trim(System.getenv("LANGFUSE_QUEUE_SIZE")));
+        parsed = parseIntOrZero(trim(env.queueSize()));
         if (parsed > 0) {
             queueSize = parsed;
         }
 
         long requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS;
-        String timeoutRaw = trim(System.getenv("LANGFUSE_REQUEST_TIMEOUT"));
+        String timeoutRaw = trim(env.requestTimeout());
         if (!timeoutRaw.isEmpty()) {
             long d = parseGoDurationMs(timeoutRaw);
             if (d > 0) {
@@ -83,7 +86,7 @@ public record LangfuseConfig(
         }
 
         double sampleRate = 1.0;
-        String sampleRaw = trim(System.getenv("LANGFUSE_SAMPLE_RATE"));
+        String sampleRaw = trim(env.sampleRate());
         if (!sampleRaw.isEmpty()) {
             try {
                 double f = Double.parseDouble(sampleRaw);
@@ -102,7 +105,7 @@ public record LangfuseConfig(
         }
 
         boolean debug = false;
-        String debugRaw = trim(System.getenv("LANGFUSE_DEBUG"));
+        String debugRaw = trim(env.debug());
         if (!debugRaw.isEmpty()) {
             debug = parseBool(debugRaw);
         }

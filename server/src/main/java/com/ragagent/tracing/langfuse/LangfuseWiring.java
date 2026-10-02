@@ -12,16 +12,25 @@ import org.springframework.context.annotation.Configuration;
  * （启用但缺 host/keys）直接抛异常拒启（Go 的 provider 错误向上传播）。
  *
  * <p>未设 LANGFUSE_* → 自动禁用（no-op 单例），零成本；与 Go 一致。</p>
+ *
+ * <p>取值走 {@link LangfuseEnvProperties} 的 {@code @ConfigurationProperties} 绑定
+ * （B6 批 2，2026-10-02）：变量名与解析规则均未变。</p>
  */
 @Configuration
 public class LangfuseWiring {
 
     private static final Logger log = LoggerFactory.getLogger(LangfuseWiring.class);
 
+    private final LangfuseEnvProperties envProperties;
+
+    public LangfuseWiring(LangfuseEnvProperties envProperties) {
+        this.envProperties = envProperties;
+    }
+
     /** 对照 langfuse.Init：失败即启动失败（must 语义）。 */
     @PostConstruct
     public void init() {
-        LangfuseConfig cfg = LangfuseConfig.loadFromEnv();
+        LangfuseConfig cfg = LangfuseConfig.fromEnv(envProperties);
         LangfuseManager.init(cfg);
         if (!cfg.enabled()) {
             log.info("[Langfuse] disabled (no LANGFUSE_PUBLIC_KEY/SECRET_KEY)");
