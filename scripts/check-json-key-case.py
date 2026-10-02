@@ -20,6 +20,9 @@
 Map / MyBatis 列名等非 JSON 键**（如 `*Repository` 的 `deleted_at`），故 `--list` 是**待判
 清单**而非违规清单；棘轮模式（默认）只有在基线外**新增**命中时才失败，不会因为既有噪音而红。
 判定某键是真债还是冻结/数据值时，**必须看消费者**（FE 读？夹具断言？第三方 API？）。
+
+**BASELINE 条目是文件级**：某文件登记后，将来在其中**新增**的 snake 键不会被点名——
+在已登记文件里加新键时，请先看该文件是否在基线（或按族核查）。
 """
 from __future__ import annotations
 
@@ -44,6 +47,8 @@ FROZEN_PREFIXES = (
     # 键名由对方 API 定，冻结）
     'embedding/provider', 'im/', 'websearch/provider', 'rerank/', 'asr/', 'vlm/',
     'retrieval/vlm', 'storage/provider',
+    # 检索引擎适配器族（ES/OpenSearch/Milvus/Qdrant 的 DSL 字段）与检索观测面
+    'retrieval/engine/', 'retrieval/obs/',
     # 引用/管线进度载荷＝**存量回放面**（B25 判定）：引用随 messages.knowledge_references
     # 列落库并按历史回放渲染，前端 rag-pipeline-history 还会以同形键重建该载荷 ⇒ 改名须先
     # 出迁移方案（或双读），故冻结。
@@ -73,6 +78,63 @@ BASELINE: dict[str, set[str]] = {
     'knowledge/service/KnowledgeFileService.java': {'content_revision', 'enable_status',
         'error_message', 'file_hash', 'file_name', 'file_path', 'file_size', 'file_type',
         'parse_status', 'processed_at', 'summary_status'},
+    # ── B29 逐族判定后登记的例外（理由见行内注释；条目为**文件级**）──────────
+    # MyBatis 列名/参数（.set/.eq 列名，非 JSON 键）
+    'auth/service/TenantInvitationService.java': {'invitation_id', 'responded_at', 'updated_at'},
+    'auth/service/TenantMemberService.java': {'deleted_at', 'is_revoked', 'new_role', 'old_role', 'tenant_id', 'updated_at'},
+    'datasource/mapper/DataSourceRepository.java': {'conflict_strategy', 'created_at', 'deleted_at', 'error_message', 'knowledge_base_id', 'last_sync_at', 'sync_log_retention_days', 'sync_mode', 'sync_schedule', 'tenant_id', 'updated_at'},
+    'datasource/mapper/SyncLogRepository.java': {'created_at', 'data_source_id', 'error_message', 'finished_at', 'items_created', 'items_deleted', 'items_failed', 'items_skipped', 'items_total', 'items_updated', 'started_at', 'tenant_id', 'updated_at'},
+    'datasource/service/DataSourceItemOps.java': {'datasource_id', 'external_id', 'source_created_at', 'source_resource_id', 'source_updated_at'},
+    'datasource/service/DataSourceSupport.java': {'processing_status', 'resource_ids', 'task_id'},
+    'datasource/service/MapperKnowledgeBridge.java': {'deleted_at', 'updated_at'},
+    'knowledge/repository/ChunkRepository.java': {'content_revision', 'deleted_at', 'index_status', 'is_enabled', 'last_editor_id', 'source_content', 'updated_at'},
+    'knowledge/repository/FaqChunkRepository.java': {'is_enabled', 'tag_id', 'updated_at'},
+    'knowledge/service/FaqEntryCommandService.java': {'source_type'},
+    'knowledge/service/KnowledgeBaseService.java': {'deleted_at'},
+    'knowledge/service/KnowledgeBatchOpsService.java': {'deleted_at', 'enable_status', 'error_message', 'parse_status', 'processed_at', 'updated_at'},
+    'knowledge/service/KnowledgeCloneService.java': {'deleted_at'},
+    'knowledge/service/KnowledgeFolderService.java': {'folder_path', 'updated_at'},
+    'knowledge/service/KnowledgeMoveService.java': {'embedding_model_id', 'enable_status', 'error_message', 'knowledge_base_id', 'parse_status', 'processed_at', 'storage_size', 'updated_at'},
+    'knowledge/service/KnowledgeParseService.java': {'error_message', 'parse_status', 'pending_subtasks_count', 'updated_at'},
+    'knowledge/service/KnowledgeService.java': {'deleted_at', 'updated_at'},
+    'knowledge/service/KnowledgeSummaryService.java': {'summary_status'},
+    'model/service/BuiltinModelsReconciler.java': {'deleted_at', 'is_default'},
+    'model/service/ModelService.java': {'agent_total', 'deleted_at', 'knowledge_base_total'},
+    'system/service/SystemAdminUserService.java': {'is_revoked'},
+    'wiki/service/DefaultWikiKnowledgeFinalizer.java': {'error_message', 'parse_status', 'processed_at', 'updated_at'},
+    # 观测/追踪载荷（PipelineLog/MemoryTrace 面，非契约）
+    'memory/service/MemoryInsightOps.java': {'candidate_count', 'lexical_hits', 'matched_count', 'ranking_mode', 'subject_id', 'vector_hits', 'vector_outside', 'vector_skip'},
+    'memory/service/MemoryRecallOps.java': {'block_runes', 'candidate_count', 'fused_candidates', 'interest_injected', 'interest_relevant', 'interest_total', 'lexical_hits', 'matched_count', 'prompt_runes', 'ranking_mode', 'resident_count', 'subject_id', 'used_count', 'vector_hits', 'vector_outside', 'vector_skip'},
+    'memory/service/MemoryRecallSelector.java': {'outside_pool', 'skip_reason'},
+    'memory/service/MemoryTrace.java': {'conditioned_items', 'document_count', 'interest_count', 'recalled_items', 'recalled_items_truncated'},
+    # 租户/系统配置 jsonb（存量面）
+    'auth/service/TenantService.java': {'compression_strategy', 'deleted_at', 'max_tokens', 'recent_message_count', 'summarize_threshold'},
+    # 模板令牌（数据值，非 JSON 键）
+    'agent/AgentPrompts.java': {'current_time', 'web_search_status'},
+    # MDC 日志键（非 JSON）
+    'common/filter/RequestIdFilter.java': {'request_id'},
+    # OpenSearch/第三方引擎字段
+    'config/OpenSearchAuditSinkAdapter.java': {'dst_alias', 'src_alias'},
+    'retrieval/graph/Neo4jGraphRepository.java': {'knowledge_id', 'source_labels', 'target_labels'},
+    # langfuse 线上字段
+    'knowledge/service/SpanTracker.java': {'langfuse_trace_id', 'updated_at'},
+    # model 凭据面（两端自洽，统一另立批）
+    'model/dto/CredentialsResponse.java': {'api_key', 'app_secret'},
+    'model/dto/ModelResponse.java': {'api_key', 'app_secret'},
+    # WeKnora Cloud 第三方 API
+    'model/service/WeKnoraCloudService.java': {'app_id', 'app_secret'},
+    # 读取 SQL/检索行键（存量面）
+    'modelcontext/ModelOutput.java': {'knowledge_id', 'knowledge_title'},
+    # ImageInfo 面（§15.3 冻结族）
+    'retrieval/support/ImageInfoMatchUtil.java': {'end_pos', 'ocr_text', 'original_url', 'start_pos'},
+    # web 引用载荷（同 ReferencesSupport 存量面）
+    'retrieval/support/WebResultConverter.java': {'published_at'},
+    # HTTP query 参数名（非 JSON 键）
+    'storage/fileserve/FileProxyService.java': {'file_path'},
+    # 平台审计 details jsonb（存量 + 回放）
+    'system/controller/SystemAdminController.java': {'quota_bytes', 'quota_gb', 'scope_type'},
+    'system/service/SystemSettingService.java': {'new_value', 'old_value', 'value_type'},
+}
     # ── B27 逐面判定后登记的例外（理由见行内注释）──────────────────────────
     # PipelineLog 观测面（日志字段，非契约）
     'chatpipeline/support/SearchSupport.java': {'chunk_id', 'dropped_id', 'kept_id', 'match_type'},

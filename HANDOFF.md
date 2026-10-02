@@ -2796,6 +2796,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B26 批甲续（websearch 凭据面）** | 逐面看消费者链 | P2 | 中 | 🐞 **修掉真 bug（2026-10-02）**——凭据面三处键名错位（保存静默失效 / 删除 400 / 徽标恒「未配置」），金鹰记录的缺陷态一并纠正；另四面判冻结并入 BASELINE |
 | **B27 批甲续 2** | 推荐问题键收口 + 6 类面判冻结 | P3 | 小 | ✅ **完成（2026-10-02）**——`knowledgeBaseId` 收口；观测面/内部预设名/agent_steps 落库桶/存储引擎面/wiki 内部状态/模型契约均判冻结并入 BASELINE；待判 80→66 |
 | **B28 批甲续 3** | websearch provider-types 字段面收口 | P3 | 小 | ✅ **完成（2026-10-02）**——`labelKey`/`descriptionKey` 收口（只改键、不动 i18n 值）；闸门全绿 |
+| **B29 批甲/批乙收口** | 换锚待判清单清空 | P3 | 小 | ✅ **完成（2026-10-02）**——66→0：按族判定（MyBatis 列名/观测面/引擎 DSL/存量配置 jsonb/模板令牌），model 凭据面登记为例外待拍板；扫描器边界（文件级条目）已写入脚本 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3192,6 +3193,18 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **判定说明**：该面两端本来一致（snake↔snake，**不是 bug**），按 §2「我们自己的 JSON 面 ⇒ camel」收口。特别地：这两键的**值**是国际化文案键（形如 `webSearchSettings.configFields.*`）——**值是数据、键才是 JSON 面**，故只改键、不动值（B20 教训的又一次应用）。
 - 闸门：后端全量 **4713** 绿 + `spotlessCheck` 绿；前端 `vue-tsc` 绿 + **690** 绿 + 契约键棘轮无新增。
 - **队列剩余**：`system/*`（`quota_bytes`/`quota_gb`/`new_value`/`old_value`/`value_type`/`is_revoked`…）、`mcp/controller` 其余项、`wiki/*` 其余项、`storage/fileserve/FileProxyService`（`file_path`）、以及 model 凭据面（snake，两端自洽）是否与 websearch/MCP 统一。
+
+**✅ B29（2026-10-02，批甲/批乙收口：换锚待判清单 66 → 0）**
+- **逐族判定**（每条都给了理由，全部入扫描器 BASELINE 或冻结前缀）：
+  - **MyBatis 列名/参数族**（22 文件：`datasource/mapper/*`、`knowledge/repository/*`、`knowledge/service/Knowledge*`、`auth/service/Tenant*`、`model/service/*`、`system/service/SystemAdminUserService`、`wiki/service/DefaultWikiKnowledgeFinalizer`）——样本实测（`new UpdateWrapper<AuthToken>().eq("user_id",…).eq("is_revoked",false).set("is_revoked",true)`）确认是**列名，非 JSON 键**；
+  - **观测/追踪族**（`memory/service/Memory*`、`retrieval/obs/`、`knowledge/service/SpanTracker`）——`PipelineLog`/`MemoryTrace`/langfuse 面，非契约；
+  - **第三方引擎族**（`retrieval/engine/`＝ES/OpenSearch/Milvus/Qdrant 的 DSL 字段、`retrieval/graph/Neo4jGraphRepository`＝Cypher 字段、`config/OpenSearchAuditSinkAdapter`）——并入**冻结前缀**；
+  - **存量/配置面**（租户与系统配置 jsonb、平台审计 details jsonb、`ModelOutput` 读 SQL/检索行键、`ImageInfo` 面、`WebResultConverter` web 引用载荷、`FileProxyService` 的 **HTTP query 参数名**、`RequestIdFilter` 的 **MDC 键**）；
+  - **模板令牌**（`AgentPrompts` 的 `current_time`/`web_search_status`＝**数据值**）；
+  - **model 凭据面**（`CredentialsResponse`/`ModelResponse` 的 `api_key`/`app_secret`）：**两端自洽、功能正常**——前端把 UI 内部标识符映射成 camel 发 HTTP（`ModelEditorDialog` 注释里就写着这条约定）⇒ **登记为例外**；是否与 MCP/websearch 统一留待拍板（“可以统一、不急”）。
+- **结果**：扫描器待判清单 **66 → 0**（`--list` 只剩基线条目）。
+- **已知边界（已写进脚本）**：BASELINE 条目是**文件级**——已登记文件里将来新增的 snake 键不会被点名；故在已登记文件中新增键时需按族复核。
+- **本批零生产代码改动**（仅工具与文档）⇒ 未跑测试。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
