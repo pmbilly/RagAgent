@@ -1,15 +1,20 @@
 package com.ragagent.storage.fileserve;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.common.crypto.CryptoService;
+import com.ragagent.storage.config.StorageProviderEnv;
 import com.ragagent.storage.domain.StorageBackend;
 import com.ragagent.storage.mapper.StorageBackendRepository;
 import com.ragagent.storage.service.ResourceCatalogService;
@@ -52,10 +57,27 @@ public class StorageFileResolver {
 
     private final StorageBackendRepository backendRepo;
     private final ResourceCatalogService catalog;
+    private final Map<String, StorageProviderEnv.ProviderEnvFamily> providerEnvs;
 
-    public StorageFileResolver(StorageBackendRepository backendRepo, ResourceCatalogService catalog) {
+    @Autowired
+    public StorageFileResolver(StorageBackendRepository backendRepo, ResourceCatalogService catalog,
+            List<StorageProviderEnv.ProviderEnvFamily> providerEnvs) {
         this.backendRepo = backendRepo;
         this.catalog = catalog;
+        this.providerEnvs = new LinkedHashMap<>();
+        if (providerEnvs != null) {
+            for (StorageProviderEnv.ProviderEnvFamily env : providerEnvs) {
+                this.providerEnvs.put(env.provider(), env);
+            }
+        }
+    }
+
+    /**
+     * 纯单元测试/无装配场景的便捷构造：只带 {@code local} 族——与「未设置 {@code STORAGE_TYPE}」
+     * 的 env 缺省（provider=local、无 pathPrefix）同形，故既有测试的解析结果不变。
+     */
+    public StorageFileResolver(StorageBackendRepository backendRepo, ResourceCatalogService catalog) {
+        this(backendRepo, catalog, List.of(new StorageProviderEnv.Local(null)));
     }
 
     // ── 解析结果 ────────────────────────────────────────────────────────────
@@ -537,12 +559,25 @@ public class StorageFileResolver {
         return v == null || v.isNull() ? "" : v.asText();
     }
 
-    /** 对照 Go {@code StorageBackendFromEnvironment}：env 快照的 System 只读行。 */
-    static StorageBackend storageBackendFromEnvironment(long tenantId) {
+    /**
+     * 对照 Go {@code StorageBackendFromEnvironment}：env 快照的 System 只读行。
+     *
+     * <p><b>B14 合并</b>：配置不再由本类手写 switch 拼装，而是复用**同一个投影**
+     * （{@code StorageProviderEnv.*.writeConfig}，落库面 camel 词汇，与
+     * {@code DefaultStorageBackendProvisioner} 同源）——本行随后照常经
+     * {@code toStorageEngineConfig} 的改名器派生出引擎面。至此同一份环境变量<b>只有一条
+     * 投影路径</b>，两处键名漂移（正是 B14 两个静默 bug 的根因）不再可能。</p>
+     */
+    StorageBackend storageBackendFromEnvironment(long tenantId) {
         String provider = com.ragagent.storage.config.StorageRuntimeEnv.storageType()
                 .trim().toLowerCase(java.util.Locale.ROOT);
         if (provider.isEmpty()) {
             provider = "local";
+        }
+        StorageProviderEnv.ProviderEnvFamily family = providerEnvs.get(provider);
+        if (family == null) {
+            // 与改前同形：环境里没有这个 provider 的快照 / 未知 provider → null
+            return null;
         }
         StorageBackend b = new StorageBackend();
         b.setTenantId(tenantId);
@@ -551,76 +586,8 @@ public class StorageFileResolver {
         b.setSource("env");
         b.setStatus("active");
         b.setLegacyAlias(true);
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        var cfg = mapper.createObjectNode();
-        switch (provider) {
-            case "local" -> cfg.put("path_prefix", env("LOCAL_STORAGE_PATH_PREFIX"));
-            case "minio" -> {
-                cfg.put("mode", "remote");
-                cfg.put("endpoint", env("MINIO_ENDPOINT"));
-                cfg.put("access_key_id", env("MINIO_ACCESS_KEY_ID"));
-                cfg.put("secret_access_key", env("MINIO_SECRET_ACCESS_KEY"));
-                cfg.put("bucket_name", env("MINIO_BUCKET_NAME"));
-                cfg.put("path_prefix", env("MINIO_PATH_PREFIX"));
-                cfg.put("use_ssl", "true".equalsIgnoreCase(env("MINIO_USE_SSL")));
-            }
-            case "s3" -> {
-                cfg.put("endpoint", env("S3_ENDPOINT"));
-                cfg.put("region", env("S3_REGION"));
-                cfg.put("access_key", env("S3_ACCESS_KEY"));
-                cfg.put("secret_key", env("S3_SECRET_KEY"));
-                cfg.put("bucket_name", env("S3_BUCKET_NAME"));
-                cfg.put("path_prefix", env("S3_PATH_PREFIX"));
-                cfg.put("use_ssl", !"false".equalsIgnoreCase(env("S3_USE_SSL")));
-                cfg.put("force_path_style", "true".equalsIgnoreCase(env("S3_FORCE_PATH_STYLE")));
-            }
-            case "cos" -> {
-                cfg.put("secret_id", env("COS_SECRET_ID"));
-                cfg.put("secret_key", env("COS_SECRET_KEY"));
-                cfg.put("region", env("COS_REGION"));
-                cfg.put("bucket_name", env("COS_BUCKET_NAME"));
-                cfg.put("app_id", env("COS_APP_ID"));
-                cfg.put("path_prefix", env("COS_PATH_PREFIX"));
-                cfg.put("temp_bucket_name", env("COS_TEMP_BUCKET_NAME"));
-                cfg.put("temp_region", env("COS_TEMP_REGION"));
-            }
-            case "tos" -> {
-                cfg.put("endpoint", env("TOS_ENDPOINT"));
-                cfg.put("region", env("TOS_REGION"));
-                cfg.put("access_key", env("TOS_ACCESS_KEY"));
-                cfg.put("secret_key", env("TOS_SECRET_KEY"));
-                cfg.put("bucket_name", env("TOS_BUCKET_NAME"));
-                cfg.put("path_prefix", env("TOS_PATH_PREFIX"));
-                cfg.put("temp_bucket_name", env("TOS_TEMP_BUCKET_NAME"));
-                cfg.put("temp_region", env("TOS_TEMP_REGION"));
-            }
-            case "oss" -> {
-                cfg.put("endpoint", env("OSS_ENDPOINT"));
-                cfg.put("region", env("OSS_REGION"));
-                cfg.put("access_key", env("OSS_ACCESS_KEY"));
-                cfg.put("secret_key", env("OSS_SECRET_KEY"));
-                cfg.put("bucket_name", env("OSS_BUCKET_NAME"));
-                cfg.put("path_prefix", env("OSS_PATH_PREFIX"));
-                // 对照 Go：没有独立的 use_temp_bucket env，非空临时桶名即启用
-                cfg.put("use_temp_bucket", !env("OSS_TEMP_BUCKET_NAME").isEmpty());
-                cfg.put("temp_bucket_name", env("OSS_TEMP_BUCKET_NAME"));
-                cfg.put("temp_region", env("OSS_TEMP_REGION"));
-            }
-            case "obs" -> {
-                cfg.put("endpoint", env("OBS_ENDPOINT"));
-                cfg.put("region", env("OBS_REGION"));
-                cfg.put("access_key", env("OBS_ACCESS_KEY"));
-                cfg.put("secret_key", env("OBS_SECRET_KEY"));
-                cfg.put("bucket_name", env("OBS_BUCKET_NAME"));
-                cfg.put("path_prefix", env("OBS_PATH_PREFIX"));
-                cfg.put("use_ssl", !"false".equalsIgnoreCase(env("OBS_USE_SSL")));
-            }
-            // 其余 provider（如 ks3）：Go 的 StorageBackendFromEnvironment 也没有 case
-            // （走 default），此处保持同形——返回 null 表示"环境里没有这个 provider 的快照"。
-            default -> {
-                return null;
-            }
-        }
+        var cfg = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        family.writeConfig(cfg);
         b.setConfig(cfg);
         return b;
     }

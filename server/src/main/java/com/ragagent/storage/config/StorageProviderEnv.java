@@ -15,9 +15,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 大小写不符、写错的布尔字面量都不该让绑定失败（{@code S3_USE_SSL} 只在恰为 "false" 时
  * 为假、{@code MINIO_USE_SSL} 只在恰为 "true" 时为真，其余值一律按「未设置」处理）。</p>
  *
- * <p>落库形状（{@code storage_backends.config} jsonb）沿用存储域既有键名与省略规则：
- * 空串整键省略（对照 Go omitempty），假值整键省略；键序＝下列 {@code writeConfig} 调用序，
- * 与 Go struct 字段声明序一致。</p>
+ * <p><b>输出词汇＝落库面（camel）</b>（B14 合并）：键名与 {@code dto/StorageConfig} 同族
+ * （{@code accessKeyId}/{@code bucketName}/{@code pathPrefix}…），因为本投影的唯一消费者是
+ * 「落一行 {@code storage_backends}」，而行的读写两侧认的就是这套 camel
+ * （读侧 {@code StorageBackendService.configOf/serializeConfig} 忽略未知键——
+ * 此前输出 snake 会被<b>静默丢弃</b>，见 §15.1.1 B14）。引擎面（snake，各 provider 段命名
+ * 还不统一）由 {@code StorageFileResolver.renameConfigKeys} 单点派生，本类不再管。</p>
+ *
+ * <p>省略规则：空串整键省略（对照 Go omitempty），假值整键省略；键序＝下列
+ * {@code writeConfig} 调用序，与 Go struct 字段声明序一致。</p>
  */
 public final class StorageProviderEnv {
 
@@ -75,7 +81,7 @@ public final class StorageProviderEnv {
 
         @Override
         public void writeConfig(ObjectNode config) {
-            putNonEmpty(config, "path_prefix", trim(storagePathPrefix));
+            putNonEmpty(config, "pathPrefix", trim(storagePathPrefix));
         }
     }
 
@@ -98,11 +104,11 @@ public final class StorageProviderEnv {
         public void writeConfig(ObjectNode config) {
             putNonEmpty(config, "mode", "remote");
             putNonEmpty(config, "endpoint", endpoint);
-            putNonEmpty(config, "access_key_id", accessKeyId);
-            putNonEmpty(config, "secret_access_key", secretAccessKey);
-            putNonEmpty(config, "bucket_name", bucketName);
-            putNonEmpty(config, "path_prefix", pathPrefix);
-            putTrue(config, "use_ssl", "true".equalsIgnoreCase(useSsl));
+            putNonEmpty(config, "accessKeyId", accessKeyId);
+            putNonEmpty(config, "secretAccessKey", secretAccessKey);
+            putNonEmpty(config, "bucketName", bucketName);
+            putNonEmpty(config, "pathPrefix", pathPrefix);
+            putTrue(config, "useSsl", "true".equalsIgnoreCase(useSsl));
         }
     }
 
@@ -126,13 +132,13 @@ public final class StorageProviderEnv {
         @Override
         public void writeConfig(ObjectNode config) {
             putNonEmpty(config, "region", region);
-            putNonEmpty(config, "access_key_id", secretId);
-            putNonEmpty(config, "secret_access_key", secretKey);
-            putNonEmpty(config, "bucket_name", bucketName);
-            putNonEmpty(config, "path_prefix", pathPrefix);
-            putNonEmpty(config, "app_id", appId);
-            putNonEmpty(config, "temp_bucket_name", tempBucketName);
-            putNonEmpty(config, "temp_region", tempRegion);
+            putNonEmpty(config, "accessKeyId", secretId);
+            putNonEmpty(config, "secretAccessKey", secretKey);
+            putNonEmpty(config, "bucketName", bucketName);
+            putNonEmpty(config, "pathPrefix", pathPrefix);
+            putNonEmpty(config, "appId", appId);
+            putNonEmpty(config, "tempBucketName", tempBucketName);
+            putNonEmpty(config, "tempRegion", tempRegion);
         }
     }
 
@@ -157,12 +163,12 @@ public final class StorageProviderEnv {
         public void writeConfig(ObjectNode config) {
             putNonEmpty(config, "endpoint", endpoint);
             putNonEmpty(config, "region", region);
-            putNonEmpty(config, "access_key_id", accessKey);
-            putNonEmpty(config, "secret_access_key", secretKey);
-            putNonEmpty(config, "bucket_name", bucketName);
-            putNonEmpty(config, "path_prefix", pathPrefix);
-            putNonEmpty(config, "temp_bucket_name", tempBucketName);
-            putNonEmpty(config, "temp_region", tempRegion);
+            putNonEmpty(config, "accessKeyId", accessKey);
+            putNonEmpty(config, "secretAccessKey", secretKey);
+            putNonEmpty(config, "bucketName", bucketName);
+            putNonEmpty(config, "pathPrefix", pathPrefix);
+            putNonEmpty(config, "tempBucketName", tempBucketName);
+            putNonEmpty(config, "tempRegion", tempRegion);
         }
     }
 
@@ -187,12 +193,12 @@ public final class StorageProviderEnv {
         public void writeConfig(ObjectNode config) {
             putNonEmpty(config, "endpoint", endpoint);
             putNonEmpty(config, "region", region);
-            putNonEmpty(config, "access_key_id", accessKey);
-            putNonEmpty(config, "secret_access_key", secretKey);
-            putNonEmpty(config, "bucket_name", bucketName);
-            putNonEmpty(config, "path_prefix", pathPrefix);
-            putTrue(config, "use_ssl", !"false".equalsIgnoreCase(useSsl));
-            putTrue(config, "force_path_style", "true".equalsIgnoreCase(forcePathStyle));
+            putNonEmpty(config, "accessKeyId", accessKey);
+            putNonEmpty(config, "secretAccessKey", secretKey);
+            putNonEmpty(config, "bucketName", bucketName);
+            putNonEmpty(config, "pathPrefix", pathPrefix);
+            putTrue(config, "useSsl", !"false".equalsIgnoreCase(useSsl));
+            putTrue(config, "forcePathStyle", "true".equalsIgnoreCase(forcePathStyle));
         }
     }
 
@@ -217,13 +223,13 @@ public final class StorageProviderEnv {
         public void writeConfig(ObjectNode config) {
             putNonEmpty(config, "endpoint", endpoint);
             putNonEmpty(config, "region", region);
-            putNonEmpty(config, "access_key_id", accessKey);
-            putNonEmpty(config, "secret_access_key", secretKey);
-            putNonEmpty(config, "bucket_name", bucketName);
-            putNonEmpty(config, "path_prefix", pathPrefix);
-            putTrue(config, "use_temp_bucket", tempBucketName != null && !tempBucketName.isEmpty());
-            putNonEmpty(config, "temp_bucket_name", tempBucketName);
-            putNonEmpty(config, "temp_region", tempRegion);
+            putNonEmpty(config, "accessKeyId", accessKey);
+            putNonEmpty(config, "secretAccessKey", secretKey);
+            putNonEmpty(config, "bucketName", bucketName);
+            putNonEmpty(config, "pathPrefix", pathPrefix);
+            putTrue(config, "useTempBucket", tempBucketName != null && !tempBucketName.isEmpty());
+            putNonEmpty(config, "tempBucketName", tempBucketName);
+            putNonEmpty(config, "tempRegion", tempRegion);
         }
     }
 
@@ -247,11 +253,11 @@ public final class StorageProviderEnv {
         public void writeConfig(ObjectNode config) {
             putNonEmpty(config, "endpoint", endpoint);
             putNonEmpty(config, "region", region);
-            putNonEmpty(config, "access_key_id", accessKey);
-            putNonEmpty(config, "secret_access_key", secretKey);
-            putNonEmpty(config, "bucket_name", bucketName);
-            putNonEmpty(config, "path_prefix", pathPrefix);
-            putTrue(config, "use_ssl", !"false".equalsIgnoreCase(useSsl));
+            putNonEmpty(config, "accessKeyId", accessKey);
+            putNonEmpty(config, "secretAccessKey", secretKey);
+            putNonEmpty(config, "bucketName", bucketName);
+            putNonEmpty(config, "pathPrefix", pathPrefix);
+            putTrue(config, "useSsl", !"false".equalsIgnoreCase(useSsl));
         }
     }
 }

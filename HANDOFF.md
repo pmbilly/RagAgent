@@ -2781,7 +2781,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B11 Gradle 多模块** | 按域拆模块（§5 阶段 4 尾） | P2 | 大 | ✅ **判定：不做（2026-10-02 搁置）**——立项目的（边界固化）已由 B10 + 包级棘轮达成；量化：冷编译 32s vs 全量测试 ≈2m50s（85% 在测试），拆模块收益≈0 而成本数天；重访触发条件已写死。详见 15.1.1 |
 | **B12 B0 残留批 1** | wiki 任务级死信释放槽位（②）+ 孤儿 op 启动重放（③）+ 裸 NUL 审计盲区（R5） | P1 | 小 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B13 B0 残留批 2** | 孤儿存储组件判定与删除（④）+ `/auth/config` 版本信号消除登录 403 噪音（⑤）+ `process_overrides` 移植缺口判定 | P2 | 小 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
-| **B14 存储读侧投影合并** | 引擎面 env 回落行 vs 落库面类型化记录（两套词汇） | P2 | 中 | 🚧 **护栏 + 真 bug 已修（2026-10-02）**——词汇钉测 3 用例已落；前置调查挖出并修掉真 bug：**非 minio 的行配置云凭据被静默丢弃**（s3/tos/oss/ks3/obs/cos 全中，表现为莫名 403），含红态证明与三段直断守卫。合并本身（统一读侧）仍待做。详见 15.1.1 |
+| **B14 存储读侧投影合并** | 引擎面 env 回落行 vs 落库面类型化记录（两套词汇） | P2 | 中 | ✅ **完成（2026-10-02）**——合并为「一面一源」（落库面 camel、引擎面由唯一次名器派生）+ 修掉两个同源静默 bug（① 非 minio 行凭据被丢；② 环境供给行读回来为空），含红态证明、消费者层断言与真机验证；另登记供给器明文落库（未修）。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -2994,6 +2994,16 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **守卫**：修正既有用例的 s3 断言 + 新增 `ProviderWiringTest#backendRowCredentialsBindToProviderSection`（**行 → 引擎面 → 类型化绑定**三段直断，覆盖 minio/s3/cos）。
 - **红态证明**：临时还原旧行为 → 两条用例失败（新增用例报 `expected: <AK-s3> but was: <>`）→ 恢复修复 → 全量测试绿 + `spotlessCheck` 绿。
 - 说明：未做真机云端点验证（环境无可用云端点）；判定证据＝上述三段端到端单测 + 红态复现。
+
+**✅ B14 合并完成（2026-10-02，两套词汇收成「一面一源」）**
+- **第二个静默 bug（同源）**：`StorageProviderEnv.*.writeConfig`（启动期供给器的唯一投影）输出的是 **snake** 键，而落库面的读者 `StorageBackendService.configOf/serializeConfig` 用 `dto/StorageConfig`（**camel**）+ `FAIL_ON_UNKNOWN_PROPERTIES=false` ⇒ 环境供给的默认后端行**读回来全是空配置**（UI 显示空白、`validateForProvider`/连通性测试拿到空值；对 s3 家族还与引擎面 bug 叠加）。既有 `DefaultStorageBackendProvisionerTest` 断言的正是那套 snake 中间产物——**又是「测在中间节点、与实现同错」**。
+- **合并**：确立**一面一源**——① 落库面＝camel（`StorageProviderEnv.*.writeConfig` 改为输出 camel，与 `dto/StorageConfig` 同族）；② 引擎面（snake，各 provider 凭据命名还不统一）**只由** `StorageFileResolver.renameConfigKeys(provider)` 单点派生；③ 解析器的 env 回落行（`storageBackendFromEnvironment`）不再手写 switch，改为复用同一投影 + 该改名器（语义逐键核对过：省略规则的差异对两侧读者等价，凭证/布尔缺省同义）。构造器新增 `List<ProviderEnvFamily>` 注入，另留一个「只带 local 族」的便捷构造器供纯单测（与「未设 `STORAGE_TYPE`」同形，7 处既有测试构造点零改动）。
+- **验证**：
+  - 单测：`StorageProjectionVocabularyTest` 重写为「两面一源」契约钉（3 用例：落库面 camel 键集合 / 引擎面 snake 键集合（经统一次名器）/ **两面之差只在凭据命名**）；`DefaultStorageBackendProvisionerTest` 改 camel 并加**消费者层**断言（落库配置必须能绑进 `StorageConfig`）。
+  - 真机：`STORAGE_TYPE=s3` + `S3_*` 起服 → `POST /api/v1/tenants` 建租户 9 触发供给器 → 直查库：`provider=s3 | source=env | {"region":…, "useSsl":true, "endpoint":…, "bucketName":…, "pathPrefix":"b14/", "accessKeyId":"AK-b14", "forcePathStyle":true, "secretAccessKey":"SK-b14"}` ——**camel 到位**（修复前这里会是 snake，读侧静默丢空）。
+  - 全量测试绿 + `spotlessCheck` 绿；期间 `AttachmentContractTest.previewStreamsFileWithGoHeaders` 在全量负载下失败一次、单跑与复跑全量均绿（**判定为超时抖动**，非回归）。
+- **登记（本批未动）**：供给器直接经 `repository.create` 写行，**绕过了 `serializeConfig` 的加密** ⇒ 环境供给行的凭据在库里是**明文**（`configOf` 的「无前缀原样」使其功能正常，但违背「私钥落库为密文」的设计）。小批可修（供给器路由到同一序列化口或注入 `CryptoService`）。
+- **dev 库留痕（我的操作）**：租户 **9 `b14-probe-1015`**（含其供给的 `storage_backends` 行 `03e70033-d00c-44b9-bb56-6ac9c3092826`）为本批真机验证所建，**可删**。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
