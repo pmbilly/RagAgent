@@ -194,7 +194,7 @@ export async function debugModel(
 // shape and the design notes in internal/handler/dto/mcp.go.
 // ----------------------------------------------------------------------------
 
-export type ModelCredentialField = 'api_key' | 'app_secret'
+export type ModelCredentialField = 'apiKey' | 'appSecret'
 
 export interface ModelCredentialsResponse {
   fields: Record<ModelCredentialField, { configured: boolean }>

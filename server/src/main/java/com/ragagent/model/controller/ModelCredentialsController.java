@@ -76,7 +76,7 @@ public class ModelCredentialsController {
         if (tenantId == null || tenantId == 0) {
             throw new BizException(AppError.badRequest("Workspace ID cannot be empty"));
         }
-        if (!"api_key".equals(field) && !"app_secret".equals(field)) {
+        if (!"apiKey".equals(field) && !"appSecret".equals(field)) {
             throw new BizException(AppError.badRequest("unknown credential field: " + field));
         }
         try {

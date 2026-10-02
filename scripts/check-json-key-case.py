@@ -130,9 +130,6 @@ BASELINE: dict[str, set[str]] = {
     # memory 观测/追踪载荷（非契约）
     'memory/service/MemoryTrace.java': {'conditioned_items', 'document_count', 'interest_count', 'recalled_items', 'recalled_items_truncated'},
     # model 凭据面（两端自洽，统一另立批）
-    'model/dto/CredentialsResponse.java': {'api_key', 'app_secret'},
-    # model 凭据面（两端自洽，统一另立批）
-    'model/dto/ModelResponse.java': {'api_key', 'app_secret'},
     # MyBatis 列名/参数（非 JSON 键）
     'model/service/BuiltinModelsReconciler.java': {'deleted_at', 'is_default'},
     # MyBatis 列名/统计查询（非 JSON 键）

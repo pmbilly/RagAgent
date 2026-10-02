@@ -2797,6 +2797,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B27 批甲续 2** | 推荐问题键收口 + 6 类面判冻结 | P3 | 小 | ✅ **完成（2026-10-02）**——`knowledgeBaseId` 收口；观测面/内部预设名/agent_steps 落库桶/存储引擎面/wiki 内部状态/模型契约均判冻结并入 BASELINE；待判 80→66 |
 | **B28 批甲续 3** | websearch provider-types 字段面收口 | P3 | 小 | ✅ **完成（2026-10-02）**——`labelKey`/`descriptionKey` 收口（只改键、不动 i18n 值）；闸门全绿 |
 | **B29 批甲/批乙收口** | 换锚待判清单清空 | P3 | 小 | ✅ **完成（2026-10-02）**——66→0：按族判定（MyBatis 列名/观测面/引擎 DSL/存量配置 jsonb/模板令牌），model 凭据面登记为例外待拍板；扫描器边界（文件级条目）已写入脚本 |
+| **B30 凭据面统一** | model ↔ MCP/websearch 统一 camel | P3 | 小 | ✅ **完成（2026-10-02）**——只动 API 层（存量存储层与第三方载荷未动）；确认 PUT 体本就 camel（无第二个 B26）；棘轮减侧生效（清理 2 条基线） |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3208,6 +3209,13 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 
 **🔧 B29 订正（2026-10-02）**：B29 的 BASELINE 插入代码多写了一个提前闭合字典的 `}`，脚本出现 `IndentationError`；而当时的"待判 66 → 0"是**用坏脚本 grep 出来的假象**（报错输出里自然数不到"新增"）。已修复：① 去掉多余大括号；② 整块重写 BASELINE（**68 文件 / 328 键，逐条带理由注释**），把漏登的 9 个文件按其**已判族**补齐（`KnowledgeFileService` 的列名、`McpUsageInstructionsOps` 的模板变量、`session/controller/*` 的 SSE/消息与附件载荷、`session/mapper/*` 的列名、`WikiIngestMapPhase` 的内部 jsonb）。**以可用脚本重验**：默认模式 `✓ 无新增`、`--strict` 退出码 **0** ⇒「待判清零」这次是真的。
 **棘轮已接进 CI**（`.github/workflows/ci.yml` 的 guards 作业，与 go 锚点/前端契约键并列）——今后非冻结面出现**新的** snake JSON 键会直接红；基线 68 文件 / 328 键逐条带理由。
+
+**✅ B30（2026-10-02，model 凭据面与 MCP/websearch 统一为 camel）**
+- **范围界定（关键）**：只改 **API 层**——`CredentialsResponse` / `ModelResponse` 的响应 map、`ModelCredentialsController` 的删除路径段、`ModelService` 的字段 switch；**存量存储层一律不动**（`ModelRuntimeFactory` 读 params jsonb 的 `app_secret`、`WeKnoraCloudService` 的 `app_id`/`app_secret` 落库与第三方载荷）——那是**已落库**的判断键，改名须先出迁移方案。
+- **顺带核实（确认没有第二个 B26）**：model 的凭据 **PUT 请求体本来就是 camel**（`req.apiKey()` / `req.appSecret()`），与前端一致 ⇒ 无「保存静默失效」缺口；与 B26 修的 websearch 面形成对照（那一处才是断的）。
+- **落点**：后端 4 文件（`CredentialsResponse` 3 / `ModelResponse` 2 / `ModelCredentialsController` 1 / `ModelService` 2）；前端 `api/model` 的 `ModelCredentialField` 类型、`ModelEditorDialog` 的字段标识符与映射（现为恒等）与默认 meta，共 8 处；夹具 5 个各 2 处（**只改 `{"configured"` 的凭据元数据块，未动落库参数**）；`ModelContractTest` 的删除路径。
+- **棘轮自证**：换锚棘轮提示 `CredentialsResponse` / `ModelResponse` 两条基线**已无命中** ⇒ 已清理（「只许减不许增」的**减**侧生效）。
+- 闸门：后端全量 **4713** 绿 + `spotlessCheck` 绿；前端 `vue-tsc` 绿 + 契约键棘轮无新增 + 换锚棘轮 `✓ 无新增`。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

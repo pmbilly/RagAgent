@@ -213,14 +213,14 @@ public class ModelService implements ModelGateway  {
                     "only system administrators can modify builtin model credentials"));
         }
         boolean changed = switch (field) {
-            case "api_key" -> {
+            case "apiKey" -> {
                 if (!existing.getParameters().getApiKey().isEmpty()) {
                     existing.getParameters().setApiKey("");
                     yield true;
                 }
                 yield false;
             }
-            case "app_secret" -> {
+            case "appSecret" -> {
                 if (!existing.getParameters().getAppSecret().isEmpty()) {
                     existing.getParameters().setAppSecret("");
                     yield true;

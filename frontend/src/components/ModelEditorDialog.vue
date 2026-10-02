@@ -784,16 +784,16 @@ const signedRerankCredentialHint = computed(() => (
 const credentialFields = computed<CredentialFieldDef<ModelCredentialField>[]>(() => {
   const fields: CredentialFieldDef<ModelCredentialField>[] = [
     {
-      key: 'api_key',
+      key: 'apiKey',
       label: (isSignedRerank.value
         ? signedRerankAccessKeyLabel.value
         : t('model.editor.apiKeyOptional')) as string,
     },
   ]
   if (formData.value.provider === 'weknoracloud') {
-    fields.push({ key: 'app_secret', label: 'App Secret' })
+    fields.push({ key: 'appSecret', label: 'App Secret' })
   } else if (isSignedRerank.value) {
-    fields.push({ key: 'app_secret', label: signedRerankSecretKeyLabel.value as string })
+    fields.push({ key: 'appSecret', label: signedRerankSecretKeyLabel.value as string })
   }
   return fields
 })
@@ -802,10 +802,10 @@ const credentialApi = computed<CredentialResourceApi<ModelCredentialField>>(() =
   const id = props.modelData?.id ?? ''
   return {
     save: async (patch) => {
-      // 通用组件按字段标识符（api_key/app_secret）传 patch；HTTP body 用 camelCase 键
+      // 字段标识符与 HTTP body 键同名（camel，B30 统一）
       const meta = await putModelCredentials(id, {
-        apiKey: patch.api_key,
-        appSecret: patch.app_secret,
+        apiKey: patch.apiKey,
+        appSecret: patch.appSecret,
       })
       return meta.fields
     },
@@ -819,8 +819,8 @@ const credentialApi = computed<CredentialResourceApi<ModelCredentialField>>(() =
 // preserves `credentials` from the main ListModels response so the card
 // renders the correct "Configured" state on dialog open.
 const credentialMeta = computed(() => (props.modelData as any)?.credentials ?? {
-  api_key: { configured: false },
-  app_secret: { configured: false },
+  apiKey: { configured: false },
+  appSecret: { configured: false },
 })
 
 // Placeholder hint for the create-mode API key input. Edit mode replaces

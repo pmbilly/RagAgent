@@ -262,7 +262,7 @@ class ModelContractTest {
         assertGolden(gb11, "model-cred-get.json");
 
         // credentials DELETE → 204
-        mockMvc.perform(delete("/api/v1/models/" + modelId + "/credentials/api_key")
+        mockMvc.perform(delete("/api/v1/models/" + modelId + "/credentials/apiKey")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));

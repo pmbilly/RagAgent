@@ -59,8 +59,8 @@ public record ModelResponse(
         if (!m.isIsBuiltin() || canManageBuiltin) {
             // 字段标识符恒为 api_key / app_secret（也是 DELETE /credentials/{field} 的取值域）
             creds = new java.util.LinkedHashMap<>();
-            creds.put("api_key", new CredentialFieldMetadata(!p.getApiKey().isEmpty()));
-            creds.put("app_secret", new CredentialFieldMetadata(!p.getAppSecret().isEmpty()));
+            creds.put("apiKey", new CredentialFieldMetadata(!p.getApiKey().isEmpty()));
+            creds.put("appSecret", new CredentialFieldMetadata(!p.getAppSecret().isEmpty()));
         }
         return new ModelResponse(
                 m.getId(), m.getTenantId() == null ? 0 : m.getTenantId(),
