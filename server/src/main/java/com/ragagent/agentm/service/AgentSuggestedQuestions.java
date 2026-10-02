@@ -335,7 +335,7 @@ public final class AgentSuggestedQuestions {
         n.put("source", (String) q[1]);
         String kbId = (String) q[2];
         if (kbId != null && !kbId.isEmpty()) {
-            n.put("knowledge_base_id", kbId);
+            n.put("knowledgeBaseId", kbId);
         }
     }
 

@@ -73,6 +73,33 @@ BASELINE: dict[str, set[str]] = {
     'knowledge/service/KnowledgeFileService.java': {'content_revision', 'enable_status',
         'error_message', 'file_hash', 'file_name', 'file_path', 'file_size', 'file_type',
         'parse_status', 'processed_at', 'summary_status'},
+    # ── B27 逐面判定后登记的例外（理由见行内注释）──────────────────────────
+    # PipelineLog 观测面（日志字段，非契约）
+    'chatpipeline/support/SearchSupport.java': {'chunk_id', 'dropped_id', 'kept_id', 'match_type'},
+    # 内部预设名（presets() 仅 EvaluationService 内部查表）
+    'chatpipeline/PipelineBuilder.java': {'chat_history_stream', 'chat_stream', 'rag_stream'},
+    # agent_steps 落库列（AgentStepListTypeHandler）+ 历史回放
+    'agent/ActPhase.java': {'args_redacted', 'argument_resolution', 'data_keys', 'duration_ms', 'image_count', 'mcp_service', 'mcp_tool', 'model_arg_keys', 'model_arguments', 'output_len', 'resolved_arg_keys', 'resolved_arguments', 'session_id', 'tool_call_id', 'tool_index', 'unresolved_handle_count', 'unresolved_handles'},
+    # agent_steps 落库列 + 历史回放
+    'session/service/AgentStreamBridge.java': {'completed_at', 'duration_ms', 'event_id', 'final_content', 'is_fallback', 'message_id', 'messages_after', 'messages_before', 'pending_id', 'session_id', 'split_turn', 'steer_id', 'tokens_after', 'tokens_before', 'tool_call_id', 'tool_name', 'total_duration_ms', 'total_steps', 'user_message_id'},
+    # agent_steps/推荐面落库 + 历史回放
+    'session/service/MessageSuggestionService.java': {'assistant_message_id', 'session_id'},
+    # agent_steps 落库列 + 历史回放
+    'session/service/QaSupport.java': {'kb_id', 'kb_name', 'kb_type', 'mentioned_items', 'service_id', 'skill_name', 'steer_id'},
+    # agent_steps 落库列 + 历史回放
+    'session/service/SessionKnowledgeQaService.java': {'duration_ms', 'error_type', 'knowledge_base_ids', 'search_targets', 'session_id', 'total_duration_ms', 'total_stages'},
+    # agent_steps 落库列 + 历史回放
+    'session/service/SteerSinkBridge.java': {'mentioned_items'},
+    # 存储引擎面（snake，B14 已确立为冻结）
+    'storage/fileserve/StorageFileResolver.java': {'default_provider', 'path_prefix'},
+    # 存储引擎配置面（snake，同上）
+    'system/controller/SystemController.java': {'access_key_id', 'bucket_name', 'mineru_parse_method', 'secret_access_key', 'use_ssl', 'weknoracloud_app_id'},
+    # wiki 摄取内部 jsonb 状态（存量）
+    'wiki/service/ingest/WikiIngestReducePhase.java': {'addition_failed', 'affected_type', 'chunk_refs', 'content_preview', 'page_summary', 'page_title', 'page_type', 'source_refs'},
+    # wiki 摄取内部 jsonb 统计（存量）
+    'wiki/service/ingest/WikiIngestRunSupport.java': {'failed_slug_writes', 'pages_dropped', 'pages_dropped_preview', 'pages_total', 'pages_written', 'pages_written_preview'},
+    # 模型输出契约（LLM 载荷）
+    'wiki/service/page/NewSlugFromCitation.java': {'source_chunks'},
 }
 
 PATTERNS = (

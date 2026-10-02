@@ -2794,6 +2794,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B24 换锚长尾回头扫** | 注解面清零；新增 payload 键面盘点与棘轮 | P3 | 中 | 🟡 **盘点完成（2026-10-02）**——注解真债 0；Map/JsonNode 写键面 ≈309 键/119 文件（第三方族已冻结、FE 可见 42 键为批甲）；工具与边界已落。详见 15.1.1 |
 | **B25 批甲（首面）** | 模板标志位收口 + 引用/进度载荷判冻结 | P3 | 小 | ✅ **完成（2026-10-02）**——`hasKnowledgeBase`/`hasWebSearch` 收口（YAML 输入面未动）；引用载荷因落库+回放+前端重建而冻结；并纠正 B24 筛子的「FE 可见」低估 |
 | **B26 批甲续（websearch 凭据面）** | 逐面看消费者链 | P2 | 中 | 🐞 **修掉真 bug（2026-10-02）**——凭据面三处键名错位（保存静默失效 / 删除 400 / 徽标恒「未配置」），金鹰记录的缺陷态一并纠正；另四面判冻结并入 BASELINE |
+| **B27 批甲续 2** | 推荐问题键收口 + 6 类面判冻结 | P3 | 小 | ✅ **完成（2026-10-02）**——`knowledgeBaseId` 收口；观测面/内部预设名/agent_steps 落库桶/存储引擎面/wiki 内部状态/模型契约均判冻结并入 BASELINE；待判 80→66 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3172,6 +3173,18 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **验证**：契约测试（MockMvc 走真实 handler + 真实库）现在观察到 `configured:true`＝「PUT 真的存上了」的**绿灯证明**；websearch 域 47 用例绿、后端全量 **4713** 绿 + `spotlessCheck` 绿；前端 `vue-tsc` 绿 + **690** 绿 + 棘轮无新增。未另起真机（该契约测试即端到端）。
 - **其余四面判冻结/登记**（逐条给理由，已入扫描器 BASELINE）：`datasource/dto/DataSourceResponse` 的 `feed_urls`（datasource 配置 jsonb·存量）；`McpMetadataService` 与 `McpUsageInstructionsOps` 的 `server_name`（存量 metadata 形态 + 提示词模板**变量**＝数据值）；`AuditLogService` 的 `raw_path`/`required_role`（审计 details jsonb·前端按历史读）；`KnowledgeFileService` 的 `.set("列名")`（**MyBatis 列名，非 JSON 键**＝扫描器按文本匹配的已知假阳性）。
 - **方法论再次验证**：桶启发式只作粗排；**定性必须看消费者链**——本批真 bug 正是这样挖出的（若按名字批量 camel 化，`api_key` 这类内部标识符/第三方键会被一起改坏）。
+
+**✅ B27（2026-10-02，批甲续 2：推荐问题键收口 + 6 类面判冻结）**
+- **收口（真债·小）**：推荐问题面 `knowledge_base_id` → `knowledgeBaseId`。落点：后端 `AgentSuggestedQuestions`、前端 `api/agent` 的 `SuggestedQuestion` 类型、夹具 `ag-sq-faq.json`/`ag-sq-faq-knowledge.json`。**说明**：该面两端本来一致（snake↔snake，不是 bug），按 §2「我们自己的 JSON 面 ⇒ camel」收口；前端**无组件读者**（仅类型声明）故改动面极小。
+- **判冻结（逐面给理由，全部入扫描器 BASELINE）**：
+  - `chatpipeline/support/SearchSupport`（`kept_id`/`dropped_id`/`chunk_id`/`match_type`）＝ `PipelineLog` **观测面**（原注释即「观测面，非契约」）；
+  - `chatpipeline/PipelineBuilder`（`chat_stream`/`rag_stream`/`chat_history_stream`）＝ **内部预设名**（`presets()` 仅 `EvaluationService` 内部查表，不经 HTTP 外露）；
+  - **session 诊断桶**（`AgentStreamBridge` / `MessageSuggestionService` / `QaSupport` / `SessionKnowledgeQaService` / `SteerSinkBridge`）与 `agent/ActPhase` ＝ **`messages.agent_steps` 落库列**（`AgentStepListTypeHandler`）+ 历史回放；
+  - **存储引擎面**（`StorageFileResolver` / `SystemController`）＝ B14 已确立的 snake 冻结面；
+  - wiki 摄取**内部 jsonb 状态**（`WikiIngestReducePhase` / `WikiIngestRunSupport`）与**模型输出契约**（`NewSlugFromCitation.source_chunks`）。
+- 扫描器待判清单 **80 → 66 文件**。
+- 闸门：后端全量 **4713** 绿 + `spotlessCheck` 绿；前端 `vue-tsc` 绿 + **690** 绿 + 契约键棘轮无新增。
+- **队列剩余**：`system/*`（`quota_bytes`/`quota_gb`/`new_value`/`is_revoked` 等）、`websearch/dto/WebSearchProviderTypes`（`label_key`/`description_key`——前端按 snake 读 ⇒ 真债候选）、`mcp/controller` 其余项、`wiki/*` 其余、以及 model 凭据面（snake，两端自洽）是否与 websearch/MCP 统一。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
