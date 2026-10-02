@@ -2791,6 +2791,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B21 占位符组键收口 + 同类排查** | 只改一半的「混搭面」与被误伤的数据值 | P2 | 小 | ✅ **完成（2026-10-02）**——3 组键收口 camel（模板面有意不动）；两道筛子给出同类清单：模板面 4 键、`api_key`、死模块 `api/web-search.ts`、4 个待判孤儿夹具；「令牌被误伤」**只有已修的一处**。详见 15.1.1 |
 | **B22 模板面 4 键 + api_key 收口** | 混搭面续清（只读派生视图，无写回副作用） | P2 | 小 | ✅ **完成（2026-10-02）**——模板面 4 键与 `api_key` 改 camel（含 FE 映射/读者/夹具/测试侧归一化），删死模块 `api/web-search.ts`；另：文本资源名与 DB 列名等数据值一律未动。详见 15.1.1 |
 | **B23 孤儿夹具审计** | 夹具「真被引用」判定（行为式，不按名猜） | P3 | 小 | ✅ **工具 + 首审完成（2026-10-02）**——1344 个夹具中 115 个为孤儿（≈8.6%，聚类见 15.1.1）；本批未删，等拍板 |
+| **B24 换锚长尾回头扫** | 注解面清零；新增 payload 键面盘点与棘轮 | P3 | 中 | 🟡 **盘点完成（2026-10-02）**——注解真债 0；Map/JsonNode 写键面 ≈309 键/119 文件（第三方族已冻结、FE 可见 42 键为批甲）；工具与边界已落。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3138,6 +3139,19 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **孤儿聚类（前缀）**：`w5a` 14、`wiki` 11、`sys` 10、`w5b` 7、`schk` 7、`ct` 7、`ks` 6、`faq` 5、`mcp` 4、`imc` 4、`emb` 4、`adm` 4、`wsp` 3、`sug` 3、`reg` 3、`ev` 3…（名录见产物 `/tmp/contract-fixture-audit/orphans.txt`，随时可复跑重生成）。
 - **诚实说明（判定边界与删除建议）**：① 判定依赖"缺失即抛"——若某测试改用**带 `exists()` 护栏的自读**，缺文件会静默通过而误判为孤儿；全仓 `contracts` + `exists()` 仅 **2 处**（`W5cFileProxyContractTest:265`、`W5dTerminalEmbedContractTest:121`），且都是**路径选择**护栏（`exists(路径A) ? A : 路径B`，B 不再判存在）⇒ 缺失仍会抛异常，判定不受影响。② **孤儿 ≠ 无用**：它们可能是录制期/走查期的**原始素材**（Go 锚点证据），删除建议只做"对应测试确已删除"的那批，且删后仍可从 git 历史回捞。
 - 本批未删任何夹具（工具与结论先落地，等拍板）。
+
+**🔎 B24（2026-10-02，换锚长尾回头扫：注解面清零 + 真实残留面盘点）**
+- **注解面（`@JsonProperty`）真债＝0**：非冻结面只剩 **26 文件 / 45 处**，其中含下划线的仅 **7 处**，逐条核实全部**有意保留**——① `common/context/TracingContext` 的 5 个 `lf_*`（**langfuse 线上字段**，`DataSourceSyncPayload` 的 javadoc 就写着该形态）；② `wiki/service/ingest/WikiIngestCitePipeline` 的 `new_slugs`（javadoc 原文「只用于**解析**模型输出，从不序列化出站」，且提示词 `WikiPrompts` 里就是 `new_slugs`）；③ `WikiIngestMapPhase` 的 `new_slugs`（既有**内部 jsonb 状态键**，改名需迁移存量行）。其余 38 处是单字键或已 camel（大小写中性，非债）。
+- **但真实残留面比注解大得多**（本轮新发现）：经 `Map/JsonNode.put("snake")` 写的键，非冻结面 ≈ **309 键 / 119 文件**，按消费者分四桶：
+  | 桶 | 规模 | 判定 |
+  |---|---|---|
+  | 第三方适配器族（embedding/im/websearch/rerank/asr/vlm provider 与客户端） | 30 文件 / 101 键 | **冻结**（键名由对方 API 定）——本轮已并入扫描器冻结清单 |
+  | 内部/诊断/状态载荷（pipeline 进度、span、同步日志、审计、内存洞察…） | 33 文件 / 127 键 | 待判（多属"诊断面"，倾向登记保留） |
+  | FE 可见 | 33 文件 / 42 键 | **真债候选**（如 `chatpipeline/support/ReferencesSupport` 的 `chunk_id/knowledge_title/display_type…`、`PipelineProgress` 的 `candidate_count/search_source…`、`PromptTemplateCatalog` 的 `has_knowledge_base/has_web_search`、mcp/datasource/agent 面若干） |
+  | 仅夹具断言 | 23 文件 / 39 键 | 自有面，待判 |
+- **工具**：`scripts/check-json-key-case.py`（`--list` 出待判清单；默认棘轮模式只在基线外**新增**命中时失败）。**边界诚实声明**：按文本模式匹配会命中 **SQL 参数 Map / MyBatis 列名**（`*Repository` 的 `deleted_at` 等）⇒ `--list` 是**待判**清单而非违规清单；判真债必须看**消费者**。基线当前仅含 3 组已核实例外（langfuse、模型契约 `new_slugs`、内部 jsonb `new_slugs`）。
+- **方法论**：不要机械批改（B18 教训）——按**面**逐条判定，FE 可见的同批带前端与夹具；判不动的先登记，别猜。
+- **下一批（批甲，建议）**：FE 可见的"自有 JSON 面"逐面收口——先做聊天管线两组（`ReferencesSupport`/`PipelineProgress`/`SearchSupport`）与模板载荷标志位（`has_knowledge_base`/`has_web_search`），每个面＝后端 + 前端 + 夹具 + 契约测试同批。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
