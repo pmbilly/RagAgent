@@ -1,6 +1,9 @@
-# CI 起步三样：build / test / Spotless（HANDOFF §8；ArchUnit 规则留阶段 4）。
+# CI 起步三样：build / test / Spotless（HANDOFF §8）。
 # 测试自含（契约 fixture，无 Testcontainers），无需起服务容器。
 # 2026-09-30 增：包结构守卫（环 / 分层棘轮，scripts/check-package-cycles.py）。
+# 2026-10-02 增（B10）：架构规则随测试套件跑（server/src/test/.../arch/ArchitectureRulesTest.java：
+#   禁裸 getenv / 属性类必须被 @ConfigurationPropertiesScan 覆盖 / 配置类不得双装配 /
+#   install* 只许装配层调用）——后端 job 的 `./gradlew build` 即闸门；包级规则仍归上面的 guards job。
 name: CI
 
 on:

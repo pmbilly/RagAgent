@@ -131,6 +131,8 @@ dependencies {
 
     // 测试
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // 架构规则（B10）：把 B6 等批次攒下的约定固化成测试套件里的红条（CI 的 ./gradlew build 即闸门）
+    testImplementation("com.tngtech.archunit:archunit:1.3.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testRuntimeOnly("com.h2database:h2")   // 契约/单元测试内存库，不依赖外部 postgres
 }
