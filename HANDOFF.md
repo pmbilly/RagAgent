@@ -2781,7 +2781,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B11 Gradle 多模块** | 按域拆模块（§5 阶段 4 尾） | P2 | 大 | ✅ **判定：不做（2026-10-02 搁置）**——立项目的（边界固化）已由 B10 + 包级棘轮达成；量化：冷编译 32s vs 全量测试 ≈2m50s（85% 在测试），拆模块收益≈0 而成本数天；重访触发条件已写死。详见 15.1.1 |
 | **B12 B0 残留批 1** | wiki 任务级死信释放槽位（②）+ 孤儿 op 启动重放（③）+ 裸 NUL 审计盲区（R5） | P1 | 小 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B13 B0 残留批 2** | 孤儿存储组件判定与删除（④）+ `/auth/config` 版本信号消除登录 403 噪音（⑤）+ `process_overrides` 移植缺口判定 | P2 | 小 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
-| **B14 存储读侧投影合并** | 引擎面 env 回落行 vs 落库面类型化记录（两套词汇） | P2 | 中 | 🚧 **判定 + 护栏已落（2026-10-02）**——两套词汇各有真实读者，合并须先统一读侧；已新增词汇钉测 3 用例 + 登记一处前置调查（行模式 s3 凭据键）。详见 15.1.1 |
+| **B14 存储读侧投影合并** | 引擎面 env 回落行 vs 落库面类型化记录（两套词汇） | P2 | 中 | 🚧 **护栏 + 真 bug 已修（2026-10-02）**——词汇钉测 3 用例已落；前置调查挖出并修掉真 bug：**非 minio 的行配置云凭据被静默丢弃**（s3/tos/oss/ks3/obs/cos 全中，表现为莫名 403），含红态证明与三段直断守卫。合并本身（统一读侧）仍待做。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -2985,6 +2985,15 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **待核（合并前置调查，已写进测试类注释）**：落库面 s3/oss/obs/tos 写 `access_key_id`，引擎面自校验读 `access_key`——行模式下 s3 恰好「两边都空 ⇒ `hasKey == hasSecret` ⇒ 通过」（**不报错**），实际 SDK 层能否取到凭据**未验证**；合并前先查 `providerBacked(...)` 下游对 s3 凭据键的读取口径。
 - **踩坑（小，但方法论同源）**：词汇钉测第一版喂**空值**——引擎面是恒写、键集合可见 ✓，而落库面是 omitempty → **一个键都不写** ✗（钉出空集合，等于没钉）。改用**全开值**才钉住；过程中还实测出 `Cos` 会写 `app_id`、`Oss` 全开时写 `use_temp_bucket`，期望表按实测修正（**钉测试的期望必须以实测为准，不是以读码印象为准**）。
 - 闸门：`spotlessCheck` 绿 + storage/system 域测试绿（新钉测 3 用例含在内）。
+
+**🐞 B14 修复（2026-10-02，真 bug：非 minio 的「行配置」云凭据被静默丢弃）**
+- **前置调查结论（原登记项已闭环）**：`storage_backends.config` 存的是**统一 camel**（`accessKeyId`/`secretAccessKey`，密文；见 `dto/StorageConfig.java` 与 `StorageBackendService.serializeConfig`）；`toStorageEngineConfig` 的 `renameConfigKeys` 却把它们**统一改写成 minio 形态** `access_key_id`/`secret_access_key`；而引擎面各段的 `@JsonProperty` 并不统一——`MinioEngineConfig` 认 `access_key_id`/`secret_access_key`，`CosEngineConfig` 认 `secret_id`/`secret_key`，**其余（s3/tos/oss/ks3/obs）认 `access_key`/`secret_key`**。Jackson 配了 `FAIL_ON_UNKNOWN_PROPERTIES=false` ⇒ **键被静默丢弃** ⇒ `S3CompatibleFileService.Config` 无凭据。
+- **影响面**：**行配置的 s3 / tos / oss / ks3 / obs / cos 全部**（只有 minio 恰好命中）；且行校验是「缺一才报错」，两边都空时 `hasKey == hasSecret` **通过**——表现为「云存储配好了却莫名 403 / 匿名请求」，属最难定位的一类。
+- **既有测试为何漏掉**：`ProviderWiringTest` 的 W5γ5.2 用例断言的是**引擎面节点**上的键（`s3.access_key_id`），与实现同错——**测在了错的层**（没断言"绑定到类型化配置后凭据还在"）。
+- **修复**：`renameConfigKeys(copy, provider)` 按 provider 分族落凭据键（minio→`access_key_id`/`secret_access_key`；cos→`secret_id`/`secret_key`；其余→`access_key`/`secret_key`），并把 `access_key` 纳入 `decryptCredentials` 名单（改名先于解密，须覆盖新键名）。
+- **守卫**：修正既有用例的 s3 断言 + 新增 `ProviderWiringTest#backendRowCredentialsBindToProviderSection`（**行 → 引擎面 → 类型化绑定**三段直断，覆盖 minio/s3/cos）。
+- **红态证明**：临时还原旧行为 → 两条用例失败（新增用例报 `expected: <AK-s3> but was: <>`）→ 恢复修复 → 全量测试绿 + `spotlessCheck` 绿。
+- 说明：未做真机云端点验证（环境无可用云端点）；判定证据＝上述三段端到端单测 + 红态复现。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

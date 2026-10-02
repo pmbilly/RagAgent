@@ -464,7 +464,7 @@ public class StorageFileResolver {
                 //（StorageConfig 键名=字段名），这里翻译成引擎面既定的 snake 键；凭据先解密。
                 if (c != null) {
                     var copy = c.deepCopy();
-                    renameConfigKeys(copy);
+                    renameConfigKeys(copy, b.getProvider());
                     decryptCredentials(copy, crypto);
                     cfg.set(b.getProvider(), copy);
                 }
@@ -473,21 +473,46 @@ public class StorageFileResolver {
         return cfg;
     }
 
-    /** 行配置（camelCase）→ 引擎面键（snake，冻结面）。自由键原样保留。 */
-    private static void renameConfigKeys(com.fasterxml.jackson.databind.JsonNode providerConfig) {
+    /**
+     * 行配置（camelCase）→ 引擎面键（snake，冻结面）。自由键原样保留。
+     *
+     * <p><b>凭据两键按 provider 分族</b>（B14 修正）：引擎面各段的 {@code @JsonProperty} 并不统一——
+     * {@code MinioEngineConfig} 认 {@code access_key_id}/{@code secret_access_key}、
+     * {@code CosEngineConfig} 认 {@code secret_id}/{@code secret_key}、
+     * 其余（s3/tos/oss/ks3/obs）认 {@code access_key}/{@code secret_key}。</p>
+     *
+     * <p>此前这里统一改写成 minio 形态，于是<b>除 minio 外的行配置凭据被 Jackson 静默丢弃</b>
+     * （转换器配了 {@code FAIL_ON_UNKNOWN_PROPERTIES=false}，未知键不报错）——云读退化为
+     * 「无凭据」（403/匿名），且行校验恰好「两边都空 ⇒ 通过」不报错。护栏见
+     * {@code ProviderWiringTest#backendRowCredentialsBindToProviderSection}。</p>
+     */
+    private static void renameConfigKeys(com.fasterxml.jackson.databind.JsonNode providerConfig, String provider) {
         if (!(providerConfig instanceof com.fasterxml.jackson.databind.node.ObjectNode obj)) {
             return;
         }
+        String p = provider == null ? "" : provider.trim().toLowerCase(java.util.Locale.ROOT);
+        String accessField = switch (p) {
+            case "minio" -> "access_key_id";
+            case "cos" -> "secret_id";
+            default -> "access_key";
+        };
+        String secretField = "minio".equals(p) ? "secret_access_key" : "secret_key";
+        moveKey(obj, "accessKeyId", accessField);
+        moveKey(obj, "secretAccessKey", secretField);
         for (String[] pair : new String[][]{
-                {"accessKeyId", "access_key_id"}, {"secretAccessKey", "secret_access_key"},
                 {"bucketName", "bucket_name"}, {"pathPrefix", "path_prefix"},
                 {"appId", "app_id"}, {"useSsl", "use_ssl"},
                 {"forcePathStyle", "force_path_style"}, {"useTempBucket", "use_temp_bucket"},
                 {"tempBucketName", "temp_bucket_name"}, {"tempRegion", "temp_region"}}) {
-            var v = obj.remove(pair[0]);
-            if (v != null && !obj.has(pair[1])) {
-                obj.set(pair[1], v);
-            }
+            moveKey(obj, pair[0], pair[1]);
+        }
+    }
+
+    /** 改键：目标键已存在时保留现状（行里显式给的引擎面键优先）。 */
+    private static void moveKey(com.fasterxml.jackson.databind.node.ObjectNode obj, String from, String to) {
+        var v = obj.remove(from);
+        if (v != null && !obj.has(to)) {
+            obj.set(to, v);
         }
     }
 
@@ -495,7 +520,7 @@ public class StorageFileResolver {
     private static void decryptCredentials(com.fasterxml.jackson.databind.JsonNode providerConfig,
             CryptoService crypto) {
         for (String field : new String[]{
-                "access_key_id", "secret_access_key", "secret_id", "secret_key"}) {
+                "access_key_id", "secret_access_key", "secret_id", "secret_key", "access_key"}) {
             com.fasterxml.jackson.databind.JsonNode value = providerConfig.get(field);
             if (value != null && value.isTextual()) {
                 ((com.fasterxml.jackson.databind.node.ObjectNode) providerConfig)
