@@ -30,7 +30,7 @@ import org.springframework.test.web.servlet.MvcResult;
  * scripts/record-faq-golden.sh（98 个 faq-* 文件，Go 实录）。
  *
  * <p>种子严格复刻录制脚本（KB 均为固定 hex id 的 SQL 直插——录制侧 KB 经 API 建出
- * 随机 id，掩码归一）：FKB1（faq + index_mode=question_only）/FKB2（faq 空库）/
+ * 随机 id，掩码归一）：FKB1（faq + indexMode=question_only）/FKB2（faq 空库）/
  * FKB3（faq 无容器导入结果）/FKB4（document 类型）/FKB5（导入专用）；FK1 容器带
  * last_faq_import_result、FT1/FT2 标签（seq 965001/965002）、FE1..FE4（seq 970001..970004）。</p>
  *
@@ -137,7 +137,7 @@ class FaqContractTest {
         String strategy = "{\"vectorEnabled\":false,\"keywordEnabled\":false,"
                 + "\"wikiEnabled\":false,\"graphEnabled\":false}";
         seedKb(FKB1, "faq-golden-kb", "faq",
-                "{\"index_mode\":\"question_only\",\"question_index_mode\":\"combined\"}", strategy);
+                "{\"indexMode\":\"question_only\",\"questionIndexMode\":\"combined\"}", strategy);
         seedKb(FKB2, "faq-empty-kb", "faq", null, strategy);
         seedKb(FKB3, "faq-noresult-kb", "faq", null, strategy);
         seedKb(FKB4, "faq-doc-kb", "document", null, strategy);

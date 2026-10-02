@@ -356,8 +356,8 @@ const kbToScopeCaps = (kb: any): Partial<ScopeCapabilities> => {
   }
   const s = kb.indexingStrategy;
   return {
-    vector: s ? !!s.vector_enabled : false,
-    keyword: s ? !!s.keyword_enabled : false,
+    vector: s ? !!s.vectorEnabled : false,
+    keyword: s ? !!s.keywordEnabled : false,
     wiki: s ? !!s.wikiEnabled : false,
     graph: s ? !!s.graphEnabled : false,
     faq: kb?.type === 'faq',

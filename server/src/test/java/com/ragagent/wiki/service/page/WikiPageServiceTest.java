@@ -872,7 +872,7 @@ class WikiPageServiceTest {
         jdbc.update("INSERT INTO knowledge_bases (id, name, tenant_id, type, indexing_strategy) "
                         + "VALUES (?, ?, ?, 'document', ?)",
                 kbId, kbId, tenantId,
-                "{\"vector_enabled\":false,\"keyword_enabled\":false,\"wiki_enabled\":"
+                "{\"vectorEnabled\":false,\"keywordEnabled\":false,\"wikiEnabled\":"
                         + wikiEnabled + ",\"graph_enabled\":false}");
     }
 }

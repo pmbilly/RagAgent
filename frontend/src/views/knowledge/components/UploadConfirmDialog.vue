@@ -1119,8 +1119,8 @@ function initFromKbInfo(kb: any) {
     // questionGenerationConfig 是落库 jsonb 透传（内层键为 snake，见 KB 更新请求）
     questionGenerationConfig: {
       enabled: kb.questionGenerationConfig?.enabled ?? true,
-      questionCount: kb.questionGenerationConfig?.question_count || 3,
-      customInstructions: kb.questionGenerationConfig?.custom_instructions || '',
+      questionCount: kb.questionGenerationConfig?.questionCount || 3,
+      customInstructions: kb.questionGenerationConfig?.customInstructions || '',
     },
     nodeExtractConfig: {
       enabled: !!kb.extractConfig?.enabled && !!kb.indexingStrategy?.graphEnabled,

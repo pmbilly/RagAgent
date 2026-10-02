@@ -545,7 +545,7 @@ interface KB {
   extractConfig?: { enabled?: boolean };
   // 存储提供方名（local/cos/oss…）：只下发名字，凭据配置不下发（契约 §3 #12）
   storageProvider?: string;
-  questionGenerationConfig?: { enabled?: boolean; question_count?: number };
+  questionGenerationConfig?: { enabled?: boolean; questionCount?: number };
   knowledgeCount?: number;
   chunkCount?: number;
   processing?: boolean;

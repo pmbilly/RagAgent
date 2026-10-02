@@ -818,14 +818,16 @@ const loadKBData = async (
 
     if (!isCurrentKBLoad(generation, kbId)) return
     
-    if (!kbInfo || !kbInfo.data) {
+    // GET /knowledge-bases/{id} 是裸资源（§2.1）——响应体本身就是 KB 对象，
+    // 直接读 kbInfo.data 会让弹窗恒抛「知识库不存在」（编辑入口整条不可用）
+    if (!kbInfo) {
       throw new Error(t('knowledgeEditor.messages.notFound'))
     }
 
-    const kb = kbInfo.data
+    const kb = kbInfo
     hasFiles.value = (filesResult as any)?.total > 0
     kbCreatorId.value = (kb as any).creatorId || ''
-    kbTenantId.value = Number((kb as any).tenant_id || 0)
+    kbTenantId.value = Number((kb as any).tenantId || 0)
 
     // 设置表单数据
     const kbType = (kb.type as 'document' | 'faq') || 'document'
@@ -834,13 +836,13 @@ const loadKBData = async (
       name: kb.name || '',
       description: kb.description || '',
       faqConfig: {
-        indexMode: kb.faqConfig?.index_mode || 'question_only',
-        questionIndexMode: kb.faqConfig?.question_index_mode || 'separate'
+        indexMode: kb.faqConfig?.indexMode || 'question_only',
+        questionIndexMode: kb.faqConfig?.questionIndexMode || 'separate'
       },
       modelConfig: {
         llmModelId: kb.summaryModelId || '',
         embeddingModelId: kb.embeddingModelId || '',
-        wikiSynthesisModelId: kb.wikiConfig?.synthesis_model_id || ''
+        wikiSynthesisModelId: kb.wikiConfig?.synthesisModelId || ''
       },
       chunkingConfig: {
         chunkSize: kb.chunkingConfig?.chunkSize || 512,
@@ -881,32 +883,32 @@ const loadKBData = async (
           attributes: node.attributes || []
         })),
         relations: kb.extractConfig?.relations || [],
-        customInstructions: kb.extractConfig?.custom_instructions || ''
+        customInstructions: kb.extractConfig?.customInstructions || ''
       },
       questionGenerationConfig: {
         enabled: kb.questionGenerationConfig?.enabled || false,
-        questionCount: kb.questionGenerationConfig?.question_count || 3,
-        customInstructions: kb.questionGenerationConfig?.custom_instructions || ''
+        questionCount: kb.questionGenerationConfig?.questionCount || 3,
+        customInstructions: kb.questionGenerationConfig?.customInstructions || ''
       },
       autoTagConfig: {
         enabled: kb.autoTagConfig?.enabled || false,
-        modelId: kb.autoTagConfig?.model_id || '',
-        maxTags: kb.autoTagConfig?.max_tags || 3,
+        modelId: kb.autoTagConfig?.modelId || '',
+        maxTags: kb.autoTagConfig?.maxTags || 3,
         // Absent on knowledge bases saved before the toggle existed; the
         // backend treats that as "skip", so mirror it here.
-        skipIfTagged: kb.autoTagConfig?.skip_if_tagged ?? true
+        skipIfTagged: kb.autoTagConfig?.skipIfTagged ?? true
       },
       wikiConfig: {
-        synthesisModelId: kb.wikiConfig?.synthesis_model_id || '',
-        maxPagesPerIngest: kb.wikiConfig?.max_pages_per_ingest || 0,
+        synthesisModelId: kb.wikiConfig?.synthesisModelId || '',
+        maxPagesPerIngest: kb.wikiConfig?.maxPagesPerIngest || 0,
         extractionGranularity: (
-          kb.wikiConfig?.extraction_granularity === 'focused' ||
-          kb.wikiConfig?.extraction_granularity === 'exhaustive'
-            ? kb.wikiConfig.extraction_granularity
+          kb.wikiConfig?.extractionGranularity === 'focused' ||
+          kb.wikiConfig?.extractionGranularity === 'exhaustive'
+            ? kb.wikiConfig.extractionGranularity
             : 'standard'
         ) as 'focused' | 'standard' | 'exhaustive',
-        contentInstructions: kb.wikiConfig?.content_instructions || '',
-        extractionInstructions: kb.wikiConfig?.extraction_instructions || '',
+        contentInstructions: kb.wikiConfig?.contentInstructions || '',
+        extractionInstructions: kb.wikiConfig?.extractionInstructions || '',
       },
       indexingStrategy: {
         vectorEnabled: kb.indexingStrategy?.vectorEnabled ?? true,
@@ -1237,28 +1239,28 @@ const buildSubmitData = () => {
   if (formData.value.questionGenerationConfig?.enabled) {
     data.questionGenerationConfig = {
       enabled: true,
-      question_count: formData.value.questionGenerationConfig.questionCount || 3,
-      custom_instructions: formData.value.questionGenerationConfig.customInstructions || ''
+      questionCount: formData.value.questionGenerationConfig.questionCount || 3,
+      customInstructions: formData.value.questionGenerationConfig.customInstructions || ''
     }
   } else {
     data.questionGenerationConfig = {
       enabled: false,
-      question_count: 3,
-      custom_instructions: formData.value.questionGenerationConfig?.customInstructions || ''
+      questionCount: 3,
+      customInstructions: formData.value.questionGenerationConfig?.customInstructions || ''
     }
   }
 
   data.autoTagConfig = {
     enabled: formData.value.autoTagConfig?.enabled || false,
-    model_id: formData.value.autoTagConfig?.modelId || '',
-    max_tags: formData.value.autoTagConfig?.maxTags || 3,
-    skip_if_tagged: formData.value.autoTagConfig?.skipIfTagged ?? true
+    modelId: formData.value.autoTagConfig?.modelId || '',
+    maxTags: formData.value.autoTagConfig?.maxTags || 3,
+    skipIfTagged: formData.value.autoTagConfig?.skipIfTagged ?? true
   }
 
   if (formData.value.type === 'faq') {
     data.faqConfig = {
-      index_mode: formData.value.faqConfig?.indexMode || 'question_only',
-      question_index_mode: formData.value.faqConfig?.questionIndexMode || 'separate'
+      indexMode: formData.value.faqConfig?.indexMode || 'question_only',
+      questionIndexMode: formData.value.faqConfig?.questionIndexMode || 'separate'
     }
   }
 
@@ -1266,11 +1268,11 @@ const buildSubmitData = () => {
   // wiki_config only holds wiki-specific tunables.
   if (formData.value.type !== 'faq') {
     data.wikiConfig = {
-      synthesis_model_id: formData.value.modelConfig?.wikiSynthesisModelId || '',
-      max_pages_per_ingest: formData.value.wikiConfig?.maxPagesPerIngest || 0,
-      extraction_granularity: formData.value.wikiConfig?.extractionGranularity || 'standard',
-      content_instructions: formData.value.wikiConfig?.contentInstructions || '',
-      extraction_instructions: formData.value.wikiConfig?.extractionInstructions || '',
+      synthesisModelId: formData.value.modelConfig?.wikiSynthesisModelId || '',
+      maxPagesPerIngest: formData.value.wikiConfig?.maxPagesPerIngest || 0,
+      extractionGranularity: formData.value.wikiConfig?.extractionGranularity || 'standard',
+      contentInstructions: formData.value.wikiConfig?.contentInstructions || '',
+      extractionInstructions: formData.value.wikiConfig?.extractionInstructions || '',
     }
   }
 
@@ -1293,7 +1295,7 @@ const buildSubmitData = () => {
       tags: formData.value.nodeExtractConfig.tags || [],
       nodes: formData.value.nodeExtractConfig.nodes || [],
       relations: formData.value.nodeExtractConfig.relations || [],
-      custom_instructions: formData.value.nodeExtractConfig.customInstructions || ''
+      customInstructions: formData.value.nodeExtractConfig.customInstructions || ''
     }
   }
 
@@ -1364,27 +1366,27 @@ const doSubmit = async () => {
       // 1. 更新基本信息（名称、描述）和 FAQ/Wiki 配置
       const updateConfig: any = {}
       if (formData.value.type === 'faq' && formData.value.faqConfig) {
-        updateConfig.faq_config = {
-          index_mode: formData.value.faqConfig.indexMode || 'question_only',
-          question_index_mode: formData.value.faqConfig.questionIndexMode || 'separate'
+        updateConfig.faqConfig = {
+          indexMode: formData.value.faqConfig.indexMode || 'question_only',
+          questionIndexMode: formData.value.faqConfig.questionIndexMode || 'separate'
         }
       }
       if (formData.value.wikiConfig && formData.value.type !== 'faq') {
-        updateConfig.wiki_config = {
-          synthesis_model_id: formData.value.modelConfig?.wikiSynthesisModelId || '',
-          max_pages_per_ingest: formData.value.wikiConfig.maxPagesPerIngest || 0,
-          extraction_granularity: formData.value.wikiConfig.extractionGranularity || 'standard',
-          content_instructions: formData.value.wikiConfig.contentInstructions || '',
-          extraction_instructions: formData.value.wikiConfig.extractionInstructions || '',
+        updateConfig.wikiConfig = {
+          synthesisModelId: formData.value.modelConfig?.wikiSynthesisModelId || '',
+          maxPagesPerIngest: formData.value.wikiConfig.maxPagesPerIngest || 0,
+          extractionGranularity: formData.value.wikiConfig.extractionGranularity || 'standard',
+          contentInstructions: formData.value.wikiConfig.contentInstructions || '',
+          extractionInstructions: formData.value.wikiConfig.extractionInstructions || '',
         }
       }
       if (formData.value.type !== 'faq') {
-        updateConfig.auto_tag_config = data.autoTagConfig
-        updateConfig.indexing_strategy = {
-          vector_enabled: formData.value.indexingStrategy?.vectorEnabled ?? true,
-          keyword_enabled: formData.value.indexingStrategy?.keywordEnabled ?? true,
-          wiki_enabled: formData.value.indexingStrategy?.wikiEnabled ?? false,
-          graph_enabled: formData.value.indexingStrategy?.graphEnabled ?? false,
+        updateConfig.autoTagConfig = data.autoTagConfig
+        updateConfig.indexingStrategy = {
+          vectorEnabled: formData.value.indexingStrategy?.vectorEnabled ?? true,
+          keywordEnabled: formData.value.indexingStrategy?.keywordEnabled ?? true,
+          wikiEnabled: formData.value.indexingStrategy?.wikiEnabled ?? false,
+          graphEnabled: formData.value.indexingStrategy?.graphEnabled ?? false,
         }
       }
       await updateKnowledgeBase(kbId, {
@@ -1426,12 +1428,12 @@ const doSubmit = async () => {
           tags: data.extractConfig?.tags || [],
           nodes: data.extractConfig?.nodes || [],
           relations: data.extractConfig?.relations || [],
-          customInstructions: data.extractConfig?.custom_instructions || ''
+          customInstructions: data.extractConfig?.customInstructions || ''
         },
         questionGeneration: {
           enabled: data.questionGenerationConfig?.enabled || false,
-          questionCount: data.questionGenerationConfig?.question_count || 3,
-          customInstructions: data.questionGenerationConfig?.custom_instructions || ''
+          questionCount: data.questionGenerationConfig?.questionCount || 3,
+          customInstructions: data.questionGenerationConfig?.customInstructions || ''
         }
       }
 

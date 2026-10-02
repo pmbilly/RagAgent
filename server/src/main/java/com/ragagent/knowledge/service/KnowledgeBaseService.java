@@ -509,27 +509,32 @@ public class KnowledgeBaseService
         return existing;
     }
 
+    /**
+     * 更新请求的 {@code config} 内层 dispatch 键＝Java 字段名（camelCase），与创建请求的
+     * {@code CreateKnowledgeBaseRequest} 同名同形——此前这里是 snake（{@code faq_config} 等），
+     * 与创建面/落库面（值类型按 Java 字段名读写）三方不一致。
+     */
     private static void applyUpdateConfig(KnowledgeBase kb, JsonNode config) {
-        if (config.hasNonNull("chunking_config")) {
-            kb.setChunkingConfig(KnowledgeBaseChunkingConfig.from(config.get("chunking_config")));
+        if (config.hasNonNull("chunkingConfig")) {
+            kb.setChunkingConfig(KnowledgeBaseChunkingConfig.from(config.get("chunkingConfig")));
         }
-        if (config.hasNonNull("image_processing_config")) {
+        if (config.hasNonNull("imageProcessingConfig")) {
             kb.setImageProcessingConfig(
-                    KnowledgeBaseImageProcessingConfig.from(config.get("image_processing_config")));
+                    KnowledgeBaseImageProcessingConfig.from(config.get("imageProcessingConfig")));
         }
-        if (config.hasNonNull("faq_config")) {
-            kb.setFaqConfig(config.get("faq_config"));
+        if (config.hasNonNull("faqConfig")) {
+            kb.setFaqConfig(config.get("faqConfig"));
         }
-        if (config.hasNonNull("wiki_config")) {
-            kb.setWikiConfig(config.get("wiki_config"));
+        if (config.hasNonNull("wikiConfig")) {
+            kb.setWikiConfig(config.get("wikiConfig"));
         }
-        if (config.hasNonNull("auto_tag_config")) {
-            kb.setAutoTagConfig(config.get("auto_tag_config"));
+        if (config.hasNonNull("autoTagConfig")) {
+            kb.setAutoTagConfig(config.get("autoTagConfig"));
         }
-        // indexing_strategy：指针语义 nil=不变；HasAnyIndexing 为 false → 400
-        if (config.has("indexing_strategy") && config.get("indexing_strategy") != null
-                && config.get("indexing_strategy").isObject()) {
-            KnowledgeBaseIndexingStrategy strategy = KnowledgeBaseIndexingStrategy.from(config.get("indexing_strategy"));
+        // indexingStrategy：指针语义 nil=不变；HasAnyIndexing 为 false → 400
+        if (config.has("indexingStrategy") && config.get("indexingStrategy") != null
+                && config.get("indexingStrategy").isObject()) {
+            KnowledgeBaseIndexingStrategy strategy = KnowledgeBaseIndexingStrategy.from(config.get("indexingStrategy"));
             if (!strategy.hasAnyIndexing()) {
                 throw new BizException(AppError.badRequest("at least one indexing strategy must be enabled"));
             }

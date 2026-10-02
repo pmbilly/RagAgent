@@ -112,7 +112,7 @@ public class FaqChunkCodec {
      */
     public String faqIndexMode(KnowledgeBase kb) {
         JsonNode cfg = kb.getFaqConfig();
-        String mode = cfg == null ? "" : cfg.path("index_mode").asText("");
+        String mode = cfg == null ? "" : cfg.path("indexMode").asText("");
         return mode.isEmpty() ? "question_answer" : mode;
     }
 
@@ -121,7 +121,7 @@ public class FaqChunkCodec {
      */
     public String faqQuestionIndexMode(KnowledgeBase kb) {
         JsonNode cfg = kb.getFaqConfig();
-        String mode = cfg == null ? "" : cfg.path("question_index_mode").asText("");
+        String mode = cfg == null ? "" : cfg.path("questionIndexMode").asText("");
         return mode.isEmpty() ? "combined" : mode;
     }
 }

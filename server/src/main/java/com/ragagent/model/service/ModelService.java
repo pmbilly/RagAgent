@@ -362,16 +362,16 @@ public class ModelService implements ModelGateway  {
         if (modelId.equals(stringOrNull(row.get("summary_model_id")))) {
             bindings.add("summary_model");
         }
-        if (modelId.equals(jsonField(row.get("image_processing_config"), "model_id"))) {
+        if (modelId.equals(jsonField(row.get("image_processing_config"), "modelId"))) {
             bindings.add("image_processing_model");
         }
-        if (modelId.equals(jsonField(row.get("vlm_config"), "model_id"))) {
+        if (modelId.equals(jsonField(row.get("vlm_config"), "modelId"))) {
             bindings.add("vlm_model");
         }
-        if (modelId.equals(jsonField(row.get("asr_config"), "model_id"))) {
+        if (modelId.equals(jsonField(row.get("asr_config"), "modelId"))) {
             bindings.add("asr_model");
         }
-        if (modelId.equals(jsonField(row.get("wiki_config"), "synthesis_model_id"))) {
+        if (modelId.equals(jsonField(row.get("wiki_config"), "synthesisModelId"))) {
             bindings.add("wiki_synthesis_model");
         }
         return bindings;

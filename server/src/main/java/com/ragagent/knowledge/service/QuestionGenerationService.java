@@ -147,7 +147,7 @@ public class QuestionGenerationService {
 
         int questionCount = clampQuestionCount(p.questionCount());
         JsonNode qg = kb.getQuestionGenerationConfig();
-        String customInstructions = qg == null ? "" : qg.path("custom_instructions").asText("");
+        String customInstructions = qg == null ? "" : qg.path("customInstructions").asText("");
 
         List<Chunk> batch = new ArrayList<>(batchIds.size());
         for (String id : batchIds) {

@@ -676,7 +676,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         TracingContext tracing =
                 LangfuseTracing.inject();
         int questionCount = kb.getQuestionGenerationConfig() == null ? 0
-                : kb.getQuestionGenerationConfig().path("question_count").asInt(0);
+                : kb.getQuestionGenerationConfig().path("questionCount").asInt(0);
         for (QuestionBatchPlanner.Batch batch : batches) {
             try {
                 queue.enqueue(QuestionBatchPayload.withTracing(k.getTenantId(), kb.getId(), knowledgeId,

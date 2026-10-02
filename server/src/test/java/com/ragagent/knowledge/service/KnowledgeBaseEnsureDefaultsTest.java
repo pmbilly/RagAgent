@@ -88,7 +88,7 @@ class KnowledgeBaseEnsureDefaultsTest {
 
         KnowledgeBase doc = kb("document");
         doc.setIndexingStrategy(allFalse());
-        doc.setFaqConfig(MAPPER.readTree("{\"index_mode\":\"question_only\"}"));
+        doc.setFaqConfig(MAPPER.readTree("{\"indexMode\":\"question_only\"}"));
         doc.setAutoTagConfig(MAPPER.readTree("{\"enabled\":true}"));
         KnowledgeBaseService.ensureDefaults(doc);
         assertThat(doc.getFaqConfig()).as("非 faq 类型清掉 faq_config").isNull();

@@ -533,8 +533,9 @@
 | **3a** | **创建知识库**请求 DTO 化（不再绑定数据库实体）：新增 `CreateKbRequest`（复用批次 2 视图 + VLM 请求形态含 apiKey），删除 omitempty 归一三辅助；前端创建载荷同步 camelCase | ✅ 2026-09-29 |
 | **3b** | 其余请求侧 DTO 化：`updateKnowledge`（显式部分更新 DTO）、chunk 删除生成问题、批量重解析、标签删除（复用既有 DTO 并去 snake_case）；4 处手搓解析全部删除。仅 `POST /knowledge/{id}/reparse` 保留忽略体（有意为之：只做语法校验） | ✅ 2026-09-29 |
 | **4** | 知识库模块停用 `Go*` 序列化器（时间走全局 OffsetDateTime 序列化器，double 走标准 Jackson；`GoJsonBindError` 改标准文案）+ 注释打磨（黑话转人话、清空 JavaDoc） | ✅ 2026-09-29 |
+| **5** | `knowledge_bases.*_config` 的 **jsonb 内层键** camelCase（`wikiConfig.synthesisModelId`/`questionGenerationConfig.questionCount`/`faqConfig.indexMode`/`autoTagConfig.maxTags`/`indexingStrategy.vectorEnabled`…）+ 服务端读取器与更新路径 dispatch 键同步 + `V2__kb_config_keys_camel.sql` 存量迁移（含列默认值） | ✅ 2026-10-02（HANDOFF §15 B3b；此前内层键分裂导致界面选择被静默忽略） |
 
 > **四批收官（2026-09-29）**：知识库模块的对外契约与请求侧已完成 Java 本位化——camelCase、裸资源信封、显式 null、DTO 解耦（实体不再直连 API）、手搓解析清零、Go 序列化器不再被引用。
 > **后续批次（逐域）**：evaluation → model → system → auth → memory → session → embed → mcp → datasource → wiki（执行记录见 HANDOFF §14.9b~r）；契约尾巴全清 + 散存量七域 + 错误体统一（HANDOFF §14.9s）；两轮前端对齐债修复（HANDOFF §14.9s 复查批/复查二批）。
 > **收官（2026-10-02）**：全服务端 ① camelCase（`@JsonProperty` 残留 913 处均为 §14.6 冻结面）② 错误体统一 ③ 信封/分页/恒输出口径统一 ④ 前端同 PR 对齐——**本规范自此升格 v1.1 全服务端标准**。
-> **仍待办**：见 HANDOFF §15 全面修复计划（B0 端到端走查 P0 起步）。
+> **仍待办**：见 HANDOFF §15 全面修复计划（B0 端到端走查 ✅ 2026-10-02、B3b ✅ 2026-10-02；余 B5/B6/B9/B10/B11 与 §15.1.1 登记残留）。

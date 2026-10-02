@@ -87,7 +87,7 @@ export function createKnowledgeBase(data: {
   chunkingConfig?: any;
   embeddingModelId?: string;
   summaryModelId?: string;
-  autoTagConfig?: { enabled: boolean; model_id?: string; max_tags?: number; skip_if_tagged?: boolean };
+  autoTagConfig?: { enabled: boolean; modelId?: string; maxTags?: number; skipIfTagged?: boolean };
   // Opt-in binding to a specific tenant-owned VectorStore. Omit (or
   // send undefined / empty string) to fall back to the env-configured
   // store. Immutable after creation — UpdateKnowledgeBase intentionally
@@ -110,13 +110,13 @@ export function createKnowledgeBase(data: {
     language?: string;
   };
   extractConfig?: any;
-  faqConfig?: { index_mode: string; question_index_mode?: string };
+  faqConfig?: { indexMode: string; questionIndexMode?: string };
   wikiConfig?: {
-    synthesis_model_id?: string;
-    max_pages_per_ingest?: number;
-    extraction_granularity?: 'focused' | 'standard' | 'exhaustive';
-    content_instructions?: string;
-    extraction_instructions?: string;
+    synthesisModelId?: string;
+    maxPagesPerIngest?: number;
+    extractionGranularity?: 'focused' | 'standard' | 'exhaustive';
+    contentInstructions?: string;
+    extractionInstructions?: string;
   };
   indexingStrategy?: {
     vectorEnabled: boolean;
@@ -140,22 +140,22 @@ export function updateKnowledgeBase(id: string, data: {
   name: string;
   description?: string;
   config?: {
-    chunking_config?: any;
-    image_processing_config?: any;
-    faq_config?: any;
-    wiki_config?: {
-      synthesis_model_id?: string;
-      max_pages_per_ingest?: number;
-      extraction_granularity?: 'focused' | 'standard' | 'exhaustive';
-      content_instructions?: string;
-      extraction_instructions?: string;
+    chunkingConfig?: any;
+    imageProcessingConfig?: any;
+    faqConfig?: any;
+    wikiConfig?: {
+      synthesisModelId?: string;
+      maxPagesPerIngest?: number;
+      extractionGranularity?: 'focused' | 'standard' | 'exhaustive';
+      contentInstructions?: string;
+      extractionInstructions?: string;
     };
-    auto_tag_config?: { enabled: boolean; model_id?: string; max_tags?: number; skip_if_tagged?: boolean };
-    indexing_strategy?: {
-      vector_enabled: boolean;
-      keyword_enabled: boolean;
-      wiki_enabled: boolean;
-      graph_enabled: boolean;
+    autoTagConfig?: { enabled: boolean; modelId?: string; maxTags?: number; skipIfTagged?: boolean };
+    indexingStrategy?: {
+      vectorEnabled: boolean;
+      keywordEnabled: boolean;
+      wikiEnabled: boolean;
+      graphEnabled: boolean;
     };
   }
 }) {

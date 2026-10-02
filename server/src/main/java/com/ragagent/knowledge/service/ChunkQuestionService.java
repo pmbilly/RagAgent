@@ -315,14 +315,14 @@ public class ChunkQuestionService {
         String nextContent = resolveNeighborContent(tenantId, chunk, chunk.getNextChunkId());
         // 生成问题配置缺省：count=3、上限 10
         JsonNode qg = kb.getQuestionGenerationConfig();
-        int questionCount = qg == null ? 0 : qg.path("question_count").asInt(0);
+        int questionCount = qg == null ? 0 : qg.path("questionCount").asInt(0);
         if (questionCount <= 0) {
             questionCount = 3;
         }
         if (questionCount > 10) {
             questionCount = 10;
         }
-        String customInstructions = qg == null ? "" : qg.path("custom_instructions").asText("");
+        String customInstructions = qg == null ? "" : qg.path("customInstructions").asText("");
         List<String> questions = generateQuestionsWithContext(
                 chatModel, chunk.getContent(), prevContent, nextContent,
                 knowledge.getTitle(), questionCount, customInstructions);

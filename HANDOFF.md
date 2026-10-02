@@ -45,11 +45,11 @@
    复查批后全仓 `@JsonProperty` 余量 913 处全部是登记冻结面（§14.6）**。
 4. **下一步（2026-10-02 更新）**：§15 计划已完成 **B0 端到端真实走查（P0，2026-10-02 收官，修 15 处断点）/
    B1 契约文档 v1.1 / B2 金片对比器统一（GoldenContract 上线，字节级对比清零）/ B3 `@JsonInclude` 恒输出化
-   （真面 68 处；yunzhijia 第三方回退；KB config 双轨登记 B3b）/ B4 零值哨兵（结论：不改，已知例外）/
-   B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行与 §15.1.1）。
+   （真面 68 处；yunzhijia 第三方回退）/ **B3b KB 配置 jsonb 键名统一（camelCase + V2 存量迁移，2026-10-02 收官）** /
+   B4 零值哨兵（结论：不改，已知例外）/ B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行与 §15.1.1）。
    **剩余待做**：B5 lf_* 评估（判定后可搁置）/ B6 getenv 收敛 151 处 / B9 Go 锚点随批 / B10 ArchUnit 进 CI /
-   B11 多模块（最后做）。**B0 新登记 5 项残留见 §15.1.1**——其中 **B3b′（`wiki_config` 内层键三方不一致，
-   界面选的 wiki 合成模型被静默忽略）已升格为可复现真实缺陷，建议优先立项**。
+   B11 多模块（最后做）。**B0 登记残留见 §15.1.1**（B3b′ 已修；其余 4 项含 `process_overrides` 写了不用、
+   wiki 死信槽位无人释放、孤儿 wiki op 不重放、存储引擎设置孤儿组件）。
    **新会话接手**：直接读 §15.1 批次表（状态列）+ §15.1.1 执行记录 + §15.2 纪律五条（开工前必读）+
    §15.3 非目标冻结清单；做完一批把 ✅ 与记录写回 §15.1。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
@@ -2770,7 +2770,8 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B0 端到端真实走查** | 起服（后端 8083 + 前端 dev）按域走查 14 条链路：注册/登录/**令牌刷新**/登出 → 空间创建/切换/成员邀请/**审计页** → KB 创建/摄取/**处理时间线**/预览 → 检索/对话（SSE）→ wiki 浏览/编辑 → datasource（RSS 桩）同步/凭据 → im 渠道 CRUD → vectorstore/storage 设置 → 收藏/技能目录/模型调试/系统运行时页。每条记录 API 形状 × 视图渲染 × 控制台报错 | **P0** | 1-2 天 | ✅ **完成（2026-10-02）**——14 条链路全走通，修 15 处断点（前端 12：裸体未适配 8 + 字段漂移 4 族；后端 2）+ 1 处 dev 环境配置；登记 5 项残留（含 B3b′ 升格）。详见 15.1.1 |
 | **B1 契约文档同步** | `docs/knowledge-api-contract-v1.md` v1.0→v1.1：错误体、裸信封/裸数组、游标分页、恒输出、204 语义、七域差异表 | P0 | 小 | ✅ |
 | **B2 金片对比器统一** | `support/GoldenContract` 共享基建（deep 归一 + strip + 单一 refresh 开关）；字节级（`goldenBytes`/裸 compare）与语义级双轨并存 → 语义单轨，存量字节级测试逐个迁移 | P0 | 中 | ✅ |
-| **B3 `@JsonInclude` 恒输出化** | 真面 68 处（19 文件：wiki domain 全家 + websearch 三 DTO + VectorStoreTypes）；冻结面豁免（tenantconfig/LLM 载荷/event/tracing/common/agent/stream + connector + lf_*）；每域重录夹具 + 前端键集合核对 | P1 | 中 | ✅（**B3b 已登记**：KB 更新请求 `faq_config/wiki_config/...` 外层 dispatch 键+内层业务键是落库 jsonb 透传三方咬合面，改键=落库格式变更，独立可选批） |
+| **B3 `@JsonInclude` 恒输出化** | 真面 68 处（19 文件：wiki domain 全家 + websearch 三 DTO + VectorStoreTypes）；冻结面豁免（tenantconfig/LLM 载荷/event/tracing/common/agent/stream + connector + lf_*）；每域重录夹具 + 前端键集合核对 | P1 | 中 | ✅（**B3b 已登记并已执行**——见下行） |
+| **B3b KB 配置 jsonb 键名统一（camelCase）** | 由 B0 走查升格为真实缺陷：`knowledge_bases` 的 `*_config` 列三方咬合面（前端 payload / 服务端读取器 / 落库 jsonb）键名分裂，导致界面上的 wiki 合成模型、问题生成参数、索引开关被静默忽略。服务端读取器 + 更新路径 dispatch 键 + 前端 payload/读取/类型 + V2 存量迁移 + 列默认值（连带修掉「编辑弹窗恒打不开」的裸资源读取） | **P1** | 中 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B4 Go 零值时间哨兵 → null** | `0001-01-01T00:00:00Z`（AgentStep / agentm GO_ZERO_TIME / init goTime 系） | P1 | 小-中 | ✅ **结论：不改**（调查后判已知例外，见 15.1.1） |
 | **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键；先出判定再动刀 | P1 | 判定小 | ⬜ 待做（可判定后搁置——载具当前工作正常） |
 | **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | ⬜ 待做 |
@@ -2804,10 +2805,20 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
   - **前端 B 类·字段读取漂移（视图层读 snake，服务端已 camelCase，共 4 处族）**：① wiki stats 四键（`pending_issues/pending_tasks/is_active/pages_by_type`）→ wiki 头部徽标与类型分桶恒空；② folderTree 计数键（`root_document_count` 等）+ 两个文档视图 + 测试夹具 → 文件夹计数恒 0（`vue-tsc` 报 17 错）；③ `KnowledgeBase.vue` 三处：`item_count`→`documentCount`（卡片计数恒 0）、`storageConfig.provider`→`defaultProvider` 与 KV 的 `default_provider/provider/storage_type`（双触发「尚未选择存储引擎」误报）、`resource_type/resource_id`→camel（收藏星标失效）；④ 其余同族：`KBInfoPopover`、`knowledge-processing-timeline`+`utils/knowledgeTrace`（含测试）、`UploadConfirmDialog`、`TagEditDialog`/`BatchTagDialog`、`AgentEditorModal`、`KnowledgeBaseEditorModal`、`api/auth` 的 `is_active`。**最重一例**：检索引擎设置（⌘K 面板）`embedding_top_k`→`embeddingTopK`——表单恒显默认 5，用户保存即被覆盖（静默改写用户配置，走查抓出）。
   - **后端 2**：⑩ `KnowledgeProcessWorker.planFinalizing` wiki 子任务入队前先校验合成模型可解析（原先无模型也占槽入队 → ingest 重试 11 次后死信、**文档永远 finalizing**，实测复现）；⑪ `StartupTaskRecovery` Lite 模式不再排除「wiki 独槽」finalizing 行（Go 原文「启动后能重建触发器」在单机形态不成立——实测重启后无人触发，卡片永远「优化中」；重启后该行已实际复位为 failed 可重试）。
   - **环境 1**：`.env` 补 `DOCREADER_ADDR=localhost:50051`（连接态判据是「该 env 是否为空」而非探活，缺失时 `/system/parser-engines` 报 `connected:false`、内置引擎显示「不可用」、KB 页提示「暂无可解析引擎」，而解析其实正常）。
-- **登记 5 项残留**：① **B3b 升格为真实缺陷（B3b′）**——KB 更新请求 `wiki_config` 内层键是 snake（前端写）而 Java 值类型 `wiki.domain.WikiConfig` 读 camelCase（无线名注解）→ **界面选的 wiki 合成模型被静默忽略**（实测：写入 `synthesis_model_id` 后 ingest 仍报 `missing_synthesis_model`）；修需一次落库键迁移 + 前端 payload + 读回三处同批。② wiki op 永久失败时无人释放槽位（死信路径缺 `WikiFinalizePort.finalizeWikiSubtask` 调用）——⑩ 只挡「无模型」这一新发生，运行期其它永久失败仍会搁浅。③ 孤儿 wiki op 不重放（Lite 重启后持久化 op 不再触发；⑪ 让文档不卡，但该文 wiki 内容要等下一次 KB 触发补生成）。④ `views/settings/StorageEngineSettings.vue` 是孤儿组件（`Settings.vue` 用该别名 import 的实为 `StorageBackendSettings.vue`）→ 存储引擎 KV 表单 UI 不可达。⑤ 每次登录都会打一发 `POST /auth/auto-setup` → 403「auto-setup is only available in lite edition」（控制台噪音，会掩住真 403；前端若能从 `/auth/config` 拿到版本信号即可前置跳过）。
+- **登记 5 项残留**：① **B3b 升格为真实缺陷（B3b′）**——KB 更新请求 `wiki_config` 内层键是 snake（前端写）而 Java 值类型 `wiki.domain.WikiConfig` 读 camelCase（无线名注解）→ **界面选的 wiki 合成模型被静默忽略**（实测：写入 `synthesis_model_id` 后 ingest 仍报 `missing_synthesis_model`）；修需一次落库键迁移 + 前端 payload + 读回三处同批。**（2026-10-02 同会话已执行：见本页 ✅ B3b 记录）**② wiki op 永久失败时无人释放槽位（死信路径缺 `WikiFinalizePort.finalizeWikiSubtask` 调用）——⑩ 只挡「无模型」这一新发生，运行期其它永久失败仍会搁浅。③ 孤儿 wiki op 不重放（Lite 重启后持久化 op 不再触发；⑪ 让文档不卡，但该文 wiki 内容要等下一次 KB 触发补生成）。④ `views/settings/StorageEngineSettings.vue` 是孤儿组件（`Settings.vue` 用该别名 import 的实为 `StorageBackendSettings.vue`）→ 存储引擎 KV 表单 UI 不可达。⑤ 每次登录都会打一发 `POST /auth/auto-setup` → 403「auto-setup is only available in lite edition」（控制台噪音，会掩住真 403；前端若能从 `/auth/config` 拿到版本信号即可前置跳过）。
 - **未走**：第三方 connector 真凭据面（飞书/Notion/GitLab 等）、embed 渠道公开面、mcp OAuth（无桩、属 §14.6 冻结面）。
 - **闸门**：前端 `vue-tsc` 0 错 + `npm test` 690 绿；后端 `spotlessCheck` 绿 + config/knowledge/wiki/system/session/datasource 六域测试全绿；上述每处修复都有真实服务复验（成员表与邀请列表出现、横幅消失、wiki/图谱 tab 出现、`/system/parser-engines` 转 `connected:true`、新文档 `completed + pending 0`、旧卡死文档复位 failed）。
 - **教训**：「api 类型文件对齐 ≠ 消费端对齐」在本轮被证伪到第 9 例，且**类型断言把漂移全藏住**——凡是 `get<T>()` 泛型断言过的响应，消费端读错键 TS 一声不吭；这类断点只能靠「真数据 × 真渲染」走查兜底（VII 复查两批的静态闸门盲区判断成立）。
+
+**✅ B3b（2026-10-02，由 B0 走查升格）**：知识库配置 jsonb 键名统一到 Java 字段名（camelCase）——前端 payload / 服务端读取器 / 落库列三方咬合面同批对齐。
+- **修前真相**（走查实测 + 代码核查）：同一批配置列的键名分裂成三种——① `wiki_config` 读端是 camel（`wiki.domain.WikiConfig` 无线名注解：`synthesisModelId/maxPagesPerIngest/...`）而前端写 snake → **界面选的 wiki 合成模型与全部 wiki 调参被静默忽略**（实测写入 `synthesis_model_id` 后 ingest 仍报 `missing_synthesis_model`）；② `faq_config`/`question_generation_config` 的**同一列有两个读端**：`ChunkQuestionService`/`FaqIndexRows` 读 snake，而 `InitializationConfigService` 读 camel（`questionCount`/`customInstructions`）→ 编辑器加载配置时把已存的问题数显示成 0、**保存即写回 0（静默数据丢失）**；③ 更新路径的 `config.*` 外层 dispatch 键是 snake（`faq_config/wiki_config/auto_tag_config/indexing_strategy`）而创建面是 camel → 编辑态保存的索引开关（`vector_enabled` 等）落库后服务端读不到（`KnowledgeBaseIndexingStrategy` 读 camel）。
+- **服务端（7 文件）**：读取器统一 camel——`KnowledgeProcessWorker`/`ChunkQuestionService`/`QuestionGenerationService`（`question_count`→`questionCount`、`custom_instructions`→`customInstructions`）、`FaqIndexRows`/`FaqChunkCodec`（`index_mode`/`question_index_mode`→camel）、`ModelService` 的「模型被谁引用」扫描（`image_processing_config`/`vlm_config`/`asr_config` 的 `model_id` 与 `wiki_config` 的 `synthesis_model_id`→camel）；`KnowledgeBaseService.applyUpdateConfig` 的 dispatch 键改 camel（与 `CreateKnowledgeBaseRequest` 同名同形）。**未动**：`ChunkQuestionService` 里的 `{{question_count}}` 是提示词占位符不是配置键。
+- **前端（7 文件）**：创建/更新 payload 内层键（`wikiConfig` 五键、`faqConfig` 两键、`questionGenerationConfig` 两键、`autoTagConfig` 三键、`extractConfig.customInstructions`）+ 更新外层 dispatch 键改 camel；读取点（编辑器 `loadKBData`、上传确认框 `initFromKbInfo`、`Input-field` 能力回退、`KnowledgeBaseList` 内联类型）同步；`api/knowledge-base` 创建/更新 DTO 改 camel。**顺带修死读**：`Input-field.vue` 的 `s.vector_enabled`/`s.keyword_enabled` 在 camel 对象上永远取不到（能力回退恒 false）。
+- **迁移**：新增 `migrations/versioned/V2__kb_config_keys_camel.sql`——递归键改名（含数组内对象，如 `parser_engine_rules[].file_types`）覆盖 12 个配置列，幂等（已 camel 的键不在映射表）；并把 `chunking_config`/`image_processing_config` 的**列默认值**改 camel（默认值也是新行的落库内容）。dev 库 8 行已迁，Flyway 启动 `Successfully applied 1 migration ... now at version v2`。
+- **测试**：`FaqContractTest`（6 例）+ `WikiPageServiceTest` + `KnowledgeBaseEnsureDefaultsTest` 的种子数据改 camel——FAQ 那 6 例红是本次唯一既有断言冲突，方向正确（种子就是旧 snake 写法）。`WikiDomainTest` 的历史行容忍用例保留 snake（它断言"未知键被忽略"，仍是有效形状）。
+- **连带修掉 2 处存量断点（B3b 验证时打开编辑器才暴露）**：① `KnowledgeBaseEditorModal.loadKBData` 读了 `kbInfo.data`，而 `GET /knowledge-bases/{id}` 是裸资源（§2.1）——**知识库设置/编辑弹窗对每个知识库都恒抛「知识库不存在」**（其余 5 个消费点都按裸体读，只有这一处漏改）；② 同处 `(kb as any).tenant_id` → `tenantId`（漂移使 `kbTenantId` 恒 0 → `canViewActivity` 恒 false，**编辑弹窗里的活动面板对所有人不可见**）。两条都实测复现/实测修复：修前点齿轮弹「加载知识库数据失败」，修后弹窗正常打开且回显存量参数（问题数 5、指令「用中文提问」、提取粒度「详细」、标签上限 6）。
+- **验证**：前端 `vue-tsc` 0 错 + `npm test` 690 绿；后端 `spotlessCheck` 绿 + **全量测试绿**；真机冒烟——camel 建库回读一致、`/initialization/config/{id}` 的问题数由 0 变 5、PUT 用 camel dispatch 后库内三列全 camel、上传文档后 wiki ingest 由 `missing_synthesis_model` 变 `status=success` 且 `tunables(batch=5,map_par=10,reduce_par=10,max_inflight=4)` 生效、问题生成任务用上了 KB 选的模型与参数（失败仅因桩 LLM 返回固定文案、非 JSON）、编辑器 UI 回显一致（截图）。
+- **登记（本批未动）**：① `knowledges.metadata.process_overrides`（每文件上传覆盖配置）键名仍 snake，且全服务端**无任何读取点**——该功能写了不用（前端上传框照写、时间线照读，服务端忽略）；② agent 域 `custom_agents.config` jsonb 内层键仍 snake（读写两端一致，属 §11.2 边界）；③ `ModelService` 的绑定标签值（`vlm_model` 等）是线格式字符串值，未动。
 
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
