@@ -57,105 +57,136 @@ FROZEN_PREFIXES = (
 
 # 基线：已逐条复核的例外（文件相对路径 → 允许的键集合）。新增即失败。
 BASELINE: dict[str, set[str]] = {
-    # langfuse 线上字段（第三方契约，出站载荷即此形态）
-    'common/context/TracingContext.java': {'lf_trace_id', 'lf_parent_obs_id', 'lf_traceparent',
-                                           'lf_user_id', 'lf_session_id'},
-    # 模型输出契约（提示词里就写 new_slugs；该 DTO 只解析入站，从不序列化出站）
-    'wiki/service/ingest/WikiIngestCitePipeline.java': {'new_slugs'},
-    # 既有内部 jsonb 状态键（改名需迁移存量行，登记不动）
-    'wiki/service/ingest/WikiIngestMapPhase.java': {'new_slugs'},
-    # ── B26 逐面判定后登记的例外 ────────────────────────────────────────────
-    # datasource 配置 jsonb（settings/credentials 里的键，存量面）
-    'datasource/dto/DataSourceResponse.java': {'feed_urls'},
-    # MCP 元数据**存量形态**（mcp_services.metadata 的序列化形状，用于算体积）
-    'mcp/service/McpMetadataService.java': {'service_id', 'server_name', 'server_version',
-                                            'server_description', 'synced_at'},
-    # 提示词模板**变量**（数据值，模板里就是 {{server_name}}）
-    'mcp/controller/McpUsageInstructionsOps.java': {'server_name'},
-    # 审计 details jsonb（前端按历史读，存量面）
-    'audit/service/AuditLogService.java': {'raw_path', 'required_role'},
-    # MyBatis 列名写入点（.set("列名") 非 JSON 键；扫描器按文本匹配的已知假阳性）
-    'knowledge/service/KnowledgeFileService.java': {'content_revision', 'enable_status',
-        'error_message', 'file_hash', 'file_name', 'file_path', 'file_size', 'file_type',
-        'parse_status', 'processed_at', 'summary_status'},
-    # ── B29 逐族判定后登记的例外（理由见行内注释；条目为**文件级**）──────────
-    # MyBatis 列名/参数（.set/.eq 列名，非 JSON 键）
-    'auth/service/TenantInvitationService.java': {'invitation_id', 'responded_at', 'updated_at'},
-    'auth/service/TenantMemberService.java': {'deleted_at', 'is_revoked', 'new_role', 'old_role', 'tenant_id', 'updated_at'},
-    'datasource/mapper/DataSourceRepository.java': {'conflict_strategy', 'created_at', 'deleted_at', 'error_message', 'knowledge_base_id', 'last_sync_at', 'sync_log_retention_days', 'sync_mode', 'sync_schedule', 'tenant_id', 'updated_at'},
-    'datasource/mapper/SyncLogRepository.java': {'created_at', 'data_source_id', 'error_message', 'finished_at', 'items_created', 'items_deleted', 'items_failed', 'items_skipped', 'items_total', 'items_updated', 'started_at', 'tenant_id', 'updated_at'},
-    'datasource/service/DataSourceItemOps.java': {'datasource_id', 'external_id', 'source_created_at', 'source_resource_id', 'source_updated_at'},
-    'datasource/service/DataSourceSupport.java': {'processing_status', 'resource_ids', 'task_id'},
-    'datasource/service/MapperKnowledgeBridge.java': {'deleted_at', 'updated_at'},
-    'knowledge/repository/ChunkRepository.java': {'content_revision', 'deleted_at', 'index_status', 'is_enabled', 'last_editor_id', 'source_content', 'updated_at'},
-    'knowledge/repository/FaqChunkRepository.java': {'is_enabled', 'tag_id', 'updated_at'},
-    'knowledge/service/FaqEntryCommandService.java': {'source_type'},
-    'knowledge/service/KnowledgeBaseService.java': {'deleted_at'},
-    'knowledge/service/KnowledgeBatchOpsService.java': {'deleted_at', 'enable_status', 'error_message', 'parse_status', 'processed_at', 'updated_at'},
-    'knowledge/service/KnowledgeCloneService.java': {'deleted_at'},
-    'knowledge/service/KnowledgeFolderService.java': {'folder_path', 'updated_at'},
-    'knowledge/service/KnowledgeMoveService.java': {'embedding_model_id', 'enable_status', 'error_message', 'knowledge_base_id', 'parse_status', 'processed_at', 'storage_size', 'updated_at'},
-    'knowledge/service/KnowledgeParseService.java': {'error_message', 'parse_status', 'pending_subtasks_count', 'updated_at'},
-    'knowledge/service/KnowledgeService.java': {'deleted_at', 'updated_at'},
-    'knowledge/service/KnowledgeSummaryService.java': {'summary_status'},
-    'model/service/BuiltinModelsReconciler.java': {'deleted_at', 'is_default'},
-    'model/service/ModelService.java': {'agent_total', 'deleted_at', 'knowledge_base_total'},
-    'system/service/SystemAdminUserService.java': {'is_revoked'},
-    'wiki/service/DefaultWikiKnowledgeFinalizer.java': {'error_message', 'parse_status', 'processed_at', 'updated_at'},
-    # 观测/追踪载荷（PipelineLog/MemoryTrace 面，非契约）
-    'memory/service/MemoryInsightOps.java': {'candidate_count', 'lexical_hits', 'matched_count', 'ranking_mode', 'subject_id', 'vector_hits', 'vector_outside', 'vector_skip'},
-    'memory/service/MemoryRecallOps.java': {'block_runes', 'candidate_count', 'fused_candidates', 'interest_injected', 'interest_relevant', 'interest_total', 'lexical_hits', 'matched_count', 'prompt_runes', 'ranking_mode', 'resident_count', 'subject_id', 'used_count', 'vector_hits', 'vector_outside', 'vector_skip'},
-    'memory/service/MemoryRecallSelector.java': {'outside_pool', 'skip_reason'},
-    'memory/service/MemoryTrace.java': {'conditioned_items', 'document_count', 'interest_count', 'recalled_items', 'recalled_items_truncated'},
-    # 租户/系统配置 jsonb（存量面）
-    'auth/service/TenantService.java': {'compression_strategy', 'deleted_at', 'max_tokens', 'recent_message_count', 'summarize_threshold'},
+    # agent_steps 落库列 + 历史回放
+    'agent/ActPhase.java': {'args_redacted', 'argument_resolution', 'data_keys', 'duration_ms', 'image_count', 'mcp_service', 'mcp_tool', 'model_arg_keys', 'model_arguments', 'output_len', 'resolved_arg_keys', 'resolved_arguments', 'session_id', 'tool_call_id', 'tool_index', 'unresolved_handle_count', 'unresolved_handles'},
     # 模板令牌（数据值，非 JSON 键）
     'agent/AgentPrompts.java': {'current_time', 'web_search_status'},
+    # 审计 details jsonb（存量 + 回放）
+    'audit/service/AuditLogService.java': {'raw_path', 'required_role'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'auth/service/TenantInvitationService.java': {'invitation_id', 'responded_at', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'auth/service/TenantMemberService.java': {'deleted_at', 'is_revoked', 'new_role', 'old_role', 'tenant_id', 'updated_at'},
+    # 租户配置 jsonb（存量面）
+    'auth/service/TenantService.java': {'compression_strategy', 'deleted_at', 'max_tokens', 'recent_message_count', 'summarize_threshold'},
+    # 内部预设名（presets() 仅内部查表）
+    'chatpipeline/PipelineBuilder.java': {'chat_history_stream', 'chat_stream', 'rag_stream'},
+    # PipelineLog 观测面（日志字段，非契约）
+    'chatpipeline/support/SearchSupport.java': {'chunk_id', 'dropped_id', 'kept_id', 'match_type'},
+    # langfuse 线上字段（第三方契约）
+    'common/context/TracingContext.java': {'lf_parent_obs_id', 'lf_session_id', 'lf_trace_id', 'lf_traceparent', 'lf_user_id'},
     # MDC 日志键（非 JSON）
     'common/filter/RequestIdFilter.java': {'request_id'},
-    # OpenSearch/第三方引擎字段
+    # OpenSearch 字段
     'config/OpenSearchAuditSinkAdapter.java': {'dst_alias', 'src_alias'},
-    'retrieval/graph/Neo4jGraphRepository.java': {'knowledge_id', 'source_labels', 'target_labels'},
-    # langfuse 线上字段
+    # datasource 配置 jsonb（存量面）
+    'datasource/dto/DataSourceResponse.java': {'feed_urls'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'datasource/mapper/DataSourceRepository.java': {'conflict_strategy', 'created_at', 'deleted_at', 'error_message', 'knowledge_base_id', 'last_sync_at', 'sync_log_retention_days', 'sync_mode', 'sync_schedule', 'tenant_id', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'datasource/mapper/SyncLogRepository.java': {'created_at', 'data_source_id', 'error_message', 'finished_at', 'items_created', 'items_deleted', 'items_failed', 'items_skipped', 'items_total', 'items_updated', 'started_at', 'tenant_id', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'datasource/service/DataSourceItemOps.java': {'datasource_id', 'external_id', 'source_created_at', 'source_resource_id', 'source_updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'datasource/service/DataSourceSupport.java': {'processing_status', 'resource_ids', 'task_id'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'datasource/service/MapperKnowledgeBridge.java': {'deleted_at', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/repository/ChunkRepository.java': {'content_revision', 'deleted_at', 'index_status', 'is_enabled', 'last_editor_id', 'source_content', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/repository/FaqChunkRepository.java': {'is_enabled', 'tag_id', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/service/FaqEntryCommandService.java': {'source_type'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/service/KnowledgeBaseService.java': {'deleted_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/service/KnowledgeBatchOpsService.java': {'deleted_at', 'enable_status', 'error_message', 'parse_status', 'processed_at', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/service/KnowledgeCloneService.java': {'deleted_at'},
+    # MyBatis 列名写入点（非 JSON 键）
+    'knowledge/service/KnowledgeFileService.java': {'content_revision', 'embedding_model_id', 'enable_status', 'error_message', 'file_hash', 'file_name', 'file_path', 'file_size', 'file_type', 'parse_status', 'processed_at', 'summary_status', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/service/KnowledgeFolderService.java': {'folder_path', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/service/KnowledgeMoveService.java': {'embedding_model_id', 'enable_status', 'error_message', 'knowledge_base_id', 'parse_status', 'processed_at', 'storage_size', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/service/KnowledgeParseService.java': {'error_message', 'parse_status', 'pending_subtasks_count', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/service/KnowledgeService.java': {'deleted_at', 'updated_at'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'knowledge/service/KnowledgeSummaryService.java': {'summary_status'},
+    # langfuse 面
     'knowledge/service/SpanTracker.java': {'langfuse_trace_id', 'updated_at'},
+    # 提示词模板变量（数据值，模板里是 {{server_name}} 等）
+    'mcp/controller/McpUsageInstructionsOps.java': {'omitted_tools', 'server_description', 'server_instructions', 'server_name'},
+    # MCP 存量 metadata 形态（算体积用）
+    'mcp/service/McpMetadataService.java': {'server_description', 'server_name', 'server_version', 'service_id', 'synced_at'},
+    # memory 观测/追踪载荷（非契约）
+    'memory/service/MemoryInsightOps.java': {'candidate_count', 'lexical_hits', 'matched_count', 'ranking_mode', 'subject_id', 'vector_hits', 'vector_outside', 'vector_skip'},
+    # memory 观测/追踪载荷（非契约）
+    'memory/service/MemoryRecallOps.java': {'block_runes', 'candidate_count', 'fused_candidates', 'interest_injected', 'interest_relevant', 'interest_total', 'lexical_hits', 'matched_count', 'prompt_runes', 'ranking_mode', 'resident_count', 'subject_id', 'used_count', 'vector_hits', 'vector_outside', 'vector_skip'},
+    # memory 观测/追踪载荷（非契约）
+    'memory/service/MemoryRecallSelector.java': {'outside_pool', 'skip_reason'},
+    # memory 观测/追踪载荷（非契约）
+    'memory/service/MemoryTrace.java': {'conditioned_items', 'document_count', 'interest_count', 'recalled_items', 'recalled_items_truncated'},
     # model 凭据面（两端自洽，统一另立批）
     'model/dto/CredentialsResponse.java': {'api_key', 'app_secret'},
+    # model 凭据面（两端自洽，统一另立批）
     'model/dto/ModelResponse.java': {'api_key', 'app_secret'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'model/service/BuiltinModelsReconciler.java': {'deleted_at', 'is_default'},
+    # MyBatis 列名/统计查询（非 JSON 键）
+    'model/service/ModelService.java': {'agent_total', 'deleted_at', 'knowledge_base_total'},
     # WeKnora Cloud 第三方 API
     'model/service/WeKnoraCloudService.java': {'app_id', 'app_secret'},
     # 读取 SQL/检索行键（存量面）
     'modelcontext/ModelOutput.java': {'knowledge_id', 'knowledge_title'},
+    # Cypher 字段
+    'retrieval/graph/Neo4jGraphRepository.java': {'knowledge_id', 'source_labels', 'target_labels'},
     # ImageInfo 面（§15.3 冻结族）
     'retrieval/support/ImageInfoMatchUtil.java': {'end_pos', 'ocr_text', 'original_url', 'start_pos'},
     # web 引用载荷（同 ReferencesSupport 存量面）
     'retrieval/support/WebResultConverter.java': {'published_at'},
-    # HTTP query 参数名（非 JSON 键）
-    'storage/fileserve/FileProxyService.java': {'file_path'},
-    # 平台审计 details jsonb（存量 + 回放）
-    'system/controller/SystemAdminController.java': {'quota_bytes', 'quota_gb', 'scope_type'},
-    'system/service/SystemSettingService.java': {'new_value', 'old_value', 'value_type'},
-}
-    # ── B27 逐面判定后登记的例外（理由见行内注释）──────────────────────────
-    # PipelineLog 观测面（日志字段，非契约）
-    'chatpipeline/support/SearchSupport.java': {'chunk_id', 'dropped_id', 'kept_id', 'match_type'},
-    # 内部预设名（presets() 仅 EvaluationService 内部查表）
-    'chatpipeline/PipelineBuilder.java': {'chat_history_stream', 'chat_stream', 'rag_stream'},
-    # agent_steps 落库列（AgentStepListTypeHandler）+ 历史回放
-    'agent/ActPhase.java': {'args_redacted', 'argument_resolution', 'data_keys', 'duration_ms', 'image_count', 'mcp_service', 'mcp_tool', 'model_arg_keys', 'model_arguments', 'output_len', 'resolved_arg_keys', 'resolved_arguments', 'session_id', 'tool_call_id', 'tool_index', 'unresolved_handle_count', 'unresolved_handles'},
+    # 工具结果/附件载荷（存量面，同 tool-results）
+    'session/controller/QaAttachmentResolver.java': {'display_type', 'parsed_count', 'skipped_count'},
+    # SSE/消息载荷（与 agent_steps 同族，改则直播与回放脱节）
+    'session/controller/QaSseOrchestrator.java': {'assistant_created_at', 'assistant_message_id', 'session_id', 'user_created_at', 'user_message_id'},
+    # 同上（SSE/消息载荷）
+    'session/controller/SessionController.java': {'message_id', 'session_id'},
+    # steer 载荷（与 agent_steps 同族）
+    'session/controller/SteerController.java': {'kb_id', 'kb_name', 'kb_type', 'mentioned_items', 'service_id', 'skill_name', 'steer_id'},
+    # MyBatis 列名写入点（非 JSON 键）
+    'session/mapper/MessageRepository.java': {'agent_duration_ms', 'agent_id', 'agent_tenant_id', 'is_completed', 'is_fallback', 'knowledge_id', 'model_id', 'rendered_content', 'request_id', 'updated_at'},
+    # MyBatis 列名写入点（非 JSON 键）
+    'session/mapper/MessageSuggestionRepository.java': {'allow_regenerate', 'completion_tokens', 'error_code', 'generated_at', 'latency_ms', 'lease_until', 'model_id', 'prompt_tokens', 'suppression_reason', 'updated_at'},
     # agent_steps 落库列 + 历史回放
     'session/service/AgentStreamBridge.java': {'completed_at', 'duration_ms', 'event_id', 'final_content', 'is_fallback', 'message_id', 'messages_after', 'messages_before', 'pending_id', 'session_id', 'split_turn', 'steer_id', 'tokens_after', 'tokens_before', 'tool_call_id', 'tool_name', 'total_duration_ms', 'total_steps', 'user_message_id'},
-    # agent_steps/推荐面落库 + 历史回放
+    # agent_steps/推荐面落库 + 回放
     'session/service/MessageSuggestionService.java': {'assistant_message_id', 'session_id'},
-    # agent_steps 落库列 + 历史回放
+    # agent_steps 落库列 + 回放
     'session/service/QaSupport.java': {'kb_id', 'kb_name', 'kb_type', 'mentioned_items', 'service_id', 'skill_name', 'steer_id'},
-    # agent_steps 落库列 + 历史回放
+    # agent_steps 落库列 + 回放
     'session/service/SessionKnowledgeQaService.java': {'duration_ms', 'error_type', 'knowledge_base_ids', 'search_targets', 'session_id', 'total_duration_ms', 'total_stages'},
-    # agent_steps 落库列 + 历史回放
+    # agent_steps 落库列 + 回放
     'session/service/SteerSinkBridge.java': {'mentioned_items'},
-    # 存储引擎面（snake，B14 已确立为冻结）
+    # HTTP query 参数名（非 JSON 键）
+    'storage/fileserve/FileProxyService.java': {'file_path'},
+    # 存储引擎面（snake，B14 冻结）
     'storage/fileserve/StorageFileResolver.java': {'default_provider', 'path_prefix'},
+    # 平台审计 details jsonb（存量 + 回放）
+    'system/controller/SystemAdminController.java': {'quota_bytes', 'quota_gb', 'scope_type'},
     # 存储引擎配置面（snake，同上）
     'system/controller/SystemController.java': {'access_key_id', 'bucket_name', 'mineru_parse_method', 'secret_access_key', 'use_ssl', 'weknoracloud_app_id'},
+    # MyBatis 列名/参数（非 JSON 键）
+    'system/service/SystemAdminUserService.java': {'is_revoked'},
+    # 平台审计 details jsonb（存量 + 回放）
+    'system/service/SystemSettingService.java': {'new_value', 'old_value', 'value_type'},
+    # MyBatis 列名写入点（非 JSON 键）
+    'wiki/service/DefaultWikiKnowledgeFinalizer.java': {'error_message', 'parse_status', 'processed_at', 'updated_at'},
+    # 模型输出契约（提示词里就是 new_slugs；只解析入站）
+    'wiki/service/ingest/WikiIngestCitePipeline.java': {'new_slugs'},
+    # wiki 摄取内部 jsonb 状态（存量）
+    'wiki/service/ingest/WikiIngestMapPhase.java': {'body_preview', 'candidate_slugs', 'cited_chunks', 'cited_slugs', 'classify_batches', 'concepts_preview', 'content_chars', 'doc_title', 'entities_preview', 'extracted_pages', 'extracted_slugs', 'new_slugs', 'new_slugs_sample', 'old_pages', 'pass0_fallback', 'reparse_slugs', 'stale_slugs', 'summary_chars', 'summary_line', 'summary_preview', 'top_cited', 'uncited_slugs'},
     # wiki 摄取内部 jsonb 状态（存量）
     'wiki/service/ingest/WikiIngestReducePhase.java': {'addition_failed', 'affected_type', 'chunk_refs', 'content_preview', 'page_summary', 'page_title', 'page_type', 'source_refs'},
     # wiki 摄取内部 jsonb 统计（存量）
