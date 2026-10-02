@@ -1,6 +1,7 @@
 package com.ragagent.auth.controller;
 
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ragagent.auth.dto.AuthLoginResponse;
 import com.ragagent.auth.dto.TokenPairResponse;
 import com.ragagent.auth.dto.TenantResponse;
@@ -216,7 +217,7 @@ final class AuthSessionOps {
     }
 
     static final class RefreshTokenRequest {
-        @com.fasterxml.jackson.annotation.JsonProperty("refreshToken")
+        @JsonProperty("refreshToken")
         String refreshToken;
 
         String refreshToken() {

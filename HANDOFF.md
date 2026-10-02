@@ -2769,7 +2769,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键（§14.6 登记的"另批"）；先出判定（收益 vs 四域联动+死信读侧兼容成本），判定通过再动刀 | P1 | 判定小/动刀中 | 可判定后搁置——载具当前工作正常 |
 | **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`（§4 口径），按域分批 | P1 | 中 | 每域一批；配置键语义不变 |
 ✅ **B7（2026-10-02）**：依赖级扫描实锤断成员 19 处全清——只注入不读取字段 3（`PluginSearchParallel` 的 graphRepo/chunkRepo/knowledgeRepo）+ 死 logger 8 + 死 `ObjectMapper` 3 + 死 `Pattern` 1 + 死私有方法 4 + 冗余 import 4（javadoc 规避后复核）；66 处历史候选在本轮口径下复核为零（多数已被前批清掉）。**残留口径**：Spotless ratchet 外的 23 处 import 命中经复核多为泛型/javadoc 误报，真死仅 4 处已清。
-| **B8 注解形态收尾** | 全限定名注解 ~177 处 → import 短名；逐类 `@JsonIgnoreProperties` 44 处接 `JsonMappers.lenient()` 工厂（§2 第 12 条） | P2 | 小 | 随各域触碰顺带亦可 |
+✅ **B8（2026-10-02）**：全限定名注解 **177→0**（annotation 177 + databind JsonSerialize 6，全部改 import 短名，14 文件；冲突扫描后逐文件注入）。`@JsonIgnoreProperties` 48 处**评估后保留**：14 个严格 mapper 读取点全是外部/不可信 JSON（第三方 API 响应、OAuth 文档、租户落库、Redis blob），注解是正确的纵深防御；WEB 侧 8 个读路径已宽松、注解冗余但无害——按 §2 第 12 条"勿批量删"口径不动。
 | **B9 Go 锚点注释清洗** | ~6,000 处；按 §4 既定"随触碰清洗"继续；若专项则按域分批（先摘不变量信息再删锚点） | P2 | 大（专项）/零（随批） | 建议随批，不立专项 |
 | **B10 ArchUnit 边界规则进 CI** | 环 0 组基线 + 包依赖白名单固化（§5 阶段 4） | P2 | 中 | 规则现成（§11.2 守卫长期绿），差 CI 化 |
 | **B11 Gradle 多模块** | 按域拆模块（§5 阶段 4 尾） | P2 | 大 | 动 build 面，**最后做**；B10 先行 |

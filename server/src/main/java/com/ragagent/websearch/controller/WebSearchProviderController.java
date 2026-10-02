@@ -7,6 +7,8 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.common.tenant.TenantRole;
@@ -77,10 +79,10 @@ public class WebSearchProviderController {
     // ── POST /test（Admin+）：原始凭据连通性 ───────────────────────────
 
     /** 对照 TestProviderRequest：provider required；parameters 可选 */
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record TestProviderRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("provider") String provider,
-            @com.fasterxml.jackson.annotation.JsonProperty("parameters") WebSearchProviderParams parameters) {}
+            @JsonProperty("provider") String provider,
+            @JsonProperty("parameters") WebSearchProviderParams parameters) {}
 
     @PostMapping("/test")
     public ResponseEntity<?> testProviderRaw(@RequestBody(required = false) String rawBody) {
@@ -145,12 +147,12 @@ public class WebSearchProviderController {
     }
 
     /** 对照 UpdateProviderRequest：无 required 字段；merge 规则见下 */
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record UpdateProviderRequest(
-            @com.fasterxml.jackson.annotation.JsonProperty("name") String name,
-            @com.fasterxml.jackson.annotation.JsonProperty("description") String description,
-            @com.fasterxml.jackson.annotation.JsonProperty("parameters") WebSearchProviderParams parameters,
-            @com.fasterxml.jackson.annotation.JsonProperty("is_default") Boolean isDefault) {}
+            @JsonProperty("name") String name,
+            @JsonProperty("description") String description,
+            @JsonProperty("parameters") WebSearchProviderParams parameters,
+            @JsonProperty("is_default") Boolean isDefault) {}
 
     @PutMapping("/{id}")
     public ResponseEntity<?> updateProvider(@PathVariable("id") String id,

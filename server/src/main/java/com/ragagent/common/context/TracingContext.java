@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
  * 可嵌入异步负载的观测上下文（对照 Go {@code types.TracingContext}，types/tracing.go 全文）：
@@ -45,7 +46,7 @@ public record TracingContext(
 
     /** 是否为空载体（Go 侧无此方法；Java 的调度短路径与断言用）。{@code @JsonIgnore}：
      *  否则 Jackson 把 {@code isEmpty()} 当布尔属性 {@code empty} 序列化进负载。 */
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     public boolean isEmpty() {
         return traceId.isEmpty() && parentObservationId.isEmpty() && traceparent.isEmpty()
                 && userId.isEmpty() && sessionId.isEmpty();

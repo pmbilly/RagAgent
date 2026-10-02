@@ -1,5 +1,6 @@
 package com.ragagent.memory.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ragagent.common.settings.MemoryKeys;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -137,7 +138,7 @@ public class MemoryTopicStat {
      * 这正是 §7.5 第 2 条那个坑的规避方式：**别给它起 get/is 前缀的名字**。
      * 它也不落库（没有对应列）。</p>
      */
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     public boolean hasAlias(String surface) {
         String target = MemoryKeys.normalizeTopicKey(surface);
         if (target == null || target.isEmpty()) {

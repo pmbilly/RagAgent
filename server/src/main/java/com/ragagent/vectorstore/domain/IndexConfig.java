@@ -1,6 +1,7 @@
 package com.ragagent.vectorstore.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
  * 对照 Go {@code types.IndexConfig}（internal/types/vectorstore.go L244-268）。
@@ -28,7 +29,7 @@ public class IndexConfig {
     public String knnEngine = "";
 
     /** 对照 GetIndexNameOrDefault（服务层去重用；env 回退不在本层）。@JsonIgnore 同上 */
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     public String getIndexNameOrDefault(String engineType) {
         return switch (engineType == null ? "" : engineType) {
             case "elasticsearch" -> notEmpty(indexName) ? indexName : "xwrag_default";

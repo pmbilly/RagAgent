@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.TreeMap;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.auth.apikey.service.TenantAPIKeyService;
@@ -257,9 +258,9 @@ final class TenantCreateOps {
 
     /** 自助路径的请求载体（对照 createTenantRequest，handler/tenant.go L88-91） */
     static final class CreateTenantRequest {
-        @com.fasterxml.jackson.annotation.JsonProperty("name")
+        @JsonProperty("name")
         String name;
-        @com.fasterxml.jackson.annotation.JsonProperty("description")
+        @JsonProperty("description")
         String description;
 
         String name() { return name; }

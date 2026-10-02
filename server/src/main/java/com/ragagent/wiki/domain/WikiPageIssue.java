@@ -1,5 +1,6 @@
 package com.ragagent.wiki.domain;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +45,7 @@ public class WikiPageIssue {
     private String description = "";
 
     @TableField(value = "suspected_knowledge_ids", typeHandler = WikiStringListTypeHandler.class)
-    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
+    @JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> suspectedKnowledgeIds = new ArrayList<>();
 
     private String status = "";

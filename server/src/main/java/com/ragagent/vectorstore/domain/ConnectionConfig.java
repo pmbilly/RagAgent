@@ -1,6 +1,7 @@
 package com.ragagent.vectorstore.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
  * 对照 Go {@code types.ConnectionConfig}（internal/types/vectorstore.go L120-236）。
@@ -38,7 +39,7 @@ public class ConnectionConfig {
     /** 对照 GetEndpoint：去重判定的规范化端点（Qdrant 缺省端口 6334）。
      *  ⚠️ §7.5 第 2 条：Go 的**方法**——必须 @JsonIgnore，否则 Jackson 把它当
      *  "endpoint" 属性写进响应/jsonb（实测 vs-get 抓回）。 */
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     public String getEndpoint() {
         if (addr != null && !addr.isEmpty()) {
             if (database != null && !database.isEmpty()) {

@@ -1,5 +1,6 @@
 package com.ragagent.auth.controller;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -94,9 +95,9 @@ final class TenantCrudOps {
 
     /** 对照 updateTenantRequest（tenant.go L102-105）：name omitempty,min=1,max=128；description omitempty,max=512。 */
     static final class UpdateTenantRequest {
-        @com.fasterxml.jackson.annotation.JsonProperty("name")
+        @JsonProperty("name")
         String name;
-        @com.fasterxml.jackson.annotation.JsonProperty("description")
+        @JsonProperty("description")
         String description;
     }
 

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoJsonBindError;
@@ -52,7 +53,7 @@ public class StorageBackendController {
     }
 
     /** 对照 storageBackendRequest：name/provider required */
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record StorageBackendRequest(
             String name,
             String provider,

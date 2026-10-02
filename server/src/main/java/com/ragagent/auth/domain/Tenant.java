@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.ragagent.common.web.PgJsonTypeHandler;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
  * tenants 表实体（对照 Go types/tenant.go Tenant）。
@@ -89,7 +90,7 @@ public class Tenant {
     private JsonNode memoryConfig;
     /** jsonb（迁移 000064）：API principal 配置；加密语义见 APIPrincipalConfigTypeHandler；
      *  Go json:"-" —— 任何响应都不输出（@JsonIgnore 同时挡住反序列化，与 Go 一致） */
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     @TableField(typeHandler = APIPrincipalConfigTypeHandler.class)
     private APIPrincipalConfig apiPrincipalConfig;
 

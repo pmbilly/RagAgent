@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.web.GoJsonBindError;
@@ -56,18 +57,18 @@ public class VectorStoreController {
 
     // ── 请求 DTO（对照 Go handler 的三个 request struct） ───────────────
 
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record CreateStoreRequest(
             String name,
             String engineType,
             ConnectionConfig connectionConfig,
             IndexConfig indexConfig) {}
 
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record UpdateStoreRequest(
             String name) {}
 
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record TestStoreRequest(
             String engineType,
             ConnectionConfig connectionConfig) {}

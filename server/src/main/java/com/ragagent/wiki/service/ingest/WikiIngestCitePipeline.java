@@ -10,6 +10,8 @@ import java.util.Set;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.llm.LlmChatClient;
@@ -68,12 +70,12 @@ public class WikiIngestCitePipeline {
      * <p>只用于<b>解析</b>模型输出，从不序列化出站，因此不需要
      * {@code @JsonProperty}；Jackson 按字段名映射（snake 字段名见注解）。</p>
      */
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     static final class CitationBatchResult {
-        @com.fasterxml.jackson.annotation.JsonProperty("citations")
+        @JsonProperty("citations")
         public Map<String, List<String>> citations;
 
-        @com.fasterxml.jackson.annotation.JsonProperty("new_slugs")
+        @JsonProperty("new_slugs")
         public List<NewSlugFromCitation> newSlugs;
     }
 

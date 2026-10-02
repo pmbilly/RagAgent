@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
@@ -77,7 +78,7 @@ public class WikiPage {
 
     /** 别名、缩写、首字母缩略语或译名 */
     @TableField(typeHandler = WikiStringListTypeHandler.class)
-    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
+    @JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> aliases = new ArrayList<>();
 
     /** 语义父页面 slug（可为空）；页面仅按 FolderID 归组时留空 */
@@ -118,7 +119,7 @@ public class WikiPage {
      * 取回标题。文档级粒度。
      */
     @TableField(value = "source_refs", typeHandler = WikiStringListTypeHandler.class)
-    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
+    @JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> sourceRefs = new ArrayList<>();
 
     /**
@@ -127,17 +128,17 @@ public class WikiPage {
      * （它们是文档级梗概，不带 chunk 级引用）。
      */
     @TableField(value = "chunk_refs", typeHandler = WikiStringListTypeHandler.class)
-    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
+    @JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> chunkRefs = new ArrayList<>();
 
     /** 链接<b>到</b>本页面的页面 slug（反向链接） */
     @TableField(value = "in_links", typeHandler = WikiStringListTypeHandler.class)
-    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
+    @JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> inLinks = new ArrayList<>();
 
     /** 本页面链接<b>出去</b>的页面 slug（出链） */
     @TableField(value = "out_links", typeHandler = WikiStringListTypeHandler.class)
-    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = EmptyListAsNullSerializer.class)
+    @JsonSerialize(using = EmptyListAsNullSerializer.class)
     private List<String> outLinks = new ArrayList<>();
 
     /** 任意元数据（标签、分类、日期等）；原始 JSON */
