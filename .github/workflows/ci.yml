@@ -23,6 +23,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: 环与分层违例只许减不许增
         run: python3 scripts/check-package-cycles.py
+      - name: Go 锚点注释只许减不许增（B9：随触碰清洗的执行机制）
+        run: python3 scripts/check-go-anchors.py
 
   backend:
     name: 后端 build + test + spotless
