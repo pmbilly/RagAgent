@@ -2787,6 +2787,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B17 换锚收尾** | 残余逐字段 `@JsonProperty`（我方 ≈57）按「零风险 / 动形状 / 冻结」判定后分批清 | P2 | 小~中 | ✅ **完成（2026-10-02）**——判定批（三类 + 承重注解判据）+ 安全子集 6 处 + **websearch 请求键 camel 收口**（真机 A/B 实证）；其中 **agent 配置面**原判「不做」，后经用户决定由 **B18** 完成（见下一行）。详见 15.1.1 |
 | **B18 agent 配置面换锚** | 见 15.1.1 |
 | **B19 前端契约键收口 + 守卫** | 前端 snake 契约键排查 + 嵌套层 + 双侧守卫进 CI | P2 | 中 | ✅ **完成（2026-10-02）**——修掉两处静默缺陷（B18 的 ModelService 回归、前端 tagScopes 链路断）+ 嵌套 7 键 camel + V3 扩到 66 键（并修 WHERE 漏行）；新增前端契约键棘轮（进 CI）与后端键名守卫测试。详见 15.1.1 |
+| **B20 占位符令牌回归** | 批量改名误伤数据值（模板令牌）+ 缺跨面对照守卫 | P2 | 小 | ✅ **完成（2026-10-02）**——修回 `knowledge_bases` 令牌（夹具曾被同步改掉=假绿），新增「HTTP 面 ↔ 渲染面令牌一致」守卫（含红态证明）；组键半改状态待拍板。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3102,6 +3103,14 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **登记（未做）**：① `api/knowledge-base` 的 `start_time`/`end_time`：前端仍拼、后端该端点**未声明** ⇒ 筛选不生效（要修的是接线或补参数，属产品取舍）；② `api/auth` 的 `owner_id`：前端**死字段**（后端 API 无此名，前端有 `|| user.id` 兜底）；③ `types/knowledgeProcess.ts` 那批 snake 属逐文档 `process_overrides` 面（已定「未来补后端」，届时一并 camel）。
 - 闸门：后端 4711 用例 + `spotlessCheck` 绿；前端 `vue-tsc` 0 错 + **690 用例绿**；迁移已在 dev 应用且残留 0。
 - **踩坑（Flyway，值得记）**：V3 文件在 **App 已应用过它之后**又被我扩展改写 ⇒ 启动期 `Migration checksum mismatch for version 3` 直接导致**服务起不来**。处置：删掉 `flyway_schema_history` 里 V3 那行让 Flyway **重放**（因 V3 幂等，重放无副作用），启动即恢复，历史表记录的校验和随之更新。**教训：迁移文件一旦被 App 应用过就别再改**（要么先定稿，要么用 repair/删行重放）；这也是"迁移必须写成幂等"的一条实际收益。
+
+**🐞 B20（2026-10-02——用户追问 `/agents/placeholders` 的 snake 组键引出的修复）**
+- **用户问题（结论）**：`frontend/src/api/agent/index.ts` 的 `PlaceholdersResponse` 里 `agent_system_prompt`/`rewrite_system_prompt`/`rewrite_prompt` 是 snake——与后端**逐键一致**（`agentm/service/AgentPlaceholders.data()`），故**当前不会静默失效**。但它不是「有意保留」的设计：B18 的批量改名只覆盖了恰好落在 agent 配置 60 键清单里的三个组键（`systemPrompt`/`contextTemplate`/`fallbackPrompt`），其余留 snake ⇒ **半改状态**；该文件原注释「键 = config 模板键，保持 config schema 的 snake」也已过期（B18 后 config schema 是 camel）。**待拍板**：把剩下 3 个组键收口到 camel（后端 3 键 + 前端接口与两处用法 + 夹具，小批），或按「有意保留」登记并改注释。
+- **同批挖出并修掉一个 B18 回归（我引入的）**：`AgentPlaceholders` 里 `new P("knowledge_bases", …)` 是**模板令牌**（数据值——渲染器按 `{{knowledge_bases}}` 替换，见 `AgentPrompts:278` 与渲染面表），被 B18 批量改名误改成 `knowledgeBases`，**且契约夹具在同一提交被同步改掉** ⇒ 全线绿、缺陷静默（用户从 UI 插入的该占位符将永远不被替换，提示词里留一段字面量）。
+- **守卫**：新增 `agentm/service/AgentPlaceholdersTest`——HTTP 面令牌表必须与渲染面 `AgentPromptPlaceholders.placeholdersByFieldAgentSystemPrompt()` **逐字一致**，并逐令牌验证渲染器真能替换。**红态证明**：临时还原错令牌 → 用例精确报出 `["knowledgeBases", …]` vs `["knowledge_bases", …]`。
+- **连带修正**：B19 的 `AgentConfigKeyUsageTest` 对该文件**假阳性**（此处的 snake 是模板令牌、非 agent 配置键）→ 加**具名豁免 + 理由**并指向新守卫。
+- **方法论（与既有记忆同源，具体化）**：批量改名要区分**键**与**数据值**——「模板令牌/标识符/枚举值」与 JSON 键同名时会被一并误改；且**同步改夹具会把缺陷洗成绿色**（改 A 忘 B 的变体：改了「被测对象」又改了「期望值」）。对策＝跨面对照守卫 + 红态证明。
+- 闸门：全量 **4713** 用例绿 + `spotlessCheck` 绿。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

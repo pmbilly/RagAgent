@@ -29,7 +29,7 @@ public class AgentPlaceholders {
             "格式化的历史对话内容，用于多轮对话改写");
     private static final P YESTERDAY = new P("yesterday", "昨天日期", "昨天的日期（格式：2006-01-02）");
     private static final P ANSWER = new P("answer", "助手回答", "助手的回答内容（用于对话历史格式化）");
-    private static final P KNOWLEDGE_BASES = new P("knowledgeBases", "知识库列表",
+    private static final P KNOWLEDGE_BASES = new P("knowledge_bases", "知识库列表",
             "自动格式化的知识库列表，包含名称、描述、文档数量等信息");
     private static final P WEB_SEARCH_STATUS = new P("web_search_status", "网络搜索状态",
             "网络搜索工具是否启用的状态（Enabled 或 Disabled）");
