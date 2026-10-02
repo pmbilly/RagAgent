@@ -1,0 +1,257 @@
+package com.ragagent.storage.config;
+
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+/**
+ * 存储后端默认装配读取的 provider 环境变量族（对照 Go
+ * {@code storagebackend.go StorageBackendFromEnvironment} 的进程级 env 快照）。
+ *
+ * <p><b>环境变量名保持原样</b>：env → 属性名走 Spring 松散绑定
+ * （{@code MINIO_ACCESS_KEY_ID} → {@code minio.access-key-id}），部署侧 .env 不需要改，
+ * 本类只把「裸 System.getenv + 手写 JSON」换成类型化绑定。</p>
+ *
+ * <p>字段一律 {@code String}（不用 {@code Boolean}/数字）：保留 Go 的宽容语义——未设置、
+ * 大小写不符、写错的布尔字面量都不该让绑定失败（{@code S3_USE_SSL} 只在恰为 "false" 时
+ * 为假、{@code MINIO_USE_SSL} 只在恰为 "true" 时为真，其余值一律按「未设置」处理）。</p>
+ *
+ * <p>落库形状（{@code storage_backends.config} jsonb）沿用存储域既有键名与省略规则：
+ * 空串整键省略（对照 Go omitempty），假值整键省略；键序＝下列 {@code writeConfig} 调用序，
+ * 与 Go struct 字段声明序一致。</p>
+ */
+public final class StorageProviderEnv {
+
+    private StorageProviderEnv() {
+    }
+
+    /**
+     * 一家 provider 的环境变量族：自称 provider 名（与 {@code STORAGE_TYPE} 取值同一命名空间），
+     * 并把自己的非空项按落库键写进后端 config。
+     */
+    public interface ProviderEnvFamily {
+
+        String provider();
+
+        void writeConfig(ObjectNode config);
+    }
+
+    /** 写非空字符串（对照 Go omitempty：空串/未设置整键省略）。 */
+    private static void putNonEmpty(ObjectNode config, String key, String value) {
+        if (value != null && !value.isEmpty()) {
+            config.put(key, value);
+        }
+    }
+
+    /** 写真值（对照 Go omitempty：false 整键省略）。 */
+    private static void putTrue(ObjectNode config, String key, boolean value) {
+        if (value) {
+            config.put(key, true);
+        }
+    }
+
+    /** 去空白版取值（既有装配器对 STORAGE_TYPE / LOCAL_STORAGE_PATH_PREFIX 是 trim 过的）。 */
+    private static String trim(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    /** {@code STORAGE_TYPE}：默认后端 provider；未设置（或全空白）→ {@code local}。 */
+    @ConfigurationProperties(prefix = "storage")
+    public record StorageType(String type) {
+
+        public String provider() {
+            String v = trim(type);
+            return v.isEmpty() ? "local" : v;
+        }
+    }
+
+    /** {@code LOCAL_*}：本地磁盘后端。 */
+    @ConfigurationProperties(prefix = "local")
+    public record Local(String storagePathPrefix) implements ProviderEnvFamily {
+
+        @Override
+        public String provider() {
+            return "local";
+        }
+
+        @Override
+        public void writeConfig(ObjectNode config) {
+            putNonEmpty(config, "path_prefix", trim(storagePathPrefix));
+        }
+    }
+
+    /** {@code MINIO_*}。 */
+    @ConfigurationProperties(prefix = "minio")
+    public record Minio(
+            String endpoint,
+            String accessKeyId,
+            String secretAccessKey,
+            String bucketName,
+            String pathPrefix,
+            String useSsl) implements ProviderEnvFamily {
+
+        @Override
+        public String provider() {
+            return "minio";
+        }
+
+        @Override
+        public void writeConfig(ObjectNode config) {
+            putNonEmpty(config, "mode", "remote");
+            putNonEmpty(config, "endpoint", endpoint);
+            putNonEmpty(config, "access_key_id", accessKeyId);
+            putNonEmpty(config, "secret_access_key", secretAccessKey);
+            putNonEmpty(config, "bucket_name", bucketName);
+            putNonEmpty(config, "path_prefix", pathPrefix);
+            putTrue(config, "use_ssl", "true".equalsIgnoreCase(useSsl));
+        }
+    }
+
+    /** {@code COS_*}（腾讯云）：凭据键名是 SECRET_ID/SECRET_KEY，落库后叫 access_key_id/secret_access_key。 */
+    @ConfigurationProperties(prefix = "cos")
+    public record Cos(
+            String region,
+            String secretId,
+            String secretKey,
+            String bucketName,
+            String pathPrefix,
+            String appId,
+            String tempBucketName,
+            String tempRegion) implements ProviderEnvFamily {
+
+        @Override
+        public String provider() {
+            return "cos";
+        }
+
+        @Override
+        public void writeConfig(ObjectNode config) {
+            putNonEmpty(config, "region", region);
+            putNonEmpty(config, "access_key_id", secretId);
+            putNonEmpty(config, "secret_access_key", secretKey);
+            putNonEmpty(config, "bucket_name", bucketName);
+            putNonEmpty(config, "path_prefix", pathPrefix);
+            putNonEmpty(config, "app_id", appId);
+            putNonEmpty(config, "temp_bucket_name", tempBucketName);
+            putNonEmpty(config, "temp_region", tempRegion);
+        }
+    }
+
+    /** {@code TOS_*}（火山引擎）。 */
+    @ConfigurationProperties(prefix = "tos")
+    public record Tos(
+            String endpoint,
+            String region,
+            String accessKey,
+            String secretKey,
+            String bucketName,
+            String pathPrefix,
+            String tempBucketName,
+            String tempRegion) implements ProviderEnvFamily {
+
+        @Override
+        public String provider() {
+            return "tos";
+        }
+
+        @Override
+        public void writeConfig(ObjectNode config) {
+            putNonEmpty(config, "endpoint", endpoint);
+            putNonEmpty(config, "region", region);
+            putNonEmpty(config, "access_key_id", accessKey);
+            putNonEmpty(config, "secret_access_key", secretKey);
+            putNonEmpty(config, "bucket_name", bucketName);
+            putNonEmpty(config, "path_prefix", pathPrefix);
+            putNonEmpty(config, "temp_bucket_name", tempBucketName);
+            putNonEmpty(config, "temp_region", tempRegion);
+        }
+    }
+
+    /** {@code S3_*}：{@code use_ssl} 缺省为真（Go：{@code !EqualFold(env, "false")}）。 */
+    @ConfigurationProperties(prefix = "s3")
+    public record S3(
+            String endpoint,
+            String region,
+            String accessKey,
+            String secretKey,
+            String bucketName,
+            String pathPrefix,
+            String useSsl,
+            String forcePathStyle) implements ProviderEnvFamily {
+
+        @Override
+        public String provider() {
+            return "s3";
+        }
+
+        @Override
+        public void writeConfig(ObjectNode config) {
+            putNonEmpty(config, "endpoint", endpoint);
+            putNonEmpty(config, "region", region);
+            putNonEmpty(config, "access_key_id", accessKey);
+            putNonEmpty(config, "secret_access_key", secretKey);
+            putNonEmpty(config, "bucket_name", bucketName);
+            putNonEmpty(config, "path_prefix", pathPrefix);
+            putTrue(config, "use_ssl", !"false".equalsIgnoreCase(useSsl));
+            putTrue(config, "force_path_style", "true".equalsIgnoreCase(forcePathStyle));
+        }
+    }
+
+    /** {@code OSS_*}（阿里云）：配了临时 bucket 才写 {@code use_temp_bucket}。 */
+    @ConfigurationProperties(prefix = "oss")
+    public record Oss(
+            String endpoint,
+            String region,
+            String accessKey,
+            String secretKey,
+            String bucketName,
+            String pathPrefix,
+            String tempBucketName,
+            String tempRegion) implements ProviderEnvFamily {
+
+        @Override
+        public String provider() {
+            return "oss";
+        }
+
+        @Override
+        public void writeConfig(ObjectNode config) {
+            putNonEmpty(config, "endpoint", endpoint);
+            putNonEmpty(config, "region", region);
+            putNonEmpty(config, "access_key_id", accessKey);
+            putNonEmpty(config, "secret_access_key", secretKey);
+            putNonEmpty(config, "bucket_name", bucketName);
+            putNonEmpty(config, "path_prefix", pathPrefix);
+            putTrue(config, "use_temp_bucket", tempBucketName != null && !tempBucketName.isEmpty());
+            putNonEmpty(config, "temp_bucket_name", tempBucketName);
+            putNonEmpty(config, "temp_region", tempRegion);
+        }
+    }
+
+    /** {@code OBS_*}（华为云）：{@code use_ssl} 缺省为真。 */
+    @ConfigurationProperties(prefix = "obs")
+    public record Obs(
+            String endpoint,
+            String region,
+            String accessKey,
+            String secretKey,
+            String bucketName,
+            String pathPrefix,
+            String useSsl) implements ProviderEnvFamily {
+
+        @Override
+        public String provider() {
+            return "obs";
+        }
+
+        @Override
+        public void writeConfig(ObjectNode config) {
+            putNonEmpty(config, "endpoint", endpoint);
+            putNonEmpty(config, "region", region);
+            putNonEmpty(config, "access_key_id", accessKey);
+            putNonEmpty(config, "secret_access_key", secretKey);
+            putNonEmpty(config, "bucket_name", bucketName);
+            putNonEmpty(config, "path_prefix", pathPrefix);
+            putTrue(config, "use_ssl", !"false".equalsIgnoreCase(useSsl));
+        }
+    }
+}
