@@ -1,5 +1,6 @@
 package com.ragagent.auth.controller;
 
+import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -99,6 +100,29 @@ public class TenantCatalogController {
     @GetMapping("/api/v1/tenants")
     public Map<String, Object> listTenants() {
         return crudOps.listTenants();
+    }
+
+    /** GET /tenants/search —— 分页 + keyword/tenantId（裸分页形态 {items,total,page,pageSize}）。 */
+    @GetMapping("/api/v1/tenants/search")
+    public Map<String, Object> searchTenants(
+            @org.springframework.web.bind.annotation.RequestParam(value = "keyword", required = false) String keyword,
+            @org.springframework.web.bind.annotation.RequestParam(value = "tenantId", required = false) Long tenantId,
+            @org.springframework.web.bind.annotation.RequestParam(value = "page", defaultValue = "1") int page,
+            @org.springframework.web.bind.annotation.RequestParam(value = "pageSize", defaultValue = "20") int pageSize) {
+        var result = tenantService.searchTenants(keyword == null ? "" : keyword,
+                tenantId == null ? 0 : tenantId, page, pageSize);
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("items", result.tenants());
+        body.put("total", result.total());
+        body.put("page", page);
+        body.put("pageSize", pageSize);
+        return body;
+    }
+
+    /** GET /tenants/all —— 全量目录（跨空间访问权由守卫组承担；无分页）。 */
+    @GetMapping("/api/v1/tenants/all")
+    public List<com.ragagent.auth.domain.Tenant> listAllTenants() {
+        return tenantService.searchTenants("", 0, 0, 0).tenants();
     }
 
     @GetMapping("/api/v1/tenants/{id}")

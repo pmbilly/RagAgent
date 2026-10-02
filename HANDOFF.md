@@ -2620,6 +2620,14 @@ WHERE jsonb_typeof(api_principal_config) = 'object'
   agentWebSearch 测试夹具同批。
 - **教训入册**：换锚批的"同 PR 带前端"必须核到**视图层字段读取**，api 类型文件对齐不等于消费端对齐——
   TS `as unknown as` 断言把实况断点全部藏住了；本轮用「后端形态 × 前端读取」交叉 grep 才扫出。
+- **漏翻译端点补齐（复查二批）**：`GET /tenants/search` 与 `/tenants/all` 前端在调、RbacInterceptor
+  有守卫注册、javadoc 有路由清单，**但控制器实现整体缺失**（service 层 `searchTenants` 是现成的）——
+  已补（裸分页 `{items,total,page,pageSize}` / 裸数组），加两条契约钉（裸形态四键 + 空命中 + all 数组）。
+- **前端对齐第二批**：`/me/invitations` 适配器（裸 `{invitations,total}`）、knowledge-processing-timeline
+  裸响应读取（`latestAttempt/parseStatus/trace`）、TenantSelector 搜索（`searchTenants` 裸分页）、
+  TenantInfo/TenantSelector 的 `storage_quota` 系字段 camel、menu 会话删除 204 判定。
+  **注意**：`tenant.default_storage_quota_gb` 是系统设置键（DB 字符串）、i18n key 同理——不是线格式键，
+  交叉 sweep 时第一刀误扫已回退。
 
 **切片（`9277d3e` + `432624c`）**：`SourceRegistry` 878→**534**——「工具参数编解码」段（~400 行）
 外提 `SourceToolCodec`（439），门面保全部签名，SHORT_SOURCE_HANDLE 常量留注册段共用；

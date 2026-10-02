@@ -468,4 +468,52 @@ class TenantCatalogContractTest {
         out = SSRF_HOSTNAME_TAIL.matcher(out).replaceAll("<ssrf-host>");
         return out;
     }
+    // ── 补测：GET /tenants/search 与 /tenants/all（2026-10-02 补齐漏翻译路由）──
+
+    /** search：裸分页形态 {items,total,page,pageSize}；keyword 命中与不命中两种。 */
+    @org.junit.jupiter.api.Test
+    void tenantSearchBarePageShape() throws Exception {
+        // keyword 命中种子空间名
+        var hit = mockMvc.perform(get("/api/v1/tenants/search")
+                        .param("keyword", "phase1-test-tenant")
+                        .header("Authorization", superTok))
+                .andReturn();
+        org.junit.jupiter.api.Assertions.assertEquals(200, hit.getResponse().getStatus());
+        var node = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(hit.getResponse().getContentAsString());
+        org.junit.jupiter.api.Assertions.assertTrue(node.has("items") && node.has("total")
+                && node.has("page") && node.has("pageSize"), "裸分页四键: " + node);
+        org.junit.jupiter.api.Assertions.assertTrue(node.get("total").asInt() >= 1);
+        // 条目是裸 Tenant 行（camelCase 键），无 success/data 信封
+        org.junit.jupiter.api.Assertions.assertTrue(node.get("items").isArray());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                node.get("items").get(0).has("name"),
+                "条目应含 name: " + node.get("items").get(0));
+        org.junit.jupiter.api.Assertions.assertFalse(
+                node.has("success"), "不得有 success 键");
+
+        // keyword 不命中 → items 空、total 0
+        var miss = mockMvc.perform(get("/api/v1/tenants/search")
+                        .param("keyword", "no-such-tenant-keyword")
+                        .header("Authorization", superTok))
+                .andReturn();
+        var missNode = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(miss.getResponse().getContentAsString());
+        org.junit.jupiter.api.Assertions.assertEquals(0, missNode.get("total").asInt());
+        org.junit.jupiter.api.Assertions.assertTrue(missNode.get("items").isEmpty());
+    }
+
+    /** all：裸数组（跨空间访问权由守卫组承担——这里只钉形状）。 */
+    @org.junit.jupiter.api.Test
+    void tenantAllBareArrayShape() throws Exception {
+        var res = mockMvc.perform(get("/api/v1/tenants/all")
+                        .header("Authorization", superTok))
+                .andReturn();
+        org.junit.jupiter.api.Assertions.assertEquals(200, res.getResponse().getStatus());
+        var node = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(res.getResponse().getContentAsString());
+        org.junit.jupiter.api.Assertions.assertTrue(node.isArray(), "应为裸数组: " + node);
+        org.junit.jupiter.api.Assertions.assertTrue(node.size() >= 1);
+    }
+
 }

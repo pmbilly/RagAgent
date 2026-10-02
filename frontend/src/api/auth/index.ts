@@ -30,8 +30,8 @@ export interface LoginResponse {
     description: string
     status: string
     business: string
-    storage_quota: number
-    storage_used: number
+    storageQuota: number
+    storageUsed: number
     createdAt: string
     updatedAt: string
   } | null
@@ -44,8 +44,8 @@ export interface LoginResponse {
     description?: string
     status?: string
     business?: string
-    storage_quota?: number
-    storage_used?: number
+    storageQuota?: number
+    storageUsed?: number
     created_at?: string
     updated_at?: string
   } | null
@@ -166,9 +166,10 @@ export interface TenantInfo {
   description?: string
   status?: string
   business?: string
-  owner_id: string
-  storage_quota?: number
-  storage_used?: number
+  /** 仅客户端态使用（setTenant 快照）；后端 TenantResponse 无此键 */
+  owner_id?: string
+  storageQuota?: number
+  storageUsed?: number
   createdAt: string
   updatedAt: string
   knowledge_bases?: KnowledgeBaseInfo[]

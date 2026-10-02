@@ -10,10 +10,10 @@ export interface TenantInfo {
   description?: string
   status?: string
   business?: string
-  storage_quota?: number
-  storage_used?: number
-  created_at: string
-  updated_at: string
+  storageQuota?: number
+  storageUsed?: number
+  createdAt: string
+  updatedAt: string
 }
 
 export type APIPrincipalMode = 'tenant' | 'direct_header' | 'signed_token'
@@ -136,13 +136,10 @@ export interface SearchTenantsParams {
 
 // 搜索空间响应
 export interface SearchTenantsResponse {
-  success: boolean
-  data?: {
-    items: TenantInfo[]
-    total: number
-    page: number
-    pageSize: number
-  }
+  items: TenantInfo[]
+  total: number
+  page: number
+  pageSize: number
   message?: string
 }
 
@@ -150,10 +147,9 @@ export interface SearchTenantsResponse {
  * 获取所有空间列表（需要跨空间访问权限）
  * @deprecated 建议使用 searchTenants 代替，支持分页和搜索
  */
-export async function listAllTenants(): Promise<{ items: TenantInfo[] }> {
+export async function listAllTenants(): Promise<TenantInfo[]> {
   try {
-    const response = await get('/api/v1/tenants/all')
-    return response as unknown as { items: TenantInfo[] }
+    return (await get('/api/v1/tenants/all')) as unknown as TenantInfo[]
   } catch (error: any) {
     throw new Error(error?.message || t('error.tenant.listFailed'))
   }
@@ -277,7 +273,7 @@ export async function deleteTenant(
 
 /**
  * 创建新工作区（任意已登录用户均可调用）。
- * 后端会自动把调用者写成新空间的 Owner，并填充默认 storage_quota
+ * 后端会自动把调用者写成新空间的 Owner，并填充默认 storageQuota
  * 等服务端字段；API Key 由用户在集成页手动创建。
  * 路由：POST /api/v1/tenants（router 上不挂 g.CrossTenant()，自助场景使用）。
  */
@@ -317,8 +313,7 @@ export async function searchTenants(params: SearchTenantsParams = {}): Promise<S
     
     const queryString = queryParams.toString()
     const url = `/api/v1/tenants/search${queryString ? '?' + queryString : ''}`
-    const response = await get(url)
-    return response as unknown as SearchTenantsResponse
+    return (await get(url)) as unknown as SearchTenantsResponse
   } catch (error: any) {
     throw new Error(error?.message || t('error.tenant.searchFailed'))
   }

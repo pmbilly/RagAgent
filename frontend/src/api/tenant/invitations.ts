@@ -183,7 +183,15 @@ export async function listMyInvitations(
   options: { includeTerminal?: boolean } = {},
 ): Promise<ListInvitationsResponse> {
   const qs = options.includeTerminal ? '?include_terminal=true' : ''
-  return (await get(`/api/v1/me/invitations${qs}`)) as unknown as ListInvitationsResponse
+  const resp = (await get(`/api/v1/me/invitations${qs}`)) as unknown as {
+    invitations: TenantInvitation[]
+    total: number
+  }
+  // 后端 200 裸 {invitations,total}（§2.1）；适配成既有的 success/data 契约
+  return {
+    success: true,
+    data: { invitations: resp?.invitations ?? [], total: resp?.total ?? 0 },
+  }
 }
 
 /**

@@ -225,13 +225,13 @@ const loadTenants = async (append = false) => {
       pageSize: pageSize.value
     })
 
-    if (response.success && response.data) {
+    if (response?.items) {
       if (append) {
-        tenants.value = [...tenants.value, ...response.data.items]
+        tenants.value = [...tenants.value, ...response.items]
       } else {
-        tenants.value = response.data.items
+        tenants.value = response.items
       }
-      total.value = response.data.total
+      total.value = response.total
       authStore.setAllTenants(tenants.value)
     } else {
       MessagePlugin.error(response.message || t('tenant.loadTenantsFailed'))

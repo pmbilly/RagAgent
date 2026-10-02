@@ -146,29 +146,29 @@
         </div>
 
         <!-- Storage quota -->
-        <div v-if="tenantInfo?.storage_quota !== undefined" class="setting-row">
+        <div v-if="tenantInfo?.storageQuota !== undefined" class="setting-row">
           <div class="setting-info">
             <label>{{ $t('tenant.storage.quotaLabel') }}</label>
             <p class="desc">{{ $t('tenant.storage.quotaDescription') }}</p>
           </div>
           <div class="setting-control">
-            <span class="info-value">{{ formatBytes(tenantInfo.storage_quota) }}</span>
+            <span class="info-value">{{ formatBytes(tenantInfo.storageQuota) }}</span>
           </div>
         </div>
 
         <!-- Used storage -->
-        <div v-if="tenantInfo?.storage_quota !== undefined" class="setting-row">
+        <div v-if="tenantInfo?.storageQuota !== undefined" class="setting-row">
           <div class="setting-info">
             <label>{{ $t('tenant.storage.usedLabel') }}</label>
             <p class="desc">{{ $t('tenant.storage.usedDescription') }}</p>
           </div>
           <div class="setting-control">
-            <span class="info-value">{{ formatBytes(tenantInfo.storage_used || 0) }}</span>
+            <span class="info-value">{{ formatBytes(tenantInfo.storageUsed || 0) }}</span>
           </div>
         </div>
 
         <!-- Storage usage -->
-        <div v-if="tenantInfo?.storage_quota !== undefined" class="setting-row">
+        <div v-if="tenantInfo?.storageQuota !== undefined" class="setting-row">
           <div class="setting-info">
             <label>{{ $t('tenant.storage.usageLabel') }}</label>
             <p class="desc">{{ $t('tenant.storage.usageDescription') }}</p>
@@ -649,12 +649,12 @@ const formatBytes = (bytes: number) => {
 }
 
 const getUsagePercentage = () => {
-  if (!tenantInfo.value?.storage_quota || tenantInfo.value.storage_quota === 0) {
+  if (!tenantInfo.value?.storageQuota || tenantInfo.value.storageQuota === 0) {
     return 0
   }
 
-  const used = tenantInfo.value.storage_used || 0
-  const percentage = (used / tenantInfo.value.storage_quota) * 100
+  const used = tenantInfo.value.storageUsed || 0
+  const percentage = (used / tenantInfo.value.storageQuota) * 100
   return Math.min(Math.round(percentage * 100) / 100, 100)
 }
 

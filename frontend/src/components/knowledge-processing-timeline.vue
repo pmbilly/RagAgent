@@ -25,7 +25,7 @@ interface LastError {
 interface SpansResponse {
   knowledge_id: string
   attempt: number
-  latest_attempt: number
+  latestAttempt: number
   current_attempt?: number
   parseStatus: string
   current_stage?: string
@@ -346,8 +346,8 @@ async function fetchSpans(opts: { manual?: boolean } = {}) {
   let attemptOk = false
   try {
     const res: any = await getKnowledgeSpans(props.knowledgeId, selectedAttempt.value)
-    if (res?.success && res.data) {
-      data.value = res.data as SpansResponse
+    if (res) {
+      data.value = res as SpansResponse
       attemptOk = true
       if (selectedAttempt.value === undefined) {
         selectedAttempt.value = data.value.attempt
@@ -376,7 +376,7 @@ async function fetchSpans(opts: { manual?: boolean } = {}) {
       }
       for (const stage of data.value.trace?.children || []) autoExpand(stage)
       expandedRows.value = expanded
-      const latestAttempt = data.value.latest_attempt || data.value.attempt || 0
+      const latestAttempt = data.value.latestAttempt || data.value.attempt || 0
       const tabStatus = resolveTimelineHeaderStatus({
         parseStatus: data.value.parseStatus,
         traceStatus: data.value.trace?.status,
@@ -412,16 +412,16 @@ async function fetchSpans(opts: { manual?: boolean } = {}) {
 }
 
 function ensureAttemptStatuses() {
-  const latest = data.value?.latest_attempt || 0
+  const latest = data.value?.latestAttempt || 0
   if (latest <= 1) return
   for (let n = 1; n <= latest; n++) {
     if (attemptStatuses.has(n)) continue
     getKnowledgeSpans(props.knowledgeId, n)
       .then((res: any) => {
-        if (res?.success && res.data?.trace) {
+        if (res?.trace) {
           attemptStatuses.set(n, resolveTimelineHeaderStatus({
-            parseStatus: res.data.parseStatus,
-            traceStatus: res.data.trace?.status,
+            parseStatus: res.parseStatus,
+            traceStatus: res.trace?.status,
             isLatestAttempt: n === latest,
           }) || 'running')
         }
@@ -1098,7 +1098,7 @@ interface AttemptTab {
 }
 
 const attemptTabs = computed<AttemptTab[]>(() => {
-  const latest = data.value?.latest_attempt || 0
+  const latest = data.value?.latestAttempt || 0
   if (latest <= 1) return []
   const active = selectedAttempt.value ?? data.value?.attempt ?? latest
   const out: AttemptTab[] = []
@@ -1132,7 +1132,7 @@ function attemptGlyph(status: string): { ch: string; cls: string } {
 // trace.status; only the latest attempt's header should defer to the
 // knowledge-level parseStatus.
 const viewingLatestAttempt = computed<boolean>(() => {
-  const latest = data.value?.latest_attempt || 0
+  const latest = data.value?.latestAttempt || 0
   if (latest <= 1) return true
   const active = selectedAttempt.value ?? data.value?.attempt ?? latest
   return active === latest

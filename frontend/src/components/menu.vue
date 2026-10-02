@@ -552,7 +552,8 @@ const handleInlineBatchDelete = () => {
                 } else {
                     res = await batchDelSessions([...batchSelectedIds.value])
                 }
-                if (res && res.success === true) {
+                // 后端删除类 204 无体（§1.13）；HTTP 层非 2xx 已走 catch
+                if (res !== undefined && res !== null) {
                     if (isDeleteAll) {
                         usemenuStore.clearMenuArr();
                         total.value = 0;
