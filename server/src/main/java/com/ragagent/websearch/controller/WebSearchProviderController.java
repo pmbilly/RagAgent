@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
@@ -152,7 +151,7 @@ public class WebSearchProviderController {
             String name,
             String description,
             WebSearchProviderParams parameters,
-            @JsonProperty("is_default") Boolean isDefault) {}
+            Boolean isDefault) {}
 
     @PutMapping("/{id}")
     public ResponseEntity<?> updateProvider(@PathVariable("id") String id,

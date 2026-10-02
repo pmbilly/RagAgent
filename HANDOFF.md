@@ -2784,7 +2784,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B14 存储读侧投影合并** | 引擎面 env 回落行 vs 落库面类型化记录（两套词汇） | P2 | 中 | ✅ **完成（2026-10-02）**——合并为「一面一源」（落库面 camel、引擎面由唯一次名器派生）+ 修掉两个同源静默 bug（① 非 minio 行凭据被丢；② 环境供给行读回来为空），含红态证明、消费者层断言与真机验证；另登记供给器明文落库（未修）。详见 15.1.1 |
 | **B15 供给行明文落库** | 供给器绕过加密直写 jsonb | P2 | 小 | ✅ **完成（2026-10-02）**——抽出唯一读写口 `StorageConfigCodec`（存储服务与供给器共用），真机 A/B 证明凭据由明文转为 `enc:v1:`；全量绿。详见 15.1.1 |
 | **B16 静默失效定向扫描** | 枚举「静默丢数据」机制点并逐对核写读词汇 | P1 | 中 | ✅ **完成（2026-10-02）**——未发现新缺陷（负面结果如实记录）；产出两个此前不存在的守卫（EPP 运行时守卫 + 契约面键名防回流守卫，均含红态证明）；附带盘出 B17 换锚欠账清单。详见 15.1.1 |
-| **B17 换锚收尾** | 残余逐字段 `@JsonProperty`（我方 ≈57）按「零风险 / 动形状 / 冻结」判定后分批清 | P2 | 小~中 | 🚧 **判定批完成（2026-10-02）**——三类判定已落；关键发现：键名＝字段名的注解里**有承重的**（包级可见字段靠它才被 Jackson 绑定，实测删除致 9 条契约测试失败，已回退）；主体＝`AgentConfig` 12 snake + `is_default` 等。详见 15.1.1 |
+| **B17 换锚收尾** | 残余逐字段 `@JsonProperty`（我方 ≈57）按「零风险 / 动形状 / 冻结」判定后分批清 | P2 | 小~中 | ✅ **基本完成（2026-10-02）**——判定批（三类 + 承重注解判据）+ 安全子集 6 处 + **websearch 请求键 camel 收口**（真机 A/B 实证）；仅剩 agent 配置面，**建议登记为「有意保留」**（非缺陷、纯风格、迁移风险高，理由见 15.1.1）。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3060,6 +3060,17 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
   ① **agent 配置面**：`agent/AgentConfig`（12 snake）+ `AgentConfigJson`（默认值/校验，键面 **≈60 个 snake**）+ `BuiltinAgentRegistry.CONFIG_KEYS`（≈60 键全集过滤）+ `session/service/AgentConfigAssembler`（≈20 个 `path("snake")` 读取点）+ 内置 agent 定义文件 + `custom_agents.config` jsonb 迁移 + `ag-*.json` 夹具重录 + 前端 `api/agent/index.ts` 类型（`max_iterations` 等）。
   ② **websearch provider 面**：响应 DTO（Java 侧已是 camel，但**线上输出 snake** —— 需先定位其序列化路径）+ 请求 DTO 的 `is_default`（按 §2 第 4 条连带改布尔前缀）+ `parameters` jsonb（`base_url`/`extra_config` 等）+ **43 个 `wsp-*.json` 夹具** + 前端映射层。
   建议顺序：**① 先做**（§2 第 11 条点名"落库格式走 Java 字段名"，且是 §11.2 最后一块边界），②随后。
+
+**✅ B17② websearch 请求键收口（2026-10-02）**——`is_default` → camel `isDefault`（§2 第 4 条），**不留兼容别名**。
+- **真机 A/B（同一 dev）**：修复前——camel `isDefault` 被**静默忽略**、snake `is_default` 生效；修复后——camel 生效（True）、snake 失效（False）。响应面本就 camel（`tenantId`/`isDefault`/`createdAt`）。
+- 新增 `WebSearchProviderRequestBindingTest`（钉「camel 生效 + snake 不绑定」）。`spotlessCheck` 绿 + 全量 4711 用例绿（含新钉）。
+- **纠正两个此前误判（如实记录）**：① websearch **响应面早已是 camel**——我此前据 `wsp-*.json` 夹具判"线上输出 snake"是**错的**（那批是 Go 期遗留夹具，与当前契约无关）；② 该请求键**前端与测试都不发**（前端"默认"走专用端点），故它**不是活 bug**，属契约一致性问题。
+- **shell 环境新坑**：某轮命令后 `PATH` 被清空（`curl`/`cat`/`head` 全部 not found）；`.env` 里并无 PATH 行，来源未定。**对策：命令前显式 `export PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin`**（已记入长期记忆）。
+
+**🔎 B17① agent 配置面：判定「暂不做」（建议，待用户拍板）**
+- 盘面：≈60 个 snake 键 × 面——`AgentConfig` 12 / `AgentConfigJson` 默认值 ≈60 / `BuiltinAgentRegistry.CONFIG_KEYS` ≈60 / `AgentConfigAssembler` ≈20 个读取点 / 内置定义文件 / `custom_agents.config` jsonb / `ag-*.json` 夹具 / 前端 `api/agent/index.ts` 类型；引用量级实测：主代码 **625**、测试 **2150**、前端 **298** 处（含同名词干扰）。
+- **判定理由**：① **不是缺陷**——读写两端一致（前端类型也是 snake）；② 收益纯风格（§2 第 11 条的一致性）；③ 代价大（≈60 键 × 4~5 面 + 用户数据迁移 + 夹具重录 + 前端）；④ **风险正是本会话一路在消的那一类**——迁移中任何漏改的 `path("snake")` 都会**静默回落默认值**（不报错）；⑤ 契约测试只覆盖 API 面，运行时读取面覆盖不全。
+- **结论**：建议**登记为「有意保留」**（同 B4/B11 的处理）；若用户要一致性，另立专项（预估 1~2 会话 + 落库迁移 + 夹具重录）。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
