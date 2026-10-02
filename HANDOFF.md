@@ -2782,6 +2782,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B12 B0 残留批 1** | wiki 任务级死信释放槽位（②）+ 孤儿 op 启动重放（③）+ 裸 NUL 审计盲区（R5） | P1 | 小 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B13 B0 残留批 2** | 孤儿存储组件判定与删除（④）+ `/auth/config` 版本信号消除登录 403 噪音（⑤）+ `process_overrides` 移植缺口判定 | P2 | 小 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B14 存储读侧投影合并** | 引擎面 env 回落行 vs 落库面类型化记录（两套词汇） | P2 | 中 | ✅ **完成（2026-10-02）**——合并为「一面一源」（落库面 camel、引擎面由唯一次名器派生）+ 修掉两个同源静默 bug（① 非 minio 行凭据被丢；② 环境供给行读回来为空），含红态证明、消费者层断言与真机验证；另登记供给器明文落库（未修）。详见 15.1.1 |
+| **B15 供给行明文落库** | 供给器绕过加密直写 jsonb | P2 | 小 | ✅ **完成（2026-10-02）**——抽出唯一读写口 `StorageConfigCodec`（存储服务与供给器共用），真机 A/B 证明凭据由明文转为 `enc:v1:`；全量绿。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3004,6 +3005,17 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
   - 全量测试绿 + `spotlessCheck` 绿；期间 `AttachmentContractTest.previewStreamsFileWithGoHeaders` 在全量负载下失败一次、单跑与复跑全量均绿（**判定为超时抖动**，非回归）。
 - **登记（本批未动）**：供给器直接经 `repository.create` 写行，**绕过了 `serializeConfig` 的加密** ⇒ 环境供给行的凭据在库里是**明文**（`configOf` 的「无前缀原样」使其功能正常，但违背「私钥落库为密文」的设计）。小批可修（供给器路由到同一序列化口或注入 `CryptoService`）。
 - **dev 库留痕（我的操作）**：租户 **9 `b14-probe-1015`**（含其供给的 `storage_backends` 行 `03e70033-d00c-44b9-bb56-6ac9c3092826`）为本批真机验证所建，**可删**。
+
+**✅ B15（2026-10-02，供给行明文落库——登记项闭环）**
+- **问题**：`DefaultStorageBackendProvisioner` 直接 `repository.create(backend, backend.getConfig().toString())`，**绕过** `serializeConfig` 的加密 ⇒ 环境供给行的云凭据以**明文**落库（功能正常，但违背「私钥落库即密文」的设计；`configOf` 的「无前缀原样」掩盖了它）。
+- **修法（唯一读写口）**：新增 `storage/service/StorageConfigCodec`（{@code @Component}：`encode(JsonNode)` 加密落库 / `decode(JsonNode)` 严格解密，语义与既有两条方法逐字一致）。`StorageBackendService.configOf/serializeConfig` 与之**委托**（其只为此而存在的 `CryptoService` 依赖随之下线），供给器注入同一读写口。**至此"写行"只有一条路径**——这条链路上已出过三个同源缺陷（引擎面键分族、落库面词汇、以及本次绕过加密），唯一口是结构性收口。
+- **验证（真机 A/B，同一台 dev、同一份 .env）**：
+  - 修复前的行（租户 9，B14 建的）：`cred_encrypted = f`——`"accessKeyId": "AK-b14"`, `"secretAccessKey": "SK-b14"` **明文**；
+  - 修复后的行（租户 10，`STORAGE_TYPE=s3` 建租户触发）：`cred_encrypted = t`——`"accessKeyId": "enc:v1:WBqzK__…"`, `"secretAccessKey": "enc:v1:HwyS5VB-…"` ✓；
+  - 单测：`DefaultStorageBackendProvisionerTest` 加 AES 密钥属性 + 断言「凭据带 `enc:v1:` 落库」+「经 `StorageBackendService.configOf` 解回明文」（消费者层）。
+  - 全量测试绿 + `spotlessCheck` 绿。
+- **副作用（良性，已核对）**：走 `StorageConfig` 往返后，供给行与接口建的行**形状归一**（含空串/false 的完整字段集）→ 引擎面读到时与"缺省"等价（逐字段核对：布尔缺省与显式 false 同义、`use_temp_bucket` 只由临时桶名决定）。既有明文行（若有）**无需迁移**：读侧「无前缀原样」仍能读。
+- **dev 库留痕（我的操作，均可删）**：租户 **9 `b14-probe-1015`**（行 `03e70033…`，明文，B14 建的）与租户 **10 `b15-probe-1030`**（行 `3ebd7f75…`，密文，B15 建的）。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

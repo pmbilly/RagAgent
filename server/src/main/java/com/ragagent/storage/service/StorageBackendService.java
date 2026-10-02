@@ -10,7 +10,6 @@ import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.common.crypto.CryptoService;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.SsrfGuard;
@@ -63,20 +62,20 @@ public class StorageBackendService {
     private final StorageBackendRepository repo;
     private final StorageAllowList allowList;
     private final SsrfGuard ssrfGuard;
-    private final CryptoService crypto;
+    private final StorageConfigCodec codec;
     private final org.springframework.transaction.support.TransactionTemplate tx;
     /** 对照 Go LOCAL_STORAGE_BASE_DIR（缺省 /data/files）；测试经 weknora.storage.local-base-dir 指向 build 目录 */
     private final String localStorageBaseDir;
 
     public StorageBackendService(StorageBackendRepository repo, StorageAllowList allowList,
-            SsrfGuard ssrfGuard, CryptoService crypto,
+            SsrfGuard ssrfGuard, StorageConfigCodec codec,
             org.springframework.transaction.support.TransactionTemplate tx,
             @org.springframework.beans.factory.annotation.Value(
                     "${weknora.storage.local-base-dir:${LOCAL_STORAGE_BASE_DIR:/data/files}}") String localStorageBaseDir) {
         this.repo = repo;
         this.allowList = allowList;
         this.ssrfGuard = ssrfGuard;
-        this.crypto = crypto;
+        this.codec = codec;
         this.tx = tx;
         this.localStorageBaseDir = localStorageBaseDir;
     }
@@ -385,45 +384,14 @@ public class StorageBackendService {
                 stripSlashes(trim(c.pathPrefix)));
     }
 
-    /** config 读取：JsonNode → typed（jsonb 内的密文在序列化写回时再处理；读路径严格解密） */
+    /** config 读取：JsonNode → typed（凭据解密统一走 {@link StorageConfigCodec}——唯一读写口） */
     public StorageConfig configOf(StorageBackend b) {
-        if (b.getConfig() == null || b.getConfig().isNull()) {
-            return new StorageConfig();
-        }
-        try {
-            StorageConfig c = MAPPER.treeToValue(b.getConfig(), StorageConfig.class);
-            // Scan：严格解密（失败拖垮行加载——与 Go 一致）
-            c.accessKeyId = crypto.decryptStoredSecret(c.accessKeyId);
-            c.secretAccessKey = crypto.decryptStoredSecret(c.secretAccessKey);
-            return c;
-        } catch (BizException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalStateException("parse storage backend config failed", e);
-        }
+        return codec.decode(b.getConfig());
     }
 
-    /** config 写出：typed → 密钥加密 → JSON 字符串（对照 Go Value()） */
+    /** config 写出：typed → 凭据加密 → JSON 字符串（统一走 {@link StorageConfigCodec}——唯一读写口） */
     public String serializeConfig(StorageBackend b) {
-        try {
-            StorageConfig c = b.getConfig() == null || b.getConfig().isNull()
-                    ? new StorageConfig()
-                    : MAPPER.treeToValue(b.getConfig(), StorageConfig.class);
-            byte[] key = crypto.getAESKey();
-            if (key != null) {
-                if (c.accessKeyId != null && !c.accessKeyId.isEmpty()
-                        && !c.accessKeyId.startsWith(CryptoService.ENC_PREFIX)) {
-                    c.accessKeyId = crypto.encryptAESGCM(c.accessKeyId, key);
-                }
-                if (c.secretAccessKey != null && !c.secretAccessKey.isEmpty()
-                        && !c.secretAccessKey.startsWith(CryptoService.ENC_PREFIX)) {
-                    c.secretAccessKey = crypto.encryptAESGCM(c.secretAccessKey, key);
-                }
-            }
-            return MAPPER.writeValueAsString(c);
-        } catch (Exception e) {
-            throw new IllegalStateException("serialize storage backend config failed", e);
-        }
+        return codec.encode(b.getConfig());
     }
 
     /** 对照 MaskSensitiveFields：非空密钥 → "***"（掩码只作用于响应） */

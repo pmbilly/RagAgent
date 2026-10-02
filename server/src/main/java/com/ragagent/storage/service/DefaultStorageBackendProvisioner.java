@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>env 取值走 {@link StorageProviderEnv} 的 {@code @ConfigurationProperties} 绑定
  * （B6 批 1，2026-10-02）：46 处裸 {@code System.getenv} + 手写 switch 收敛为
- * 「按 provider 取环境变量族」；变量名与落库形状均未变。</p>
+ * 「按 provider 取环境变量族」；变量名未变，落库形状＝<b>行面 camel</b>（B14 合并）。</p>
  */
 @Component
 public class DefaultStorageBackendProvisioner implements StorageBackendProvisioner {
@@ -31,13 +31,16 @@ public class DefaultStorageBackendProvisioner implements StorageBackendProvision
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final StorageBackendRepository repository;
+    private final StorageConfigCodec codec;
     private final StorageProviderEnv.StorageType storageType;
     private final Map<String, StorageProviderEnv.ProviderEnvFamily> providerEnvs;
 
     public DefaultStorageBackendProvisioner(StorageBackendRepository repository,
             StorageProviderEnv.StorageType storageType,
-            List<StorageProviderEnv.ProviderEnvFamily> providerEnvs) {
+            List<StorageProviderEnv.ProviderEnvFamily> providerEnvs,
+            StorageConfigCodec codec) {
         this.repository = repository;
+        this.codec = codec;
         this.storageType = storageType;
         this.providerEnvs = new LinkedHashMap<>();
         for (StorageProviderEnv.ProviderEnvFamily env : providerEnvs) {
@@ -55,8 +58,10 @@ public class DefaultStorageBackendProvisioner implements StorageBackendProvision
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         backend.setCreatedAt(now);
         backend.setUpdatedAt(now);
+        // 落库走唯一读写口（B15）：凭据在此加密——此前直接 toString() 落库，
+        // 环境供给行的私钥是明文（与"私钥落库即密文"的设计相悖）
         repository.create(backend, backend.getConfig() == null
-                ? "{}" : backend.getConfig().toString());
+                ? "{}" : codec.encode(backend.getConfig()));
         return backend.getId();
     }
 

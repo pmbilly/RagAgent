@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.TestSchema;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.ragagent.common.storage.StorageBackendProvisioner;
+import com.ragagent.storage.domain.StorageBackend;
 import com.ragagent.storage.dto.StorageConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @SpringBootTest(properties = {
         "storage.type=s3",
+        "system.aes-key=0123456789abcdef0123456789abcdef",
         "s3.endpoint=https://s3.example.com",
         "s3.region=ap-east-1",
         "s3.access-key=AK0",
@@ -41,6 +42,8 @@ class DefaultStorageBackendProvisionerTest {
     private JdbcTemplate jdbc;
     @Autowired
     private StorageBackendProvisioner provisioner;
+    @Autowired
+    private StorageBackendService storageService;
 
     @BeforeEach
     void seed() {
@@ -58,19 +61,21 @@ class DefaultStorageBackendProvisionerTest {
 
         assertThat(config.path("endpoint").asText()).isEqualTo("https://s3.example.com");
         assertThat(config.path("region").asText()).isEqualTo("ap-east-1");
-        assertThat(config.path("accessKeyId").asText()).isEqualTo("AK0");
-        assertThat(config.path("secretAccessKey").asText()).isEqualTo("SK0");
+        // 非凭据字段原样落库（camel，B14 后）
         assertThat(config.path("bucketName").asText()).isEqualTo("b0-bucket");
         assertThat(config.path("pathPrefix").asText()).isEqualTo("b3/");
         // S3_USE_SSL 未设置 → 缺省真；S3_FORCE_PATH_STYLE="true" → 显式写出
         assertThat(config.path("useSsl").asBoolean()).isTrue();
         assertThat(config.path("forcePathStyle").asBoolean()).isTrue();
+        // 凭据必须**加密落库**（B15）：此前供给器直接 toString() 写库，私钥是明文
+        assertThat(config.path("accessKeyId").asText()).startsWith("enc:v1:");
+        assertThat(config.path("secretAccessKey").asText()).startsWith("enc:v1:");
 
-        // 消费者层断言（与 StorageBackendService.configOf/serializeConfig 同一种读法）：
-        // 落库配置必须能绑进 StorageConfig——B14 前这里写的是 snake，会被忽略未知键静默丢空
-        StorageConfig readBack = new ObjectMapper()
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-                .treeToValue(config, StorageConfig.class);
+        // 消费者层断言：走唯一读写口解回来必须是明文（与 StorageBackendService.configOf 同路）
+        StorageBackend row = new StorageBackend();
+        row.setProvider("s3");
+        row.setConfig(config);
+        StorageConfig readBack = storageService.configOf(row);
         assertThat(readBack.accessKeyId).isEqualTo("AK0");
         assertThat(readBack.secretAccessKey).isEqualTo("SK0");
         assertThat(readBack.bucketName).isEqualTo("b0-bucket");
