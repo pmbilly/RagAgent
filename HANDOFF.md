@@ -2783,6 +2783,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B13 B0 残留批 2** | 孤儿存储组件判定与删除（④）+ `/auth/config` 版本信号消除登录 403 噪音（⑤）+ `process_overrides` 移植缺口判定 | P2 | 小 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B14 存储读侧投影合并** | 引擎面 env 回落行 vs 落库面类型化记录（两套词汇） | P2 | 中 | ✅ **完成（2026-10-02）**——合并为「一面一源」（落库面 camel、引擎面由唯一次名器派生）+ 修掉两个同源静默 bug（① 非 minio 行凭据被丢；② 环境供给行读回来为空），含红态证明、消费者层断言与真机验证；另登记供给器明文落库（未修）。详见 15.1.1 |
 | **B15 供给行明文落库** | 供给器绕过加密直写 jsonb | P2 | 小 | ✅ **完成（2026-10-02）**——抽出唯一读写口 `StorageConfigCodec`（存储服务与供给器共用），真机 A/B 证明凭据由明文转为 `enc:v1:`；全量绿。详见 15.1.1 |
+| **B16 静默失效定向扫描** | 枚举「静默丢数据」机制点并逐对核写读词汇 | P1 | 中 | ✅ **完成（2026-10-02）**——未发现新缺陷（负面结果如实记录）；产出两个此前不存在的守卫（EPP 运行时守卫 + 契约面键名防回流守卫，均含红态证明）；附带盘出 B17 换锚欠账清单。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3029,6 +3030,22 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
   3. **登记小项（B6 批 7 遗留，仍开着）**——`JWT_SECRET` 短于 32 字节应**启动期**校验并给明确文案（现为登录时才抛 `UnsupportedKeyException`）；`AuthController` refresh javadoc 仍引用 Go 的 `refresh_token`（契约实为 camel `refreshToken`）。两项都小，可随任一批捎带。
   4. **产品项（需拍板）**——`process_overrides` 后端落地（用户已定调"未来补"，草图见本文件 15.1.1 的 B13 段）。
   5. **不做**：Go 锚点专项、Gradle 多模块（B11 判定）、§15.3 全部冻结面、`QaSearchTargets`(706) 内部细分（低价值，维持搁置）。
+
+**✅ B16「静默失效」定向扫描（2026-10-02，用户拍板方案 A）**
+- **方法**：先枚举「能静默丢数据」的**机制点**，再按「同一份数据被两条不同路径读写」缩小战场（B3b/B14/B15 的共同形态），最后逐对核对写读词汇。
+- **机制点实测**：
+  ① 忽略未知键的宽松反序列化点（按文件聚合；`datasource/connector` 属冻结第三方面，不计）；
+  ② **显式键名映射表全仓仅 3 处**——`MemoryIndexStore.columnExists`（JDBC 探列大小写）、`WebSearchTempKbStateService.migrateLegacyKeys`（旧 Redis 载荷迁移）、`StorageFileResolver.renameConfigKeys`（B14 已修）⇒ 前两处**均有意保留，无缺陷**；
+  ③ **启动期快照 install 点 8 个**——全部有装配调用（`RuntimeSnapshotWiring` / `RetrievalEngineWiringConfig` / `AppEnvLookupEnvironmentPostProcessor`）；
+  ④ **jsonb TypeHandler 14 个**——其目标类型**均未被 controller 引用** ⇒ B3b 那种「前端/服务端/落库三方咬合」在这些面**不存在**；
+  ⑤ 命名策略/别名——全仓仅 `datasource/connector/rss/RssConfig` 一处 `SNAKE_CASE`（随换锚判定）。
+- **结论：未发现新的静默缺陷**（负面结果，如实记录）——上轮修掉那三处后，同类机制面是干净的。
+- **产出（把「检查过」变成「守得住」）**：
+  - 新增 `config/AppEnvLookupWiringTest`：**运行时**断言 EPP 真的装载（覆盖约 25 个散落读点：Ollama/OIDC/Gate/邀请 TTL/内置模型/启动恢复/临时文档 TTL/vectorstore 副本数…）。**红态证明**：去掉注册后该用例立刻失败（`expected: "probe-exact" but was: null`）——这正是「代码看着对、运行时不生效」那类回归的唯一自动化防线。
+  - 新增 `common/web/JsonFaceVocabularyTest`：对 **9 个已换锚的我方载体面**（websearch params / vectorstore 双配置 / mcp auth / api-principal / model parameters / wiki config / memory extraction state / datasource config）做反射守卫——`@JsonProperty` 键名必须＝字段名、禁 `@JsonAlias`（防旧键回流）、禁类级下划线策略。**这是「第二套词汇」的防回流闸门**；换锚完成的面应持续加进登记表。
+- **扫描附带盘出的欠账（→ B17 换锚收尾）**：`AgentConfig` 14（最大单点：落库 jsonb 逐字段 snake）、websearch controller 7（含 `is_default`）、wiki page 面 ≈15、auth controller ≈6、session 2、common 13、`datasource/domain`（`SyncCursor`/`SyncResult`/`DataSourceSyncPayload`/`DataSourceConfig` 的本地 mapper）等。
+- **另登记（小，未做）**：① `WebSearchTempKbStateService.migrateLegacyKeys` 是「仅部署窗口用」的旧键迁移 shim，按 §2 第 2 条（产品未上线、无数据连续性负担）**可删**；② 约 50 处**自建**宽松 mapper 未接 §2 第 12 条的 `JsonMappers.lenient()` 工厂（约定债，机械可清，宜配 ArchUnit 规则）。
+- 闸门：`spotlessCheck` 绿 + 全量测试绿（含两个新守卫）。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
