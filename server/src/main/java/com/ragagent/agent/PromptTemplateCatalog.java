@@ -215,10 +215,10 @@ public final class PromptTemplateCatalog {
                 o.put("user", t.user());
             }
             if (t.hasKnowledgeBase()) {
-                o.put("has_knowledge_base", true);
+                o.put("hasKnowledgeBase", true);
             }
             if (t.hasWebSearch()) {
-                o.put("has_web_search", true);
+                o.put("hasWebSearch", true);
             }
             if (t.dflt()) {
                 o.put("default", true);

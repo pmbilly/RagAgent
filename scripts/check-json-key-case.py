@@ -44,6 +44,10 @@ FROZEN_PREFIXES = (
     # 键名由对方 API 定，冻结）
     'embedding/provider', 'im/', 'websearch/provider', 'rerank/', 'asr/', 'vlm/',
     'retrieval/vlm', 'storage/provider',
+    # 引用/管线进度载荷＝**存量回放面**（B25 判定）：引用随 messages.knowledge_references
+    # 列落库并按历史回放渲染，前端 rag-pipeline-history 还会以同形键重建该载荷 ⇒ 改名须先
+    # 出迁移方案（或双读），故冻结。
+    'chatpipeline/support/ReferencesSupport', 'chatpipeline/PipelineProgress',
 )
 
 # 基线：已逐条复核的例外（文件相对路径 → 允许的键集合）。新增即失败。

@@ -2792,6 +2792,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B22 模板面 4 键 + api_key 收口** | 混搭面续清（只读派生视图，无写回副作用） | P2 | 小 | ✅ **完成（2026-10-02）**——模板面 4 键与 `api_key` 改 camel（含 FE 映射/读者/夹具/测试侧归一化），删死模块 `api/web-search.ts`；另：文本资源名与 DB 列名等数据值一律未动。详见 15.1.1 |
 | **B23 孤儿夹具审计** | 夹具「真被引用」判定（行为式，不按名猜） | P3 | 小 | ✅ **工具 + 首审完成（2026-10-02）**——1344 个夹具中 115 个为孤儿（≈8.6%，聚类见 15.1.1）；本批未删，等拍板 |
 | **B24 换锚长尾回头扫** | 注解面清零；新增 payload 键面盘点与棘轮 | P3 | 中 | 🟡 **盘点完成（2026-10-02）**——注解真债 0；Map/JsonNode 写键面 ≈309 键/119 文件（第三方族已冻结、FE 可见 42 键为批甲）；工具与边界已落。详见 15.1.1 |
+| **B25 批甲（首面）** | 模板标志位收口 + 引用/进度载荷判冻结 | P3 | 小 | ✅ **完成（2026-10-02）**——`hasKnowledgeBase`/`hasWebSearch` 收口（YAML 输入面未动）；引用载荷因落库+回放+前端重建而冻结；并纠正 B24 筛子的「FE 可见」低估 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3152,6 +3153,13 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **工具**：`scripts/check-json-key-case.py`（`--list` 出待判清单；默认＝**报告**、退出 0；`--strict` 才是闸门，**当前未启用**——启用前置＝批甲/批乙判定完成，现基线只含 3 组已逐条复核的例外）。**边界诚实声明**：按文本模式匹配会命中 **SQL 参数 Map / MyBatis 列名**（`*Repository` 的 `deleted_at` 等）⇒ `--list` 是**待判**清单而非违规清单；判真债必须看**消费者**。基线当前仅含 3 组已核实例外（langfuse、模型契约 `new_slugs`、内部 jsonb `new_slugs`）。
 - **方法论**：不要机械批改（B18 教训）——按**面**逐条判定，FE 可见的同批带前端与夹具；判不动的先登记，别猜。
 - **下一批（批甲，建议）**：FE 可见的"自有 JSON 面"逐面收口——先做聊天管线两组（`ReferencesSupport`/`PipelineProgress`/`SearchSupport`）与模板载荷标志位（`has_knowledge_base`/`has_web_search`），每个面＝后端 + 前端 + 夹具 + 契约测试同批。
+
+**✅ B25（2026-10-02，批甲：模板标志位收口；引用/进度载荷判为冻结）**
+- **收口**：模板载荷标志位 `has_knowledge_base` / `has_web_search` → `hasKnowledgeBase` / `hasWebSearch`。落点：后端 `PromptTemplateCatalog` 的**输出面**（`o.put(...)`，2 处）；夹具 `ct-kv-get-prompt-templates.json`（9 + 1 处）；前端 `api/system/index.ts`（2）+ `PromptTemplateSelector.vue`（2，模板 tag 条件）。**有意不动**：同文件 126/127 行的 `t.path("has_knowledge_base")`——那是**磁盘 YAML 的文件键**（输入面），动了会读不到。
+- **判定为冻结（不是改名）**：`ReferencesSupport` / `PipelineProgress` 的载荷——① 引用随 `messages.knowledge_references` 列（`SearchResultListTypeHandler`）**落库**；② 前端 `types/tool-results.ts` 以**非引号属性声明**（`chunk_id`/`knowledge_title`…）**按历史回放**渲染；③ 前端 `utils/rag-pipeline-history.ts` 还会用**同形键**（`search_source`/`doc_count`/`web_count`）**重建**该载荷 ⇒ 改名＝必须先出迁移方案（或双读）⇒ 已并入扫描器冻结清单并写明理由。
+- **筛子缺陷（自我纠正）**：B24 的「FE 可见」分桶是按**引号形式** grep 的，而前端大量使用**属性声明/访问**（`knowledge_title: string;`、`x.knowledge_title`）⇒ 该桶**系统性低估**（`ReferencesSupport` 曾被我判成「未外露」）。本批两面已用非引号写法复核；B24 表里其余「未外露/仅夹具」项在批乙须**重筛一遍**。
+- **仍待判（留批乙）**：`chatpipeline/support/SearchSupport`（`dropped_id`/`kept_id`/`match_type`，疑似检索调试载荷）、`chatpipeline/PipelineBuilder`（`chat_stream`/`rag_stream`/`chat_history_stream`，管线步名/事件名）。
+- 闸门：后端全量 **4713** 绿 + `spotlessCheck` 绿；前端 `vue-tsc` 绿 + `tsx --test` **690** 绿 + 契约键棘轮无新增。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
