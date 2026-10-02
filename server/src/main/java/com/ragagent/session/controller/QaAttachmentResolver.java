@@ -126,7 +126,7 @@ final class QaAttachmentResolver {
         List<MessageAttachment> attachments = resolved.attachments();
         // 对照 Go：handler 侧再按 supported_file_types 过滤一层（不支持的附件不进提示词）
         if (reqCtx.agentConfig != null && !attachments.isEmpty()) {
-            List<String> supported = KnowledgeQaController.stringListOf(reqCtx.agentConfig.get("supported_file_types"));
+            List<String> supported = KnowledgeQaController.stringListOf(reqCtx.agentConfig.get("supportedFileTypes"));
             if (!supported.isEmpty()) {
                 attachments.removeIf(att -> {
                     String ext = att.getFileType() == null
@@ -143,7 +143,7 @@ final class QaAttachmentResolver {
         // 图片进 vision：ImageURLs 挂到本回合的 images（与内联 base64 图片同一条下游，
         // 经 extractImageURLsAndOCRText 读 url）。Go 同样以 ImageUploadEnabled 为闸。
         if (reqCtx.agentConfig != null
-                && reqCtx.agentConfig.path("image_upload_enabled").asBoolean(false)) {
+                && reqCtx.agentConfig.path("imageUploadEnabled").asBoolean(false)) {
             for (String imageUrl : resolved.imageUrls()) {
                 QaSupport.QaRequestsImage image = new QaSupport.QaRequestsImage();
                 image.url = imageUrl;

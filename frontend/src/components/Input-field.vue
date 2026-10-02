@@ -163,7 +163,7 @@ const selectedAgent = computed(() => {
     id: BUILTIN_QUICK_ANSWER_ID,
     name: t('input.normalMode'),
     builtin: true,
-    config: { agent_mode: 'quick-answer' as const }
+    config: { agentMode: 'quick-answer' as const }
   } as CustomAgent;
 });
 
@@ -196,13 +196,13 @@ const currentAgentConfig = computed(() => {
 // 智能体预配置的知识库 IDs
 const agentKnowledgeBases = computed(() => {
   if (!hasAgentConfig.value) return [];
-  return currentAgentConfig.value?.knowledge_bases || [];
+  return currentAgentConfig.value?.knowledgeBases || [];
 });
 
 // 智能体的知识库选择模式
 const agentKBSelectionMode = computed(() => {
   if (!hasAgentConfig.value) return null; // null 表示不受智能体控制
-  return currentAgentConfig.value?.kb_selection_mode || 'all';
+  return currentAgentConfig.value?.kbSelectionMode || 'all';
 });
 
 // 当智能体改变时，模型、可@知识库列表均跟随新智能体配置；网络搜索由用户主动开启
@@ -239,7 +239,7 @@ const isWebSearchDisabledByAgent = computed(() => {
 });
 
 // 知识库选择是否被智能体锁定
-// 1. 如果智能体配置了 kb_selection_mode = 'none' → 完全禁用知识库
+// 1. 如果智能体配置了 kbSelectionMode = 'none' → 完全禁用知识库
 // 其他情况用户都可以在允许的范围内通过 @ 选择知识库
 const isKnowledgeBaseLockedByAgent = computed(() => {
   if (!hasAgentConfig.value) return false;
@@ -247,7 +247,7 @@ const isKnowledgeBaseLockedByAgent = computed(() => {
   return agentKBSelectionMode.value === 'none';
 });
 
-// 知识库是否被智能体完全禁用（kb_selection_mode = 'none'）
+// 知识库是否被智能体完全禁用（kbSelectionMode = 'none'）
 const isKnowledgeBaseDisabledByAgent = computed(() => {
   if (!hasAgentConfig.value) return false;
   return agentKBSelectionMode.value === 'none';
@@ -262,19 +262,19 @@ const isMentionDisabled = computed(() => {
 // 智能体配置的模型 ID
 const agentModelId = computed(() => {
   if (!hasAgentConfig.value) return null;
-  return currentAgentConfig.value?.model_id || null;
+  return currentAgentConfig.value?.modelId || null;
 });
 
 // 智能体支持的文件类型（空数组表示支持所有类型）
 const agentSupportedFileTypes = computed(() => {
   if (!hasAgentConfig.value) return [];
-  return currentAgentConfig.value?.supported_file_types || [];
+  return currentAgentConfig.value?.supportedFileTypes || [];
 });
 
 // 智能体配置的工具列表，驱动 @ 菜单的 KB 兼容性过滤
 const agentAllowedTools = computed<string[]>(() => {
   if (!hasAgentConfig.value) return [];
-  return currentAgentConfig.value?.allowed_tools || [];
+  return currentAgentConfig.value?.allowedTools || [];
 });
 
 type SelectionMode = 'all' | 'selected' | 'none';
@@ -284,12 +284,12 @@ const normalizeSelectionMode = (mode?: string): SelectionMode => {
 
 const agentMCPSelectionMode = computed<SelectionMode>(() => {
   if (!settingsStore.isAgentStreamMode || !hasAgentConfig.value) return 'none';
-  return normalizeSelectionMode(currentAgentConfig.value?.mcp_selection_mode);
+  return normalizeSelectionMode(currentAgentConfig.value?.mcpSelectionMode);
 });
 
 const agentMCPServiceIds = computed<string[]>(() => {
   if (agentMCPSelectionMode.value !== 'selected') return [];
-  return currentAgentConfig.value?.mcp_services || [];
+  return currentAgentConfig.value?.mcpServices || [];
 });
 
 const isMCPAllowedByAgent = (service: MCPService) => {
@@ -302,12 +302,12 @@ const isMCPAllowedByAgent = (service: MCPService) => {
 
 const agentSkillsSelectionMode = computed<SelectionMode>(() => {
   if (!settingsStore.isAgentStreamMode || !hasAgentConfig.value) return 'none';
-  return normalizeSelectionMode(currentAgentConfig.value?.skills_selection_mode);
+  return normalizeSelectionMode(currentAgentConfig.value?.skillsSelectionMode);
 });
 
 const agentSelectedSkills = computed<string[]>(() => {
   if (agentSkillsSelectionMode.value !== 'selected') return [];
-  return currentAgentConfig.value?.selected_skills || [];
+  return currentAgentConfig.value?.selectedSkills || [];
 });
 
 const isSkillAllowedByAgent = (skillName: string) => {
@@ -364,11 +364,11 @@ const kbToScopeCaps = (kb: any): Partial<ScopeCapabilities> => {
   };
 };
 
-// 当前智能体的 agent_mode（quick-answer / smart-reasoning），用于把
+// 当前智能体的 agentMode（quick-answer / smart-reasoning），用于把
 // "RAG-only 模式不能 @ wiki-only 知识库"这种隐式约束带进 KB 过滤。
 const agentMode = computed(() => {
   if (!hasAgentConfig.value) return '';
-  return currentAgentConfig.value?.agent_mode || '';
+  return currentAgentConfig.value?.agentMode || '';
 });
 
 // "all" 模式 + 智能体工具有 KB 依赖时的兼容性过滤；'selected'/'none' 不在这里二次过滤
@@ -394,7 +394,7 @@ const mentionEmptyHint = computed(() => {
 // 智能体是否启用了图片上传（多模态）
 const isImageUploadEnabledByAgent = computed(() => {
   if (!hasAgentConfig.value) return false;
-  return currentAgentConfig.value?.image_upload_enabled === true;
+  return currentAgentConfig.value?.imageUploadEnabled === true;
 });
 
 // Input 工具栏：仅当智能体已启用且搜索引擎可用时才显示
@@ -768,9 +768,9 @@ const ensureSelectedAgentNotDisabled = () => {
 
   settingsStore.selectAgent(fallback.id)
   // selectAgent 内部仅对两个 builtin 常量自动切 isAgentEnabled；自定义 agent 兜底时
-  // 需要按其 agent_mode 显式同步一次，保证模式徽标与对话行为一致。
+  // 需要按其 agentMode 显式同步一次，保证模式徽标与对话行为一致。
   if (fallback.id !== BUILTIN_QUICK_ANSWER_ID && fallback.id !== BUILTIN_SMART_REASONING_ID) {
-    settingsStore.toggleAgent(fallback.config?.agent_mode === 'smart-reasoning')
+    settingsStore.toggleAgent(fallback.config?.agentMode === 'smart-reasoning')
   }
 }
 
@@ -811,7 +811,7 @@ const writeLastChatModelID = (id: string) => {
 // Initial chat-model selection priority: per-user last pick
 // (localStorage) > current store value (e.g. carried over from
 // settings page) > first available model. The tenant-level
-// conversation-config used to feed summaryModelId/rerank_model_id
+// conversation-config used to feed summaryModelId/rerankModelId
 // into the dropdown, but those fields were removed: per-user last pick
 // belongs in localStorage, agent-level model belongs on the agent.
 const initChatModelSelection = () => {
@@ -857,9 +857,9 @@ const ensureModelSelection = () => {
   }
 };
 
-// 智能体身份或其数据到位时，把对话模型同步到智能体配置的 model_id。
+// 智能体身份或其数据到位时，把对话模型同步到智能体配置的 modelId。
 // 修复场景：导航离开再返回时，initChatModelSelection 会用 localStorage 的 lastPick
-// 覆盖智能体配置的 model_id，UI 显示「未配置」——此时需要拉回 agent 模型。
+// 覆盖智能体配置的 modelId，UI 显示「未配置」——此时需要拉回 agent 模型。
 // 但若用户在本页手动改过模型（lastPick 与 agent 默认不同且当前选中即为 lastPick），
 // 则保留用户选择，避免 creatChat → chat 跳转后把模型 B 冲回智能体默认 A。
 watch(
@@ -1079,7 +1079,7 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
     mentionOffset.value = 0;
   }
 
-  // 根据智能体的 kb_selection_mode 过滤知识库
+  // 根据智能体的 kbSelectionMode 过滤知识库
   let kbItems: any[] = [];
   let tagItems: MentionItem[] = [];
   let mcpItems: MentionItem[] = [];
@@ -1184,7 +1184,7 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
 
   // Fetch Files from API
   // 仅当满足以下两点才加载文件：
-  //   1. 智能体确实会用到知识库（kb_selection_mode !== 'none'）；
+  //   1. 智能体确实会用到知识库（kbSelectionMode !== 'none'）；
   //   2. 智能体启用的工具里至少有一个能消费 @ 的文件 ID
   //      （比如 wiki-qa 全是 wiki_* 工具，用户 @ 的文件根本进不到任何工具里，就没必要展示）。
   let fileItems: any[] = [];
@@ -1804,7 +1804,7 @@ const createSession = async (val: string, delivery: 'inject' | 'after' = 'after'
     }
     actualAgent = builtin || agentToCheck;
   }
-  const isAgentMode = actualAgent.config?.agent_mode === 'smart-reasoning';
+  const isAgentMode = actualAgent.config?.agentMode === 'smart-reasoning';
   const { keys: notReadyKeys, labels: notReadyReasons } = collectAgentNotReadyReasons(
     actualAgent,
     isAgentMode,
@@ -1996,8 +1996,8 @@ const handleSelectAgent = async (agent: CustomAgent) => {
     await loadChatModels()
   }
 
-  // 根据智能体的 agent_mode 判断是否为 Agent 模式
-  const isAgentType = agent.config?.agent_mode === 'smart-reasoning';
+  // 根据智能体的 agentMode 判断是否为 Agent 模式
+  const isAgentType = agent.config?.agentMode === 'smart-reasoning';
 
   // 统一检查智能体是否就绪（内置和自定义智能体使用相同逻辑）
   const actualAgent = agent.builtin
@@ -2020,7 +2020,7 @@ const handleSelectAgent = async (agent: CustomAgent) => {
 
   // 同步模型（选中的对话模型随智能体切换，含共享智能体）。
   // 网络搜索已由 selectAgent 重置为关闭，智能体配置只控制该开关是否可用。
-  const agentModel = agent.config?.model_id;
+  const agentModel = agent.config?.modelId;
   if (agentModel && agentModel.trim() !== '') {
     selectedModelId.value = agentModel;
   } else {

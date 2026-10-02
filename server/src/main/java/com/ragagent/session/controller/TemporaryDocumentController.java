@@ -255,30 +255,30 @@ public class TemporaryDocumentController {
         }
         com.fasterxml.jackson.databind.node.ObjectNode cfg =
                 com.ragagent.session.service.AgentResolver.parseAgentConfig(agent);
-        List<String> supported = stringListOf(cfg.get("supported_file_types"));
+        List<String> supported = stringListOf(cfg.get("supportedFileTypes"));
         if (!supported.isEmpty() && !containsFileType(supported, ext)) {
             throw new BizException(AppError.badRequest("file type is not supported by this agent"));
         }
         if (isAudioExtension(ext)) {
-            if (!cfg.path("audio_upload_enabled").asBoolean(false)
-                    || cfg.path("asr_model_id").asText("").isEmpty()) {
+            if (!cfg.path("audioUploadEnabled").asBoolean(false)
+                    || cfg.path("asrModelId").asText("").isEmpty()) {
                 throw new BizException(AppError.badRequest(
                         "audio upload is not enabled or no ASR model is configured"));
             }
-            options = options.withAsrModelId(cfg.path("asr_model_id").asText(""));
+            options = options.withAsrModelId(cfg.path("asrModelId").asText(""));
         }
         if (options.parserEngine().isEmpty() || "auto".equals(options.parserEngine())) {
             String engine = com.ragagent.knowledge.support.ParserEngineRules.resolve(
-                    cfg.get("chat_parser_engine_rules"), ext);
+                    cfg.get("chatParserEngineRules"), ext);
             if (!engine.isEmpty()) {
                 options = options.withParserEngine(engine);
             }
         }
-        if (cfg.path("image_upload_enabled").asBoolean(false)
-                && !cfg.path("vlm_model_id").asText("").isEmpty()) {
-            options = options.withVlm(cfg.path("vlm_model_id").asText(""),
-                    cfg.path("attachment_image_understanding").asBoolean(false),
-                    cfg.path("attachment_ocr_max_pages").asInt(0));
+        if (cfg.path("imageUploadEnabled").asBoolean(false)
+                && !cfg.path("vlmModelId").asText("").isEmpty()) {
+            options = options.withVlm(cfg.path("vlmModelId").asText(""),
+                    cfg.path("attachmentImageUnderstanding").asBoolean(false),
+                    cfg.path("attachmentOcrMaxPages").asInt(0));
         }
         return options;
     }

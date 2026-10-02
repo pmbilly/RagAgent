@@ -223,7 +223,7 @@ public class SessionKnowledgeQaService {
             }
         }
         if (req.agentConfig != null) {
-            vlmModelId = req.agentConfig.path("vlm_model_id").asText("");
+            vlmModelId = req.agentConfig.path("vlmModelId").asText("");
         }
 
         // Resolve retrieval tenant scope using shared helper
@@ -816,7 +816,7 @@ public class SessionKnowledgeQaService {
 
     private String resolveWebSearchProviderId(QaSupport.QaRequest req, long tenantId) {
         if (req.agentConfig != null) {
-            String providerId = req.agentConfig.path("web_search_provider_id").asText("");
+            String providerId = req.agentConfig.path("webSearchProviderId").asText("");
             if (!providerId.isEmpty()) {
                 return providerId;
             }
@@ -836,14 +836,14 @@ public class SessionKnowledgeQaService {
 
     private boolean resolveWebFetchEnabled(QaSupport.QaRequest req) {
         if (req.agentConfig != null) {
-            return req.agentConfig.path("web_fetch_enabled").asBoolean(false);
+            return req.agentConfig.path("webFetchEnabled").asBoolean(false);
         }
         return false;
     }
 
     private int resolveWebFetchTopN(QaSupport.QaRequest req) {
         if (req.agentConfig != null) {
-            int topN = req.agentConfig.path("web_fetch_top_n").asInt(0);
+            int topN = req.agentConfig.path("webFetchTopN").asInt(0);
             if (topN > 0) {
                 return topN;
             }
@@ -853,7 +853,7 @@ public class SessionKnowledgeQaService {
 
     private int resolveWebSearchMaxResults(QaSupport.QaRequest req) {
         if (req.agentConfig != null) {
-            int max = req.agentConfig.path("web_search_max_results").asInt(0);
+            int max = req.agentConfig.path("webSearchMaxResults").asInt(0);
             if (max > 0) {
                 return max;
             }
@@ -1022,12 +1022,12 @@ public class SessionKnowledgeQaService {
 
     /** RetrievalConfig 的读取视图（GetEffective* 兜底，Go types.RetrievalConfig）。 */
     private record RetrievalConfigView(JsonNode raw) {
-        String rerankModelId() { return raw == null ? null : raw.path("rerank_model_id").asText(null); }
-        int embeddingTopK() { return effInt("embedding_top_k", 30); }
-        double vectorThreshold() { return effDouble("vector_threshold", 0.2); }
-        double keywordThreshold() { return effDouble("keyword_threshold", 0.3); }
-        int rerankTopK() { return effInt("rerank_top_k", 30); }
-        double rerankThreshold() { return effDouble("rerank_threshold", 0.3); }
+        String rerankModelId() { return raw == null ? null : raw.path("rerankModelId").asText(null); }
+        int embeddingTopK() { return effInt("embeddingTopK", 30); }
+        double vectorThreshold() { return effDouble("vectorThreshold", 0.2); }
+        double keywordThreshold() { return effDouble("keywordThreshold", 0.3); }
+        int rerankTopK() { return effInt("rerankTopK", 30); }
+        double rerankThreshold() { return effDouble("rerankThreshold", 0.3); }
         private int effInt(String f, int d) { return raw == null || raw.path(f).asInt(0) <= 0 ? d : raw.path(f).asInt(); }
         private double effDouble(String f, double d) {
             return raw == null || raw.path(f).asDouble(-1) < 0 ? d : raw.path(f).asDouble();

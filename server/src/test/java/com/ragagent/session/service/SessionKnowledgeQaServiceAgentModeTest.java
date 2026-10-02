@@ -29,25 +29,25 @@ class SessionKnowledgeQaServiceAgentModeTest {
 
     @Test
     void smartReasoningIsAgentMode() {
-        assertThat(SessionKnowledgeQaService.isAgentMode(cfg("{\"agent_mode\":\"smart-reasoning\"}")))
+        assertThat(SessionKnowledgeQaService.isAgentMode(cfg("{\"agentMode\":\"smart-reasoning\"}")))
                 .isTrue();
     }
 
     @Test
     void quickAnswerIsNotAgentMode() {
-        assertThat(SessionKnowledgeQaService.isAgentMode(cfg("{\"agent_mode\":\"quick-answer\"}")))
+        assertThat(SessionKnowledgeQaService.isAgentMode(cfg("{\"agentMode\":\"quick-answer\"}")))
                 .isFalse();
     }
 
     @Test
     void legacyMistakenValueIsNotAgentMode() {
-        assertThat(SessionKnowledgeQaService.isAgentMode(cfg("{\"agent_mode\":\"agent\"}")))
+        assertThat(SessionKnowledgeQaService.isAgentMode(cfg("{\"agentMode\":\"agent\"}")))
                 .isFalse();
     }
 
     @Test
     void blankOrMissingModeIsNotAgentMode() {
-        assertThat(SessionKnowledgeQaService.isAgentMode(cfg("{\"agent_mode\":\"\"}"))).isFalse();
+        assertThat(SessionKnowledgeQaService.isAgentMode(cfg("{\"agentMode\":\"\"}"))).isFalse();
         assertThat(SessionKnowledgeQaService.isAgentMode(cfg("{}"))).isFalse();
     }
 }

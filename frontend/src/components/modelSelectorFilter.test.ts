@@ -43,7 +43,7 @@ test('VLM selection, knowledge-base and agent saves, and deletion preserve the s
   assert.match(selectorSource, /emit\('update:selectedModelId', value \|\| ''\)/)
   assert.match(kbEditorSource, /handleMultimodalVLLMChange[\s\S]*vllmModelId = modelId/)
   assert.match(kbEditorSource, /vlmConfig = \{[\s\S]*modelId:[\s\S]*vllmModelId/)
-  assert.match(agentEditorSource, /model-type="VLLM"[\s\S]*formData\.config\.vlm_model_id[\s\S]*formData\.config\.vlm_model_id = val/)
+  assert.match(agentEditorSource, /model-type="VLLM"[\s\S]*formData\.config\.vlmModelId[\s\S]*formData\.config\.vlmModelId = val/)
   assert.match(agentEditorSource, /const payload = \{ \.\.\.formData\.value, config: serializeAgentPrompts/)
   assert.match(agentEditorSource, /updateAgent\(formData\.value\.id, payload\)/)
   assert.match(modelSettingsSource, /@confirm="deleteModel\(model\._modelType, model\.id\)"/)

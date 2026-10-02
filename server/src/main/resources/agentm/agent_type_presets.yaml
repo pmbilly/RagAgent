@@ -47,22 +47,22 @@ agent_type_presets:
         label: "RAG Q&A"
         description: "ドキュメントのチャンクに基づく根拠付きの検索型回答。Wikiを有効にしていないドキュメント/FAQナレッジベースに最適です。"
     config:
-      system_prompt_id: "progressive_rag_agent"
+      systemPromptId: "progressive_rag_agent"
       temperature: 0.7
-      max_iterations: 30
+      maxIterations: 30
       # `thinking` and `todo_write` are intentionally NOT included by default.
       # They are useful for multi-step planning / self-reflection, but most
       # users don't need them for single-turn Q&A and they noticeably bloat
       # token usage. Enable them manually in the tool list when needed.
-      allowed_tools:
+      allowedTools:
         - "knowledge_search"
         - "grep_chunks"
         - "list_knowledge_chunks"
         - "get_document_info"
-      retain_retrieval_history: false
-      faq_priority_enabled: true
-      kb_selection_mode: "all"
-    # kb_filter derived from allowed_tools: any_of = [vector, keyword]
+      retainRetrievalHistory: false
+      faqPriorityEnabled: true
+      kbSelectionMode: "all"
+    # kb_filter derived from allowedTools: any_of = [vector, keyword]
 
   # --------------------------------------------------------------------------
   # Wiki Q&A — graph-navigated wiki answering.
@@ -83,20 +83,20 @@ agent_type_presets:
         label: "Wiki Q&A"
         description: "Wikiを主体とした回答。Wikiページを検索・閲覧し、リンクをたどります。Wikiを有効にしたナレッジベースが必要です。"
     config:
-      system_prompt_id: "wiki_researcher"
+      systemPromptId: "wiki_researcher"
       temperature: 0.7
-      max_iterations: 30
+      maxIterations: 30
       # `thinking` / `todo_write` can be enabled manually if the user wants
       # explicit reflection or planning across long wiki navigation chains;
       # not on by default.
-      allowed_tools:
+      allowedTools:
         - "wiki_search"
         - "wiki_read_page"
         - "wiki_read_source_doc"
         - "wiki_flag_issue"
-      retain_retrieval_history: false
-      kb_selection_mode: "all"
-    # kb_filter derived from allowed_tools: any_of = [wiki]
+      retainRetrievalHistory: false
+      kbSelectionMode: "all"
+    # kb_filter derived from allowedTools: any_of = [wiki]
 
   # --------------------------------------------------------------------------
   # Hybrid RAG + Wiki — single agent that orchestrates both indexes.
@@ -117,13 +117,13 @@ agent_type_presets:
         label: "ハイブリッド（Wiki + RAG）"
         description: "Wikiページで全体像と背景を把握し、そこからチャンクを掘り下げて正確に引用します。Wikiとチャンクインデックスの両方を有効にしたナレッジベースが必要です。"
     config:
-      system_prompt_id: "hybrid_rag_wiki_agent"
+      systemPromptId: "hybrid_rag_wiki_agent"
       temperature: 0.7
-      max_iterations: 40
+      maxIterations: 40
       # `thinking` and `todo_write` are opt-in. Turn them on manually when the
       # user wants explicit self-reflection or a visible step-by-step plan for
       # multi-hop hybrid searches.
-      allowed_tools:
+      allowedTools:
         - "wiki_search"
         - "wiki_read_page"
         - "knowledge_search"
@@ -131,16 +131,16 @@ agent_type_presets:
         - "list_knowledge_chunks"
         - "get_document_info"
         - "wiki_flag_issue"
-      retain_retrieval_history: false
-      faq_priority_enabled: true
-      kb_selection_mode: "all"
+      retainRetrievalHistory: false
+      faqPriorityEnabled: true
+      kbSelectionMode: "all"
     # Hybrid is meant to be the most flexible preset: the agent adapts at
     # runtime based on what each KB exposes.
     #  - KB has wiki + chunks  → full "wiki-first, RAG-verify" workflow
     #  - KB has only chunks    → fallback to pure RAG (see prompt's "Fallback rules")
     #  - KB has only wiki      → fallback to wiki-only answering
     #  - FAQ KB                → allowed; knowledge_search still works on FAQ chunks
-    # kb_filter derived from allowed_tools: any_of = [vector, keyword, wiki].
+    # kb_filter derived from allowedTools: any_of = [vector, keyword, wiki].
     # We only require that the KB expose AT LEAST ONE retrievable surface so
     # the agent has SOMETHING to call. KBs with zero indexing (e.g. graph-only
     # or completely unindexed) are still excluded since no tool will return
@@ -167,22 +167,22 @@ agent_type_presets:
         label: "データ分析"
         description: "表形式ファイル（CSV/Excel）に対するSQLクエリと統計分析。データファイルを含むナレッジベースと組み合わせてください。"
     config:
-      system_prompt_id: "data_analyst"
+      systemPromptId: "data_analyst"
       temperature: 0.3
-      max_iterations: 30
+      maxIterations: 30
       # `thinking` / `todo_write` are opt-in for data-analysis too. Enable
       # manually if the user wants explicit reflection or to break a long
       # analysis into tracked sub-tasks.
-      allowed_tools:
+      allowedTools:
         - "data_schema"
         - "data_analysis"
       # retain_retrieval_history is irrelevant here — data-analysis has no
       # retrieval tools in allowed_tools. Leave defaults.
-      web_search_enabled: false
-      supported_file_types:
+      webSearchEnabled: false
+      supportedFileTypes:
         - "csv"
         - "xlsx"
-      kb_selection_mode: "all"
+      kbSelectionMode: "all"
     # data_schema / data_analysis tools read ChunkTypeTableSummary /
     # ChunkTypeTableColumn chunks, which are produced by the normal RAG
     # ingestion pipeline (vector / keyword indexing on). The any_of predicate

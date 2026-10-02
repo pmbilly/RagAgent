@@ -93,7 +93,7 @@ class TemporaryDocumentProcessContractTest {
     private static Tenant tenantWithRule(String ext, String engine) {
         Tenant t = new Tenant();
         ObjectNode cfg = MAPPER.createObjectNode();
-        ArrayNode rules = cfg.putArray("chat_parser_engine_rules");
+        ArrayNode rules = cfg.putArray("chatParserEngineRules");
         ObjectNode rule = rules.addObject();
         rule.putArray("file_types").add(ext);
         rule.put("engine", engine);

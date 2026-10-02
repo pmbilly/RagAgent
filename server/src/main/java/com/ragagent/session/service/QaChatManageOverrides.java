@@ -44,78 +44,78 @@ final class QaChatManageOverrides {
         if (temperature >= 0) {
             cm.getSummaryConfig().setTemperature(temperature);
         }
-        int maxCompletionTokens = c.path("max_completion_tokens").asInt(0);
+        int maxCompletionTokens = c.path("maxCompletionTokens").asInt(0);
         if (maxCompletionTokens > 0) {
             cm.getSummaryConfig().setMaxCompletionTokens(maxCompletionTokens);
         }
         JsonNode thinking = c.get("thinking");
         cm.getSummaryConfig().setThinking(thinking != null && thinking.isBoolean() ? thinking.asBoolean() : null);
-        cm.setCitationEnabled(c.path("citation_enabled").asBoolean(true));
-        int embeddingTopK = c.path("embedding_top_k").asInt(0);
+        cm.setCitationEnabled(c.path("citationEnabled").asBoolean(true));
+        int embeddingTopK = c.path("embeddingTopK").asInt(0);
         if (embeddingTopK > 0) {
             cm.setEmbeddingTopK(embeddingTopK);
         }
-        double keywordThreshold = c.path("keyword_threshold").asDouble(0);
+        double keywordThreshold = c.path("keywordThreshold").asDouble(0);
         if (keywordThreshold > 0) {
             cm.setKeywordThreshold(keywordThreshold);
         }
-        double vectorThreshold = c.path("vector_threshold").asDouble(0);
+        double vectorThreshold = c.path("vectorThreshold").asDouble(0);
         if (vectorThreshold > 0) {
             cm.setVectorThreshold(vectorThreshold);
         }
-        int rerankTopK = c.path("rerank_top_k").asInt(0);
+        int rerankTopK = c.path("rerankTopK").asInt(0);
         if (rerankTopK > 0) {
             cm.setRerankTopK(rerankTopK);
         }
-        cm.setRerankThreshold(c.path("rerank_threshold").asDouble(0));
-        String rerankModelId = c.path("rerank_model_id").asText("");
+        cm.setRerankThreshold(c.path("rerankThreshold").asDouble(0));
+        String rerankModelId = c.path("rerankModelId").asText("");
         if (!rerankModelId.isEmpty()) {
             cm.setRerankModelId(rerankModelId);
         }
-        cm.setEnableRewrite(c.path("enable_rewrite").asBoolean(false));
-        cm.setEnableQueryExpansion(c.path("enable_query_expansion").asBoolean(false));
-        String rwSys = c.path("rewrite_prompt_system").asText("");
+        cm.setEnableRewrite(c.path("enableRewrite").asBoolean(false));
+        cm.setEnableQueryExpansion(c.path("enableQueryExpansion").asBoolean(false));
+        String rwSys = c.path("rewritePromptSystem").asText("");
         if (!rwSys.isEmpty()) {
             cm.setRewritePromptSystem(rwSys);
         }
-        String rwUser = c.path("rewrite_prompt_user").asText("");
+        String rwUser = c.path("rewritePromptUser").asText("");
         if (!rwUser.isEmpty()) {
             cm.setRewritePromptUser(rwUser);
         }
-        String quModel = c.path("query_understand_model_id").asText("");
+        String quModel = c.path("queryUnderstandModelId").asText("");
         if (!quModel.isEmpty()) {
             cm.setQueryUnderstandModelId(quModel);
         }
-        String fallbackStrategy = c.path("fallback_strategy").asText("");
+        String fallbackStrategy = c.path("fallbackStrategy").asText("");
         if (!fallbackStrategy.isEmpty()) {
             cm.setFallbackStrategy(fallbackStrategy);
         }
-        String fallbackResponse = c.path("fallback_response").asText("");
+        String fallbackResponse = c.path("fallbackResponse").asText("");
         if (!fallbackResponse.isEmpty()) {
             cm.setFallbackResponse(fallbackResponse);
         }
-        String fallbackPrompt = c.path("fallback_prompt").asText("");
+        String fallbackPrompt = c.path("fallbackPrompt").asText("");
         if (!fallbackPrompt.isEmpty()) {
             cm.setFallbackPrompt(fallbackPrompt);
         }
-        int webSearchMaxResults = c.path("web_search_max_results").asInt(0);
+        int webSearchMaxResults = c.path("webSearchMaxResults").asInt(0);
         if (webSearchMaxResults > 0) {
             cm.setWebSearchMaxResults(webSearchMaxResults);
         }
-        int historyTurns = c.path("history_turns").asInt(0);
+        int historyTurns = c.path("historyTurns").asInt(0);
         if (historyTurns > 0) {
             cm.setMaxRounds(historyTurns);
             log.info("Using custom agent's history_turns: {}", cm.getMaxRounds());
         }
-        if (!c.path("multi_turn_enabled").asBoolean(true)) {
+        if (!c.path("multiTurnEnabled").asBoolean(true)) {
             cm.setMaxRounds(0);
             log.info("Multi-turn disabled by custom agent, clearing history");
         }
-        cm.setFaqPriorityEnabled(c.path("faq_priority_enabled").asBoolean(false));
-        cm.setFaqDirectAnswerThreshold(c.path("faq_direct_answer_threshold").asDouble(0.0));
-        cm.setFaqScoreBoost(c.path("faq_score_boost").asDouble(0.0));
-        cm.setDataAnalysisEnabled(c.path("data_analysis_enabled").asBoolean(false));
-        JsonNode intentPrompts = c.get("intent_prompts");
+        cm.setFaqPriorityEnabled(c.path("faqPriorityEnabled").asBoolean(false));
+        cm.setFaqDirectAnswerThreshold(c.path("faqDirectAnswerThreshold").asDouble(0.0));
+        cm.setFaqScoreBoost(c.path("faqScoreBoost").asDouble(0.0));
+        cm.setDataAnalysisEnabled(c.path("dataAnalysisEnabled").asBoolean(false));
+        JsonNode intentPrompts = c.get("intentPrompts");
         if (intentPrompts != null && intentPrompts.isObject() && intentPrompts.size() > 0) {
             Map<String, String> overrides = new LinkedHashMap<>();
             intentPrompts.fields().forEachRemaining(e -> overrides.put(e.getKey(), e.getValue().asText("")));
@@ -127,10 +127,10 @@ final class QaChatManageOverrides {
         if (c == null) {
             return new SessionQaResolution.Prompts("", "");
         }
-        String system = c.path("system_prompt").asText("");
-        String context = c.path("context_template").asText("");
+        String system = c.path("systemPrompt").asText("");
+        String context = c.path("contextTemplate").asText("");
         boolean agentMode = SessionKnowledgeQaService.isAgentMode(c);
-        String systemId = c.path("system_prompt_id").asText("");
+        String systemId = c.path("systemPromptId").asText("");
         if (system.isEmpty() && !systemId.isEmpty()) {
             String content = SessionQaResolution.templateContentByIdAndFile(systemId,
                     agentMode ? "agent_system_prompt.yaml" : "system_prompt.yaml");
@@ -138,7 +138,7 @@ final class QaChatManageOverrides {
                 system = content;
             }
         }
-        String contextId = c.path("context_template_id").asText("");
+        String contextId = c.path("contextTemplateId").asText("");
         if (context.isEmpty() && !contextId.isEmpty()) {
             String content = SessionQaResolution.templateContentByIdAndFile(contextId, "context_template.yaml");
             if (content != null) {

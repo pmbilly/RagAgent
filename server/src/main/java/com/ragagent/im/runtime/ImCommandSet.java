@@ -93,44 +93,44 @@ public final class ImCommandSet {
 
         /** 对照 IsAgentMode：Config.AgentMode == AgentModeSmartReasoning。 */
         public boolean isAgentMode() {
-            return "smart-reasoning".equals(text("agent_mode"));
+            return "smart-reasoning".equals(text("agentMode"));
         }
 
         public String kbSelectionMode() {
-            return text("kb_selection_mode");
+            return text("kbSelectionMode");
         }
 
         public List<String> knowledgeBases() {
-            return strings("knowledge_bases");
+            return strings("knowledgeBases");
         }
 
         public List<String> allowedTools() {
-            return strings("allowed_tools");
+            return strings("allowedTools");
         }
 
         public String agentMode() {
-            return text("agent_mode");
+            return text("agentMode");
         }
 
         public String skillsSelectionMode() {
-            return text("skills_selection_mode");
+            return text("skillsSelectionMode");
         }
 
         public List<String> selectedSkills() {
-            return strings("selected_skills");
+            return strings("selectedSkills");
         }
 
         public String mcpSelectionMode() {
-            return text("mcp_selection_mode");
+            return text("mcpSelectionMode");
         }
 
         public List<String> mcpServices() {
-            return strings("mcp_services");
+            return strings("mcpServices");
         }
 
         public boolean webSearchEnabled() {
-            return cfg != null && cfg.hasNonNull("web_search_enabled")
-                    && cfg.get("web_search_enabled").asBoolean(false);
+            return cfg != null && cfg.hasNonNull("webSearchEnabled")
+                    && cfg.get("webSearchEnabled").asBoolean(false);
         }
     }
 

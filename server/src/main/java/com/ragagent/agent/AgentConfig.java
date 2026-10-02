@@ -5,7 +5,6 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * agent 运行时配置。
@@ -39,34 +38,20 @@ public class AgentConfig {
     public static final int UNLIMITED_MAX_ITERATIONS = -1;
 
     // ---- 引擎消费的持久化字段 ----
-    @JsonProperty("max_iterations")
     private int maxIterations;
-    @JsonProperty("allowed_tools")
     private List<String> allowedTools;
-    @JsonProperty("temperature")
     private double temperature;
-    @JsonProperty("web_search_enabled")
     private boolean webSearchEnabled;
-    @JsonProperty("multi_turn_enabled")
     private boolean multiTurnEnabled;
-    @JsonProperty("thinking")
     private Boolean thinking;
-    @JsonProperty("citation_enabled")
     private Boolean citationEnabled;
-    @JsonProperty("retain_retrieval_history")
     private boolean retainRetrievalHistory;
-    @JsonProperty("llm_call_timeout")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int llmCallTimeout;
-    @JsonProperty("max_completion_tokens")
     private int maxCompletionTokens;
-    @JsonProperty("max_tool_output_chars")
     private int maxToolOutputChars;
-    @JsonProperty("max_context_tokens")
     private int maxContextTokens;
-    @JsonProperty("compaction_keep_recent_tokens")
     private int compactionKeepRecentTokens;
-    @JsonProperty("parallel_tool_calls")
     private boolean parallelToolCalls;
 
     // ---- 运行时字段（不持久化）----

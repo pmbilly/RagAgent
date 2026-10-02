@@ -180,7 +180,7 @@
                         <p class="desc">{{ $t('agentEditor.desc.memoryEnabled') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.memory_enabled" />
+                        <t-switch v-model="formData.config.memoryEnabled" />
                       </div>
                     </div>
 
@@ -234,7 +234,7 @@
                       <div class="setting-control setting-control-full" style="position: relative;">
                         <!-- Agent模式：统一提示词（使用 {{web_search_status}} 占位符动态控制行为） -->
                         <div v-if="isAgentMode" class="textarea-with-template">
-                          <t-textarea ref="promptTextareaRef" v-model="formData.config.system_prompt"
+                          <t-textarea ref="promptTextareaRef" v-model="formData.config.systemPrompt"
                             :placeholder="systemPromptPlaceholder" :autosize="{ minRows: 10, maxRows: 25 }"
                             @input="handlePromptInput" class="system-prompt-textarea" />
                           <PromptTemplateSelector type="agentSystemPrompt" position="corner"
@@ -243,7 +243,7 @@
                         </div>
                         <!-- 普通模式：单个提示词 -->
                         <div v-else class="textarea-with-template">
-                          <t-textarea ref="promptTextareaRef" v-model="formData.config.system_prompt"
+                          <t-textarea ref="promptTextareaRef" v-model="formData.config.systemPrompt"
                             :placeholder="systemPromptPlaceholder" :autosize="{ minRows: 10, maxRows: 25 }"
                             @input="handlePromptInput" class="system-prompt-textarea" />
                           <PromptTemplateSelector type="systemPrompt" position="corner"
@@ -291,7 +291,7 @@
                       </div>
                       <div class="setting-control setting-control-full" style="position: relative;">
                         <div class="textarea-with-template">
-                          <t-textarea ref="contextTemplateTextareaRef" v-model="formData.config.context_template"
+                          <t-textarea ref="contextTemplateTextareaRef" v-model="formData.config.contextTemplate"
                             :placeholder="contextTemplatePlaceholder" :autosize="{ minRows: 8, maxRows: 20 }"
                             @input="handleContextTemplateInput" class="system-prompt-textarea" />
                           <PromptTemplateSelector type="contextTemplate" position="corner"
@@ -349,9 +349,9 @@
                             <p v-if="currentIntentTemplateDesc" class="intent-active-desc">{{ currentIntentTemplateDesc
                             }}</p>
 
-                            <div v-if="placeholderData.system_prompt.length > 0" class="placeholder-tags">
+                            <div v-if="placeholderData.systemPrompt.length > 0" class="placeholder-tags">
                               <span class="placeholder-label">{{ $t('agentEditor.placeholders.available') }}</span>
-                              <t-tooltip v-for="placeholder in placeholderData.system_prompt" :key="placeholder.name"
+                              <t-tooltip v-for="placeholder in placeholderData.systemPrompt" :key="placeholder.name"
                                 :content="placeholder.description + $t('agentEditor.placeholders.clickToInsert')"
                                 placement="top">
                                 <span class="placeholder-tag"
@@ -395,7 +395,7 @@
 
                     <!-- 改写提示词（多轮对话 + 问题改写开启时） -->
                     <template
-                      v-if="!isAgentMode && formData.config.multi_turn_enabled && formData.config.enable_rewrite">
+                      v-if="!isAgentMode && formData.config.multiTurnEnabled && formData.config.enableRewrite">
                       <div v-show="activePromptAnchor === 'rewrite-system'"
                         class="setting-row setting-row-vertical prompts-panel__pane">
                         <div class="setting-info">
@@ -415,7 +415,7 @@
                         </div>
                         <div class="setting-control setting-control-full" style="position: relative;">
                           <div class="textarea-with-template">
-                            <t-textarea ref="rewriteSystemTextareaRef" v-model="formData.config.rewrite_prompt_system"
+                            <t-textarea ref="rewriteSystemTextareaRef" v-model="formData.config.rewritePromptSystem"
                               :placeholder="defaultRewritePromptSystem || $t('agent.editor.rewritePromptSystemPlaceholder')"
                               :autosize="{ minRows: 4, maxRows: 10 }" @input="handleRewriteSystemInput" />
                             <PromptTemplateSelector type="rewrite" position="corner" @select="handleRewriteTemplateSelect"
@@ -460,7 +460,7 @@
                         </div>
                         <div class="setting-control setting-control-full" style="position: relative;">
                           <div class="textarea-with-template">
-                            <t-textarea ref="rewriteUserTextareaRef" v-model="formData.config.rewrite_prompt_user"
+                            <t-textarea ref="rewriteUserTextareaRef" v-model="formData.config.rewritePromptUser"
                               :placeholder="defaultRewritePromptUser || $t('agent.editor.rewritePromptUserPlaceholder')"
                               :autosize="{ minRows: 4, maxRows: 10 }" @input="handleRewriteUserInput" />
                             <PromptTemplateSelector type="rewrite" position="corner" @select="handleRewriteTemplateSelect"
@@ -496,14 +496,14 @@
                           <p class="desc">{{ $t('agentEditor.desc.fallbackStrategy') }}</p>
                         </div>
                         <div class="setting-control">
-                          <t-radio-group v-model="formData.config.fallback_strategy">
+                          <t-radio-group v-model="formData.config.fallbackStrategy">
                             <t-radio-button value="fixed">{{ $t('agentEditor.fallback.fixed') }}</t-radio-button>
                             <t-radio-button value="model">{{ $t('agentEditor.fallback.model') }}</t-radio-button>
                           </t-radio-group>
                         </div>
                       </div>
 
-                      <div v-if="formData.config.fallback_strategy === 'fixed'"
+                      <div v-if="formData.config.fallbackStrategy === 'fixed'"
                         class="setting-row setting-row-vertical">
                         <div class="setting-info">
                           <label>{{ $t('agent.editor.fallbackResponse') }}</label>
@@ -511,7 +511,7 @@
                         </div>
                         <div class="setting-control setting-control-full">
                           <div class="textarea-with-template">
-                            <t-textarea v-model="formData.config.fallback_response"
+                            <t-textarea v-model="formData.config.fallbackResponse"
                               :placeholder="defaultFallbackResponse || $t('agent.editor.fallbackResponsePlaceholder')"
                               :autosize="{ minRows: 2, maxRows: 6 }" />
                             <PromptTemplateSelector type="fallback" position="corner" fallbackMode="fixed"
@@ -521,7 +521,7 @@
                         </div>
                       </div>
 
-                      <div v-if="formData.config.fallback_strategy === 'model'"
+                      <div v-if="formData.config.fallbackStrategy === 'model'"
                         class="setting-row setting-row-vertical">
                         <div class="setting-info">
                           <label>{{ $t('agent.editor.fallbackPrompt') }}</label>
@@ -540,7 +540,7 @@
                         </div>
                         <div class="setting-control setting-control-full" style="position: relative;">
                           <div class="textarea-with-template">
-                            <t-textarea ref="fallbackPromptTextareaRef" v-model="formData.config.fallback_prompt"
+                            <t-textarea ref="fallbackPromptTextareaRef" v-model="formData.config.fallbackPrompt"
                               :placeholder="defaultFallbackPrompt || $t('agent.editor.fallbackPromptPlaceholder')"
                               :autosize="{ minRows: 4, maxRows: 10 }" @input="handleFallbackPromptInput" />
                             <PromptTemplateSelector type="fallback" position="corner" fallbackMode="model"
@@ -593,9 +593,9 @@
                         <p class="desc">{{ $t('agentEditor.desc.model') }}</p>
                       </div>
                       <div class="setting-control">
-                        <ModelSelector model-type="KnowledgeQA" :selected-model-id="formData.config.model_id"
+                        <ModelSelector model-type="KnowledgeQA" :selected-model-id="formData.config.modelId"
                           :all-models="allModels"
-                          @update:selected-model-id="(val: string) => formData.config.model_id = val"
+                          @update:selected-model-id="(val: string) => formData.config.modelId = val"
                           @add-model="handleAddModel('llm')" :placeholder="$t('agent.editor.modelPlaceholder')" />
                       </div>
                     </div>
@@ -632,7 +632,7 @@
                         <span v-if="maxCompletionTokensMode === 'default'" class="max-tokens-value">
                           {{ effectiveDefaultMaxCompletionTokens }}
                         </span>
-                        <t-input-number v-else v-model="formData.config.max_completion_tokens" :min="100" :max="100000"
+                        <t-input-number v-else v-model="formData.config.maxCompletionTokens" :min="100" :max="100000"
                           :step="100" theme="column" />
                       </div>
                     </div>
@@ -655,7 +655,7 @@
                         <p class="desc">{{ $t('agent.editor.citationEnabledDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.citation_enabled" />
+                        <t-switch v-model="formData.config.citationEnabled" />
                       </div>
                     </div>
 
@@ -680,10 +680,10 @@
                         </p>
                       </div>
                       <div class="setting-control">
-                        <ModelSelector model-type="Rerank" :selected-model-id="formData.config.rerank_model_id"
+                        <ModelSelector model-type="Rerank" :selected-model-id="formData.config.rerankModelId"
                           :all-models="allModels"
                           :clearable="!needsRerankModel"
-                          @update:selected-model-id="(val: string) => formData.config.rerank_model_id = val"
+                          @update:selected-model-id="(val: string) => formData.config.rerankModelId = val"
                           @add-model="handleAddModel('rerank')"
                           :placeholder="$t('agent.editor.rerankModelPlaceholder')" />
                       </div>
@@ -691,7 +691,7 @@
 
                     <!-- 问题理解模型（多轮改写时，留空则复用主对话模型） -->
                     <div
-                      v-if="!isAgentMode && formData.config.multi_turn_enabled && formData.config.enable_rewrite"
+                      v-if="!isAgentMode && formData.config.multiTurnEnabled && formData.config.enableRewrite"
                       class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.queryUnderstandModel') }}</label>
@@ -699,9 +699,9 @@
                       </div>
                       <div class="setting-control">
                         <ModelSelector model-type="KnowledgeQA"
-                          :selected-model-id="formData.config.query_understand_model_id" :all-models="allModels"
+                          :selected-model-id="formData.config.queryUnderstandModelId" :all-models="allModels"
                           clearable
-                          @update:selected-model-id="(val: string) => formData.config.query_understand_model_id = val"
+                          @update:selected-model-id="(val: string) => formData.config.queryUnderstandModelId = val"
                           @add-model="handleAddModel('llm')"
                           :placeholder="$t('agent.editor.queryUnderstandModelPlaceholder')" />
                       </div>
@@ -718,7 +718,7 @@
                           <t-radio-button value="limit">{{ $t('agent.editor.maxIterationsLimit') }}</t-radio-button>
                           <t-radio-button value="unlimited">{{ $t('agent.editor.maxIterationsUnlimited') }}</t-radio-button>
                         </t-radio-group>
-                        <t-input-number v-if="maxIterationsMode === 'limit'" v-model="formData.config.max_iterations"
+                        <t-input-number v-if="maxIterationsMode === 'limit'" v-model="formData.config.maxIterations"
                           :min="2" :max="50" theme="column" />
                       </div>
                     </div>
@@ -731,7 +731,7 @@
                         <p class="desc-hint">{{ $t('agentEditor.llmCallTimeout.hint') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-input-number v-model="formData.config.llm_call_timeout" :min="0" :max="3600" theme="column"
+                        <t-input-number v-model="formData.config.llmCallTimeout" :min="0" :max="3600" theme="column"
                           :placeholder="$t('agentEditor.llmCallTimeout.placeholder')" clearable />
                       </div>
                     </div>
@@ -754,58 +754,58 @@
                         <p class="desc">{{ $t('agentEditor.imageUpload.desc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.image_upload_enabled" />
+                        <t-switch v-model="formData.config.imageUploadEnabled" />
                       </div>
                     </div>
 
                     <!-- VLM 模型（图片上传启用时） -->
-                    <div v-if="formData.config.image_upload_enabled" class="setting-row">
+                    <div v-if="formData.config.imageUploadEnabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agentEditor.imageUpload.vlmModel') }} <span class="required">*</span></label>
                         <p class="desc">{{ $t('agentEditor.imageUpload.vlmModelDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <ModelSelector model-type="VLLM" :selected-model-id="formData.config.vlm_model_id"
+                        <ModelSelector model-type="VLLM" :selected-model-id="formData.config.vlmModelId"
                           :all-models="allModels"
-                          @update:selected-model-id="(val: string) => formData.config.vlm_model_id = val"
+                          @update:selected-model-id="(val: string) => formData.config.vlmModelId = val"
                           @add-model="handleAddModel('vllm')"
                           :placeholder="$t('agentEditor.imageUpload.vlmModelPlaceholder')" />
                       </div>
                     </div>
 
                     <!-- 附件图片理解 / 扫描件 OCR（图片上传启用时） -->
-                    <div v-if="formData.config.image_upload_enabled" class="setting-row">
+                    <div v-if="formData.config.imageUploadEnabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agentEditor.imageUpload.imageUnderstandingLabel') }}</label>
                         <p class="desc">{{ $t('agentEditor.imageUpload.imageUnderstandingDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.attachment_image_understanding" />
+                        <t-switch v-model="formData.config.attachmentImageUnderstanding" />
                       </div>
                     </div>
 
                     <!-- 扫描件 OCR 最大页数（开启附件图片理解时） -->
-                    <div v-if="formData.config.image_upload_enabled && formData.config.attachment_image_understanding"
+                    <div v-if="formData.config.imageUploadEnabled && formData.config.attachmentImageUnderstanding"
                       class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agentEditor.imageUpload.ocrMaxPagesLabel') }}</label>
                         <p class="desc">{{ $t('agentEditor.imageUpload.ocrMaxPagesDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-input-number v-model="formData.config.attachment_ocr_max_pages" :min="0" :max="64"
+                        <t-input-number v-model="formData.config.attachmentOcrMaxPages" :min="0" :max="64"
                           :step="1" theme="normal" style="width: 160px;"
                           :placeholder="$t('agentEditor.imageUpload.useGlobalDefault')" />
                       </div>
                     </div>
 
                     <!-- 图片存储 Provider（图片上传启用时） -->
-                    <div v-if="formData.config.image_upload_enabled" class="setting-row">
+                    <div v-if="formData.config.imageUploadEnabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agentEditor.imageUpload.storageProvider') }}</label>
                         <p class="desc">{{ $t('agentEditor.imageUpload.storageProviderDesc') }}</p>
                       </div>
                       <div class="setting-control" style="flex-direction: column; align-items: flex-end;">
-                        <t-select v-model="formData.config.image_storage_provider" style="width: 280px;"
+                        <t-select v-model="formData.config.imageStorageProvider" style="width: 280px;"
                           :placeholder="$t('agentEditor.imageUpload.storageProviderPlaceholder')" clearable>
                           <t-option value="" :label="$t('agentEditor.imageUpload.storageDefault')" />
                           <t-option v-for="opt in imageStorageOptions" :key="opt.value" :value="opt.value"
@@ -831,21 +831,21 @@
                         <p class="desc">{{ $t('agentEditor.audioUpload.desc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.audio_upload_enabled" />
+                        <t-switch v-model="formData.config.audioUploadEnabled" />
                       </div>
                     </div>
 
                     <!-- ASR 模型（音频上传启用时） -->
-                    <div v-if="formData.config.audio_upload_enabled" class="setting-row">
+                    <div v-if="formData.config.audioUploadEnabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agentEditor.audioUpload.asrModel') }}</label>
                         <p class="desc">{{ $t('agentEditor.audioUpload.asrModelDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <ModelSelector model-type="ASR" :selected-model-id="formData.config.asr_model_id"
+                        <ModelSelector model-type="ASR" :selected-model-id="formData.config.asrModelId"
                           :all-models="allModels"
                           clearable
-                          @update:selected-model-id="(val: string) => formData.config.asr_model_id = val"
+                          @update:selected-model-id="(val: string) => formData.config.asrModelId = val"
                           @add-model="handleAddModel('asr')"
                           :placeholder="$t('agentEditor.audioUpload.asrModelPlaceholder')" />
                       </div>
@@ -858,7 +858,7 @@
                         <p class="desc">{{ $t('agentEditor.chatParser.waitTimeoutDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-input-number v-model="formData.config.attachment_parse_wait_timeout_sec" :min="0" :max="600"
+                        <t-input-number v-model="formData.config.attachmentParseWaitTimeoutSec" :min="0" :max="600"
                           :step="10" theme="normal" style="width: 160px;"
                           :placeholder="$t('agentEditor.imageUpload.useGlobalDefault')" />
                       </div>
@@ -872,16 +872,16 @@
                       </div>
                       <KBParserSettings
                         embedded
-                        :parser-engine-rules="formData.config.chat_parser_engine_rules"
+                        :parser-engine-rules="formData.config.chatParserEngineRules"
                         :relevant-extensions="CHAT_PARSER_EXTENSIONS"
-                        @update:parser-engine-rules="(val: any) => formData.config.chat_parser_engine_rules = val"
+                        @update:parser-engine-rules="(val: any) => formData.config.chatParserEngineRules = val"
                       />
                     </div>
 
                   </div>
                 </div>
 
-                <!-- 多轮对话。Agent 模式下 history_turns 同样生效（session_agent_qa.go
+                <!-- 多轮对话。Agent 模式下 historyTurns 同样生效（session_agent_qa.go
                      经 LoadAgentHistory 读取），所以本组不再整体按模式隐藏；开关本身仍由
                      EnsureDefaults 强制开启，故只在普通模式展示。 -->
                 <div v-show="currentSection === 'conversation'" class="section">
@@ -899,18 +899,18 @@
                         <p class="desc">{{ $t('agentEditor.desc.multiTurn') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.multi_turn_enabled" />
+                        <t-switch v-model="formData.config.multiTurnEnabled" />
                       </div>
                     </div>
 
                     <!-- 保留轮数（Agent 模式恒为多轮，故不受开关状态影响） -->
-                    <div v-if="formData.config.multi_turn_enabled || isAgentMode" class="setting-row">
+                    <div v-if="formData.config.multiTurnEnabled || isAgentMode" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.historyTurns') }}</label>
                         <p class="desc">{{ $t('agentEditor.desc.historyRounds') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-input-number v-model="formData.config.history_turns" :min="1" :max="100" theme="column" />
+                        <t-input-number v-model="formData.config.historyTurns" :min="1" :max="100" theme="column" />
                       </div>
                     </div>
 
@@ -922,18 +922,18 @@
                         <p class="desc">{{ $t('agentEditor.desc.retainRetrievalHistory') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.retain_retrieval_history" />
+                        <t-switch v-model="formData.config.retainRetrievalHistory" />
                       </div>
                     </div>
 
                     <!-- 问题改写（仅多轮对话开启且普通模式时显示） -->
-                    <div v-if="formData.config.multi_turn_enabled && !isAgentMode" class="setting-row">
+                    <div v-if="formData.config.multiTurnEnabled && !isAgentMode" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.enableRewrite') }}</label>
                         <p class="desc">{{ $t('agentEditor.desc.rewrite') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.enable_rewrite" />
+                        <t-switch v-model="formData.config.enableRewrite" />
                       </div>
                     </div>
                   </div>
@@ -960,48 +960,48 @@
                         <p class="desc">{{ $t('agentEditor.questionSuggestions.enableStartersDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.question_suggestions.starters.enabled"
+                        <t-switch v-model="formData.config.questionSuggestions.starters.enabled"
                           :aria-label="$t('agentEditor.questionSuggestions.enableStarters')" />
                       </div>
                     </div>
 
-                    <div v-if="formData.config.question_suggestions.starters.enabled" class="setting-row">
+                    <div v-if="formData.config.questionSuggestions.starters.enabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agentEditor.questionSuggestions.sourceMode') }}</label>
                       </div>
                       <div class="setting-control">
-                        <t-select v-model="formData.config.question_suggestions.starters.mode"
+                        <t-select v-model="formData.config.questionSuggestions.starters.mode"
                           :options="starterSuggestionModeOptions" />
                       </div>
                     </div>
 
-                    <div v-if="formData.config.question_suggestions.starters.enabled" class="setting-row">
+                    <div v-if="formData.config.questionSuggestions.starters.enabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agentEditor.questionSuggestions.count') }}</label>
                       </div>
                       <div class="setting-control">
-                        <t-input-number v-model="formData.config.question_suggestions.starters.count"
+                        <t-input-number v-model="formData.config.questionSuggestions.starters.count"
                           :min="1" :max="8" theme="column" />
                       </div>
                     </div>
 
                     <div
-                      v-if="formData.config.question_suggestions.starters.enabled && ['curated', 'hybrid'].includes(formData.config.question_suggestions.starters.mode)"
+                      v-if="formData.config.questionSuggestions.starters.enabled && ['curated', 'hybrid'].includes(formData.config.questionSuggestions.starters.mode)"
                       class="setting-row setting-row-vertical">
                       <div class="setting-info">
                         <div class="setting-info-header setting-info-header--inline">
                           <label>{{ $t('agentEditor.questionSuggestions.curatedItems') }}</label>
                           <span class="curated-items-count">
-                            {{ formData.config.question_suggestions.starters.items.length }}/8
+                            {{ formData.config.questionSuggestions.starters.items.length }}/8
                           </span>
                         </div>
                         <p class="desc">{{ $t('agentEditor.questionSuggestions.curatedItemsDesc') }}</p>
                       </div>
                       <div class="setting-control setting-control-full">
                         <div class="suggested-prompts-list">
-                          <div v-for="(_prompt, index) in formData.config.question_suggestions.starters.items"
+                          <div v-for="(_prompt, index) in formData.config.questionSuggestions.starters.items"
                             :key="index" class="prompt-item">
-                            <t-input v-model="formData.config.question_suggestions.starters.items[index]"
+                            <t-input v-model="formData.config.questionSuggestions.starters.items[index]"
                               :maxlength="200" />
                             <t-button variant="text" theme="danger" shape="square"
                               :aria-label="$t('common.delete')" @click="removeStarterSuggestion(Number(index))">
@@ -1009,7 +1009,7 @@
                             </t-button>
                           </div>
                           <t-button variant="dashed"
-                            :disabled="formData.config.question_suggestions.starters.items.length >= 8"
+                            :disabled="formData.config.questionSuggestions.starters.items.length >= 8"
                             @click="addStarterSuggestion">
                             <template #icon><t-icon name="add" /></template>
                             {{ $t('agentEditor.questionSuggestions.addItem') }}
@@ -1026,18 +1026,18 @@
                         <p class="desc">{{ $t('agentEditor.questionSuggestions.enableFollowUpsDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.question_suggestions.follow_ups.enabled"
+                        <t-switch v-model="formData.config.questionSuggestions.follow_ups.enabled"
                           :aria-label="$t('agentEditor.questionSuggestions.enableFollowUps')" />
                       </div>
                     </div>
 
-                    <template v-if="formData.config.question_suggestions.follow_ups.enabled">
+                    <template v-if="formData.config.questionSuggestions.follow_ups.enabled">
                       <div class="setting-row">
                         <div class="setting-info">
                           <label>{{ $t('agentEditor.questionSuggestions.sourceMode') }}</label>
                         </div>
                         <div class="setting-control">
-                          <t-select v-model="formData.config.question_suggestions.follow_ups.mode"
+                          <t-select v-model="formData.config.questionSuggestions.follow_ups.mode"
                             :options="followUpSuggestionModeOptions" />
                         </div>
                       </div>
@@ -1047,12 +1047,12 @@
                           <label>{{ $t('agentEditor.questionSuggestions.count') }}</label>
                         </div>
                         <div class="setting-control">
-                          <t-input-number v-model="formData.config.question_suggestions.follow_ups.count"
+                          <t-input-number v-model="formData.config.questionSuggestions.follow_ups.count"
                             :min="1" :max="5" theme="column" />
                         </div>
                       </div>
 
-                      <div v-if="formData.config.question_suggestions.follow_ups.mode !== 'knowledge'"
+                      <div v-if="formData.config.questionSuggestions.follow_ups.mode !== 'knowledge'"
                         class="setting-row">
                         <div class="setting-info">
                           <label>{{ $t('agentEditor.questionSuggestions.model') }}</label>
@@ -1060,10 +1060,10 @@
                         </div>
                         <div class="setting-control">
                           <ModelSelector model-type="KnowledgeQA"
-                            :selected-model-id="formData.config.question_suggestions.follow_ups.model_id"
+                            :selected-model-id="formData.config.questionSuggestions.follow_ups.modelId"
                             :all-models="allModels"
                             clearable
-                            @update:selected-model-id="(val: string) => formData.config.question_suggestions.follow_ups.model_id = val"
+                            @update:selected-model-id="(val: string) => formData.config.questionSuggestions.follow_ups.modelId = val"
                             @add-model="handleAddModel('summary')" />
                         </div>
                       </div>
@@ -1078,7 +1078,7 @@
                         </div>
                         <div class="setting-control">
                           <t-input-number
-                            v-model="formData.config.question_suggestions.follow_ups.max_context_turns"
+                            v-model="formData.config.questionSuggestions.follow_ups.max_context_turns"
                             :min="1" :max="5" theme="column" />
                         </div>
                       </div>
@@ -1088,7 +1088,7 @@
                           <label>{{ $t('agentEditor.questionSuggestions.categories') }}</label>
                         </div>
                         <div class="setting-control setting-control-full">
-                          <t-checkbox-group v-model="formData.config.question_suggestions.follow_ups.categories"
+                          <t-checkbox-group v-model="formData.config.questionSuggestions.follow_ups.categories"
                             :options="followUpCategoryOptions" />
                         </div>
                       </div>
@@ -1099,7 +1099,7 @@
                         </div>
                         <div class="setting-control setting-control-full">
                           <t-textarea
-                            v-model="formData.config.question_suggestions.follow_ups.additional_instruction"
+                            v-model="formData.config.questionSuggestions.follow_ups.additional_instruction"
                             :placeholder="$t('agentEditor.questionSuggestions.instructionPlaceholder')"
                             :maxlength="2000" :autosize="{ minRows: 3, maxRows: 8 }" />
                         </div>
@@ -1111,10 +1111,10 @@
                         </div>
                         <div class="setting-control setting-control-full">
                           <div class="suggestion-checkboxes">
-                            <t-checkbox v-model="formData.config.question_suggestions.follow_ups.suppress_on_fallback">{{ $t('agentEditor.questionSuggestions.suppressFallback') }}</t-checkbox>
-                            <t-checkbox v-model="formData.config.question_suggestions.follow_ups.suppress_when_answer_asks_question">{{ $t('agentEditor.questionSuggestions.suppressQuestion') }}</t-checkbox>
-                            <t-checkbox v-model="formData.config.question_suggestions.follow_ups.knowledge_fallback">{{ $t('agentEditor.questionSuggestions.knowledgeFallback') }}</t-checkbox>
-                            <t-checkbox v-model="formData.config.question_suggestions.follow_ups.allow_regenerate">{{ $t('agentEditor.questionSuggestions.allowRegenerate') }}</t-checkbox>
+                            <t-checkbox v-model="formData.config.questionSuggestions.follow_ups.suppress_on_fallback">{{ $t('agentEditor.questionSuggestions.suppressFallback') }}</t-checkbox>
+                            <t-checkbox v-model="formData.config.questionSuggestions.follow_ups.suppress_when_answer_asks_question">{{ $t('agentEditor.questionSuggestions.suppressQuestion') }}</t-checkbox>
+                            <t-checkbox v-model="formData.config.questionSuggestions.follow_ups.knowledge_fallback">{{ $t('agentEditor.questionSuggestions.knowledgeFallback') }}</t-checkbox>
+                            <t-checkbox v-model="formData.config.questionSuggestions.follow_ups.allow_regenerate">{{ $t('agentEditor.questionSuggestions.allowRegenerate') }}</t-checkbox>
                           </div>
                         </div>
                       </div>
@@ -1158,15 +1158,15 @@
                     <!-- 允许的工具（按组渲染，统一网格） -->
                     <div
                       class="setting-row setting-row-vertical"
-                      data-agent-field="allowed_tools"
-                      :class="{ 'setting-row--field-highlight': highlightedField === 'allowed_tools' }"
+                      data-agent-field="allowedTools"
+                      :class="{ 'setting-row--field-highlight': highlightedField === 'allowedTools' }"
                     >
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.allowedTools') }}</label>
                         <p class="desc">{{ $t('agentEditor.desc.selectTools') }}</p>
                       </div>
                       <div class="setting-control setting-control-full">
-                        <t-checkbox-group v-model="formData.config.allowed_tools" class="tool-groups">
+                        <t-checkbox-group v-model="formData.config.allowedTools" class="tool-groups">
                           <section v-for="group in groupedAvailableTools" :key="group.key"
                             :class="['tool-group', `tool-group--${group.key}`]">
                             <header class="tool-group-header">
@@ -1258,7 +1258,7 @@
                         <p class="desc">{{ $t('agentEditor.mcp.selectDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-select v-model="formData.config.mcp_services" multiple
+                        <t-select v-model="formData.config.mcpServices" multiple
                           :placeholder="$t('agentEditor.mcp.selectPlaceholder')" filterable>
                           <t-option v-for="mcp in mcpOptions" :key="mcp.value" :value="mcp.value" :label="mcp.label"
                             :disabled="mcp.disabled" />
@@ -1273,7 +1273,7 @@
                         <p class="desc">{{ $t('agentEditor.mcp.authWaitTimeoutDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-input-number v-model="formData.config.mcp_auth_wait_timeout" :min="5" :max="3600"
+                        <t-input-number v-model="formData.config.mcpAuthWaitTimeout" :min="5" :max="3600"
                           theme="column" :placeholder="$t('agentEditor.mcp.authWaitTimeoutPlaceholder')" />
                       </div>
                     </div>
@@ -1308,7 +1308,7 @@
                     <div v-if="showSkillList" class="setting-row setting-row-vertical">
                       <div class="setting-control setting-control-full">
                         <t-checkbox-group
-                          v-model="formData.config.selected_skills"
+                          v-model="formData.config.selectedSkills"
                           class="skill-pick-list"
                         >
                           <article
@@ -1372,7 +1372,7 @@
                         <p class="desc">{{ $t('agent.editor.selectKnowledgeBasesDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-select v-model="formData.config.knowledge_bases" multiple
+                        <t-select v-model="formData.config.knowledgeBases" multiple
                           :placeholder="$t('agent.editor.selectKnowledgeBases')" filterable :min-collapsed-num="3">
                           <t-option-group v-if="filteredMyKbOptions.length"
                             :label="$t('agent.editor.myKnowledgeBases')">
@@ -1401,7 +1401,7 @@
                         <p class="desc">{{ $t('agentEditor.fileTypes.desc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-select v-model="formData.config.supported_file_types" multiple
+                        <t-select v-model="formData.config.supportedFileTypes" multiple
                           :placeholder="$t('agentEditor.fileTypes.allTypes')" :min-collapsed-num="3" clearable>
                           <t-option v-for="ft in availableFileTypes" :key="ft.value" :value="ft.value"
                             :label="ft.label" />
@@ -1416,7 +1416,7 @@
                         <p class="desc">{{ $t('agent.editor.retrieveKBOnlyWhenMentionedDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.retrieve_kb_only_when_mentioned" />
+                        <t-switch v-model="formData.config.retrieveKbOnlyWhenMentioned" />
                       </div>
                     </div>
 
@@ -1438,18 +1438,18 @@
                         <p class="desc">{{ $t('agentEditor.desc.webSearch') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.web_search_enabled" />
+                        <t-switch v-model="formData.config.webSearchEnabled" />
                       </div>
                     </div>
 
                     <!-- 网络搜索最大结果数 -->
-                    <div v-if="formData.config.web_search_enabled" class="setting-row">
+                    <div v-if="formData.config.webSearchEnabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.webSearchProvider') }}</label>
                         <p class="desc">{{ $t('agentEditor.desc.webSearchProvider') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-select v-model="formData.config.web_search_provider_id" clearable
+                        <t-select v-model="formData.config.webSearchProviderId" clearable
                           :placeholder="$t('agent.editor.webSearchProviderPlaceholder')" style="width: 240px;">
                           <t-option v-for="p in webSearchProviderList" :key="p.id" :value="p.id" :label="p.name">
                             <span>{{ p.name }}</span>
@@ -1462,32 +1462,32 @@
                     </div>
 
                     <!-- 网络搜索最大结果数 -->
-                    <div v-if="formData.config.web_search_enabled" class="setting-row">
+                    <div v-if="formData.config.webSearchEnabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.webSearchMaxResults') }}</label>
                         <p class="desc">{{ $t('agentEditor.desc.webSearchMaxResults') }}</p>
                       </div>
                       <div class="setting-control">
                         <div class="slider-wrapper">
-                          <t-slider v-model="formData.config.web_search_max_results" :min="1" :max="10" />
-                          <span class="slider-value">{{ formData.config.web_search_max_results }}</span>
+                          <t-slider v-model="formData.config.webSearchMaxResults" :min="1" :max="10" />
+                          <span class="slider-value">{{ formData.config.webSearchMaxResults }}</span>
                         </div>
                       </div>
                     </div>
 
                     <!-- 自动抓取页面内容 -->
-                    <div v-if="formData.config.web_search_enabled" class="setting-row">
+                    <div v-if="formData.config.webSearchEnabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.webFetchEnabled') }}</label>
                         <p class="desc">{{ $t('agentEditor.desc.webFetchEnabled') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.web_fetch_enabled" />
+                        <t-switch v-model="formData.config.webFetchEnabled" />
                       </div>
                     </div>
 
                     <!-- 抓取页面数 -->
-                    <div v-if="formData.config.web_search_enabled && formData.config.web_fetch_enabled"
+                    <div v-if="formData.config.webSearchEnabled && formData.config.webFetchEnabled"
                       class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.webFetchTopN') }}</label>
@@ -1495,8 +1495,8 @@
                       </div>
                       <div class="setting-control">
                         <div class="slider-wrapper">
-                          <t-slider v-model="formData.config.web_fetch_top_n" :min="1" :max="10" />
-                          <span class="slider-value">{{ formData.config.web_fetch_top_n }}</span>
+                          <t-slider v-model="formData.config.webFetchTopN" :min="1" :max="10" />
+                          <span class="slider-value">{{ formData.config.webFetchTopN }}</span>
                         </div>
                       </div>
                     </div>
@@ -1518,7 +1518,7 @@
                         <p class="desc">{{ $t('agentEditor.desc.queryExpansion') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.enable_query_expansion" />
+                        <t-switch v-model="formData.config.enableQueryExpansion" />
                       </div>
                     </div>
 
@@ -1529,7 +1529,7 @@
                         <p class="desc">{{ $t('agentEditor.desc.embeddingTopK') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-input-number v-model="formData.config.embedding_top_k" :min="1" :max="50" theme="column" />
+                        <t-input-number v-model="formData.config.embeddingTopK" :min="1" :max="50" theme="column" />
                       </div>
                     </div>
 
@@ -1541,8 +1541,8 @@
                       </div>
                       <div class="setting-control">
                         <div class="slider-wrapper">
-                          <t-slider v-model="formData.config.keyword_threshold" :min="0" :max="1" :step="0.01" />
-                          <span class="slider-value">{{ formData.config.keyword_threshold?.toFixed(2) }}</span>
+                          <t-slider v-model="formData.config.keywordThreshold" :min="0" :max="1" :step="0.01" />
+                          <span class="slider-value">{{ formData.config.keywordThreshold?.toFixed(2) }}</span>
                         </div>
                       </div>
                     </div>
@@ -1555,33 +1555,33 @@
                       </div>
                       <div class="setting-control">
                         <div class="slider-wrapper">
-                          <t-slider v-model="formData.config.vector_threshold" :min="0" :max="1" :step="0.01" />
-                          <span class="slider-value">{{ formData.config.vector_threshold?.toFixed(2) }}</span>
+                          <t-slider v-model="formData.config.vectorThreshold" :min="0" :max="1" :step="0.01" />
+                          <span class="slider-value">{{ formData.config.vectorThreshold?.toFixed(2) }}</span>
                         </div>
                       </div>
                     </div>
 
                     <!-- 重排TopK（仅在配置了 Rerank 模型时展示） -->
-                    <div v-if="formData.config.rerank_model_id" class="setting-row">
+                    <div v-if="formData.config.rerankModelId" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.rerankTopK') }}</label>
                         <p class="desc">{{ $t('agentEditor.desc.rerankTopK') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-input-number v-model="formData.config.rerank_top_k" :min="1" :max="20" theme="column" />
+                        <t-input-number v-model="formData.config.rerankTopK" :min="1" :max="20" theme="column" />
                       </div>
                     </div>
 
                     <!-- 重排阈值（仅在配置了 Rerank 模型时展示） -->
-                    <div v-if="formData.config.rerank_model_id" class="setting-row">
+                    <div v-if="formData.config.rerankModelId" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.rerankThreshold') }}</label>
                         <p class="desc">{{ $t('agentEditor.desc.rerankThreshold') }}</p>
                       </div>
                       <div class="setting-control">
                         <div class="slider-wrapper">
-                          <t-slider v-model="formData.config.rerank_threshold" :min="-10" :max="10" :step="0.01" />
-                          <span class="slider-value">{{ formData.config.rerank_threshold?.toFixed(1) }}</span>
+                          <t-slider v-model="formData.config.rerankThreshold" :min="-10" :max="10" :step="0.01" />
+                          <span class="slider-value">{{ formData.config.rerankThreshold?.toFixed(1) }}</span>
                         </div>
                       </div>
                     </div>
@@ -1593,34 +1593,34 @@
                         <p class="desc">{{ $t('agentEditor.faq.enableDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.faq_priority_enabled" />
+                        <t-switch v-model="formData.config.faqPriorityEnabled" />
                       </div>
                     </div>
 
-                    <div v-if="hasFaqKnowledgeBase && formData.config.faq_priority_enabled" class="setting-row">
+                    <div v-if="hasFaqKnowledgeBase && formData.config.faqPriorityEnabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agentEditor.faq.thresholdLabel') }}</label>
                         <p class="desc">{{ $t('agentEditor.faq.thresholdDesc') }}</p>
                       </div>
                       <div class="setting-control">
                         <div class="slider-wrapper">
-                          <t-slider v-model="formData.config.faq_direct_answer_threshold" :min="0.7" :max="1"
+                          <t-slider v-model="formData.config.faqDirectAnswerThreshold" :min="0.7" :max="1"
                             :step="0.05" />
-                          <span class="slider-value">{{ formData.config.faq_direct_answer_threshold?.toFixed(2)
+                          <span class="slider-value">{{ formData.config.faqDirectAnswerThreshold?.toFixed(2)
                             }}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div v-if="hasFaqKnowledgeBase && formData.config.faq_priority_enabled" class="setting-row">
+                    <div v-if="hasFaqKnowledgeBase && formData.config.faqPriorityEnabled" class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agentEditor.faq.boostLabel') }}</label>
                         <p class="desc">{{ $t('agentEditor.faq.boostDesc') }}</p>
                       </div>
                       <div class="setting-control">
                         <div class="slider-wrapper">
-                          <t-slider v-model="formData.config.faq_score_boost" :min="1" :max="2" :step="0.1" />
-                          <span class="slider-value">{{ formData.config.faq_score_boost?.toFixed(1) }}x</span>
+                          <t-slider v-model="formData.config.faqScoreBoost" :min="1" :max="2" :step="0.1" />
+                          <span class="slider-value">{{ formData.config.faqScoreBoost?.toFixed(1) }}x</span>
                         </div>
                       </div>
                     </div>
@@ -1632,7 +1632,7 @@
                         <p class="desc">{{ $t('agentEditor.dataAnalysis.enableDesc') }}</p>
                       </div>
                       <div class="setting-control">
-                        <t-switch v-model="formData.config.data_analysis_enabled" />
+                        <t-switch v-model="formData.config.dataAnalysisEnabled" />
                       </div>
                     </div>
                   </div>
@@ -1787,10 +1787,10 @@ const contentWrapperRef = ref<HTMLElement | null>(null);
 const highlightedField = ref<AgentNotReadyReasonKey | null>(null);
 let highlightClearTimer: ReturnType<typeof setTimeout> | null = null;
 
-const VALID_HIGHLIGHT_FIELDS: AgentNotReadyReasonKey[] = ['summary_model', 'rerank_model', 'allowed_tools'];
+const VALID_HIGHLIGHT_FIELDS: AgentNotReadyReasonKey[] = ['summary_model', 'rerank_model', 'allowedTools'];
 
 const sectionForHighlightField = (field: AgentNotReadyReasonKey): string => {
-  if (field === 'allowed_tools') return 'tools';
+  if (field === 'allowedTools') return 'tools';
   return 'model';
 };
 
@@ -1870,7 +1870,7 @@ const kbOptions = ref<{ label: string; value: string; type?: 'document' | 'faq';
 
 // 智能体类型预设（仅 smart-reasoning 模式下展示）
 const agentTypePresets = ref<AgentTypePreset[]>([]);
-// Agent 系统提示词模板缓存（用于切换智能体类型时根据 system_prompt_id 解析出实际文本填入）
+// Agent 系统提示词模板缓存（用于切换智能体类型时根据 systemPromptId 解析出实际文本填入）
 const agentSystemPromptTemplates = ref<PromptTemplate[]>([]);
 const promptTemplates = ref<PromptTemplatesConfig | null>(null);
 const intentPromptTemplates = ref<PromptTemplate[]>([]);
@@ -1878,7 +1878,7 @@ type McpSelectOption = { label: string; value: string; disabled?: boolean };
 
 const mcpOptions = computed<McpSelectOption[]>(() => {
   const services = editorResources.mcpServices || [];
-  const selectedIds = new Set<string>(formData.value.config.mcp_services || []);
+  const selectedIds = new Set<string>(formData.value.config.mcpServices || []);
   const serviceById = new Map(services.map((mcp) => [mcp.id, mcp]));
   const options: McpSelectOption[] = [];
 
@@ -1909,11 +1909,11 @@ const mcpOptions = computed<McpSelectOption[]>(() => {
 });
 
 const showMcpServiceSelect = computed(() =>
-  mcpOptions.value.length > 0 || (formData.value.config.mcp_services?.length ?? 0) > 0,
+  mcpOptions.value.length > 0 || (formData.value.config.mcpServices?.length ?? 0) > 0,
 );
 const webSearchProviderList = ref<WebSearchProviderEntity[]>([]);
 // 指令型技能（选项 B）：目录来自宿主技能目录（GET /api/v1/skills），
-// 无安装管线——勾选即 selected_skills 注入
+// 无安装管线——勾选即 selectedSkills 注入
 const availableSkills = ref<Array<{ name: string; description: string }>>([]);
 const skillsReady = ref(false);
 const skillsSelectionMode = ref<'all' | 'selected' | 'none'>('none');
@@ -1931,10 +1931,10 @@ const skillsSelectionHint = computed(() => {
 function pruneSelectedSkills() {
   if (!skillsReady.value) return
   const names = new Set(availableSkills.value.map((skill) => skill.name))
-  const selected: string[] = formData.value.config.selected_skills || []
+  const selected: string[] = formData.value.config.selectedSkills || []
   const kept = selected.filter((name: string) => names.has(name))
   if (kept.length !== selected.length) {
-    formData.value.config.selected_skills = kept
+    formData.value.config.selectedSkills = kept
   }
 }
 
@@ -2066,12 +2066,12 @@ const showRerankModelField = computed(() => {
 });
 
 // 当前配置下进入到智能体作用域的知识库列表
-// 注意：用户可能选了 knowledge_bases（按库级），也可能选了 knowledge_ids（按文档级）
+// 注意：用户可能选了 knowledgeBases（按库级），也可能选了 knowledge_ids（按文档级）
 // 这里仅用于 UI 上的工具可用性判定，按库级来计算
 const kbsInScope = computed(() => {
   if (kbSelectionMode.value === 'none') return [];
   if (kbSelectionMode.value === 'all') return kbOptions.value;
-  const selectedIds = formData.value.config.knowledge_bases || [];
+  const selectedIds = formData.value.config.knowledgeBases || [];
   return kbOptions.value.filter(kb => selectedIds.includes(kb.value));
 });
 
@@ -2097,7 +2097,7 @@ const hasFaqKnowledgeBase = computed(() => {
     return kbOptions.value.some(kb => kb.type === 'faq');
   }
   // 指定知识库模式，检查选中的知识库中是否有 FAQ 类型
-  const selectedKbIds = formData.value.config.knowledge_bases || [];
+  const selectedKbIds = formData.value.config.knowledgeBases || [];
   return kbOptions.value.some(kb => selectedKbIds.includes(kb.value) && kb.type === 'faq');
 });
 
@@ -2169,12 +2169,12 @@ const groupedAvailableTools = computed(() => {
 
 // ==================== 有效工具预览 ====================
 // 最终运行时智能体实际能使用的工具集合（仅做预览展示）
-// 规则：基于 allowed_tools 过滤
+// 规则：基于 allowedTools 过滤
 //   1) 勾选但缺失对应能力（无 KB / 无 Wiki 能力 KB）的工具会被灰显/隐藏
-//   2) 无论是否勾选，web_search / web_fetch 随 web_search_enabled 出现
-//   3) 当 kb_selection_mode === 'none' 时，RAG/Wiki 工具都视为不可用
+//   2) 无论是否勾选，web_search / web_fetch 随 webSearchEnabled 出现
+//   3) 当 kbSelectionMode === 'none' 时，RAG/Wiki 工具都视为不可用
 const effectiveTools = computed(() => {
-  const chosen = new Set(formData.value.config.allowed_tools || []);
+  const chosen = new Set(formData.value.config.allowedTools || []);
   const items: Array<{ value: string; label: string; reason?: string; active: boolean }> = [];
   for (const tool of availableTools.value) {
     const picked = chosen.has(tool.value);
@@ -2185,7 +2185,7 @@ const effectiveTools = computed(() => {
       items.push({ value: tool.value, label: tool.label, active: true });
     }
   }
-  if (formData.value.config.web_search_enabled) {
+  if (formData.value.config.webSearchEnabled) {
     items.push({ value: 'web_search', label: t('agentEditor.tools.webSearch'), active: true });
     items.push({ value: 'web_fetch', label: t('agentEditor.tools.webFetch'), active: true });
   }
@@ -2208,28 +2208,28 @@ const availableFileTypes = [
 
 // 占位符相关 - 从 API 获取
 const placeholderData = ref<{
-  system_prompt: PlaceholderDefinition[];
+  systemPrompt: PlaceholderDefinition[];
   agent_system_prompt: PlaceholderDefinition[];
-  context_template: PlaceholderDefinition[];
+  contextTemplate: PlaceholderDefinition[];
   rewrite_system_prompt: PlaceholderDefinition[];
   rewrite_prompt: PlaceholderDefinition[];
-  fallback_prompt: PlaceholderDefinition[];
+  fallbackPrompt: PlaceholderDefinition[];
 }>({
-  system_prompt: [],
+  systemPrompt: [],
   agent_system_prompt: [],
-  context_template: [],
+  contextTemplate: [],
   rewrite_system_prompt: [],
   rewrite_prompt: [],
-  fallback_prompt: [],
+  fallbackPrompt: [],
 });
 
 // 系统提示词占位符（根据模式动态选择）
 const availablePlaceholders = computed(() => {
-  return isAgentMode.value ? placeholderData.value.agent_system_prompt : placeholderData.value.system_prompt;
+  return isAgentMode.value ? placeholderData.value.agent_system_prompt : placeholderData.value.systemPrompt;
 });
 
 // 上下文模板占位符
-const contextTemplatePlaceholders = computed(() => placeholderData.value.context_template);
+const contextTemplatePlaceholders = computed(() => placeholderData.value.contextTemplate);
 
 // 改写系统提示词占位符
 const rewriteSystemPlaceholders = computed(() => placeholderData.value.rewrite_system_prompt);
@@ -2238,7 +2238,7 @@ const rewriteSystemPlaceholders = computed(() => placeholderData.value.rewrite_s
 const rewritePlaceholders = computed(() => placeholderData.value.rewrite_prompt);
 
 // 兜底提示词占位符
-const fallbackPlaceholders = computed(() => placeholderData.value.fallback_prompt);
+const fallbackPlaceholders = computed(() => placeholderData.value.fallbackPrompt);
 
 const promptTextareaRef = ref<any>(null);
 const showPlaceholderPopup = ref(false);
@@ -2277,13 +2277,13 @@ const intentPromptPopup = ref<PlaceholderPopupState>({
 });
 
 const rewriteSystemPopup = ref<PlaceholderPopupState>({
-  show: false, selectedIndex: 0, prefix: '', style: { top: '0px', left: '0px' }, timer: null, fieldKey: 'rewrite_prompt_system', placeholders: []
+  show: false, selectedIndex: 0, prefix: '', style: { top: '0px', left: '0px' }, timer: null, fieldKey: 'rewritePromptSystem', placeholders: []
 });
 const rewriteUserPopup = ref<PlaceholderPopupState>({
-  show: false, selectedIndex: 0, prefix: '', style: { top: '0px', left: '0px' }, timer: null, fieldKey: 'rewrite_prompt_user', placeholders: []
+  show: false, selectedIndex: 0, prefix: '', style: { top: '0px', left: '0px' }, timer: null, fieldKey: 'rewritePromptUser', placeholders: []
 });
 const fallbackPromptPopup = ref<PlaceholderPopupState>({
-  show: false, selectedIndex: 0, prefix: '', style: { top: '0px', left: '0px' }, timer: null, fieldKey: 'fallback_prompt', placeholders: []
+  show: false, selectedIndex: 0, prefix: '', style: { top: '0px', left: '0px' }, timer: null, fieldKey: 'fallbackPrompt', placeholders: []
 });
 
 const rewriteSystemTextareaRef = ref<any>(null);
@@ -2297,7 +2297,7 @@ const navItems = computed(() => {
     { key: 'model', icon: 'control-platform', label: t('agent.editor.modelConfig') },
     { key: 'suggestions', icon: 'help-circle', label: t('agentEditor.questionSuggestions.navLabel') },
   ];
-  // 多轮对话（两种模式都需要：Agent 模式同样按 history_turns 截断历史）
+  // 多轮对话（两种模式都需要：Agent 模式同样按 historyTurns 截断历史）
   items.push({ key: 'conversation', icon: 'chat', label: t('agent.editor.conversationSettings') });
   // 知识库与检索
   items.push({ key: 'knowledge', icon: 'folder', label: t('agent.editor.knowledgeConfig') });
@@ -2346,85 +2346,85 @@ const defaultFormData = {
   builtin: false,
   config: {
     // 基础设置
-    agent_mode: 'smart-reasoning' as 'quick-answer' | 'smart-reasoning',
-    system_prompt: '',
-    context_template: '',
+    agentMode: 'smart-reasoning' as 'quick-answer' | 'smart-reasoning',
+    systemPrompt: '',
+    contextTemplate: '',
     // 模型设置
-    model_id: '',
-    rerank_model_id: '',
+    modelId: '',
+    rerankModelId: '',
     temperature: 0.7,
-    max_completion_tokens: 0,
+    maxCompletionTokens: 0,
     thinking: false, // 默认禁用思考模式
-    citation_enabled: true, // 默认输出知识库/网页来源引用
+    citationEnabled: true, // 默认输出知识库/网页来源引用
     // Agent模式设置
-    max_iterations: 10,
-    llm_call_timeout: 120,  // 120 seconds
-    allowed_tools: [] as string[],
+    maxIterations: 10,
+    llmCallTimeout: 120,  // 120 seconds
+    allowedTools: [] as string[],
     reflection_enabled: false,
     // MCP 服务设置
-    mcp_selection_mode: 'none' as 'all' | 'selected' | 'none',
-    mcp_services: [] as string[],
+    mcpSelectionMode: 'none' as 'all' | 'selected' | 'none',
+    mcpServices: [] as string[],
     // 对话中触发 OAuth 授权时的等待超时（秒），默认 600
-    mcp_auth_wait_timeout: 600,
+    mcpAuthWaitTimeout: 600,
     // Skills 设置
-    skills_selection_mode: 'none' as 'all' | 'selected' | 'none',
-    selected_skills: [] as string[],
+    skillsSelectionMode: 'none' as 'all' | 'selected' | 'none',
+    selectedSkills: [] as string[],
     // 技能脚本运行在哪份空间沙箱配置上。留空表示禁用脚本执行。
     // 知识库设置：新建智能体默认选择 "全部知识库"，
     // 让用户无需先去勾选 KB 即可上手；如有需要可改为 "selected" / "none"。
-    kb_selection_mode: 'all' as 'all' | 'selected' | 'none',
-    knowledge_bases: [] as string[],
-    retrieve_kb_only_when_mentioned: false,
+    kbSelectionMode: 'all' as 'all' | 'selected' | 'none',
+    knowledgeBases: [] as string[],
+    retrieveKbOnlyWhenMentioned: false,
     // 智能推理下的类型预设：新建 agent 时默认给 RAG 问答（最常用场景）。
-    // 编辑既有 agent 时会被 agent 自己保存的 agent_type 覆盖。
-    agent_type: 'rag-qa' as AgentType,
-    system_prompt_id: '' as string,
+    // 编辑既有 agent 时会被 agent 自己保存的 agentType 覆盖。
+    agentType: 'rag-qa' as AgentType,
+    systemPromptId: '' as string,
     // 附件上传设置
-    image_upload_enabled: false,
-    vlm_model_id: '',
-    image_storage_provider: '',
+    imageUploadEnabled: false,
+    vlmModelId: '',
+    imageStorageProvider: '',
     // 附件图片理解 / 扫描件 OCR 开关（默认关闭，避免解析耗时增加）
-    attachment_image_understanding: false,
+    attachmentImageUnderstanding: false,
     // 扫描件 OCR 最大页数（0 = 使用全局默认）
-    attachment_ocr_max_pages: 0,
+    attachmentOcrMaxPages: 0,
     // 单轮问答等待附件解析完成的最长时间（秒，0 = 使用全局默认）
-    attachment_parse_wait_timeout_sec: 0,
+    attachmentParseWaitTimeoutSec: 0,
     // 聊天附件解析引擎策略（按文件类型选引擎）
-    chat_parser_engine_rules: [] as ParserEngineRule[],
+    chatParserEngineRules: [] as ParserEngineRule[],
     // 文件类型限制
-    supported_file_types: [] as string[],
+    supportedFileTypes: [] as string[],
     // 数据分析阶段开关（默认关闭，避免在普通问答上多一次 LLM 调用生成 SQL）
-    data_analysis_enabled: false,
+    dataAnalysisEnabled: false,
     // FAQ 策略设置
-    faq_priority_enabled: true, // 是否启用 FAQ 优先策略
-    faq_direct_answer_threshold: 0.9, // FAQ 直接回答阈值（相似度高于此值直接使用 FAQ 答案）
-    faq_score_boost: 1.2, // FAQ 分数加权系数
+    faqPriorityEnabled: true, // 是否启用 FAQ 优先策略
+    faqDirectAnswerThreshold: 0.9, // FAQ 直接回答阈值（相似度高于此值直接使用 FAQ 答案）
+    faqScoreBoost: 1.2, // FAQ 分数加权系数
     // 网络搜索设置
-    web_search_enabled: false,
-    web_search_max_results: 5,
+    webSearchEnabled: false,
+    webSearchMaxResults: 5,
     // 多轮对话设置
-    multi_turn_enabled: false,
-    history_turns: 5,
-    retain_retrieval_history: false,
+    multiTurnEnabled: false,
+    historyTurns: 5,
+    retainRetrievalHistory: false,
     // 长期记忆：默认跟随空间设置。写 true 与不写等价，只有 false 才会
     // 让这个智能体单独不读记忆。
-    memory_enabled: true,
+    memoryEnabled: true,
     // 检索策略设置
-    embedding_top_k: 10,
-    keyword_threshold: 0.3,
-    vector_threshold: 0.5,
-    rerank_top_k: 5,
-    rerank_threshold: 0.5,
+    embeddingTopK: 10,
+    keywordThreshold: 0.3,
+    vectorThreshold: 0.5,
+    rerankTopK: 5,
+    rerankThreshold: 0.5,
     // 高级设置（普通模式）
-    enable_query_expansion: true,
-    enable_rewrite: true,
-    query_understand_model_id: '',
-    rewrite_prompt_system: '',
-    rewrite_prompt_user: '',
-    fallback_strategy: 'model' as 'fixed' | 'model',
-    fallback_response: '',
-    fallback_prompt: '',
-    question_suggestions: {
+    enableQueryExpansion: true,
+    enableRewrite: true,
+    queryUnderstandModelId: '',
+    rewritePromptSystem: '',
+    rewritePromptUser: '',
+    fallbackStrategy: 'model' as 'fixed' | 'model',
+    fallbackResponse: '',
+    fallbackPrompt: '',
+    questionSuggestions: {
       starters: {
         enabled: true,
         mode: 'hybrid' as 'curated' | 'knowledge' | 'hybrid',
@@ -2435,7 +2435,7 @@ const defaultFormData = {
         enabled: false,
         mode: 'hybrid' as 'generated' | 'knowledge' | 'hybrid',
         count: 3,
-        model_id: '',
+        modelId: '',
         additional_instruction: '',
         categories: ['clarify', 'deepen', 'action'] as Array<'clarify' | 'deepen' | 'action'>,
         max_context_turns: 2,
@@ -2469,29 +2469,29 @@ const followUpCategoryOptions = computed(() => [
 ]);
 
 const addStarterSuggestion = () => {
-  const items = formData.value.config.question_suggestions.starters.items;
+  const items = formData.value.config.questionSuggestions.starters.items;
   if (items.length < 8) items.push('');
 };
 
 const removeStarterSuggestion = (index: number) => {
-  formData.value.config.question_suggestions.starters.items.splice(index, 1);
+  formData.value.config.questionSuggestions.starters.items.splice(index, 1);
 };
 
 const applyDefaultModelsIfEmpty = () => {
   if (props.mode !== 'create' || !formData.value) return
   const chatModelId = selectInitialModelId(allModels.value, 'KnowledgeQA')
   const rerankModelId = selectInitialModelId(allModels.value, 'Rerank')
-  if (!formData.value.config.model_id && chatModelId) {
-    formData.value.config.model_id = chatModelId
+  if (!formData.value.config.modelId && chatModelId) {
+    formData.value.config.modelId = chatModelId
   }
-  if (!formData.value.config.rerank_model_id && rerankModelId) {
-    formData.value.config.rerank_model_id = rerankModelId
+  if (!formData.value.config.rerankModelId && rerankModelId) {
+    formData.value.config.rerankModelId = rerankModelId
   }
 }
 
 const agentMode = computed({
-  get: () => formData.value.config.agent_mode,
-  set: (val: 'quick-answer' | 'smart-reasoning') => { formData.value.config.agent_mode = val; }
+  get: () => formData.value.config.agentMode,
+  set: (val: 'quick-answer' | 'smart-reasoning') => { formData.value.config.agentMode = val; }
 });
 
 const isAgentMode = computed(() => agentMode.value === 'smart-reasoning');
@@ -2501,31 +2501,31 @@ const effectiveDefaultMaxCompletionTokens = computed(() =>
 );
 
 const maxCompletionTokensMode = computed({
-  get: () => (formData.value.config.max_completion_tokens > 0 ? 'custom' : 'default'),
+  get: () => (formData.value.config.maxCompletionTokens > 0 ? 'custom' : 'default'),
   set: (mode: 'default' | 'custom') => {
     if (mode === 'default') {
-      formData.value.config.max_completion_tokens = 0;
+      formData.value.config.maxCompletionTokens = 0;
       return;
     }
-    if (!formData.value.config.max_completion_tokens) {
-      formData.value.config.max_completion_tokens = effectiveDefaultMaxCompletionTokens.value;
+    if (!formData.value.config.maxCompletionTokens) {
+      formData.value.config.maxCompletionTokens = effectiveDefaultMaxCompletionTokens.value;
     }
   },
 });
 
 const lastFiniteMaxIterations = ref(10);
 const maxIterationsMode = computed({
-  get: () => (formData.value.config.max_iterations < 0 ? 'unlimited' : 'limit'),
+  get: () => (formData.value.config.maxIterations < 0 ? 'unlimited' : 'limit'),
   set: (mode: 'limit' | 'unlimited') => {
     if (mode === 'unlimited') {
-      if (formData.value.config.max_iterations > 1) {
-        lastFiniteMaxIterations.value = formData.value.config.max_iterations;
+      if (formData.value.config.maxIterations > 1) {
+        lastFiniteMaxIterations.value = formData.value.config.maxIterations;
       }
-      formData.value.config.max_iterations = -1;
+      formData.value.config.maxIterations = -1;
       return;
     }
     const restored = lastFiniteMaxIterations.value > 1 ? lastFiniteMaxIterations.value : 10;
-    formData.value.config.max_iterations = restored;
+    formData.value.config.maxIterations = restored;
   },
 });
 
@@ -2538,7 +2538,7 @@ const currentIntentTemplateDesc = computed(() =>
 );
 
 const isIntentCustomized = (intentId: string) => {
-  const overrides = formData.value.config.intent_prompts || {};
+  const overrides = formData.value.config.intentPrompts || {};
   const override = overrides[intentId];
   if (!override?.trim()) return false;
   const template = intentPromptTemplates.value.find((item) => item.id === intentId);
@@ -2561,8 +2561,8 @@ const conversationSectionDesc = computed(() =>
 
 const showRewritePrompts = computed(() =>
   !isAgentMode.value
-  && formData.value.config.multi_turn_enabled
-  && formData.value.config.enable_rewrite,
+  && formData.value.config.multiTurnEnabled
+  && formData.value.config.enableRewrite,
 );
 
 const promptNavItems = computed(() => {
@@ -2571,14 +2571,14 @@ const promptNavItems = computed(() => {
     {
       key: 'system',
       label: t('agentEditor.promptNav.system'),
-      customized: !!formData.value.config.system_prompt?.trim(),
+      customized: !!formData.value.config.systemPrompt?.trim(),
     },
   ];
   if (!isAgentMode.value) {
     items.push({
       key: 'context',
       label: t('agentEditor.promptNav.context'),
-      customized: !!formData.value.config.context_template?.trim(),
+      customized: !!formData.value.config.contextTemplate?.trim(),
     });
     items.push({
       key: 'intent',
@@ -2590,12 +2590,12 @@ const promptNavItems = computed(() => {
         {
           key: 'rewrite-system',
           label: t('agentEditor.promptNav.rewriteSystem'),
-          customized: !!formData.value.config.rewrite_prompt_system?.trim(),
+          customized: !!formData.value.config.rewritePromptSystem?.trim(),
         },
         {
           key: 'rewrite-user',
           label: t('agentEditor.promptNav.rewriteUser'),
-          customized: !!formData.value.config.rewrite_prompt_user?.trim(),
+          customized: !!formData.value.config.rewritePromptUser?.trim(),
         },
       );
     }
@@ -2651,10 +2651,10 @@ function gotoIntegrations(tab: 'im' | 'embed') {
 
 const filteredIntentPlaceholders = computed(() => {
   if (!intentPromptPopup.value.prefix) {
-    return placeholderData.value.system_prompt;
+    return placeholderData.value.systemPrompt;
   }
   const prefix = intentPromptPopup.value.prefix.toLowerCase();
-  return placeholderData.value.system_prompt.filter(p => p.name.toLowerCase().startsWith(prefix));
+  return placeholderData.value.systemPrompt.filter(p => p.name.toLowerCase().startsWith(prefix));
 });
 
 const syncIntentEditorFromSelection = () => {
@@ -2663,7 +2663,7 @@ const syncIntentEditorFromSelection = () => {
     intentEditorValue.value = '';
     return;
   }
-  const overrides = formData.value.config.intent_prompts || {};
+  const overrides = formData.value.config.intentPrompts || {};
   intentEditorValue.value = overrides[key] ?? currentIntentTemplate.value?.content ?? '';
 };
 
@@ -2691,24 +2691,24 @@ watch(intentEditorValue, (value) => {
   const defaultContent = currentIntentTemplate.value?.content || '';
   const next = value.trim();
   if (!next || next === defaultContent.trim()) {
-    if (formData.value.config.intent_prompts) {
-      const { [key]: _removed, ...rest } = formData.value.config.intent_prompts;
+    if (formData.value.config.intentPrompts) {
+      const { [key]: _removed, ...rest } = formData.value.config.intentPrompts;
       if (Object.keys(rest).length === 0) {
-        delete formData.value.config.intent_prompts;
+        delete formData.value.config.intentPrompts;
       } else {
-        formData.value.config.intent_prompts = rest;
+        formData.value.config.intentPrompts = rest;
       }
     }
     return;
   }
-  formData.value.config.intent_prompts = {
-    ...(formData.value.config.intent_prompts || {}),
+  formData.value.config.intentPrompts = {
+    ...(formData.value.config.intentPrompts || {}),
     [key]: value,
   };
 });
 
 watch(
-  () => formData.value.config.intent_prompts,
+  () => formData.value.config.intentPrompts,
   () => {
     intentPromptsSyncing.value = true;
     syncIntentEditorFromSelection();
@@ -2719,25 +2719,25 @@ watch(
 
 const resetCurrentIntentPrompt = () => {
   const key = selectedIntent.value;
-  if (!key || !formData.value.config.intent_prompts) return;
-  const { [key]: _removed, ...rest } = formData.value.config.intent_prompts;
+  if (!key || !formData.value.config.intentPrompts) return;
+  const { [key]: _removed, ...rest } = formData.value.config.intentPrompts;
   if (Object.keys(rest).length === 0) {
-    delete formData.value.config.intent_prompts;
+    delete formData.value.config.intentPrompts;
   } else {
-    formData.value.config.intent_prompts = rest;
+    formData.value.config.intentPrompts = rest;
   }
   syncIntentEditorFromSelection();
 };
 
 // ============================================================================
 // 智能体类型预设（仅 smart-reasoning 模式下可见）
-// 选择类型后自动填充 system_prompt_id / allowed_tools 等；
+// 选择类型后自动填充 systemPromptId / allowedTools 等；
 // 选择 "custom" 或没有匹配预设时不做任何覆盖。
 // ============================================================================
 
 const agentType = computed({
-  get: () => (formData.value.config.agent_type as AgentType) || 'custom',
-  set: (val: AgentType) => { formData.value.config.agent_type = val; },
+  get: () => (formData.value.config.agentType as AgentType) || 'custom',
+  set: (val: AgentType) => { formData.value.config.agentType = val; },
 });
 
 // 当前激活的预设对象（用于 KB 过滤 / UI 徽章）
@@ -2818,7 +2818,7 @@ const presetKbMismatchReason = (preset: AgentTypePreset): string => {
 // `@/utils/tool-capabilities` 维护一份。
 const effectiveKbFilter = (preset: AgentTypePreset | null): AgentTypeKBFilter | null => {
   if (!preset) return null;
-  const derived = deriveKbFilterFromTools(preset.config?.allowed_tools || []);
+  const derived = deriveKbFilterFromTools(preset.config?.allowedTools || []);
   const yaml = preset.kb_filter;
 
   // YAML 提供 any_of 时整体覆盖推导（给显式控制留口子）；否则用推导的
@@ -2870,7 +2870,7 @@ const kbSatisfiesPresetFilter = (kb: { capabilities?: KBCapabilities; ragEnabled
 };
 
 // "快速问答 / RAG 模式"对 KB 的隐式要求：必须有 vector 或 keyword 索引。
-// 这里跟 `activeAgentTypePreset` 解耦——quick-answer 没有 agent_type，
+// 这里跟 `activeAgentTypePreset` 解耦——quick-answer 没有 agentType，
 // 所以预设链路恒为 null，但 wiki-only KB 在 RAG 模式下检索结果永远为空，
 // 必须在 UI 上 disable + 提示，避免用户白选。
 const kbSatisfiesQuickAnswerMode = (kb: { capabilities?: KBCapabilities; ragEnabled?: boolean }): { ok: boolean; reason: string } => {
@@ -2900,7 +2900,7 @@ const filteredMyKbOptions = computed(() => filteredKbOptionsForPreset.value.filt
 // 所以这里不再依赖 preset 是否存在，直接看是否有被 disable 的选中项。
 const incompatibleSelectedKbCount = computed(() => {
   if (kbSelectionMode.value !== 'selected') return 0;
-  const selected = new Set(formData.value.config.knowledge_bases || []);
+  const selected = new Set(formData.value.config.knowledgeBases || []);
   return filteredKbOptionsForPreset.value.filter(kb => selected.has(kb.value) && kb.disabled).length;
 });
 
@@ -2909,37 +2909,37 @@ const applyAgentTypePreset = (preset: AgentTypePreset | null) => {
   if (!preset || !preset.config) return;
   const c = preset.config;
   const target = formData.value.config;
-  if (c.system_prompt_id !== undefined) {
-    target.system_prompt_id = c.system_prompt_id;
-    // 根据 system_prompt_id 从已加载的模板列表里查出正文并回填到用户可见的 textarea
-    const tmpl = agentSystemPromptTemplates.value.find(t => t.id === c.system_prompt_id);
+  if (c.systemPromptId !== undefined) {
+    target.systemPromptId = c.systemPromptId;
+    // 根据 systemPromptId 从已加载的模板列表里查出正文并回填到用户可见的 textarea
+    const tmpl = agentSystemPromptTemplates.value.find(t => t.id === c.systemPromptId);
     if (tmpl && typeof tmpl.content === 'string') {
-      target.system_prompt = tmpl.content;
+      target.systemPrompt = tmpl.content;
     } else {
       // 模板列表还没加载完 / 或预设引用了不存在的 id：清空让用户感知到变化
-      target.system_prompt = '';
-      if (c.system_prompt_id) {
-        console.warn(`[AgentType] system_prompt_id "${c.system_prompt_id}" not found in agent_system_prompt templates`);
+      target.systemPrompt = '';
+      if (c.systemPromptId) {
+        console.warn(`[AgentType] systemPromptId "${c.systemPromptId}" not found in agent_system_prompt templates`);
       }
     }
   }
   if (typeof c.temperature === 'number') target.temperature = c.temperature;
-  if (typeof c.max_iterations === 'number') target.max_iterations = c.max_iterations;
-  if (Array.isArray(c.allowed_tools)) target.allowed_tools = [...c.allowed_tools];
-  if (typeof c.retain_retrieval_history === 'boolean') target.retain_retrieval_history = c.retain_retrieval_history;
-  if (typeof c.faq_priority_enabled === 'boolean') target.faq_priority_enabled = c.faq_priority_enabled;
-  if (typeof c.web_search_enabled === 'boolean') target.web_search_enabled = c.web_search_enabled;
-  // supported_file_types 采用"强同步"语义：只有 data-analysis 需要限定 csv/xlsx，
+  if (typeof c.maxIterations === 'number') target.maxIterations = c.maxIterations;
+  if (Array.isArray(c.allowedTools)) target.allowedTools = [...c.allowedTools];
+  if (typeof c.retainRetrievalHistory === 'boolean') target.retainRetrievalHistory = c.retainRetrievalHistory;
+  if (typeof c.faqPriorityEnabled === 'boolean') target.faqPriorityEnabled = c.faqPriorityEnabled;
+  if (typeof c.webSearchEnabled === 'boolean') target.webSearchEnabled = c.webSearchEnabled;
+  // supportedFileTypes 采用"强同步"语义：只有 data-analysis 需要限定 csv/xlsx，
   // 其余类型切过来时必须清空，否则会从上一个类型带过来残留。
-  if (Array.isArray(c.supported_file_types)) {
-    target.supported_file_types = [...c.supported_file_types];
+  if (Array.isArray(c.supportedFileTypes)) {
+    target.supportedFileTypes = [...c.supportedFileTypes];
   } else {
-    target.supported_file_types = [];
+    target.supportedFileTypes = [];
   }
-  // kb_selection_mode 同步到 formData 以及 UI 状态（两处都要改，否则单选按钮不更新）
-  if (c.kb_selection_mode) {
-    target.kb_selection_mode = c.kb_selection_mode;
-    kbSelectionMode.value = c.kb_selection_mode;
+  // kbSelectionMode 同步到 formData 以及 UI 状态（两处都要改，否则单选按钮不更新）
+  if (c.kbSelectionMode) {
+    target.kbSelectionMode = c.kbSelectionMode;
+    kbSelectionMode.value = c.kbSelectionMode;
   }
 };
 
@@ -3003,7 +3003,7 @@ const needsRerankModel = computed(() => {
     return kbOptions.value.some(kb => kb.ragEnabled);
   }
   if (mode === 'selected') {
-    const selectedIds = formData.value.config.knowledge_bases || [];
+    const selectedIds = formData.value.config.knowledgeBases || [];
     return kbOptions.value.some(kb => selectedIds.includes(kb.value) && kb.ragEnabled);
   }
   return false;
@@ -3038,50 +3038,50 @@ watch(() => props.visible, async (val) => {
         agentData.config.thinking = false;
       }
 
-      agentData.config.question_suggestions = {
+      agentData.config.questionSuggestions = {
         starters: {
-          ...defaultFormData.config.question_suggestions.starters,
-          ...(agentData.config.question_suggestions?.starters || {}),
-          items: agentData.config.question_suggestions?.starters?.items || [],
+          ...defaultFormData.config.questionSuggestions.starters,
+          ...(agentData.config.questionSuggestions?.starters || {}),
+          items: agentData.config.questionSuggestions?.starters?.items || [],
         },
         follow_ups: {
-          ...defaultFormData.config.question_suggestions.follow_ups,
-          ...(agentData.config.question_suggestions?.follow_ups || {}),
-          categories: agentData.config.question_suggestions?.follow_ups?.categories
-            || [...defaultFormData.config.question_suggestions.follow_ups.categories],
+          ...defaultFormData.config.questionSuggestions.follow_ups,
+          ...(agentData.config.questionSuggestions?.follow_ups || {}),
+          categories: agentData.config.questionSuggestions?.follow_ups?.categories
+            || [...defaultFormData.config.questionSuggestions.follow_ups.categories],
         },
       };
       // 确保数组字段存在
-      if (!agentData.config.knowledge_bases) agentData.config.knowledge_bases = [];
-      if (!agentData.config.allowed_tools) agentData.config.allowed_tools = [];
-      if (!agentData.config.mcp_services) agentData.config.mcp_services = [];
+      if (!agentData.config.knowledgeBases) agentData.config.knowledgeBases = [];
+      if (!agentData.config.allowedTools) agentData.config.allowedTools = [];
+      if (!agentData.config.mcpServices) agentData.config.mcpServices = [];
       // 授权等待超时：旧数据缺省时用默认 600 秒
-      if (agentData.config.mcp_auth_wait_timeout == null || agentData.config.mcp_auth_wait_timeout <= 0) {
-        agentData.config.mcp_auth_wait_timeout = 600;
+      if (agentData.config.mcpAuthWaitTimeout == null || agentData.config.mcpAuthWaitTimeout <= 0) {
+        agentData.config.mcpAuthWaitTimeout = 600;
       }
-      if (!agentData.config.selected_skills) agentData.config.selected_skills = [];
-      if (!agentData.config.supported_file_types) agentData.config.supported_file_types = [];
-      if (!agentData.config.chat_parser_engine_rules) agentData.config.chat_parser_engine_rules = [];
+      if (!agentData.config.selectedSkills) agentData.config.selectedSkills = [];
+      if (!agentData.config.supportedFileTypes) agentData.config.supportedFileTypes = [];
+      if (!agentData.config.chatParserEngineRules) agentData.config.chatParserEngineRules = [];
       // 附件解析调优字段：旧数据缺省时置 0（表示使用全局默认）
-      if (agentData.config.attachment_ocr_max_pages == null) agentData.config.attachment_ocr_max_pages = 0;
-      if (agentData.config.attachment_parse_wait_timeout_sec == null) agentData.config.attachment_parse_wait_timeout_sec = 0;
-      if (agentData.config.max_completion_tokens == null) agentData.config.max_completion_tokens = 0;
+      if (agentData.config.attachmentOcrMaxPages == null) agentData.config.attachmentOcrMaxPages = 0;
+      if (agentData.config.attachmentParseWaitTimeoutSec == null) agentData.config.attachmentParseWaitTimeoutSec = 0;
+      if (agentData.config.maxCompletionTokens == null) agentData.config.maxCompletionTokens = 0;
       // 长期记忆：后端用 omitempty，跟随空间设置的智能体不带这个字段。
       // 不补成 true 的话开关会显示为"关"，用户随手一存就真的把记忆关了。
-      if (agentData.config.memory_enabled == null) agentData.config.memory_enabled = true;
+      if (agentData.config.memoryEnabled == null) agentData.config.memoryEnabled = true;
 
-      // 兼容旧数据：如果没有 agent_mode 字段，根据 allowed_tools 推断
-      if (!agentData.config.agent_mode) {
-        const isAgent = agentData.config.max_iterations < 0 || agentData.config.max_iterations > 1 || (agentData.config.allowed_tools && agentData.config.allowed_tools.length > 0);
-        agentData.config.agent_mode = isAgent ? 'smart-reasoning' : 'quick-answer';
+      // 兼容旧数据：如果没有 agentMode 字段，根据 allowedTools 推断
+      if (!agentData.config.agentMode) {
+        const isAgent = agentData.config.maxIterations < 0 || agentData.config.maxIterations > 1 || (agentData.config.allowedTools && agentData.config.allowedTools.length > 0);
+        agentData.config.agentMode = isAgent ? 'smart-reasoning' : 'quick-answer';
       }
 
       // 设置初始化标志，防止 watch 自动添加工具
       isInitializing.value = true;
       agentData.config = hydrateAgentPromptRefs(agentData.config, promptTemplates.value);
       formData.value = agentData;
-      if (agentData.config.max_iterations > 1) {
-        lastFiniteMaxIterations.value = agentData.config.max_iterations;
+      if (agentData.config.maxIterations > 1) {
+        lastFiniteMaxIterations.value = agentData.config.maxIterations;
       }
       // 初始化知识库选择模式
       initKbSelectionMode();
@@ -3098,39 +3098,39 @@ watch(() => props.visible, async (val) => {
       // 创建新智能体，使用系统默认值
       const newFormData = JSON.parse(JSON.stringify(defaultFormData));
       // 应用系统默认检索参数
-      newFormData.config.embedding_top_k = defaultEmbeddingTopK.value;
-      newFormData.config.keyword_threshold = defaultKeywordThreshold.value;
-      newFormData.config.vector_threshold = defaultVectorThreshold.value;
-      newFormData.config.rerank_top_k = defaultRerankTopK.value;
-      newFormData.config.rerank_threshold = defaultRerankThreshold.value;
-      newFormData.config.max_completion_tokens = 0;
+      newFormData.config.embeddingTopK = defaultEmbeddingTopK.value;
+      newFormData.config.keywordThreshold = defaultKeywordThreshold.value;
+      newFormData.config.vectorThreshold = defaultVectorThreshold.value;
+      newFormData.config.rerankTopK = defaultRerankTopK.value;
+      newFormData.config.rerankThreshold = defaultRerankThreshold.value;
+      newFormData.config.maxCompletionTokens = 0;
       newFormData.config.temperature = defaultTemperature.value;
       // 应用系统默认提示词（根据模式填充）
-      const isAgent = newFormData.config.agent_mode === 'smart-reasoning';
+      const isAgent = newFormData.config.agentMode === 'smart-reasoning';
       if (isAgent) {
         // Agent 模式使用 agent-config 的默认系统提示词
         if (defaultAgentSystemPrompt.value) {
-          newFormData.config.system_prompt = defaultAgentSystemPrompt.value;
+          newFormData.config.systemPrompt = defaultAgentSystemPrompt.value;
         }
       } else {
         // 快速问答模式：默认提示词来自 prompt-templates 的 default 项
         if (defaultNormalSystemPrompt.value) {
-          newFormData.config.system_prompt = defaultNormalSystemPrompt.value;
+          newFormData.config.systemPrompt = defaultNormalSystemPrompt.value;
         }
         if (defaultContextTemplate.value) {
-          newFormData.config.context_template = defaultContextTemplate.value;
+          newFormData.config.contextTemplate = defaultContextTemplate.value;
         }
         if (defaultRewritePromptSystem.value) {
-          newFormData.config.rewrite_prompt_system = defaultRewritePromptSystem.value;
+          newFormData.config.rewritePromptSystem = defaultRewritePromptSystem.value;
         }
         if (defaultRewritePromptUser.value) {
-          newFormData.config.rewrite_prompt_user = defaultRewritePromptUser.value;
+          newFormData.config.rewritePromptUser = defaultRewritePromptUser.value;
         }
         if (defaultFallbackPrompt.value) {
-          newFormData.config.fallback_prompt = defaultFallbackPrompt.value;
+          newFormData.config.fallbackPrompt = defaultFallbackPrompt.value;
         }
         if (defaultFallbackResponse.value) {
-          newFormData.config.fallback_response = defaultFallbackResponse.value;
+          newFormData.config.fallbackResponse = defaultFallbackResponse.value;
         }
       }
       formData.value = newFormData;
@@ -3139,11 +3139,11 @@ watch(() => props.visible, async (val) => {
       mcpSelectionMode.value = 'none';
       skillsSelectionMode.value = 'none';
 
-      // 新建智能推理 agent 时，立即应用默认的 agent_type 预设
-      // （补齐 system_prompt / allowed_tools / kb_selection_mode 等），
+      // 新建智能推理 agent 时，立即应用默认的 agentType 预设
+      // （补齐 systemPrompt / allowedTools / kbSelectionMode 等），
       // 否则用户在 modal 打开瞬间看到的"默认表单"和类型下拉显示的类型不一致。
-      if (newFormData.config.agent_mode === 'smart-reasoning') {
-        const defaultTypeId = newFormData.config.agent_type as AgentType;
+      if (newFormData.config.agentMode === 'smart-reasoning') {
+        const defaultTypeId = newFormData.config.agentType as AgentType;
         const preset = agentTypePresets.value.find(p => p.id === defaultTypeId) || null;
         if (defaultTypeId && defaultTypeId !== 'custom') {
           applyAgentTypePreset(preset);
@@ -3184,10 +3184,10 @@ watch(() => props.visible, async (val) => {
 
 // 初始化知识库选择模式
 const initKbSelectionMode = () => {
-  if (formData.value.config.kb_selection_mode) {
+  if (formData.value.config.kbSelectionMode) {
     // 如果有保存的模式，直接使用
-    kbSelectionMode.value = formData.value.config.kb_selection_mode;
-  } else if (formData.value.config.knowledge_bases?.length > 0) {
+    kbSelectionMode.value = formData.value.config.kbSelectionMode;
+  } else if (formData.value.config.knowledgeBases?.length > 0) {
     // 有指定知识库
     kbSelectionMode.value = 'selected';
   } else {
@@ -3197,10 +3197,10 @@ const initKbSelectionMode = () => {
 
 // 初始化 MCP 选择模式
 const initMcpSelectionMode = () => {
-  if (formData.value.config.mcp_selection_mode) {
+  if (formData.value.config.mcpSelectionMode) {
     // 如果有保存的模式，直接使用
-    mcpSelectionMode.value = formData.value.config.mcp_selection_mode;
-  } else if (formData.value.config.mcp_services?.length > 0) {
+    mcpSelectionMode.value = formData.value.config.mcpSelectionMode;
+  } else if (formData.value.config.mcpServices?.length > 0) {
     // 有指定 MCP 服务
     mcpSelectionMode.value = 'selected';
   } else {
@@ -3210,10 +3210,10 @@ const initMcpSelectionMode = () => {
 
 // 初始化 Skills 选择模式
 const initSkillsSelectionMode = () => {
-  if (formData.value.config.skills_selection_mode) {
+  if (formData.value.config.skillsSelectionMode) {
     // 如果有保存的模式，直接使用
-    skillsSelectionMode.value = formData.value.config.skills_selection_mode;
-  } else if (formData.value.config.selected_skills?.length > 0) {
+    skillsSelectionMode.value = formData.value.config.skillsSelectionMode;
+  } else if (formData.value.config.selectedSkills?.length > 0) {
     // 有指定 Skills
     skillsSelectionMode.value = 'selected';
   } else {
@@ -3224,76 +3224,76 @@ const initSkillsSelectionMode = () => {
 // 内置智能体：填入系统默认值
 const fillBuiltinAgentDefaults = () => {
   const config = formData.value.config;
-  const isAgent = config.agent_mode === 'smart-reasoning';
+  const isAgent = config.agentMode === 'smart-reasoning';
 
   if (isAgent) {
     // Agent 模式：使用 agent-config 的默认提示词
-    if (!config.system_prompt && defaultAgentSystemPrompt.value) {
-      config.system_prompt = defaultAgentSystemPrompt.value;
+    if (!config.systemPrompt && defaultAgentSystemPrompt.value) {
+      config.systemPrompt = defaultAgentSystemPrompt.value;
     }
   } else {
     // 普通模式：默认系统提示词、上下文模板等来自 prompt-templates 的 default 项
-    if (!config.system_prompt && defaultNormalSystemPrompt.value) {
-      config.system_prompt = defaultNormalSystemPrompt.value;
+    if (!config.systemPrompt && defaultNormalSystemPrompt.value) {
+      config.systemPrompt = defaultNormalSystemPrompt.value;
     }
-    if (!config.context_template && defaultContextTemplate.value) {
-      config.context_template = defaultContextTemplate.value;
+    if (!config.contextTemplate && defaultContextTemplate.value) {
+      config.contextTemplate = defaultContextTemplate.value;
     }
   }
 
   // 通用默认值
-  if (!config.rewrite_prompt_system && defaultRewritePromptSystem.value) {
-    config.rewrite_prompt_system = defaultRewritePromptSystem.value;
+  if (!config.rewritePromptSystem && defaultRewritePromptSystem.value) {
+    config.rewritePromptSystem = defaultRewritePromptSystem.value;
   }
-  if (!config.rewrite_prompt_user && defaultRewritePromptUser.value) {
-    config.rewrite_prompt_user = defaultRewritePromptUser.value;
+  if (!config.rewritePromptUser && defaultRewritePromptUser.value) {
+    config.rewritePromptUser = defaultRewritePromptUser.value;
   }
-  if (!config.fallback_prompt && defaultFallbackPrompt.value) {
-    config.fallback_prompt = defaultFallbackPrompt.value;
+  if (!config.fallbackPrompt && defaultFallbackPrompt.value) {
+    config.fallbackPrompt = defaultFallbackPrompt.value;
   }
-  if (!config.fallback_response && defaultFallbackResponse.value) {
-    config.fallback_response = defaultFallbackResponse.value;
+  if (!config.fallbackResponse && defaultFallbackResponse.value) {
+    config.fallbackResponse = defaultFallbackResponse.value;
   }
 };
 
 // 监听知识库选择模式变化
 watch(kbSelectionMode, (mode) => {
-  formData.value.config.kb_selection_mode = mode;
+  formData.value.config.kbSelectionMode = mode;
   if (mode === 'none') {
     // 不使用知识库，清空相关配置
-    formData.value.config.knowledge_bases = [];
+    formData.value.config.knowledgeBases = [];
   } else if (mode === 'all') {
     // 全部知识库，清空指定列表
-    formData.value.config.knowledge_bases = [];
+    formData.value.config.knowledgeBases = [];
   }
-  // selected 模式保持 knowledge_bases 不变
+  // selected 模式保持 knowledgeBases 不变
 });
 
 // 监听 MCP 选择模式变化
 watch(mcpSelectionMode, (mode) => {
-  formData.value.config.mcp_selection_mode = mode;
+  formData.value.config.mcpSelectionMode = mode;
   if (mode === 'none') {
     // 不使用 MCP，清空相关配置
-    formData.value.config.mcp_services = [];
+    formData.value.config.mcpServices = [];
   } else if (mode === 'all') {
     // 全部 MCP，清空指定列表
-    formData.value.config.mcp_services = [];
+    formData.value.config.mcpServices = [];
   }
-  // selected 模式保持 mcp_services 不变
+  // selected 模式保持 mcpServices 不变
 });
 
 
 // 监听 Skills 选择模式变化
 watch(skillsSelectionMode, (mode) => {
-  formData.value.config.skills_selection_mode = mode;
+  formData.value.config.skillsSelectionMode = mode;
   if (mode === 'none') {
     // 不使用 Skills，清空相关配置
-    formData.value.config.selected_skills = [];
+    formData.value.config.selectedSkills = [];
   } else if (mode === 'all') {
     // 全部 Skills，清空指定列表
-    formData.value.config.selected_skills = [];
+    formData.value.config.selectedSkills = [];
   }
-  // selected 模式保持 selected_skills 不变
+  // selected 模式保持 selectedSkills 不变
 });
 
 // 监听模式变化，自动调整配置
@@ -3302,7 +3302,7 @@ watch(agentMode, (val, _oldVal) => {
     // 切换到 Agent 模式，根据知识库配置启用工具。
     // 注意：默认不注入 thinking / todo_write —— 它们用于显式反思或多步计划，
     // 会显著增加 token 消耗，用户按需手动勾选。
-    if (formData.value.config.allowed_tools.length === 0) {
+    if (formData.value.config.allowedTools.length === 0) {
       const tools: string[] = [];
       if (hasRagKnowledgeBase.value) {
         tools.push(...knowledgeBaseTools);
@@ -3310,44 +3310,44 @@ watch(agentMode, (val, _oldVal) => {
       if (hasWikiKnowledgeBase.value) {
         tools.push(...wikiReadTools);
       }
-      formData.value.config.allowed_tools = tools;
+      formData.value.config.allowedTools = tools;
     }
-    if (formData.value.config.max_iterations >= 0 && formData.value.config.max_iterations <= 1) {
-      formData.value.config.max_iterations = 10;
+    if (formData.value.config.maxIterations >= 0 && formData.value.config.maxIterations <= 1) {
+      formData.value.config.maxIterations = 10;
     }
     // 切换到 Agent 模式时，如果系统提示词是快速问答的默认值或为空，替换为 Agent 默认提示词
     if (defaultAgentSystemPrompt.value) {
-      const isDefaultNormalPrompt = formData.value.config.system_prompt === defaultNormalSystemPrompt.value;
-      if (!formData.value.config.system_prompt || isDefaultNormalPrompt) {
-        formData.value.config.system_prompt = defaultAgentSystemPrompt.value;
+      const isDefaultNormalPrompt = formData.value.config.systemPrompt === defaultNormalSystemPrompt.value;
+      if (!formData.value.config.systemPrompt || isDefaultNormalPrompt) {
+        formData.value.config.systemPrompt = defaultAgentSystemPrompt.value;
       }
     }
   } else {
     // 切换到普通模式，清空工具
-    formData.value.config.allowed_tools = [];
-    formData.value.config.max_iterations = 1; // 设置为1表示单轮 RAG
+    formData.value.config.allowedTools = [];
+    formData.value.config.maxIterations = 1; // 设置为1表示单轮 RAG
     // 切换到快速问答模式时，如果系统提示词是 Agent 的默认值或为空，替换为快速问答默认提示词
     if (defaultNormalSystemPrompt.value) {
-      const isDefaultAgentPrompt = formData.value.config.system_prompt === defaultAgentSystemPrompt.value;
-      if (!formData.value.config.system_prompt || isDefaultAgentPrompt) {
-        formData.value.config.system_prompt = defaultNormalSystemPrompt.value;
+      const isDefaultAgentPrompt = formData.value.config.systemPrompt === defaultAgentSystemPrompt.value;
+      if (!formData.value.config.systemPrompt || isDefaultAgentPrompt) {
+        formData.value.config.systemPrompt = defaultNormalSystemPrompt.value;
       }
     }
     // 其他提示词只在为空时填充
-    if (!formData.value.config.context_template && defaultContextTemplate.value) {
-      formData.value.config.context_template = defaultContextTemplate.value;
+    if (!formData.value.config.contextTemplate && defaultContextTemplate.value) {
+      formData.value.config.contextTemplate = defaultContextTemplate.value;
     }
-    if (!formData.value.config.rewrite_prompt_system && defaultRewritePromptSystem.value) {
-      formData.value.config.rewrite_prompt_system = defaultRewritePromptSystem.value;
+    if (!formData.value.config.rewritePromptSystem && defaultRewritePromptSystem.value) {
+      formData.value.config.rewritePromptSystem = defaultRewritePromptSystem.value;
     }
-    if (!formData.value.config.rewrite_prompt_user && defaultRewritePromptUser.value) {
-      formData.value.config.rewrite_prompt_user = defaultRewritePromptUser.value;
+    if (!formData.value.config.rewritePromptUser && defaultRewritePromptUser.value) {
+      formData.value.config.rewritePromptUser = defaultRewritePromptUser.value;
     }
-    if (!formData.value.config.fallback_prompt && defaultFallbackPrompt.value) {
-      formData.value.config.fallback_prompt = defaultFallbackPrompt.value;
+    if (!formData.value.config.fallbackPrompt && defaultFallbackPrompt.value) {
+      formData.value.config.fallbackPrompt = defaultFallbackPrompt.value;
     }
-    if (!formData.value.config.fallback_response && defaultFallbackResponse.value) {
-      formData.value.config.fallback_response = defaultFallbackResponse.value;
+    if (!formData.value.config.fallbackResponse && defaultFallbackResponse.value) {
+      formData.value.config.fallbackResponse = defaultFallbackResponse.value;
     }
   }
 });
@@ -3355,10 +3355,10 @@ watch(agentMode, (val, _oldVal) => {
 // 监听知识库启用状态变化：
 //   - 从"无"变"有"：自动补齐 RAG 基础工具，方便用户开箱即用（仅 seed 行为）；
 //   - 从"有"变"无"：**不再**自动擦工具，依赖不满足时由 `availableTools` 灰显
-//     + 运行时工具注册器过滤。`allowed_tools` 代表用户意图，只应在用户显式操作
-//     （切 agent_type / 切 agent_mode / 手勾工具）时变更。
+//     + 运行时工具注册器过滤。`allowedTools` 代表用户意图，只应在用户显式操作
+//     （切 agentType / 切 agentMode / 手勾工具）时变更。
 // 历史背景：旧版本在 KB 能力消失时会擦除 KB/Wiki 工具，导致用户切换
-// `kb_selection_mode` 到 "selected"、但尚未勾具体 KB 的过渡期里静默丢失工具，
+// `kbSelectionMode` 到 "selected"、但尚未勾具体 KB 的过渡期里静默丢失工具，
 // 对默认工具全是 wiki_* 的内置"维基问答"智能体尤为致命。
 watch(hasKnowledgeBase, (hasKB, oldHasKB) => {
   // 如果当前在检索策略页面但没有知识库能力了，切换到基础设置
@@ -3371,9 +3371,9 @@ watch(hasKnowledgeBase, (hasKB, oldHasKB) => {
 
   if (hasKB && !oldHasKB) {
     // 从无知识库变为有知识库，seed 默认的 RAG 工具（仅补齐未勾的）
-    const currentTools = formData.value.config.allowed_tools || [];
+    const currentTools = formData.value.config.allowedTools || [];
     const toolsToAdd = knowledgeBaseTools.filter((tool: string) => !currentTools.includes(tool));
-    formData.value.config.allowed_tools = [...currentTools, ...toolsToAdd];
+    formData.value.config.allowedTools = [...currentTools, ...toolsToAdd];
   }
 });
 
@@ -3444,9 +3444,9 @@ const applyPromptTemplateDefaults = (cfg: PromptTemplatesConfig | null) => {
   }
   const pickDefault = (arr?: PromptTemplate[]): PromptTemplate | undefined =>
     Array.isArray(arr) ? arr.find(t => t.default) : undefined;
-  const sysPrompt = pickDefault(cfg.system_prompt);
+  const sysPrompt = pickDefault(cfg.systemPrompt);
   if (sysPrompt?.content) defaultNormalSystemPrompt.value = sysPrompt.content;
-  const ctxTmpl = pickDefault(cfg.context_template);
+  const ctxTmpl = pickDefault(cfg.contextTemplate);
   if (ctxTmpl?.content) defaultContextTemplate.value = ctxTmpl.content;
   const rewriteTmpl = pickDefault(cfg.rewrite);
   if (rewriteTmpl?.content) defaultRewritePromptSystem.value = rewriteTmpl.content;
@@ -3456,8 +3456,8 @@ const applyPromptTemplateDefaults = (cfg: PromptTemplatesConfig | null) => {
   if (fixedFallback?.content) defaultFallbackResponse.value = fixedFallback.content;
   const modelFallback = fallbackList.find(t => t.mode === 'model' && t.default) || fallbackList.find(t => t.mode === 'model');
   if (modelFallback?.content) defaultFallbackPrompt.value = modelFallback.content;
-  if (Array.isArray(cfg.intent_prompts)) {
-    intentPromptTemplates.value = cfg.intent_prompts;
+  if (Array.isArray(cfg.intentPrompts)) {
+    intentPromptTemplates.value = cfg.intentPrompts;
   }
 };
 
@@ -3490,11 +3490,11 @@ const loadDependencies = async () => {
     }
 
     const rc = editorResources.tenantRetrievalConfig as Record<string, number> | null;
-    if (rc?.embedding_top_k) defaultEmbeddingTopK.value = rc.embedding_top_k;
-    if (rc?.keyword_threshold !== undefined) defaultKeywordThreshold.value = rc.keyword_threshold;
-    if (rc?.vector_threshold !== undefined) defaultVectorThreshold.value = rc.vector_threshold;
-    if (rc?.rerank_top_k) defaultRerankTopK.value = rc.rerank_top_k;
-    if (rc?.rerank_threshold !== undefined) defaultRerankThreshold.value = rc.rerank_threshold;
+    if (rc?.embeddingTopK) defaultEmbeddingTopK.value = rc.embeddingTopK;
+    if (rc?.keywordThreshold !== undefined) defaultKeywordThreshold.value = rc.keywordThreshold;
+    if (rc?.vectorThreshold !== undefined) defaultVectorThreshold.value = rc.vectorThreshold;
+    if (rc?.rerankTopK) defaultRerankTopK.value = rc.rerankTopK;
+    if (rc?.rerankThreshold !== undefined) defaultRerankThreshold.value = rc.rerankThreshold;
   } catch (e) {
     console.error('Failed to load dependencies', e);
   }
@@ -3586,7 +3586,7 @@ const getTextareaElement = (): HTMLTextAreaElement | null => {
 // 计算光标位置
 const calculateCursorPosition = (textarea: HTMLTextAreaElement) => {
   const cursorPos = textarea.selectionStart;
-  const textBeforeCursor = formData.value.config.system_prompt.substring(0, cursorPos);
+  const textBeforeCursor = formData.value.config.systemPrompt.substring(0, cursorPos);
 
   const style = window.getComputedStyle(textarea);
   // Placeholder popup is `position: fixed` under the root zoom; normalize the
@@ -3627,7 +3627,7 @@ const checkAndShowPlaceholderPopup = () => {
   if (!textarea) return;
 
   const cursorPos = textarea.selectionStart;
-  const textBeforeCursor = formData.value.config.system_prompt.substring(0, cursorPos);
+  const textBeforeCursor = formData.value.config.systemPrompt.substring(0, cursorPos);
 
   // 查找最近的 {{ 位置
   let lastOpenPos = -1;
@@ -3687,7 +3687,7 @@ const insertPlaceholder = (placeholderName: string, fromPopup: boolean = false) 
 
   nextTick(() => {
     const cursorPos = textarea.selectionStart;
-    const currentValue = formData.value.config.system_prompt || '';
+    const currentValue = formData.value.config.systemPrompt || '';
     const textBeforeCursor = currentValue.substring(0, cursorPos);
     const textAfterCursor = currentValue.substring(cursorPos);
 
@@ -3704,7 +3704,7 @@ const insertPlaceholder = (placeholderName: string, fromPopup: boolean = false) 
       if (lastOpenPos !== -1) {
         const textBeforeOpen = currentValue.substring(0, lastOpenPos);
         const newValue = textBeforeOpen + `{{${placeholderName}}}` + textAfterCursor;
-        formData.value.config.system_prompt = newValue;
+        formData.value.config.systemPrompt = newValue;
 
         nextTick(() => {
           const newCursorPos = textBeforeOpen.length + placeholderName.length + 4;
@@ -3717,7 +3717,7 @@ const insertPlaceholder = (placeholderName: string, fromPopup: boolean = false) 
 
     // 直接在光标位置插入完整占位符
     const newValue = textBeforeCursor + `{{${placeholderName}}}` + textAfterCursor;
-    formData.value.config.system_prompt = newValue;
+    formData.value.config.systemPrompt = newValue;
 
     nextTick(() => {
       const newCursorPos = cursorPos + placeholderName.length + 4;
@@ -3743,7 +3743,7 @@ const getContextTemplateTextareaElement = (): HTMLTextAreaElement | null => {
 // 计算上下文模板光标位置
 const calculateContextCursorPosition = (textarea: HTMLTextAreaElement) => {
   const cursorPos = textarea.selectionStart;
-  const textBeforeCursor = formData.value.config.context_template.substring(0, cursorPos);
+  const textBeforeCursor = formData.value.config.contextTemplate.substring(0, cursorPos);
 
   const style = window.getComputedStyle(textarea);
   // See `calculateCursorPosition` for the zoom rationale.
@@ -3781,7 +3781,7 @@ const checkAndShowContextPlaceholderPopup = () => {
   if (!textarea) return;
 
   const cursorPos = textarea.selectionStart;
-  const textBeforeCursor = formData.value.config.context_template.substring(0, cursorPos);
+  const textBeforeCursor = formData.value.config.contextTemplate.substring(0, cursorPos);
 
   let lastOpenPos = -1;
   for (let i = textBeforeCursor.length - 1; i >= 1; i--) {
@@ -3840,7 +3840,7 @@ const insertContextPlaceholder = (placeholderName: string, fromPopup: boolean = 
 
   nextTick(() => {
     const cursorPos = textarea.selectionStart;
-    const currentValue = formData.value.config.context_template || '';
+    const currentValue = formData.value.config.contextTemplate || '';
     const textBeforeCursor = currentValue.substring(0, cursorPos);
     const textAfterCursor = currentValue.substring(cursorPos);
 
@@ -3857,7 +3857,7 @@ const insertContextPlaceholder = (placeholderName: string, fromPopup: boolean = 
       if (lastOpenPos !== -1) {
         const textBeforeOpen = currentValue.substring(0, lastOpenPos);
         const newValue = textBeforeOpen + `{{${placeholderName}}}` + textAfterCursor;
-        formData.value.config.context_template = newValue;
+        formData.value.config.contextTemplate = newValue;
 
         nextTick(() => {
           const newCursorPos = textBeforeOpen.length + placeholderName.length + 4;
@@ -3870,7 +3870,7 @@ const insertContextPlaceholder = (placeholderName: string, fromPopup: boolean = 
 
     // 直接在光标位置插入完整占位符
     const newValue = textBeforeCursor + `{{${placeholderName}}}` + textAfterCursor;
-    formData.value.config.context_template = newValue;
+    formData.value.config.contextTemplate = newValue;
 
     nextTick(() => {
       const newCursorPos = cursorPos + placeholderName.length + 4;
@@ -3883,9 +3883,9 @@ const insertContextPlaceholder = (placeholderName: string, fromPopup: boolean = 
 type GenericPlaceholderType = 'rewriteSystem' | 'rewriteUser' | 'fallback' | 'intent';
 
 const genericPlaceholderFieldKeyMap: Record<Exclude<GenericPlaceholderType, 'intent'>, keyof typeof formData.value.config> = {
-  rewriteSystem: 'rewrite_prompt_system',
-  rewriteUser: 'rewrite_prompt_user',
-  fallback: 'fallback_prompt',
+  rewriteSystem: 'rewritePromptSystem',
+  rewriteUser: 'rewritePromptUser',
+  fallback: 'fallbackPrompt',
 };
 
 const getGenericPlaceholderFieldValue = (type: GenericPlaceholderType): string => {
@@ -4260,8 +4260,8 @@ watch(() => props.visible, (val) => {
 
 // 模板选择处理函数
 const handleSystemPromptTemplateSelect = (template: PromptTemplate) => {
-  formData.value.config.system_prompt = template.content;
-  formData.value.config.system_prompt_id = template.id;
+  formData.value.config.systemPrompt = template.content;
+  formData.value.config.systemPromptId = template.id;
 };
 
 // Agent 系统提示词的"恢复默认"：
@@ -4273,40 +4273,40 @@ const handleAgentSystemPromptResetDefault = (fallback: PromptTemplate) => {
   const typeId = agentType.value;
   if (typeId && typeId !== 'custom') {
     const preset = agentTypePresets.value.find(p => p.id === typeId);
-    const presetPromptId = preset?.config?.system_prompt_id;
+    const presetPromptId = preset?.config?.systemPromptId;
     if (presetPromptId) {
       const tmpl = agentSystemPromptTemplates.value.find(t => t.id === presetPromptId);
       if (tmpl && typeof tmpl.content === 'string') {
-        formData.value.config.system_prompt = tmpl.content;
-        formData.value.config.system_prompt_id = tmpl.id;
+        formData.value.config.systemPrompt = tmpl.content;
+        formData.value.config.systemPromptId = tmpl.id;
         return;
       }
     }
   }
   // Fallback：没有合适的类型预设，用 PromptTemplateSelector 找到的全局默认
-  formData.value.config.system_prompt = fallback.content;
-  formData.value.config.system_prompt_id = fallback.id;
+  formData.value.config.systemPrompt = fallback.content;
+  formData.value.config.systemPromptId = fallback.id;
 };
 
 const handleContextTemplateSelect = (template: PromptTemplate) => {
-  formData.value.config.context_template = template.content;
-  formData.value.config.context_template_id = template.id;
+  formData.value.config.contextTemplate = template.content;
+  formData.value.config.contextTemplateId = template.id;
 };
 
 const handleRewriteTemplateSelect = (template: PromptTemplate) => {
   // Rewrite templates contain both content (system) and user fields
-  formData.value.config.rewrite_prompt_system = template.content;
+  formData.value.config.rewritePromptSystem = template.content;
   if (template.user) {
-    formData.value.config.rewrite_prompt_user = template.user;
+    formData.value.config.rewritePromptUser = template.user;
   }
 };
 
 const handleFallbackResponseTemplateSelect = (template: PromptTemplate) => {
-  formData.value.config.fallback_response = template.content;
+  formData.value.config.fallbackResponse = template.content;
 };
 
 const handleFallbackPromptTemplateSelect = (template: PromptTemplate) => {
-  formData.value.config.fallback_prompt = template.content;
+  formData.value.config.fallbackPrompt = template.content;
 };
 
 // 辅助函数：检查提示词是否包含指定占位符
@@ -4325,14 +4325,14 @@ const handleSave = async () => {
     }
 
     // 自定义智能体必须填写系统提示词
-    if (!formData.value.config.system_prompt || !formData.value.config.system_prompt.trim()) {
+    if (!formData.value.config.systemPrompt || !formData.value.config.systemPrompt.trim()) {
       MessagePlugin.error(t('agent.editor.systemPromptRequired'));
       currentSection.value = 'prompts';
       return;
     }
 
     // 自定义智能体普通模式必须填写上下文模板
-    if (!isAgentMode.value && (!formData.value.config.context_template || !formData.value.config.context_template.trim())) {
+    if (!isAgentMode.value && (!formData.value.config.contextTemplate || !formData.value.config.contextTemplate.trim())) {
       MessagePlugin.error(t('agent.editor.contextTemplateRequired'));
       currentSection.value = 'prompts';
       return;
@@ -4344,8 +4344,8 @@ const handleSave = async () => {
 
 
   // 校验占位符（普通模式 + 开启多轮对话改写）
-  if (!isAgentMode.value && formData.value.config.multi_turn_enabled && formData.value.config.enable_rewrite) {
-    const rewritePrompt = formData.value.config.rewrite_prompt_user || '';
+  if (!isAgentMode.value && formData.value.config.multiTurnEnabled && formData.value.config.enableRewrite) {
+    const rewritePrompt = formData.value.config.rewritePromptUser || '';
     // 只有用户自定义了改写提示词时才校验
     if (rewritePrompt.trim()) {
       if (!hasPlaceholder(rewritePrompt, 'query')) {
@@ -4357,8 +4357,8 @@ const handleSave = async () => {
   }
 
   // 校验占位符（兜底策略为模型生成时）
-  if (!isAgentMode.value && formData.value.config.fallback_strategy === 'model') {
-    const fallbackPrompt = formData.value.config.fallback_prompt || '';
+  if (!isAgentMode.value && formData.value.config.fallbackStrategy === 'model') {
+    const fallbackPrompt = formData.value.config.fallbackPrompt || '';
     // 只有用户自定义了兜底提示词时才校验
     if (fallbackPrompt.trim() && !hasPlaceholder(fallbackPrompt, 'query')) {
       MessagePlugin.error(t('agent.editor.queryMissingInFallback'));
@@ -4367,14 +4367,14 @@ const handleSave = async () => {
     }
   }
 
-  if (!formData.value.config.model_id) {
+  if (!formData.value.config.modelId) {
     MessagePlugin.error(t('agent.editor.modelRequired'));
     currentSection.value = 'model';
     return;
   }
 
   // 校验 VLM 模型（当图片上传启用时必填）
-  if (formData.value.config.image_upload_enabled && !formData.value.config.vlm_model_id) {
+  if (formData.value.config.imageUploadEnabled && !formData.value.config.vlmModelId) {
     MessagePlugin.error(t('agentEditor.imageUpload.vlmModelRequired'));
     currentSection.value = 'multimodal';
     return;
@@ -4383,13 +4383,13 @@ const handleSave = async () => {
   // ReRank 模型按运行范围按需使用：知识库范围为 none，或未启用
   // knowledge_search 时不需要；其余情况由对话入口在使用前给出明确提示。
 
-  formData.value.config.question_suggestions.starters.items =
-    formData.value.config.question_suggestions.starters.items
+  formData.value.config.questionSuggestions.starters.items =
+    formData.value.config.questionSuggestions.starters.items
       .map((p: string) => p.trim())
       .filter(Boolean);
 
-  if (!formData.value.config.intent_prompts || Object.keys(formData.value.config.intent_prompts).length === 0) {
-    delete formData.value.config.intent_prompts;
+  if (!formData.value.config.intentPrompts || Object.keys(formData.value.config.intentPrompts).length === 0) {
+    delete formData.value.config.intentPrompts;
   }
 
   pruneSelectedSkills()

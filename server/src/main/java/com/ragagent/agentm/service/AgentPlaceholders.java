@@ -29,7 +29,7 @@ public class AgentPlaceholders {
             "格式化的历史对话内容，用于多轮对话改写");
     private static final P YESTERDAY = new P("yesterday", "昨天日期", "昨天的日期（格式：2006-01-02）");
     private static final P ANSWER = new P("answer", "助手回答", "助手的回答内容（用于对话历史格式化）");
-    private static final P KNOWLEDGE_BASES = new P("knowledge_bases", "知识库列表",
+    private static final P KNOWLEDGE_BASES = new P("knowledgeBases", "知识库列表",
             "自动格式化的知识库列表，包含名称、描述、文档数量等信息");
     private static final P WEB_SEARCH_STATUS = new P("web_search_status", "网络搜索状态",
             "网络搜索工具是否启用的状态（Enabled 或 Disabled）");
@@ -43,14 +43,14 @@ public class AgentPlaceholders {
                 List.of(KNOWLEDGE_BASES, WEB_SEARCH_STATUS, CURRENT_TIME, LANGUAGE)));
         data.set("all", list(List.of(QUERY, CONTEXTS, CURRENT_TIME, CURRENT_WEEK, CONVERSATION,
                 YESTERDAY, ANSWER, KNOWLEDGE_BASES, WEB_SEARCH_STATUS, LANGUAGE)));
-        data.set("context_template", list(
+        data.set("contextTemplate", list(
                 List.of(QUERY, CONTEXTS, CURRENT_TIME, CURRENT_WEEK, LANGUAGE)));
-        data.set("fallback_prompt", list(List.of(QUERY, LANGUAGE)));
+        data.set("fallbackPrompt", list(List.of(QUERY, LANGUAGE)));
         data.set("rewrite_prompt", list(
                 List.of(QUERY, CONVERSATION, CURRENT_TIME, YESTERDAY, LANGUAGE)));
         data.set("rewrite_system_prompt", list(
                 List.of(QUERY, CONVERSATION, CURRENT_TIME, YESTERDAY, LANGUAGE)));
-        data.set("system_prompt", list(
+        data.set("systemPrompt", list(
                 List.of(QUERY, CONTEXTS, CURRENT_TIME, CURRENT_WEEK, LANGUAGE)));
         return data;
     }

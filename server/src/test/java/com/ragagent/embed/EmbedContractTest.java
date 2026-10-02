@@ -68,12 +68,12 @@ class EmbedContractTest {
     private static final String MSG_DONE = "b6000000-0000-0000-0000-000000000601";
     private static final String SSET = "b7000000-0000-0000-0000-000000000601";
 
-    private static final String AG_CONFIG = "{\"kb_selection_mode\":\"selected\",\"knowledge_bases\":"
-            + "[\"" + KB_A + "\"],\"web_search_enabled\":true,\"image_upload_enabled\":false,"
-            + "\"question_suggestions\":{\"starters\":{\"enabled\":true,\"mode\":\"curated\","
+    private static final String AG_CONFIG = "{\"kbSelectionMode\":\"selected\",\"knowledgeBases\":"
+            + "[\"" + KB_A + "\"],\"webSearchEnabled\":true,\"imageUploadEnabled\":false,"
+            + "\"questionSuggestions\":{\"starters\":{\"enabled\":true,\"mode\":\"curated\","
             + "\"items\":[\"怎么 绑定 手机？\",\"如何 重置 密码？\"]}}}";
     private static final String AGP_CONFIG =
-            "{\"kb_selection_mode\":\"all\",\"web_search_enabled\":false,\"image_upload_enabled\":false}";
+            "{\"kbSelectionMode\":\"all\",\"webSearchEnabled\":false,\"imageUploadEnabled\":false}";
 
     private static final Pattern TS_PATTERN = Pattern.compile(
             "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})");

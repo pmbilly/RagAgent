@@ -78,67 +78,67 @@ public final class AgentResponses {
         if (c == null || c.isNull()) {
             c = MAPPER.createObjectNode();
         }
-        m.put("agent_mode", text(c, "agent_mode"));
-        ifStr(c, "agent_type", m);
-        m.put("system_prompt", text(c, "system_prompt"));
-        ifStr(c, "system_prompt_id", m);
-        m.put("context_template", text(c, "context_template"));
-        ifStr(c, "context_template_id", m);
-        m.put("model_id", text(c, "model_id"));
-        m.put("rerank_model_id", text(c, "rerank_model_id"));
+        m.put("agentMode", text(c, "agentMode"));
+        ifStr(c, "agentType", m);
+        m.put("systemPrompt", text(c, "systemPrompt"));
+        ifStr(c, "systemPromptId", m);
+        m.put("contextTemplate", text(c, "contextTemplate"));
+        ifStr(c, "contextTemplateId", m);
+        m.put("modelId", text(c, "modelId"));
+        m.put("rerankModelId", text(c, "rerankModelId"));
         m.put("temperature", goNumber(c, "temperature"));
-        m.put("max_completion_tokens", intOf(c, "max_completion_tokens"));
+        m.put("maxCompletionTokens", intOf(c, "maxCompletionTokens"));
         m.put("thinking", boolPtr(c, "thinking"));
-        m.put("citation_enabled", boolPtr(c, "citation_enabled"));
-        m.put("max_iterations", intOf(c, "max_iterations"));
-        ifIntNonZero(c, "llm_call_timeout", m);
-        m.put("allowed_tools", strSlice(c, "allowed_tools"));
-        m.put("mcp_selection_mode", text(c, "mcp_selection_mode"));
-        m.put("mcp_services", strSlice(c, "mcp_services"));
-        ifIntNonZero(c, "mcp_auth_wait_timeout", m);
-        m.put("skills_selection_mode", text(c, "skills_selection_mode"));
-        m.put("selected_skills", strSlice(c, "selected_skills"));
-        m.put("kb_selection_mode", text(c, "kb_selection_mode"));
-        m.put("knowledge_bases", strSlice(c, "knowledge_bases"));
-        m.put("retrieve_kb_only_when_mentioned", boolOf(c, "retrieve_kb_only_when_mentioned"));
-        m.put("retain_retrieval_history", boolOf(c, "retain_retrieval_history"));
-        m.put("image_upload_enabled", boolOf(c, "image_upload_enabled"));
-        m.put("vlm_model_id", text(c, "vlm_model_id"));
-        m.put("audio_upload_enabled", boolOf(c, "audio_upload_enabled"));
-        m.put("asr_model_id", text(c, "asr_model_id"));
-        m.put("image_storage_provider", text(c, "image_storage_provider"));
-        m.put("supported_file_types", strSlice(c, "supported_file_types"));
-        ifArrayNonEmpty(c, "chat_parser_engine_rules", m);
-        m.put("attachment_image_understanding", boolOf(c, "attachment_image_understanding"));
-        ifIntNonZero(c, "attachment_ocr_max_pages", m);
-        ifIntNonZero(c, "attachment_parse_wait_timeout_sec", m);
-        m.put("data_analysis_enabled", boolOf(c, "data_analysis_enabled"));
-        m.put("faq_priority_enabled", boolOf(c, "faq_priority_enabled"));
-        m.put("faq_direct_answer_threshold", goNumber(c, "faq_direct_answer_threshold"));
-        m.put("faq_score_boost", goNumber(c, "faq_score_boost"));
-        m.put("web_search_enabled", boolOf(c, "web_search_enabled"));
-        m.put("web_search_max_results", intOf(c, "web_search_max_results"));
-        ifStr(c, "web_search_provider_id", m);
-        m.put("web_fetch_enabled", boolOf(c, "web_fetch_enabled"));
-        ifIntNonZero(c, "web_fetch_top_n", m);
-        m.put("multi_turn_enabled", boolOf(c, "multi_turn_enabled"));
-        m.put("history_turns", intOf(c, "history_turns"));
-        ifBoolPtrNonNil(c, "memory_enabled", m);
-        m.put("embedding_top_k", intOf(c, "embedding_top_k"));
-        m.put("keyword_threshold", goNumber(c, "keyword_threshold"));
-        m.put("vector_threshold", goNumber(c, "vector_threshold"));
-        m.put("rerank_top_k", intOf(c, "rerank_top_k"));
-        m.put("rerank_threshold", goNumber(c, "rerank_threshold"));
-        m.put("enable_query_expansion", boolOf(c, "enable_query_expansion"));
-        m.put("enable_rewrite", boolOf(c, "enable_rewrite"));
-        m.put("rewrite_prompt_system", text(c, "rewrite_prompt_system"));
-        m.put("rewrite_prompt_user", text(c, "rewrite_prompt_user"));
-        ifStr(c, "query_understand_model_id", m);
-        m.put("fallback_strategy", text(c, "fallback_strategy"));
-        m.put("fallback_response", text(c, "fallback_response"));
-        m.put("fallback_prompt", text(c, "fallback_prompt"));
-        ifStrMapNonEmpty(c, "intent_prompts", m);
-        ifQuestionSuggestions(c.get("question_suggestions"), m);
+        m.put("citationEnabled", boolPtr(c, "citationEnabled"));
+        m.put("maxIterations", intOf(c, "maxIterations"));
+        ifIntNonZero(c, "llmCallTimeout", m);
+        m.put("allowedTools", strSlice(c, "allowedTools"));
+        m.put("mcpSelectionMode", text(c, "mcpSelectionMode"));
+        m.put("mcpServices", strSlice(c, "mcpServices"));
+        ifIntNonZero(c, "mcpAuthWaitTimeout", m);
+        m.put("skillsSelectionMode", text(c, "skillsSelectionMode"));
+        m.put("selectedSkills", strSlice(c, "selectedSkills"));
+        m.put("kbSelectionMode", text(c, "kbSelectionMode"));
+        m.put("knowledgeBases", strSlice(c, "knowledgeBases"));
+        m.put("retrieveKbOnlyWhenMentioned", boolOf(c, "retrieveKbOnlyWhenMentioned"));
+        m.put("retainRetrievalHistory", boolOf(c, "retainRetrievalHistory"));
+        m.put("imageUploadEnabled", boolOf(c, "imageUploadEnabled"));
+        m.put("vlmModelId", text(c, "vlmModelId"));
+        m.put("audioUploadEnabled", boolOf(c, "audioUploadEnabled"));
+        m.put("asrModelId", text(c, "asrModelId"));
+        m.put("imageStorageProvider", text(c, "imageStorageProvider"));
+        m.put("supportedFileTypes", strSlice(c, "supportedFileTypes"));
+        ifArrayNonEmpty(c, "chatParserEngineRules", m);
+        m.put("attachmentImageUnderstanding", boolOf(c, "attachmentImageUnderstanding"));
+        ifIntNonZero(c, "attachmentOcrMaxPages", m);
+        ifIntNonZero(c, "attachmentParseWaitTimeoutSec", m);
+        m.put("dataAnalysisEnabled", boolOf(c, "dataAnalysisEnabled"));
+        m.put("faqPriorityEnabled", boolOf(c, "faqPriorityEnabled"));
+        m.put("faqDirectAnswerThreshold", goNumber(c, "faqDirectAnswerThreshold"));
+        m.put("faqScoreBoost", goNumber(c, "faqScoreBoost"));
+        m.put("webSearchEnabled", boolOf(c, "webSearchEnabled"));
+        m.put("webSearchMaxResults", intOf(c, "webSearchMaxResults"));
+        ifStr(c, "webSearchProviderId", m);
+        m.put("webFetchEnabled", boolOf(c, "webFetchEnabled"));
+        ifIntNonZero(c, "webFetchTopN", m);
+        m.put("multiTurnEnabled", boolOf(c, "multiTurnEnabled"));
+        m.put("historyTurns", intOf(c, "historyTurns"));
+        ifBoolPtrNonNil(c, "memoryEnabled", m);
+        m.put("embeddingTopK", intOf(c, "embeddingTopK"));
+        m.put("keywordThreshold", goNumber(c, "keywordThreshold"));
+        m.put("vectorThreshold", goNumber(c, "vectorThreshold"));
+        m.put("rerankTopK", intOf(c, "rerankTopK"));
+        m.put("rerankThreshold", goNumber(c, "rerankThreshold"));
+        m.put("enableQueryExpansion", boolOf(c, "enableQueryExpansion"));
+        m.put("enableRewrite", boolOf(c, "enableRewrite"));
+        m.put("rewritePromptSystem", text(c, "rewritePromptSystem"));
+        m.put("rewritePromptUser", text(c, "rewritePromptUser"));
+        ifStr(c, "queryUnderstandModelId", m);
+        m.put("fallbackStrategy", text(c, "fallbackStrategy"));
+        m.put("fallbackResponse", text(c, "fallbackResponse"));
+        m.put("fallbackPrompt", text(c, "fallbackPrompt"));
+        ifStrMapNonEmpty(c, "intentPrompts", m);
+        ifQuestionSuggestions(c.get("questionSuggestions"), m);
         return m;
     }
 
@@ -201,8 +201,8 @@ public final class AgentResponses {
         fu.put("enabled", f != null && f.path("enabled").asBoolean(false));
         fu.put("mode", f == null ? "" : text(f, "mode"));
         fu.put("count", f == null ? 0 : f.path("count").asInt(0));
-        if (f != null && !text(f, "model_id").isEmpty()) {
-            fu.put("model_id", text(f, "model_id"));
+        if (f != null && !text(f, "modelId").isEmpty()) {
+            fu.put("modelId", text(f, "modelId"));
         }
         if (f != null && !text(f, "additional_instruction").isEmpty()) {
             fu.put("additional_instruction", text(f, "additional_instruction"));
@@ -217,7 +217,7 @@ public final class AgentResponses {
         fu.put("allow_regenerate", f != null && f.path("allow_regenerate").asBoolean(false));
         outer.put("starters", starters);
         outer.put("follow_ups", fu);
-        m.put("question_suggestions", outer);
+        m.put("questionSuggestions", outer);
     }
 
     private static void ifArrayNonEmpty(JsonNode c, String field, Map<String, Object> m) {

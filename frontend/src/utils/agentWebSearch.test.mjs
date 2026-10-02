@@ -13,14 +13,14 @@ const providers = [
 
 test('resolveAgentWebSearchProviderId uses explicit agent provider', () => {
   assert.equal(
-    resolveAgentWebSearchProviderId({ web_search_provider_id: 'p1' }, providers),
+    resolveAgentWebSearchProviderId({ webSearchProviderId: 'p1' }, providers),
     'p1',
   );
 });
 
 test('resolveAgentWebSearchProviderId falls back to tenant default', () => {
   assert.equal(
-    resolveAgentWebSearchProviderId({ web_search_provider_id: '' }, providers),
+    resolveAgentWebSearchProviderId({ webSearchProviderId: '' }, providers),
     'p2',
   );
 });
@@ -28,24 +28,24 @@ test('resolveAgentWebSearchProviderId falls back to tenant default', () => {
 test('resolveAgentWebSearchProviderId returns null when default missing', () => {
   const noDefault = [{ id: 'p1', name: 'Keenable', isDefault: false }];
   assert.equal(
-    resolveAgentWebSearchProviderId({ web_search_provider_id: '' }, noDefault),
+    resolveAgentWebSearchProviderId({ webSearchProviderId: '' }, noDefault),
     null,
   );
 });
 
 test('isAgentWebSearchReady requires enabled flag and resolvable provider', () => {
   assert.equal(
-    isAgentWebSearchReady({ web_search_enabled: true }, providers),
+    isAgentWebSearchReady({ webSearchEnabled: true }, providers),
     true,
   );
   assert.equal(
-    isAgentWebSearchReady({ web_search_enabled: true, web_search_provider_id: '' }, [
+    isAgentWebSearchReady({ webSearchEnabled: true, webSearchProviderId: '' }, [
       { id: 'p1', name: 'Keenable', isDefault: false },
     ]),
     false,
   );
   assert.equal(
-    isAgentWebSearchReady({ web_search_enabled: false }, providers),
+    isAgentWebSearchReady({ webSearchEnabled: false }, providers),
     false,
   );
 });
@@ -53,14 +53,14 @@ test('isAgentWebSearchReady requires enabled flag and resolvable provider', () =
 test('isAgentWebSearchReady trusts source workspace readiness for a shared agent', () => {
   assert.equal(
     isAgentWebSearchReady(
-      { web_search_enabled: true, web_search_provider_id: 'source-provider' },
+      { webSearchEnabled: true, webSearchProviderId: 'source-provider' },
       [],
       true,
     ),
     true,
   );
   assert.equal(
-    isAgentWebSearchReady({ web_search_enabled: true }, providers, false),
+    isAgentWebSearchReady({ webSearchEnabled: true }, providers, false),
     false,
   );
 });

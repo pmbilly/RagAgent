@@ -253,15 +253,15 @@ public class AgentController {
         if (scope == null || !scope.isKnowledgeBaseRestricted()) {
             return;
         }
-        String mode = cfg.path("kb_selection_mode").asText("").toLowerCase().trim();
+        String mode = cfg.path("kbSelectionMode").asText("").toLowerCase().trim();
         switch (mode) {
             case "none" -> {
             }
             case "all" -> throw new BizException(AppError.forbidden(
                     "API key scope does not allow agents that use all knowledge bases"));
-            case "selected" -> TenantAPIKeyScope.authorizeKnowledgeBases(strings(cfg, "knowledge_bases"));
+            case "selected" -> TenantAPIKeyScope.authorizeKnowledgeBases(strings(cfg, "knowledgeBases"));
             default -> {
-                List<String> kbs = strings(cfg, "knowledge_bases");
+                List<String> kbs = strings(cfg, "knowledgeBases");
                 if (!kbs.isEmpty()) {
                     TenantAPIKeyScope.authorizeKnowledgeBases(kbs);
                 }

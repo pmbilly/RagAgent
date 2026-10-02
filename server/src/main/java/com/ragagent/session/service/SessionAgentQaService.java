@@ -161,7 +161,7 @@ public class SessionAgentQaService {
 
         {
             // VLM runtime field
-            String vlm = req.agentConfig.path("vlm_model_id").asText("");
+            String vlm = req.agentConfig.path("vlmModelId").asText("");
             if (!vlm.isEmpty()) {
                 agentConfig.setVlmModelId(vlm);
             }
@@ -197,7 +197,7 @@ public class SessionAgentQaService {
             // Rerank model only when knowledge_search can run
             Reranker rerankModel = null;
             if (AgentConfigAssembler.agentRequiresRerankModel(req.agentConfig)) {
-                String rerankModelId = req.agentConfig.path("rerank_model_id").asText("");
+                String rerankModelId = req.agentConfig.path("rerankModelId").asText("");
                 if (rerankModelId.isEmpty()) {
                     throw new RuntimeException("rerank model is not configured: please set rerank_model_id on the agent");
                 }
@@ -227,7 +227,7 @@ public class SessionAgentQaService {
                     sessionId, req.assistantMessageId);
 
             // Memory recall
-            if (memoryService != null && req.agentConfig.path("memory_enabled").asBoolean(false)) {
+            if (memoryService != null && req.agentConfig.path("memoryEnabled").asBoolean(false)) {
                 var recall = memoryService.recall(req.query);
                 if (recall != null && recall.prompt() != null && !recall.prompt().isEmpty()) {
                     engine.setMemoryPrompt(recall.prompt());

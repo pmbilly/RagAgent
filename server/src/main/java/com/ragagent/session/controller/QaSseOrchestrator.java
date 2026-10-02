@@ -112,7 +112,7 @@ final class QaSseOrchestrator {
         if (generateTitle && (reqCtx.session.getTitle() == null || reqCtx.session.getTitle().isEmpty())) {
             String modelId = "";
             if (reqCtx.agentConfig != null) {
-                modelId = reqCtx.agentConfig.path("model_id").asText("");
+                modelId = reqCtx.agentConfig.path("modelId").asText("");
             }
             log.info("Session has no title, starting async title generation, session ID: {}, model: {}",
                     reqCtx.sessionId, modelId);

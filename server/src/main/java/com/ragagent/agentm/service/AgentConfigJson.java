@@ -25,52 +25,52 @@ public final class AgentConfigJson {
 
     /** 树级补默认（原地修改，返回同引用）。 */
     public static ObjectNode ensureDefaults(ObjectNode cfg) {
-        JsonNode qs = cfg.get("question_suggestions");
+        JsonNode qs = cfg.get("questionSuggestions");
         if (qs == null || qs.isNull() || !qs.isObject()) {
-            cfg.set("question_suggestions", defaultQuestionSuggestions());
+            cfg.set("questionSuggestions", defaultQuestionSuggestions());
         } else {
             ensureSuggestionDefaults((ObjectNode) qs);
         }
         if (cfg.path("temperature").asDouble(0) < 0) {
             cfg.put("temperature", 0.7);
         }
-        int maxIter = cfg.path("max_iterations").asInt(0);
+        int maxIter = cfg.path("maxIterations").asInt(0);
         if (maxIter == 0) {
-            cfg.put("max_iterations", 10);
+            cfg.put("maxIterations", 10);
         } else if (maxIter < 0) {
-            cfg.put("max_iterations", -1); // UnlimitedMaxIterations
+            cfg.put("maxIterations", -1); // UnlimitedMaxIterations
         }
-        if (cfg.path("web_search_max_results").asInt(0) == 0) {
-            cfg.put("web_search_max_results", 5);
+        if (cfg.path("webSearchMaxResults").asInt(0) == 0) {
+            cfg.put("webSearchMaxResults", 5);
         }
-        if (cfg.path("history_turns").asInt(0) == 0) {
-            cfg.put("history_turns", 5);
+        if (cfg.path("historyTurns").asInt(0) == 0) {
+            cfg.put("historyTurns", 5);
         }
-        if (cfg.path("embedding_top_k").asInt(0) == 0) {
-            cfg.put("embedding_top_k", 10);
+        if (cfg.path("embeddingTopK").asInt(0) == 0) {
+            cfg.put("embeddingTopK", 10);
         }
-        if (cfg.path("keyword_threshold").asDouble(0) == 0) {
-            cfg.put("keyword_threshold", 0.3);
+        if (cfg.path("keywordThreshold").asDouble(0) == 0) {
+            cfg.put("keywordThreshold", 0.3);
         }
-        if (cfg.path("vector_threshold").asDouble(0) == 0) {
-            cfg.put("vector_threshold", 0.5);
+        if (cfg.path("vectorThreshold").asDouble(0) == 0) {
+            cfg.put("vectorThreshold", 0.5);
         }
-        if (cfg.path("rerank_top_k").asInt(0) == 0) {
-            cfg.put("rerank_top_k", 5);
+        if (cfg.path("rerankTopK").asInt(0) == 0) {
+            cfg.put("rerankTopK", 5);
         }
-        if (cfg.path("fallback_strategy").asText("").isEmpty()) {
-            cfg.put("fallback_strategy", "model");
+        if (cfg.path("fallbackStrategy").asText("").isEmpty()) {
+            cfg.put("fallbackStrategy", "model");
         }
-        if ("smart-reasoning".equals(cfg.path("agent_mode").asText(""))) {
-            cfg.put("multi_turn_enabled", true);
+        if ("smart-reasoning".equals(cfg.path("agentMode").asText(""))) {
+            cfg.put("multiTurnEnabled", true);
         }
         JsonNode thinking = cfg.get("thinking");
         if (thinking == null || thinking.isNull() || !thinking.isBoolean()) {
             cfg.put("thinking", false);
         }
-        JsonNode citation = cfg.get("citation_enabled");
+        JsonNode citation = cfg.get("citationEnabled");
         if (citation == null || citation.isNull() || !citation.isBoolean()) {
-            cfg.put("citation_enabled", true);
+            cfg.put("citationEnabled", true);
         }
         return cfg;
     }
@@ -139,7 +139,7 @@ public final class AgentConfigJson {
 
     /** QuestionSuggestionConfig 校验：null 或首个错误的文案。 */
     public static String validateSuggestions(JsonNode cfg) {
-        JsonNode qs = cfg.get("question_suggestions");
+        JsonNode qs = cfg.get("questionSuggestions");
         if (qs == null || qs.isNull() || !qs.isObject()) {
             return null;
         }

@@ -514,11 +514,11 @@ const drawerAgent = computed(() =>
 )
 
 const agentWebSearchEnabledEffective = computed(() =>
-  drawerAgent.value?.config?.web_search_enabled === true,
+  drawerAgent.value?.config?.webSearchEnabled === true,
 )
 
 const agentImageUploadEnabledEffective = computed(() =>
-  drawerAgent.value?.config?.image_upload_enabled === true,
+  drawerAgent.value?.config?.imageUploadEnabled === true,
 )
 
 const WEKNORA_BRAND_COLOR = '#07C05F'

@@ -129,7 +129,7 @@ class AgentContractTest {
             assertTrue(result.row().getConfig() != null
                             && result.row().getConfig().contains("\"smart-reasoning\""),
                     "虚拟内建行的 config 字符串必须落上（运行时消费面重新 parse row.getConfig()）");
-            assertEquals("smart-reasoning", result.config().path("agent_mode").asText());
+            assertEquals("smart-reasoning", result.config().path("agentMode").asText());
         } finally {
             com.ragagent.common.context.TenantContext.clear();
         }
@@ -161,8 +161,8 @@ class AgentContractTest {
         agFull = jsonPath(r, "id");
 
         r = expect(201, postH("/api/v1/agents", bearer, "{\"name\":\"ag-kbref\","
-                + "\"description\":\"kb reference agent\",\"config\":{\"agent_mode\":\"quick-answer\","
-                + "\"kb_selection_mode\":\"selected\",\"knowledge_bases\":[\"" + KB_FAQ + "\"]}}"),
+                + "\"description\":\"kb reference agent\",\"config\":{\"agentMode\":\"quick-answer\","
+                + "\"kbSelectionMode\":\"selected\",\"knowledgeBases\":[\"" + KB_FAQ + "\"]}}"),
                 "ag-create-kbref.json");
         agKbref = jsonPath(r, "id");
 
@@ -172,15 +172,15 @@ class AgentContractTest {
         assertGolden(postH("/api/v1/agents", bearer, "{\"name\":\"   \"}"),
                 400, "ag-create-blank-name.json");
         assertGolden(postH("/api/v1/agents", bearer,
-                "{\"name\":\"ag-bad-count\",\"config\":{\"question_suggestions\":{\"starters\":"
+                "{\"name\":\"ag-bad-count\",\"config\":{\"questionSuggestions\":{\"starters\":"
                 + "{\"enabled\":true,\"mode\":\"curated\",\"count\":9},\"follow_ups\":{\"enabled\":false}}}}"),
                 400, "ag-create-bad-starters-count.json");
         assertGolden(postH("/api/v1/agents", bearer,
-                "{\"name\":\"ag-bad-mode\",\"config\":{\"question_suggestions\":{\"starters\":"
+                "{\"name\":\"ag-bad-mode\",\"config\":{\"questionSuggestions\":{\"starters\":"
                 + "{\"enabled\":true,\"mode\":\"nonsense\",\"count\":2},\"follow_ups\":{\"enabled\":false}}}}"),
                 400, "ag-create-bad-starter-mode.json");
         assertGolden(postH("/api/v1/agents", bearer,
-                "{\"name\":\"ag-bad-item\",\"config\":{\"question_suggestions\":{\"starters\":"
+                "{\"name\":\"ag-bad-item\",\"config\":{\"questionSuggestions\":{\"starters\":"
                 + "{\"enabled\":true,\"mode\":\"curated\",\"items\":[\"  \"],\"count\":1},"
                 + "\"follow_ups\":{\"enabled\":false}}}}"),
                 400, "ag-create-empty-starter-item.json");
@@ -192,7 +192,7 @@ class AgentContractTest {
         // ── 6) update 家族 ──
         assertGolden(putH("/api/v1/agents/" + agEmpty, bearer,
                 "{\"name\":\"ag-empty-renamed\",\"description\":\"renamed\",\"config\":"
-                + "{\"agent_mode\":\"quick-answer\",\"faq_priority_enabled\":true}}"),
+                + "{\"agentMode\":\"quick-answer\",\"faqPriorityEnabled\":true}}"),
                 200, "ag-update.json");
         assertGolden(putH("/api/v1/agents/" + agEmpty, bearer, "{\"name\":\"\"}"),
                 400, "ag-update-blank-name.json");
@@ -215,8 +215,8 @@ class AgentContractTest {
 
         // ── 9) 内建 PUT（落 DB 行）+ 回读 + 终态列表 ──
         assertGolden(putH("/api/v1/agents/builtin-quick-answer", bearer,
-                "{\"name\":\"ignored\",\"description\":\"ignored\",\"config\":{\"agent_mode\":"
-                + "\"quick-answer\",\"system_prompt_id\":\"default_kb\",\"temperature\":0.3}}"),
+                "{\"name\":\"ignored\",\"description\":\"ignored\",\"config\":{\"agentMode\":"
+                + "\"quick-answer\",\"systemPromptId\":\"default_kb\",\"temperature\":0.3}}"),
                 200, "ag-put-builtin.json");
         assertGolden(getH("/api/v1/agents/builtin-quick-answer", bearer), 200,
                 "ag-get-builtin-qa-after.json");
@@ -309,40 +309,40 @@ class AgentContractTest {
     private static final String FULL_CONFIG = "{"
         + "\"name\":\"ag-full\",\"description\":\"full config agent\",\"avatar\":\"robot\","
         + "\"config\":{"
-        + "\"agent_mode\":\"smart-reasoning\",\"agent_type\":\"rag-qa\","
-        + "\"system_prompt\":\"you are full\",\"context_template\":\"ctx {{query}}\","
-        + "\"model_id\":\"shr-model-1\",\"rerank_model_id\":\"shr-rerank-1\","
-        + "\"temperature\":0.5,\"max_completion_tokens\":4096,"
-        + "\"thinking\":true,\"citation_enabled\":false,\"max_iterations\":-1,"
-        + "\"llm_call_timeout\":120,"
-        + "\"allowed_tools\":[\"knowledge_search\",\"web_search\"],"
-        + "\"mcp_selection_mode\":\"selected\",\"mcp_services\":[\"mcp-1\",\"mcp-2\"],"
-        + "\"mcp_auth_wait_timeout\":30,"
-        + "\"skills_selection_mode\":\"selected\",\"selected_skills\":[\"skill-a\"],"
-        + "\"kb_selection_mode\":\"selected\",\"knowledge_bases\":[\"" + KB_FAQ + "\"],"
-        + "\"retrieve_kb_only_when_mentioned\":true,\"retain_retrieval_history\":true,"
-        + "\"image_upload_enabled\":true,\"vlm_model_id\":\"vlm-1\","
-        + "\"audio_upload_enabled\":true,\"asr_model_id\":\"asr-1\","
-        + "\"image_storage_provider\":\"local\","
-        + "\"supported_file_types\":[\"csv\",\"xlsx\"],"
-        + "\"attachment_image_understanding\":true,"
-        + "\"attachment_ocr_max_pages\":5,\"attachment_parse_wait_timeout_sec\":30,"
-        + "\"data_analysis_enabled\":true,"
-        + "\"faq_priority_enabled\":true,\"faq_direct_answer_threshold\":0.8,\"faq_score_boost\":1.5,"
-        + "\"web_search_enabled\":true,\"web_search_max_results\":8,"
-        + "\"web_search_provider_id\":\"wsp-1\",\"web_fetch_enabled\":true,\"web_fetch_top_n\":4,"
-        + "\"history_turns\":3,"
-        + "\"memory_enabled\":true,"
-        + "\"embedding_top_k\":8,\"keyword_threshold\":0.2,\"vector_threshold\":0.4,"
-        + "\"rerank_top_k\":3,\"rerank_threshold\":0.1,"
-        + "\"enable_query_expansion\":true,\"enable_rewrite\":true,"
-        + "\"rewrite_prompt_system\":\"rsys\",\"rewrite_prompt_user\":\"ruser {{conversation}}\","
-        + "\"query_understand_model_id\":\"qu-model\","
-        + "\"fallback_strategy\":\"fixed\",\"fallback_response\":\"sorry\",\"fallback_prompt\":\"fp\","
-        + "\"intent_prompts\":{\"greeting\":\"hi there\"},"
-        + "\"question_suggestions\":{"
+        + "\"agentMode\":\"smart-reasoning\",\"agentType\":\"rag-qa\","
+        + "\"systemPrompt\":\"you are full\",\"contextTemplate\":\"ctx {{query}}\","
+        + "\"modelId\":\"shr-model-1\",\"rerankModelId\":\"shr-rerank-1\","
+        + "\"temperature\":0.5,\"maxCompletionTokens\":4096,"
+        + "\"thinking\":true,\"citationEnabled\":false,\"maxIterations\":-1,"
+        + "\"llmCallTimeout\":120,"
+        + "\"allowedTools\":[\"knowledge_search\",\"web_search\"],"
+        + "\"mcpSelectionMode\":\"selected\",\"mcpServices\":[\"mcp-1\",\"mcp-2\"],"
+        + "\"mcpAuthWaitTimeout\":30,"
+        + "\"skillsSelectionMode\":\"selected\",\"selectedSkills\":[\"skill-a\"],"
+        + "\"kbSelectionMode\":\"selected\",\"knowledgeBases\":[\"" + KB_FAQ + "\"],"
+        + "\"retrieveKbOnlyWhenMentioned\":true,\"retainRetrievalHistory\":true,"
+        + "\"imageUploadEnabled\":true,\"vlmModelId\":\"vlm-1\","
+        + "\"audioUploadEnabled\":true,\"asrModelId\":\"asr-1\","
+        + "\"imageStorageProvider\":\"local\","
+        + "\"supportedFileTypes\":[\"csv\",\"xlsx\"],"
+        + "\"attachmentImageUnderstanding\":true,"
+        + "\"attachmentOcrMaxPages\":5,\"attachmentParseWaitTimeoutSec\":30,"
+        + "\"dataAnalysisEnabled\":true,"
+        + "\"faqPriorityEnabled\":true,\"faqDirectAnswerThreshold\":0.8,\"faqScoreBoost\":1.5,"
+        + "\"webSearchEnabled\":true,\"webSearchMaxResults\":8,"
+        + "\"webSearchProviderId\":\"wsp-1\",\"webFetchEnabled\":true,\"webFetchTopN\":4,"
+        + "\"historyTurns\":3,"
+        + "\"memoryEnabled\":true,"
+        + "\"embeddingTopK\":8,\"keywordThreshold\":0.2,\"vectorThreshold\":0.4,"
+        + "\"rerankTopK\":3,\"rerankThreshold\":0.1,"
+        + "\"enableQueryExpansion\":true,\"enableRewrite\":true,"
+        + "\"rewritePromptSystem\":\"rsys\",\"rewritePromptUser\":\"ruser {{conversation}}\","
+        + "\"queryUnderstandModelId\":\"qu-model\","
+        + "\"fallbackStrategy\":\"fixed\",\"fallbackResponse\":\"sorry\",\"fallbackPrompt\":\"fp\","
+        + "\"intentPrompts\":{\"greeting\":\"hi there\"},"
+        + "\"questionSuggestions\":{"
         + "\"starters\":{\"enabled\":true,\"mode\":\"curated\",\"items\":[\"问题A\",\"问题B\"],\"count\":2},"
-        + "\"follow_ups\":{\"enabled\":true,\"mode\":\"hybrid\",\"count\":2,\"model_id\":\"fu-model\","
+        + "\"follow_ups\":{\"enabled\":true,\"mode\":\"hybrid\",\"count\":2,\"modelId\":\"fu-model\","
         + "\"additional_instruction\":\"be nice\",\"categories\":[\"clarify\",\"deepen\"],"
         + "\"max_context_turns\":3,\"suppress_on_fallback\":true,"
         + "\"suppress_when_answer_asks_question\":true,\"knowledge_fallback\":true,"

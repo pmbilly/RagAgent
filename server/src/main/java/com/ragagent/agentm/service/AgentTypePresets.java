@@ -75,32 +75,32 @@ public class AgentTypePresets {
     /** 固定键序 + 零值键省略。 */
     private static ObjectNode presetConfig(ObjectNode c) {
         ObjectNode out = MAPPER.createObjectNode();
-        String spid = c.path("system_prompt_id").asText("");
+        String spid = c.path("systemPromptId").asText("");
         if (!spid.isEmpty()) {
-            out.put("system_prompt_id", spid);
+            out.put("systemPromptId", spid);
         }
         double temp = c.path("temperature").asDouble(0);
         if (temp != 0) {
             out.put("temperature", temp);
         }
-        int iters = c.path("max_iterations").asInt(0);
+        int iters = c.path("maxIterations").asInt(0);
         if (iters != 0) {
-            out.put("max_iterations", iters);
+            out.put("maxIterations", iters);
         }
-        copyIfNonEmptyArray(c, "allowed_tools", out);
-        if (c.path("retain_retrieval_history").asBoolean(false)) {
-            out.put("retain_retrieval_history", true);
+        copyIfNonEmptyArray(c, "allowedTools", out);
+        if (c.path("retainRetrievalHistory").asBoolean(false)) {
+            out.put("retainRetrievalHistory", true);
         }
-        if (c.path("faq_priority_enabled").asBoolean(false)) {
-            out.put("faq_priority_enabled", true);
+        if (c.path("faqPriorityEnabled").asBoolean(false)) {
+            out.put("faqPriorityEnabled", true);
         }
-        if (c.path("web_search_enabled").asBoolean(false)) {
-            out.put("web_search_enabled", true);
+        if (c.path("webSearchEnabled").asBoolean(false)) {
+            out.put("webSearchEnabled", true);
         }
-        copyIfNonEmptyArray(c, "supported_file_types", out);
-        String mode = c.path("kb_selection_mode").asText("");
+        copyIfNonEmptyArray(c, "supportedFileTypes", out);
+        String mode = c.path("kbSelectionMode").asText("");
         if (!mode.isEmpty()) {
-            out.put("kb_selection_mode", mode);
+            out.put("kbSelectionMode", mode);
         }
         return out;
     }

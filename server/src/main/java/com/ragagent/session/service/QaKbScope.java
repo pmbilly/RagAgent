@@ -31,7 +31,7 @@ final class QaKbScope {
         if (agentCfg == null) {
             return new ArrayList<>();
         }
-        String mode = agentCfg.path("kb_selection_mode").asText("");
+        String mode = agentCfg.path("kbSelectionMode").asText("");
         switch (mode) {
             case "all" -> {
                 // 能力过滤（DeriveKBFilterForAgent）：取 tool 能力面判定，非 wiki/rerank 工具
@@ -55,7 +55,7 @@ final class QaKbScope {
                 return kbIds;
             }
             case "selected" -> {
-                List<String> configured = SessionKnowledgeQaService.stringListOf(agentCfg.get("knowledge_bases"));
+                List<String> configured = SessionKnowledgeQaService.stringListOf(agentCfg.get("knowledgeBases"));
                 log.info("KBSelectionMode=selected: using {} configured knowledge bases", configured.size());
                 return configured;
             }
@@ -64,7 +64,7 @@ final class QaKbScope {
                 return new ArrayList<>();
             }
             default -> {
-                List<String> configured = SessionKnowledgeQaService.stringListOf(agentCfg.get("knowledge_bases"));
+                List<String> configured = SessionKnowledgeQaService.stringListOf(agentCfg.get("knowledgeBases"));
                 if (!configured.isEmpty()) {
                     log.info("KBSelectionMode not set: using {} configured knowledge bases", configured.size());
                 }

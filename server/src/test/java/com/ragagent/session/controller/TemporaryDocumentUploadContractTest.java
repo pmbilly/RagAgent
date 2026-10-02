@@ -95,7 +95,7 @@ class TemporaryDocumentUploadContractTest {
 
     @Test
     void unsupportedFileTypeForAgentIs400() {
-        CustomAgentEntity own = agent("{\"supported_file_types\":[\"pdf\"]}");
+        CustomAgentEntity own = agent("{\"supportedFileTypes\":[\"pdf\"]}");
         when(agentResolver.resolve("a-1", 0L))
                 .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
 
@@ -107,7 +107,7 @@ class TemporaryDocumentUploadContractTest {
 
     @Test
     void supportedFileTypeMatchesWithDotAndCase() {
-        CustomAgentEntity own = agent("{\"supported_file_types\":[\".TXT\"]}");
+        CustomAgentEntity own = agent("{\"supportedFileTypes\":[\".TXT\"]}");
         when(agentResolver.resolve("a-1", 0L))
                 .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
         stubCreate();
@@ -120,7 +120,7 @@ class TemporaryDocumentUploadContractTest {
 
     @Test
     void audioWithoutAsrConfigIs400() {
-        CustomAgentEntity own = agent("{\"audio_upload_enabled\":false}");
+        CustomAgentEntity own = agent("{\"audioUploadEnabled\":false}");
         when(agentResolver.resolve("a-1", 0L))
                 .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
 
@@ -133,7 +133,7 @@ class TemporaryDocumentUploadContractTest {
     @Test
     void audioWithAsrConfigWritesAsrModelId() {
         CustomAgentEntity own = agent(
-                "{\"audio_upload_enabled\":true,\"asr_model_id\":\"asr-1\"}");
+                "{\"audioUploadEnabled\":true,\"asrModelId\":\"asr-1\"}");
         when(agentResolver.resolve("a-1", 0L))
                 .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
         stubCreate();
@@ -146,7 +146,7 @@ class TemporaryDocumentUploadContractTest {
     @Test
     void agentParserRuleFillsEngineWhenNotExplicit() {
         CustomAgentEntity own = agent(
-                "{\"chat_parser_engine_rules\":[{\"file_types\":[\"txt\"],\"engine\":\"markitdown\"}]}");
+                "{\"chatParserEngineRules\":[{\"file_types\":[\"txt\"],\"engine\":\"markitdown\"}]}");
         when(agentResolver.resolve("a-1", 0L))
                 .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
         stubCreate();
@@ -159,7 +159,7 @@ class TemporaryDocumentUploadContractTest {
     @Test
     void explicitParserEngineIsKept() {
         CustomAgentEntity own = agent(
-                "{\"chat_parser_engine_rules\":[{\"file_types\":[\"txt\"],\"engine\":\"markitdown\"}]}");
+                "{\"chatParserEngineRules\":[{\"file_types\":[\"txt\"],\"engine\":\"markitdown\"}]}");
         when(agentResolver.resolve("a-1", 0L))
                 .thenReturn(new AgentResolver.ResolvedAgent(own, 0L, false));
         stubCreate();

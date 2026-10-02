@@ -50,7 +50,7 @@ function settingRowGuard(labelKey) {
 }
 
 test('conversation settings stay reachable in smart-reasoning mode', () => {
-  // The agent path reads history_turns (session_agent_qa.go -> LoadAgentHistory),
+  // The agent path reads historyTurns (session_agent_qa.go -> LoadAgentHistory),
   // so the section must not be gated on the running mode.
   assert.match(source, /v-show="currentSection === 'conversation'"/)
   assert.doesNotMatch(source, /currentSection === 'conversation' && !isAgentMode/)
@@ -67,11 +67,11 @@ test('conversation settings stay reachable in smart-reasoning mode', () => {
 })
 
 test('history turns is editable in smart-reasoning mode', () => {
-  // A new agent defaults to smart-reasoning with multi_turn_enabled=false in the
+  // A new agent defaults to smart-reasoning with multiTurnEnabled=false in the
   // form, while the server forces multi-turn on. Gating the input on the local
   // switch alone would hide it exactly where it is needed.
   const guard = settingRowGuard('agent.editor.historyTurns')
-  assert.match(guard, /formData\.config\.multi_turn_enabled \|\| isAgentMode/)
+  assert.match(guard, /formData\.config\.multiTurnEnabled \|\| isAgentMode/)
 })
 
 test('multi-turn switch stays hidden in smart-reasoning mode', () => {
@@ -82,7 +82,7 @@ test('multi-turn switch stays hidden in smart-reasoning mode', () => {
 })
 
 test('query rewrite stays hidden in smart-reasoning mode', () => {
-  // enable_rewrite is consumed by the KnowledgeQA pipeline only.
+  // enableRewrite is consumed by the KnowledgeQA pipeline only.
   const guard = settingRowGuard('agent.editor.enableRewrite')
   assert.match(guard, /!isAgentMode/)
 })
@@ -96,13 +96,13 @@ test('the section description matches what the mode actually shows', () => {
 test('history turns can be raised beyond the old 20 cap', () => {
   // A 5-to-20 range sits two orders of magnitude below the 200k token budget
   // the agent engine already manages, so the turn cap always bites first.
-  const input = source.match(/<t-input-number v-model="formData\.config\.history_turns"[^>]*>/)
+  const input = source.match(/<t-input-number v-model="formData\.config\.historyTurns"[^>]*>/)
   assert.ok(input, 'expected to find the history turns input')
   assert.match(input[0], /:max="100"/)
 })
 
 test('retrieval retention is offered to agents that actually have a knowledge base', () => {
-  // retain_retrieval_history is read only by the agent path
+  // retainRetrievalHistory is read only by the agent path
   // (internal/agent/observe.go) and only rewrites KB/Wiki tool results, so it
   // is meaningless without a knowledge base.
   const guard = settingRowGuard('agent.editor.retainRetrievalHistory')

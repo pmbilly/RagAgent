@@ -561,8 +561,8 @@ public class EmbedChannelService {
         CustomAgentEntity agent = tryAgent(ch.getAgentId());
         if (agent != null) {
             JsonNode cfg = parseConfig(agent);
-            agentWebSearch = cfg.path("web_search_enabled").asBoolean(false);
-            agentImageUpload = cfg.path("image_upload_enabled").asBoolean(false);
+            agentWebSearch = cfg.path("webSearchEnabled").asBoolean(false);
+            agentImageUpload = cfg.path("imageUploadEnabled").asBoolean(false);
         }
         // §14.9m E1：键名＝实体字段名（camelCase）；且**全部键恒输出**（§1.6 禁止条件键）——
         // 空集合写 []、空串照写，widget 侧不必再猜"这个键这次在不在"。
@@ -634,7 +634,7 @@ public class EmbedChannelService {
         if (agent == null) {
             return false;
         }
-        String mode = parseConfig(agent).path("kb_selection_mode").asText("");
+        String mode = parseConfig(agent).path("kbSelectionMode").asText("");
         return switch (mode) {
             case "none" -> false;
             case "selected" -> false;
@@ -686,11 +686,11 @@ public class EmbedChannelService {
             return List.of();
         }
         JsonNode cfg = parseConfig(agent);
-        if (!"selected".equals(cfg.path("kb_selection_mode").asText(""))) {
+        if (!"selected".equals(cfg.path("kbSelectionMode").asText(""))) {
             return List.of();
         }
         List<String> ids = new ArrayList<>();
-        JsonNode kbs = cfg.get("knowledge_bases");
+        JsonNode kbs = cfg.get("knowledgeBases");
         if (kbs != null && kbs.isArray()) {
             for (JsonNode k : kbs) {
                 ids.add(k.asText(""));

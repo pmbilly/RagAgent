@@ -153,7 +153,7 @@ final class SessionQaResolution {
      * known-issues/06-wave-5.md 尾部。</p>
      */
     static boolean isAgentMode(ObjectNode c) {
-        return "smart-reasoning".equals(c.path("agent_mode").asText(""));
+        return "smart-reasoning".equals(c.path("agentMode").asText(""));
     }
 
     static String templateContentByIdAndFile(String id, String file) {

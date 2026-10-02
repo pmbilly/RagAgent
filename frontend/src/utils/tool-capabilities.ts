@@ -98,7 +98,7 @@ export type RequirementMissKind = 'none' | 'needsKb' | 'needsRag' | 'needsWiki' 
  * @param toolName  the tool identifier (see `TOOL_CAPABILITY_REQUIREMENTS`)
  * @param scope     aggregate capabilities exposed by KBs currently in scope
  * @param hasAnyKb  whether the agent has at least one KB in scope
- *                  (i.e. `kb_selection_mode !== 'none'`)
+ *                  (i.e. `kbSelectionMode !== 'none'`)
  */
 export function evaluateToolRequirement(
   toolName: string,
@@ -145,7 +145,7 @@ function primaryMissKind(c: KBCapability): RequirementMissKind {
  * on a scope consisting of just that KB.
  *
  * Used by Step 3 so presets don't have to hand-maintain `kb_filter` next
- * to their `allowed_tools` — the two are always derived from the same map.
+ * to their `allowedTools` — the two are always derived from the same map.
  *
  * Returns `null` when none of the input tools have any KB requirement
  * (i.e. any KB is acceptable).
@@ -167,7 +167,7 @@ export function deriveKbFilterFromTools(
 /**
  * Implicit KB capability requirement for the "quick-answer" (RAG) agent
  * mode. Quick-answer drives retrieval purely through vector/keyword chunk
- * search and ships with NO `allowed_tools`, so the tool-derived filter
+ * search and ships with NO `allowedTools`, so the tool-derived filter
  * alone would let wiki-only KBs through even though they can't contribute
  * anything to a RAG answer. Treat this as a property of the agent MODE.
  */

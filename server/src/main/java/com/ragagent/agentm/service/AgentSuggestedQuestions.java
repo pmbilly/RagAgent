@@ -76,7 +76,7 @@ public final class AgentSuggestedQuestions {
         List<Object[]> curated = new ArrayList<>(); // [question, source, kbId]
         String starterMode = AgentConfigJson.SUGGESTION_KNOWLEDGE;
 
-        JsonNode qs = cfg.get("question_suggestions");
+        JsonNode qs = cfg.get("questionSuggestions");
         boolean startersEnabled = qs != null && qs.path("starters").path("enabled").asBoolean(false);
         if (includeCurated) {
             if (!startersEnabled) {
@@ -125,11 +125,11 @@ public final class AgentSuggestedQuestions {
         List<String> effectiveKbIds = new ArrayList<>(orEmpty(kbIds));
         if (effectiveKbIds.isEmpty() && (knowledgeIds == null || knowledgeIds.isEmpty())
                 && tagIdsByTenant.isEmpty()) {
-            String kbMode = cfg.path("kb_selection_mode").asText("");
+            String kbMode = cfg.path("kbSelectionMode").asText("");
             switch (kbMode) {
                 case "all" -> {
                     List<String> ids = new ArrayList<>();
-                    boolean quickAnswer = "quick-answer".equals(cfg.path("agent_mode").asText(""));
+                    boolean quickAnswer = "quick-answer".equals(cfg.path("agentMode").asText(""));
                     for (KnowledgeBase kb : agents.kbService().listKnowledgeBases(null)) {
                         var caps = kb.capabilities();
                         if (quickAnswer && !(caps.vector() || caps.keyword())) {
@@ -143,7 +143,7 @@ public final class AgentSuggestedQuestions {
                     return finalize(curated, null, starterMode, limit);
                 }
                 default -> {
-                    JsonNode kbs = cfg.get("knowledge_bases");
+                    JsonNode kbs = cfg.get("knowledgeBases");
                     if (kbs != null && kbs.isArray()) {
                         for (JsonNode k : kbs) {
                             effectiveKbIds.add(k.asText(""));

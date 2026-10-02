@@ -1,8 +1,8 @@
 import type { WebSearchProviderEntity } from '@/api/web-search-provider';
 
 export type AgentWebSearchConfig = {
-  web_search_enabled?: boolean;
-  web_search_provider_id?: string;
+  webSearchEnabled?: boolean;
+  webSearchProviderId?: string;
 };
 
 /** 解析智能体实际会使用的搜索引擎 ID（与后端 agent > tenant default 逻辑一致） */
@@ -10,7 +10,7 @@ export function resolveAgentWebSearchProviderId(
   config: AgentWebSearchConfig | undefined,
   providers: WebSearchProviderEntity[],
 ): string | null {
-  const explicitId = config?.web_search_provider_id?.trim();
+  const explicitId = config?.webSearchProviderId?.trim();
   if (explicitId) {
     return providers.some((p) => p.id === explicitId) ? explicitId : null;
   }
@@ -19,7 +19,7 @@ export function resolveAgentWebSearchProviderId(
 }
 
 export function isAgentWebSearchEnabled(config: AgentWebSearchConfig | undefined): boolean {
-  return config?.web_search_enabled === true;
+  return config?.webSearchEnabled === true;
 }
 
 /** 智能体已启用网络搜索，且能解析到可用搜索引擎 */

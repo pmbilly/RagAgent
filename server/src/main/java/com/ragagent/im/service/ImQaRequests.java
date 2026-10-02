@@ -29,7 +29,7 @@ final class ImQaRequests {
         }
         try {
             JsonNode cfg = ImService.JSON.readTree(agent.getConfig());
-            return "smart-reasoning".equals(cfg.path("agent_mode").asText(""));
+            return "smart-reasoning".equals(cfg.path("agentMode").asText(""));
         } catch (Exception e) {
             return false;
         }
@@ -55,7 +55,7 @@ final class ImQaRequests {
             }
         }
         req.webSearchEnabled = agent != null && req.agentConfig != null
-                && req.agentConfig.path("web_search_enabled").asBoolean(false);
+                && req.agentConfig.path("webSearchEnabled").asBoolean(false);
         req.quotedContext = ImFormat.formatQuotedContext(quote);
 
         return req;

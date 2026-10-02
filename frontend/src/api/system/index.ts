@@ -76,8 +76,8 @@ export interface PromptTemplate {
 }
 
 export interface PromptTemplatesConfig {
-  system_prompt: PromptTemplate[]
-  context_template: PromptTemplate[]
+  systemPrompt: PromptTemplate[]
+  contextTemplate: PromptTemplate[]
   // Rewrite templates — each template contains both content (system) + user fields
   rewrite: PromptTemplate[]
   // Fallback templates — fixed responses + model fallback prompts (mode: "model")
@@ -88,7 +88,7 @@ export interface PromptTemplatesConfig {
   keywords_extraction?: PromptTemplate[]
   chat_summary?: PromptTemplate[]
   agent_system_prompt?: PromptTemplate[]
-  intent_prompts?: PromptTemplate[]
+  intentPrompts?: PromptTemplate[]
 }
 
 export function getSystemInfo(): Promise<SystemInfo> {

@@ -19,7 +19,7 @@ export interface QuestionSuggestionConfig {
     enabled: boolean;
     mode: 'generated' | 'knowledge' | 'hybrid';
     count: number;
-    model_id?: string;
+    modelId?: string;
     additional_instruction?: string;
     categories: Array<'clarify' | 'deepen' | 'action'>;
     max_context_turns: number;
@@ -32,39 +32,39 @@ export interface QuestionSuggestionConfig {
 
 export interface CustomAgentConfig {
   // ===== 基础设置 =====
-  agent_mode?: 'quick-answer' | 'smart-reasoning';  // 运行模式：quick-answer=RAG模式, smart-reasoning=ReAct Agent模式
+  agentMode?: 'quick-answer' | 'smart-reasoning';  // 运行模式：quick-answer=RAG模式, smart-reasoning=ReAct Agent模式
   // 智能推理模式下的类型预设，用于一键应用"系统提示词 + 工具 + KB 兼容性"组合
-  // 仅在 agent_mode === 'smart-reasoning' 时生效；quick-answer 模式忽略
-  agent_type?: AgentType;
-  system_prompt?: string;           // 统一系统提示词（使用 {{web_search_status}} 占位符动态控制行为）
-  system_prompt_id?: string;        // 引用的 prompt template ID（预设会填入此字段）
-  context_template_id?: string;     // Inherit the referenced context template when text is empty
-  context_template?: string;        // 上下文模板（普通模式）
+  // 仅在 agentMode === 'smart-reasoning' 时生效；quick-answer 模式忽略
+  agentType?: AgentType;
+  systemPrompt?: string;           // 统一系统提示词（使用 {{web_search_status}} 占位符动态控制行为）
+  systemPromptId?: string;        // 引用的 prompt template ID（预设会填入此字段）
+  contextTemplateId?: string;     // Inherit the referenced context template when text is empty
+  contextTemplate?: string;        // 上下文模板（普通模式）
 
   // ===== 模型设置 =====
-  model_id?: string;
-  rerank_model_id?: string;         // ReRank 模型 ID
+  modelId?: string;
+  rerankModelId?: string;         // ReRank 模型 ID
   temperature?: number;
-  max_completion_tokens?: number;   // 0 = 跟随系统默认（快速问答 2048；智能推理 4096，绑沙箱可写文件时 24576）。大于 0 为自定义上限
+  maxCompletionTokens?: number;   // 0 = 跟随系统默认（快速问答 2048；智能推理 4096，绑沙箱可写文件时 24576）。大于 0 为自定义上限
   thinking?: boolean;                      // 是否启用思考模式（支持扩展思考的模型）
-  citation_enabled?: boolean;        // 是否在最终回答中输出知识库/网页来源引用（默认开启）
+  citationEnabled?: boolean;        // 是否在最终回答中输出知识库/网页来源引用（默认开启）
 
   // ===== Agent模式设置 =====
-  max_iterations?: number;          // 最大迭代次数；-1 表示不限制
-  llm_call_timeout?: number;        // LLM调用超时时间（秒）
-  allowed_tools?: string[];         // 允许的工具
+  maxIterations?: number;          // 最大迭代次数；-1 表示不限制
+  llmCallTimeout?: number;        // LLM调用超时时间（秒）
+  allowedTools?: string[];         // 允许的工具
   reflection_enabled?: boolean;     // 是否启用反思
   // MCP服务选择模式：all=全部启用的MCP服务, selected=指定服务, none=不使用MCP
-  mcp_selection_mode?: 'all' | 'selected' | 'none';
-  mcp_services?: string[];          // 选择的MCP服务ID列表
+  mcpSelectionMode?: 'all' | 'selected' | 'none';
+  mcpServices?: string[];          // 选择的MCP服务ID列表
   // 对话中触发 OAuth 授权时的等待超时（秒）：到点后自动跳过授权提示。
   // <=0 时使用服务端默认超时。仅对使用 OAuth 的 MCP 服务生效。
-  mcp_auth_wait_timeout?: number;
+  mcpAuthWaitTimeout?: number;
 
   // ===== Skills设置（仅Agent模式）=====
   // Skills选择模式：all=全部预装, selected=指定, none=不使用
-  skills_selection_mode?: 'all' | 'selected' | 'none';
-  selected_skills?: string[];       // 选择的Skill名称列表
+  skillsSelectionMode?: 'all' | 'selected' | 'none';
+  selectedSkills?: string[];       // 选择的Skill名称列表
 
   // ===== 沙箱设置 =====
   // 该智能体的技能脚本运行在哪个沙箱配置上；为空表示不启用沙箱执行。
@@ -73,71 +73,71 @@ export interface CustomAgentConfig {
 
   // ===== 知识库设置 =====
   // 知识库选择模式：all=全部知识库, selected=指定知识库, none=不使用知识库
-  kb_selection_mode?: 'all' | 'selected' | 'none';
-  knowledge_bases?: string[];
+  kbSelectionMode?: 'all' | 'selected' | 'none';
+  knowledgeBases?: string[];
   // 是否仅在显式 @ 提及时检索知识库（默认: false）
   // true: 只有用户通过 @ 明确提及知识库/文档时才检索
-  // false: 根据 kb_selection_mode 自动检索知识库
-  retrieve_kb_only_when_mentioned?: boolean;
+  // false: 根据 kbSelectionMode 自动检索知识库
+  retrieveKbOnlyWhenMentioned?: boolean;
 
   // ===== 图片上传/多模态设置 =====
-  image_upload_enabled?: boolean;    // 是否启用图片上传（默认: false）
-  vlm_model_id?: string;            // VLM模型ID（图片分析用）
-  image_storage_provider?: string;   // 图片存储提供商
-  audio_upload_enabled?: boolean;    // 是否启用音频上传/ASR转录（默认: false）
-  asr_model_id?: string;            // ASR模型ID（音频转录用）
+  imageUploadEnabled?: boolean;    // 是否启用图片上传（默认: false）
+  vlmModelId?: string;            // VLM模型ID（图片分析用）
+  imageStorageProvider?: string;   // 图片存储提供商
+  audioUploadEnabled?: boolean;    // 是否启用音频上传/ASR转录（默认: false）
+  asrModelId?: string;            // ASR模型ID（音频转录用）
   // 附件图片理解 / 扫描件 OCR 开关（默认: false，开启会增加解析耗时）
-  attachment_image_understanding?: boolean;
+  attachmentImageUnderstanding?: boolean;
   // 扫描件 OCR 最大页数（0 = 使用全局默认 WEKNORA_CHAT_ATTACHMENT_OCR_MAX_PAGES）
-  attachment_ocr_max_pages?: number;
+  attachmentOcrMaxPages?: number;
   // 单轮问答等待附件解析完成的最长时间（秒，0 = 使用全局默认 WEKNORA_CHAT_ATTACHMENT_WAIT_TIMEOUT_SEC）
-  attachment_parse_wait_timeout_sec?: number;
+  attachmentParseWaitTimeoutSec?: number;
 
   // ===== 聊天附件解析引擎策略 =====
   // 按文件类型选择解析引擎；优先级：请求 parser_engine > 智能体规则 > 租户规则 > auto
-  chat_parser_engine_rules?: { file_types: string[]; engine: string }[];
+  chatParserEngineRules?: { file_types: string[]; engine: string }[];
 
   // ===== 文件类型限制 =====
   // 支持的文件类型（如 ["csv", "xlsx", "xls"]）
   // 为空表示支持所有文件类型
-  supported_file_types?: string[];
+  supportedFileTypes?: string[];
 
   // ===== 网络搜索设置 =====
-  web_search_enabled?: boolean;
-  web_search_provider_id?: string;
-  web_search_max_results?: number;
+  webSearchEnabled?: boolean;
+  webSearchProviderId?: string;
+  webSearchMaxResults?: number;
 
   // ===== 多轮对话设置 =====
-  multi_turn_enabled?: boolean;     // 是否启用多轮对话
-  history_turns?: number;           // 保留历史轮数
+  multiTurnEnabled?: boolean;     // 是否启用多轮对话
+  historyTurns?: number;           // 保留历史轮数
 
   // ===== 长期记忆 =====
   // 该智能体是否可以读取用户的长期记忆。
   // 缺省（旧数据）等同于 true：这是一个只能"关"的开关，空间设置关闭时
   // 这里打开也不会生效。
-  memory_enabled?: boolean;
+  memoryEnabled?: boolean;
 
   // ===== 检索策略设置 =====
-  embedding_top_k?: number;         // 向量召回TopK
-  keyword_threshold?: number;       // 关键词召回阈值
-  vector_threshold?: number;        // 向量召回阈值
-  rerank_top_k?: number;            // 重排TopK
-  rerank_threshold?: number;        // 重排阈值
+  embeddingTopK?: number;         // 向量召回TopK
+  keywordThreshold?: number;       // 关键词召回阈值
+  vectorThreshold?: number;        // 向量召回阈值
+  rerankTopK?: number;            // 重排TopK
+  rerankThreshold?: number;        // 重排阈值
 
   // ===== 高级设置（主要用于普通模式）=====
-  enable_query_expansion?: boolean; // 是否启用查询扩展
-  enable_rewrite?: boolean;         // 是否启用问题改写
-  rewrite_prompt_system?: string;   // 改写系统提示词
-  rewrite_prompt_user?: string;     // 改写用户提示词模板
-  fallback_strategy?: 'fixed' | 'model'; // 兜底策略
-  fallback_response?: string;       // 固定兜底回复
-  fallback_prompt?: string;         // 兜底提示词（模型生成时）
+  enableQueryExpansion?: boolean; // 是否启用查询扩展
+  enableRewrite?: boolean;         // 是否启用问题改写
+  rewritePromptSystem?: string;   // 改写系统提示词
+  rewritePromptUser?: string;     // 改写用户提示词模板
+  fallbackStrategy?: 'fixed' | 'model'; // 兜底策略
+  fallbackResponse?: string;       // 固定兜底回复
+  fallbackPrompt?: string;         // 兜底提示词（模型生成时）
   // 意图提示词：非检索意图（问候、闲聊等）时覆盖主系统提示词
-  intent_prompts?: Record<string, string>;
+  intentPrompts?: Record<string, string>;
 
   // ===== 已废弃字段（保留兼容）=====
   welcome_message?: string;
-  question_suggestions?: QuestionSuggestionConfig;
+  questionSuggestions?: QuestionSuggestionConfig;
 }
 
 // 智能体
@@ -240,12 +240,12 @@ export interface PlaceholderDefinition {
 // 占位符响应
 export interface PlaceholdersResponse {
   all: PlaceholderDefinition[];
-  system_prompt: PlaceholderDefinition[];
+  systemPrompt: PlaceholderDefinition[];
   agent_system_prompt: PlaceholderDefinition[];
-  context_template: PlaceholderDefinition[];
+  contextTemplate: PlaceholderDefinition[];
   rewrite_system_prompt: PlaceholderDefinition[];
   rewrite_prompt: PlaceholderDefinition[];
-  fallback_prompt: PlaceholderDefinition[];
+  fallbackPrompt: PlaceholderDefinition[];
 }
 
 // 获取占位符定义
@@ -273,15 +273,15 @@ export interface KBCapabilities {
 
 // 预设的"自动填充"配置载荷：仅包含被预设覆盖的字段；其他字段不动
 export interface AgentTypePresetConfig {
-  system_prompt_id?: string;
+  systemPromptId?: string;
   temperature?: number;
-  max_iterations?: number;
-  allowed_tools?: string[];
-  retain_retrieval_history?: boolean;
-  faq_priority_enabled?: boolean;
-  web_search_enabled?: boolean;
-  supported_file_types?: string[];
-  kb_selection_mode?: 'all' | 'selected' | 'none';
+  maxIterations?: number;
+  allowedTools?: string[];
+  retainRetrievalHistory?: boolean;
+  faqPriorityEnabled?: boolean;
+  webSearchEnabled?: boolean;
+  supportedFileTypes?: string[];
+  kbSelectionMode?: 'all' | 'selected' | 'none';
 }
 
 export interface AgentTypePresetI18n {

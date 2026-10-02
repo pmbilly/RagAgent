@@ -12,17 +12,17 @@
       }
     },
     "config": {
-      "system_prompt_id": "progressive_rag_agent",
+      "systemPromptId": "progressive_rag_agent",
       "temperature": 0.7,
-      "max_iterations": 30,
-      "allowed_tools": [
+      "maxIterations": 30,
+      "allowedTools": [
         "knowledge_search",
         "grep_chunks",
         "list_knowledge_chunks",
         "get_document_info"
       ],
-      "faq_priority_enabled": true,
-      "kb_selection_mode": "all"
+      "faqPriorityEnabled": true,
+      "kbSelectionMode": "all"
     }
   },
   {
@@ -38,16 +38,16 @@
       }
     },
     "config": {
-      "system_prompt_id": "wiki_researcher",
+      "systemPromptId": "wiki_researcher",
       "temperature": 0.7,
-      "max_iterations": 30,
-      "allowed_tools": [
+      "maxIterations": 30,
+      "allowedTools": [
         "wiki_search",
         "wiki_read_page",
         "wiki_read_source_doc",
         "wiki_flag_issue"
       ],
-      "kb_selection_mode": "all"
+      "kbSelectionMode": "all"
     }
   },
   {
@@ -63,10 +63,10 @@
       }
     },
     "config": {
-      "system_prompt_id": "hybrid_rag_wiki_agent",
+      "systemPromptId": "hybrid_rag_wiki_agent",
       "temperature": 0.7,
-      "max_iterations": 40,
-      "allowed_tools": [
+      "maxIterations": 40,
+      "allowedTools": [
         "wiki_search",
         "wiki_read_page",
         "knowledge_search",
@@ -75,8 +75,8 @@
         "get_document_info",
         "wiki_flag_issue"
       ],
-      "faq_priority_enabled": true,
-      "kb_selection_mode": "all"
+      "faqPriorityEnabled": true,
+      "kbSelectionMode": "all"
     }
   },
   {
@@ -92,18 +92,18 @@
       }
     },
     "config": {
-      "system_prompt_id": "data_analyst",
+      "systemPromptId": "data_analyst",
       "temperature": 0.3,
-      "max_iterations": 30,
-      "allowed_tools": [
+      "maxIterations": 30,
+      "allowedTools": [
         "data_schema",
         "data_analysis"
       ],
-      "supported_file_types": [
+      "supportedFileTypes": [
         "csv",
         "xlsx"
       ],
-      "kb_selection_mode": "all"
+      "kbSelectionMode": "all"
     },
     "kb_filter": {
       "none_of": [

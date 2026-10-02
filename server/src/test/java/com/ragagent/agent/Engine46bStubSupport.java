@@ -204,7 +204,7 @@ final class Engine46bStubSupport {
             sb.append("{\"messages\":").append(i < chat.callJson.size()
                     ? chat.callJson.get(i) : "[]").append(",\"opts\":{");
             ChatOptions o = i < chat.opts.size() ? chat.opts.get(i) : null;
-            sb.append("\"max_completion_tokens\":").append(o == null ? 0 : o.getMaxCompletionTokens());
+            sb.append("\"maxCompletionTokens\":").append(o == null ? 0 : o.getMaxCompletionTokens());
             sb.append(",\"max_tokens\":").append(o == null ? 0 : o.getMaxTokens());
             sb.append(",\"parallel_tool_calls\":")
                     .append(o == null || o.getParallelToolCalls() == null

@@ -203,7 +203,7 @@ final class TemporaryDocumentProcessor {
                 return "";
             }
             return ParserEngineRules.resolve(
-                    tenant.getParserEngineConfig().get("chat_parser_engine_rules"), ext);
+                    tenant.getParserEngineConfig().get("chatParserEngineRules"), ext);
         } catch (RuntimeException e) {
             log.warn("failed to resolve tenant parser engine: {}", e.toString());
             return "";

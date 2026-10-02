@@ -42,23 +42,23 @@ public class BuiltinAgentRegistry {
 
     /** CustomAgentConfig 已知键全集（未知键装载时静默丢弃）。 */
     private static final java.util.Set<String> CONFIG_KEYS = java.util.Set.of(
-            "agent_mode", "agent_type", "system_prompt", "system_prompt_id", "context_template",
-            "context_template_id", "model_id", "rerank_model_id", "temperature",
-            "max_completion_tokens", "thinking", "citation_enabled", "max_iterations",
-            "llm_call_timeout", "allowed_tools", "mcp_selection_mode", "mcp_services",
-            "mcp_auth_wait_timeout", "skills_selection_mode", "selected_skills",
-            "kb_selection_mode", "knowledge_bases", "retrieve_kb_only_when_mentioned",
-            "retain_retrieval_history", "image_upload_enabled", "vlm_model_id",
-            "audio_upload_enabled", "asr_model_id", "image_storage_provider", "supported_file_types",
-            "chat_parser_engine_rules", "attachment_image_understanding", "attachment_ocr_max_pages",
-            "attachment_parse_wait_timeout_sec", "data_analysis_enabled", "faq_priority_enabled",
-            "faq_direct_answer_threshold", "faq_score_boost", "web_search_enabled",
-            "web_search_max_results", "web_search_provider_id", "web_fetch_enabled", "web_fetch_top_n",
-            "multi_turn_enabled", "history_turns", "memory_enabled", "embedding_top_k",
-            "keyword_threshold", "vector_threshold", "rerank_top_k", "rerank_threshold",
-            "enable_query_expansion", "enable_rewrite", "rewrite_prompt_system", "rewrite_prompt_user",
-            "query_understand_model_id", "fallback_strategy", "fallback_response", "fallback_prompt",
-            "intent_prompts", "question_suggestions");
+            "agentMode", "agentType", "systemPrompt", "systemPromptId", "contextTemplate",
+            "contextTemplateId", "modelId", "rerankModelId", "temperature",
+            "maxCompletionTokens", "thinking", "citationEnabled", "maxIterations",
+            "llmCallTimeout", "allowedTools", "mcpSelectionMode", "mcpServices",
+            "mcpAuthWaitTimeout", "skillsSelectionMode", "selectedSkills",
+            "kbSelectionMode", "knowledgeBases", "retrieveKbOnlyWhenMentioned",
+            "retainRetrievalHistory", "imageUploadEnabled", "vlmModelId",
+            "audioUploadEnabled", "asrModelId", "imageStorageProvider", "supportedFileTypes",
+            "chatParserEngineRules", "attachmentImageUnderstanding", "attachmentOcrMaxPages",
+            "attachmentParseWaitTimeoutSec", "dataAnalysisEnabled", "faqPriorityEnabled",
+            "faqDirectAnswerThreshold", "faqScoreBoost", "webSearchEnabled",
+            "webSearchMaxResults", "webSearchProviderId", "webFetchEnabled", "webFetchTopN",
+            "multiTurnEnabled", "historyTurns", "memoryEnabled", "embeddingTopK",
+            "keywordThreshold", "vectorThreshold", "rerankTopK", "rerankThreshold",
+            "enableQueryExpansion", "enableRewrite", "rewritePromptSystem", "rewritePromptUser",
+            "queryUnderstandModelId", "fallbackStrategy", "fallbackResponse", "fallbackPrompt",
+            "intentPrompts", "questionSuggestions");
 
     /** 模板文件固定装载序（模板查找顺序）。 */
     private static final List<String> TEMPLATE_FILES = List.of(
@@ -135,15 +135,15 @@ public class BuiltinAgentRegistry {
         Map<String, String> templates = loadTemplates();
         for (Entry e : entries.values()) {
             ObjectNode cfg = e.config();
-            String spid = cfg.path("system_prompt_id").asText("");
-            if (!spid.isEmpty() && cfg.path("system_prompt").asText("").isEmpty()
+            String spid = cfg.path("systemPromptId").asText("");
+            if (!spid.isEmpty() && cfg.path("systemPrompt").asText("").isEmpty()
                     && templates.containsKey(spid)) {
-                cfg.put("system_prompt", templates.get(spid));
+                cfg.put("systemPrompt", templates.get(spid));
             }
-            String ctid = cfg.path("context_template_id").asText("");
-            if (!ctid.isEmpty() && cfg.path("context_template").asText("").isEmpty()
+            String ctid = cfg.path("contextTemplateId").asText("");
+            if (!ctid.isEmpty() && cfg.path("contextTemplate").asText("").isEmpty()
                     && templates.containsKey(ctid)) {
-                cfg.put("context_template", templates.get(ctid));
+                cfg.put("contextTemplate", templates.get(ctid));
             }
         }
     }

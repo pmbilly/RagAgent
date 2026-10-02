@@ -18,8 +18,8 @@
               :class="{ selected: isMyAgentSelected(agent) }" @mouseenter="onOptionEnter(agent, $event)"
               @mouseleave="onOptionLeave" @click="selectAgent(agent)">
               <div v-if="agent.id === BUILTIN_QUICK_ANSWER_ID || agent.id === BUILTIN_SMART_REASONING_ID"
-                class="builtin-icon" :class="agent.config?.agent_mode === 'smart-reasoning' ? 'agent' : 'normal'">
-                <TIcon :name="agent.config?.agent_mode === 'smart-reasoning' ? 'control-platform' : 'chat'"
+                class="builtin-icon" :class="agent.config?.agentMode === 'smart-reasoning' ? 'agent' : 'normal'">
+                <TIcon :name="agent.config?.agentMode === 'smart-reasoning' ? 'control-platform' : 'chat'"
                   size="13px" />
               </div>
               <div v-else-if="agent.avatar" class="builtin-avatar">{{ agent.avatar }}</div>
@@ -70,8 +70,8 @@
             <template
               v-if="activeDetail.agent.id === BUILTIN_QUICK_ANSWER_ID || activeDetail.agent.id === BUILTIN_SMART_REASONING_ID">
               <div class="builtin-icon detail-icon"
-                :class="activeDetail.agent.config?.agent_mode === 'smart-reasoning' ? 'agent' : 'normal'">
-                <TIcon :name="activeDetail.agent.config?.agent_mode === 'smart-reasoning' ? 'control-platform' : 'chat'"
+                :class="activeDetail.agent.config?.agentMode === 'smart-reasoning' ? 'agent' : 'normal'">
+                <TIcon :name="activeDetail.agent.config?.agentMode === 'smart-reasoning' ? 'control-platform' : 'chat'"
                   size="14px" />
               </div>
             </template>
@@ -103,14 +103,14 @@
 
           <div class="detail-tags">
             <span class="detail-tag">
-              {{ activeDetail.agent.config?.agent_mode === 'smart-reasoning' ? $t('agent.type.agent') :
+              {{ activeDetail.agent.config?.agentMode === 'smart-reasoning' ? $t('agent.type.agent') :
                 $t('agent.type.normal') }}
             </span>
             <span v-if="getKbCapability(activeDetail.agent)" class="detail-tag">{{ getKbCapability(activeDetail.agent)
               }}</span>
             <span v-if="getMcpCapability(activeDetail.agent)" class="detail-tag">{{ getMcpCapability(activeDetail.agent)
               }}</span>
-            <span v-if="activeDetail.agent.config?.multi_turn_enabled" class="detail-tag">{{
+            <span v-if="activeDetail.agent.config?.multiTurnEnabled" class="detail-tag">{{
               $t('agent.capabilities.multiTurn')
               }}</span>
           </div>
@@ -240,11 +240,11 @@ const canShowDetailHeaderAction = computed(() => {
 
 const getKbCapability = (agent: CustomAgent): string => {
   const config = agent.config || {};
-  if (config.kb_selection_mode === 'none') return '';
-  if (config.knowledge_bases && config.knowledge_bases.length > 0) {
-    return t('agent.capabilities.kbCount', { count: config.knowledge_bases.length });
+  if (config.kbSelectionMode === 'none') return '';
+  if (config.knowledgeBases && config.knowledgeBases.length > 0) {
+    return t('agent.capabilities.kbCount', { count: config.knowledgeBases.length });
   }
-  if (config.kb_selection_mode === 'all') return t('agent.capabilities.kbAll');
+  if (config.kbSelectionMode === 'all') return t('agent.capabilities.kbAll');
   return '';
 };
 
@@ -258,7 +258,7 @@ const isWebSearchReadyForAgent = (agent: CustomAgent): boolean => {
 
 const isImageUploadEnabledForAgent = (agent: CustomAgent): boolean => {
   const config = agent.config || {};
-  return config.image_upload_enabled === true;
+  return config.imageUploadEnabled === true;
 };
 
 const getWebSearchCapabilityClass = (agent: CustomAgent): string => {
@@ -287,12 +287,12 @@ const getImageUploadCapabilityState = (agent: CustomAgent): string => {
 
 const getMcpCapability = (agent: CustomAgent): string => {
   const config = agent.config || {};
-  if (config.mcp_selection_mode === 'none' || (!config.mcp_services?.length && config.mcp_selection_mode !== 'all')) {
+  if (config.mcpSelectionMode === 'none' || (!config.mcpServices?.length && config.mcpSelectionMode !== 'all')) {
     return '';
   }
-  if (config.mcp_selection_mode === 'all') return t('agent.shareScope.mcpAll');
-  if (config.mcp_services?.length) {
-    return t('agent.shareScope.mcpSelected', { count: config.mcp_services.length });
+  if (config.mcpSelectionMode === 'all') return t('agent.shareScope.mcpAll');
+  if (config.mcpServices?.length) {
+    return t('agent.shareScope.mcpSelected', { count: config.mcpServices.length });
   }
   return t('agent.capabilities.mcpEnabled');
 };
@@ -315,7 +315,7 @@ const formatAgentNotReadyReasons = (
 };
 
 const getAgentNotReadyReasonKeysFor = (agent: CustomAgent) => {
-  const isAgentMode = agent.config?.agent_mode === 'smart-reasoning';
+  const isAgentMode = agent.config?.agentMode === 'smart-reasoning';
   return getAgentNotReadyReasonKeys(agent.config, modelsList.value, {
     isAgentMode,
   });

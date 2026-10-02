@@ -36,7 +36,7 @@ class SessionQaResolutionOverridesTest {
         SessionQaResolution r = newResolution();
         QaSupport.QaRequest req = new QaSupport.QaRequest();
         ObjectNode cfg = new ObjectMapper().createObjectNode();
-        cfg.put("system_prompt", "S");
+        cfg.put("systemPrompt", "S");
         req.agentConfig = cfg;
         ChatManage cm = new ChatManage();
         assertThatCode(() -> r.applyAgentOverridesToChatManage(req, cm)).doesNotThrowAnyException();

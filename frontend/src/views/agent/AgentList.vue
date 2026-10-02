@@ -122,8 +122,8 @@
             </div>
             <div v-show="!isAgentRowHidden(agent)" class="agent-card" :class="{
               'is-builtin': agent.builtin,
-              'agent-mode-normal': agent.config?.agent_mode === 'quick-answer',
-              'agent-mode-agent': agent.config?.agent_mode === 'smart-reasoning'
+              'agent-mode-normal': agent.config?.agentMode === 'quick-answer',
+              'agent-mode-agent': agent.config?.agentMode === 'smart-reasoning'
             }" @click="handleCardClick(agent)">
               <!-- 装饰星星 -->
               <div class="card-decoration">
@@ -152,8 +152,8 @@
               <div class="card-header">
                 <div class="card-header-left">
                   <div v-if="agent.builtin" class="builtin-avatar"
-                    :class="agent.config?.agent_mode === 'smart-reasoning' ? 'agent' : 'normal'">
-                    <t-icon :name="agent.config?.agent_mode === 'smart-reasoning' ? 'control-platform' : 'chat'"
+                    :class="agent.config?.agentMode === 'smart-reasoning' ? 'agent' : 'normal'">
+                    <t-icon :name="agent.config?.agentMode === 'smart-reasoning' ? 'control-platform' : 'chat'"
                       size="18px" />
                   </div>
                   <div v-else-if="agent.avatar" class="builtin-avatar agent-emoji">{{ agent.avatar }}</div>
@@ -192,15 +192,15 @@
                     <t-tag v-if="agent.disabled_by_me" theme="default" size="small" class="disabled-badge">{{
                       $t('agent.disabled') }}</t-tag>
                     <t-tooltip
-                      :content="agent.config?.agent_mode === 'smart-reasoning' ? $t('agent.mode.agent') : $t('agent.mode.normal')"
+                      :content="agent.config?.agentMode === 'smart-reasoning' ? $t('agent.mode.agent') : $t('agent.mode.normal')"
                       placement="top">
                       <div class="feature-badge"
-                        :class="{ 'mode-normal': agent.config?.agent_mode === 'quick-answer', 'mode-agent': agent.config?.agent_mode === 'smart-reasoning' }">
-                        <t-icon :name="agent.config?.agent_mode === 'smart-reasoning' ? 'control-platform' : 'chat'"
+                        :class="{ 'mode-normal': agent.config?.agentMode === 'quick-answer', 'mode-agent': agent.config?.agentMode === 'smart-reasoning' }">
+                        <t-icon :name="agent.config?.agentMode === 'smart-reasoning' ? 'control-platform' : 'chat'"
                           size="14px" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="agent.config?.web_search_enabled" :content="$t('agent.features.webSearch')"
+                    <t-tooltip v-if="agent.config?.webSearchEnabled" :content="$t('agent.features.webSearch')"
                       placement="top">
                       <div class="feature-badge web-search">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -211,19 +211,19 @@
                         </svg>
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="agent.config?.knowledge_bases?.length || agent.config?.kb_selection_mode === 'all'"
+                    <t-tooltip v-if="agent.config?.knowledgeBases?.length || agent.config?.kbSelectionMode === 'all'"
                       :content="$t('agent.features.knowledgeBase')" placement="top">
                       <div class="feature-badge knowledge">
                         <t-icon name="folder" size="16px" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="agent.config?.mcp_services?.length || agent.config?.mcp_selection_mode === 'all'"
+                    <t-tooltip v-if="agent.config?.mcpServices?.length || agent.config?.mcpSelectionMode === 'all'"
                       :content="$t('agent.features.mcp')" placement="top">
                       <div class="feature-badge mcp">
                         <t-icon name="extension" size="16px" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="agent.config?.multi_turn_enabled" :content="$t('agent.features.multiTurn')"
+                    <t-tooltip v-if="agent.config?.multiTurnEnabled" :content="$t('agent.features.multiTurn')"
                       placement="top">
                       <div class="feature-badge multi-turn">
                         <t-icon name="chat-bubble" size="16px" />
@@ -293,8 +293,8 @@
             </div>
             <div v-show="!isAgentRowHidden(agent)" class="agent-card" :class="{
               'is-builtin': agent.builtin,
-              'agent-mode-normal': agent.config?.agent_mode === 'quick-answer',
-              'agent-mode-agent': agent.config?.agent_mode === 'smart-reasoning'
+              'agent-mode-normal': agent.config?.agentMode === 'quick-answer',
+              'agent-mode-agent': agent.config?.agentMode === 'smart-reasoning'
             }" @click="handleCardClick(agent)">
               <!-- 装饰星星 -->
               <div class="card-decoration">
@@ -324,8 +324,8 @@
                 <div class="card-header-left">
                   <!-- 内置智能体使用简洁图标 -->
                   <div v-if="agent.builtin" class="builtin-avatar"
-                    :class="agent.config?.agent_mode === 'smart-reasoning' ? 'agent' : 'normal'">
-                    <t-icon :name="agent.config?.agent_mode === 'smart-reasoning' ? 'control-platform' : 'chat'"
+                    :class="agent.config?.agentMode === 'smart-reasoning' ? 'agent' : 'normal'">
+                    <t-icon :name="agent.config?.agentMode === 'smart-reasoning' ? 'control-platform' : 'chat'"
                       size="18px" />
                   </div>
                   <div v-else-if="agent.avatar" class="builtin-avatar agent-emoji">{{ agent.avatar }}</div>
@@ -374,15 +374,15 @@
                     <t-tag v-if="agent.disabled_by_me" theme="default" size="small" class="disabled-badge">{{
                       $t('agent.disabled') }}</t-tag>
                     <t-tooltip
-                      :content="agent.config?.agent_mode === 'smart-reasoning' ? $t('agent.mode.agent') : $t('agent.mode.normal')"
+                      :content="agent.config?.agentMode === 'smart-reasoning' ? $t('agent.mode.agent') : $t('agent.mode.normal')"
                       placement="top">
                       <div class="feature-badge"
-                        :class="{ 'mode-normal': agent.config?.agent_mode === 'quick-answer', 'mode-agent': agent.config?.agent_mode === 'smart-reasoning' }">
-                        <t-icon :name="agent.config?.agent_mode === 'smart-reasoning' ? 'control-platform' : 'chat'"
+                        :class="{ 'mode-normal': agent.config?.agentMode === 'quick-answer', 'mode-agent': agent.config?.agentMode === 'smart-reasoning' }">
+                        <t-icon :name="agent.config?.agentMode === 'smart-reasoning' ? 'control-platform' : 'chat'"
                           size="14px" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="agent.config?.web_search_enabled" :content="$t('agent.features.webSearch')"
+                    <t-tooltip v-if="agent.config?.webSearchEnabled" :content="$t('agent.features.webSearch')"
                       placement="top">
                       <div class="feature-badge web-search">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -393,19 +393,19 @@
                         </svg>
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="agent.config?.knowledge_bases?.length || agent.config?.kb_selection_mode === 'all'"
+                    <t-tooltip v-if="agent.config?.knowledgeBases?.length || agent.config?.kbSelectionMode === 'all'"
                       :content="$t('agent.features.knowledgeBase')" placement="top">
                       <div class="feature-badge knowledge">
                         <t-icon name="folder" size="16px" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="agent.config?.mcp_services?.length || agent.config?.mcp_selection_mode === 'all'"
+                    <t-tooltip v-if="agent.config?.mcpServices?.length || agent.config?.mcpSelectionMode === 'all'"
                       :content="$t('agent.features.mcp')" placement="top">
                       <div class="feature-badge mcp">
                         <t-icon name="extension" size="16px" />
                       </div>
                     </t-tooltip>
-                    <t-tooltip v-if="agent.config?.multi_turn_enabled" :content="$t('agent.features.multiTurn')"
+                    <t-tooltip v-if="agent.config?.multiTurnEnabled" :content="$t('agent.features.multiTurn')"
                       placement="top">
                       <div class="feature-badge multi-turn">
                         <t-icon name="chat-bubble" size="16px" />

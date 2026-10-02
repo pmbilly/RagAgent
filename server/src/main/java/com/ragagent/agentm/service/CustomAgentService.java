@@ -257,8 +257,8 @@ public class CustomAgentService {
         agent.setCreatedAt(now);
         agent.setUpdatedAt(now);
         agent.setBuiltin(false);
-        if (config.path("agent_mode").asText("").isEmpty()) {
-            config.put("agent_mode", "quick-answer");
+        if (config.path("agentMode").asText("").isEmpty()) {
+            config.put("agentMode", "quick-answer");
         }
         AgentConfigJson.ensureDefaults(config);
         String err = AgentConfigJson.validateSuggestions(config);

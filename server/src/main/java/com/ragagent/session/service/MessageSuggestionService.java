@@ -118,7 +118,7 @@ public class MessageSuggestionService {
         spanInput.put("mode", strVal(spanConfig, "mode"));
         Map<String, Object> spanMeta = new LinkedHashMap<>();
         spanMeta.put("count", spanConfig == null ? null : spanConfig.get("count"));
-        spanMeta.put("model_id", strVal(spanConfig, "model_id"));
+        spanMeta.put("modelId", strVal(spanConfig, "modelId"));
         com.ragagent.tracing.langfuse.Span followUpSpan =
                 com.ragagent.tracing.langfuse.LangfuseManager.get().startSpan(
                         new com.ragagent.tracing.langfuse.LangfuseManager.SpanOptions(
@@ -195,7 +195,7 @@ public class MessageSuggestionService {
         }
 
         long startedAt = System.currentTimeMillis();
-        String modelId = strVal(followUps, "model_id");
+        String modelId = strVal(followUps, "modelId");
         if (modelId == null || modelId.isEmpty()) {
             modelId = message.getModelId() == null ? "" : message.getModelId();
         }
@@ -369,7 +369,7 @@ public class MessageSuggestionService {
 
     private Generated generateWithModel(Message message, String answer,
             GenerationContext context, Map<String, Object> followUps, int count) {
-        String modelId = strVal(followUps, "model_id");
+        String modelId = strVal(followUps, "modelId");
         if (modelId.isEmpty()) {
             modelId = message.getModelId() == null ? "" : message.getModelId();
         }

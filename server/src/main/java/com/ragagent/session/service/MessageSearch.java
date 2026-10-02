@@ -232,11 +232,11 @@ final class MessageSearch {
         if (node == null || node.isNull()) {
             return rc;
         }
-        rc.setEmbeddingTopK(node.path("embedding_top_k").asInt(0));
-        rc.setVectorThreshold(node.path("vector_threshold").asDouble(0));
-        rc.setRerankTopK(node.path("rerank_top_k").asInt(0));
-        rc.setRerankThreshold(node.path("rerank_threshold").asDouble(0));
-        rc.setRerankModelId(node.path("rerank_model_id").asText(""));
+        rc.setEmbeddingTopK(node.path("embeddingTopK").asInt(0));
+        rc.setVectorThreshold(node.path("vectorThreshold").asDouble(0));
+        rc.setRerankTopK(node.path("rerankTopK").asInt(0));
+        rc.setRerankThreshold(node.path("rerankThreshold").asDouble(0));
+        rc.setRerankModelId(node.path("rerankModelId").asText(""));
         return rc;
     }
 

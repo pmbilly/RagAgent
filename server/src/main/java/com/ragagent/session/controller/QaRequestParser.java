@@ -133,7 +133,7 @@ final class QaRequestParser {
         // 内联 base64 图片（对照 Go saveImageAttachments：落盘后回填 URL，消息/检索/VLM
         // 三处消费同一引用；SSRF 已在上方清空客户端 url/caption）
         if (!request.images().isEmpty()) {
-            if (rc.agentConfig == null || !rc.agentConfig.path("image_upload_enabled").asBoolean(false)) {
+            if (rc.agentConfig == null || !rc.agentConfig.path("imageUploadEnabled").asBoolean(false)) {
                 log.warn("[{}] Image upload is not enabled for this agent, rejecting {} images",
                         logPrefix, request.images().size());
                 throw BizException.badRequest("Image upload is not enabled for this agent");
@@ -210,7 +210,7 @@ final class QaRequestParser {
                                     + " was not found in this session");
                 }
                 if (rc.agentConfig != null) {
-                    List<String> supported = KnowledgeQaController.stringListOf(rc.agentConfig.get("supported_file_types"));
+                    List<String> supported = KnowledgeQaController.stringListOf(rc.agentConfig.get("supportedFileTypes"));
                     if (!supported.isEmpty()) {
                         String ext = doc.getFileType() == null ? ""
                                 : (doc.getFileType().startsWith(".")
@@ -256,7 +256,7 @@ final class QaRequestParser {
                 : (customAgent != null && customAgent.getTenantId() != null ? customAgent.getTenantId() : 0);
         String modelId = request.summaryModelId;
         if (modelId.isEmpty() && rc.agentConfig != null) {
-            modelId = rc.agentConfig.path("model_id").asText("");
+            modelId = rc.agentConfig.path("modelId").asText("");
         }
         Message assistant = new Message();
         assistant.setSessionId(sessionId);

@@ -178,8 +178,8 @@ class MessageServiceVectorSearchTest {
     @Test
     void vectorModeMapsKbHitsToMessagesByKnowledgeIdAndSortsByScore() {
         ObjectNode rc = MAPPER.createObjectNode();
-        rc.put("embedding_top_k", 7);
-        rc.put("vector_threshold", 0.25);
+        rc.put("embeddingTopK", 7);
+        rc.put("vectorThreshold", 0.25);
         tenantWith(chatHistoryConfig(true, "emb-1", "kb-chat-1"), rc);
 
         when(hybridSearchService.hybridSearch(eq("kb-chat-1"), any(SearchParams.class)))
@@ -284,11 +284,11 @@ class MessageServiceVectorSearchTest {
     void rerankModelFiltersByThresholdTopKAndReplacesScores() {
         ObjectNode rc = MAPPER.createObjectNode();
         // 0 → 有效缺省：EmbeddingTopK=50、VectorThreshold=0.15（GetEffective* 语义）
-        rc.put("embedding_top_k", 0);
-        rc.put("vector_threshold", 0);
-        rc.put("rerank_model_id", "rr-1");
-        rc.put("rerank_top_k", 1);
-        rc.put("rerank_threshold", 0.5);
+        rc.put("embeddingTopK", 0);
+        rc.put("vectorThreshold", 0);
+        rc.put("rerankModelId", "rr-1");
+        rc.put("rerankTopK", 1);
+        rc.put("rerankThreshold", 0.5);
         tenantWith(chatHistoryConfig(true, "emb-1", "kb-chat-1"), rc);
 
         SearchResult hit1 = kbHit("c1", "k1", 0.9, "doc one");
@@ -334,7 +334,7 @@ class MessageServiceVectorSearchTest {
     @Test
     void rerankCallFailureFallsBackToOriginalKbHits() {
         ObjectNode rc = MAPPER.createObjectNode();
-        rc.put("rerank_model_id", "rr-1");
+        rc.put("rerankModelId", "rr-1");
         tenantWith(chatHistoryConfig(true, "emb-1", "kb-chat-1"), rc);
 
         when(hybridSearchService.hybridSearch(eq("kb-chat-1"), any(SearchParams.class)))

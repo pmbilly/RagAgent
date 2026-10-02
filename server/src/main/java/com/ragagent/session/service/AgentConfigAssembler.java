@@ -37,33 +37,33 @@ final class AgentConfigAssembler {
     QaAgentConfig buildAgentConfig(QaSupport.QaRequest req, long agentTenantId) {
         ObjectNode c = AgentConfigJson.ensureDefaults(req.agentConfig);
         QaAgentConfig ac = new QaAgentConfig();
-        ac.setMaxIterations(c.path("max_iterations").asInt(0));
+        ac.setMaxIterations(c.path("maxIterations").asInt(0));
         // Go 零值 = 未配置；RemoteApiChat 对 temperature==0 不出键（openai-go omitempty
         // 同形）。内建 agent 的 0.7 来自 agent_type_presets.yaml 显式配置，不靠此缺省。
         ac.setTemperature(c.path("temperature").asDouble(0.0));
-        ac.setWebSearchEnabled(c.path("web_search_enabled").asBoolean(false) && req.webSearchEnabled);
-        ac.setWebSearchMaxResults(c.path("web_search_max_results").asInt(0));
-        ac.setWebSearchProviderId(c.path("web_search_provider_id").asText(""));
-        ac.setMultiTurnEnabled(c.path("multi_turn_enabled").asBoolean(true));
-        ac.setHistoryTurns(c.path("history_turns").asInt(0));
-        ac.setMemoryEnabled(c.path("memory_enabled").asBoolean(false));
-        ac.setMcpSelectionMode(c.path("mcp_selection_mode").asText(""));
+        ac.setWebSearchEnabled(c.path("webSearchEnabled").asBoolean(false) && req.webSearchEnabled);
+        ac.setWebSearchMaxResults(c.path("webSearchMaxResults").asInt(0));
+        ac.setWebSearchProviderId(c.path("webSearchProviderId").asText(""));
+        ac.setMultiTurnEnabled(c.path("multiTurnEnabled").asBoolean(true));
+        ac.setHistoryTurns(c.path("historyTurns").asInt(0));
+        ac.setMemoryEnabled(c.path("memoryEnabled").asBoolean(false));
+        ac.setMcpSelectionMode(c.path("mcpSelectionMode").asText(""));
         // Go session_agent_qa.go L309：MCPServices 直取 agent config 的 mcp_services
         // （mode=selected 时按 ID 列表注册；mode=all 由注册处列全租户）
-        ac.setMcpServices(stringListOf(c.get("mcp_services")));
-        ac.setMcpAuthWaitTimeout(c.path("mcp_auth_wait_timeout").asInt(0));
+        ac.setMcpServices(stringListOf(c.get("mcpServices")));
+        ac.setMcpAuthWaitTimeout(c.path("mcpAuthWaitTimeout").asInt(0));
         JsonNode thinking = c.get("thinking");
         ac.setThinking(thinking != null && thinking.isBoolean() ? thinking.asBoolean() : null);
-        ac.setCitationEnabled(c.path("citation_enabled").asBoolean(true));
-        ac.setRetrieveKbOnlyWhenMentioned(c.path("retrieve_kb_only_when_mentioned").asBoolean(false));
-        ac.setLlmCallTimeout(c.path("llm_call_timeout").asInt(0));
-        ac.setMaxCompletionTokens(c.path("max_completion_tokens").asInt(0));
-        ac.setRetainRetrievalHistory(c.path("retain_retrieval_history").asBoolean(false));
+        ac.setCitationEnabled(c.path("citationEnabled").asBoolean(true));
+        ac.setRetrieveKbOnlyWhenMentioned(c.path("retrieveKbOnlyWhenMentioned").asBoolean(false));
+        ac.setLlmCallTimeout(c.path("llmCallTimeout").asInt(0));
+        ac.setMaxCompletionTokens(c.path("maxCompletionTokens").asInt(0));
+        ac.setRetainRetrievalHistory(c.path("retainRetrievalHistory").asBoolean(false));
         ac.setSharedAgentReadOnly(req.sharedAgentReadOnly);
 
         // skills 配置（configureSkillsFromAgent，Go L616-647）；指令型数据源 =
         // 宿主技能目录（选项 B），不再有沙箱镜像技能集
-        String skillsMode = c.path("skills_selection_mode").asText("");
+        String skillsMode = c.path("skillsSelectionMode").asText("");
         switch (skillsMode) {
             case "all" -> {
                 ac.setSkillsEnabled(true);
@@ -71,7 +71,7 @@ final class AgentConfigAssembler {
                 log.info("SkillsSelectionMode=all: using installed sandbox skills");
             }
             case "selected" -> {
-                List<String> selected = stringListOf(c.get("selected_skills"));
+                List<String> selected = stringListOf(c.get("selectedSkills"));
                 if (!selected.isEmpty()) {
                     ac.setSkillsEnabled(true);
                     ac.setAllowedSkills(selected);
@@ -101,14 +101,14 @@ final class AgentConfigAssembler {
         ac.setKnowledgeIds(kb.knowledgeIds());
 
         // Allowed tools
-        List<String> allowed = stringListOf(c.get("allowed_tools"));
+        List<String> allowed = stringListOf(c.get("allowedTools"));
         ac.setAllowedTools(allowed.isEmpty()
                 ? new ArrayList<>(com.ragagent.agent.tools.ToolDefinitions.defaultAllowedTools())
                 : allowed);
 
         // Per-request skill/MCP scope（Go L364-366）
         applyPerRequestSkillScope(ac, skillsMode, req.skillNames);
-        applyPerRequestMcpScope(ac, stringListOf(c.get("mcp_services")),
+        applyPerRequestMcpScope(ac, stringListOf(c.get("mcpServices")),
                 req.sharedAgentReadOnly, req.mcpServiceIds);
 
         // Custom system prompt（Go L369-372）
@@ -145,11 +145,11 @@ final class AgentConfigAssembler {
     private record Prompts(String system, String context) {}
     private Prompts resolveAgentPrompts(QaSupport.QaRequest req) {
         ObjectNode c = req.agentConfig;
-        String system = c.path("system_prompt").asText("");
-        String context = c.path("context_template").asText("");
+        String system = c.path("systemPrompt").asText("");
+        String context = c.path("contextTemplate").asText("");
         boolean agentMode = SessionKnowledgeQaService.isAgentMode(c);
         if (system.isEmpty()) {
-            String id = c.path("system_prompt_id").asText("");
+            String id = c.path("systemPromptId").asText("");
             if (!id.isEmpty()) {
                 String resolved = templateContentByIdAndFile(id,
                         agentMode ? "agent_system_prompt.yaml" : "system_prompt.yaml");
@@ -159,7 +159,7 @@ final class AgentConfigAssembler {
             }
         }
         if (context.isEmpty()) {
-            String id = c.path("context_template_id").asText("");
+            String id = c.path("contextTemplateId").asText("");
             if (!id.isEmpty()) {
                 String resolved = templateContentByIdAndFile(id, "context_template.yaml");
                 if (resolved != null) {
@@ -278,7 +278,7 @@ final class AgentConfigAssembler {
     /** agentRequiresRerankModel（org 包 AgentShareService L368 同源；agent/tools 的判定）。 */
     static boolean agentRequiresRerankModel(ObjectNode c) {
         List<String> allowed = new ArrayList<>();
-        JsonNode arr = c.get("allowed_tools");
+        JsonNode arr = c.get("allowedTools");
         if (arr != null && arr.isArray()) {
             arr.forEach(n -> allowed.add(n.asText()));
         }

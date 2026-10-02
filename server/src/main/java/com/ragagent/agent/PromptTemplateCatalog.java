@@ -175,15 +175,15 @@ public final class PromptTemplateCatalog {
      */
     public static ObjectNode toJson(Config cfg, String locale) {
         ObjectNode data = MAPPER.createObjectNode();
-        putAlways(data, "system_prompt", localize(cfg.systemPrompt(), locale));
-        putAlways(data, "context_template", localize(cfg.contextTemplate(), locale));
+        putAlways(data, "systemPrompt", localize(cfg.systemPrompt(), locale));
+        putAlways(data, "contextTemplate", localize(cfg.contextTemplate(), locale));
         putAlways(data, "rewrite", localize(cfg.rewrite(), locale));
         putAlways(data, "fallback", localize(cfg.fallback(), locale));
         putOmitEmpty(data, "generate_session_title", cfg.generateSessionTitle());
         putOmitEmpty(data, "generate_summary", cfg.generateSummary());
         putOmitEmpty(data, "keywords_extraction", cfg.keywordsExtraction());
         putOmitEmpty(data, "agent_system_prompt", localize(cfg.agentSystemPrompt(), locale));
-        putOmitEmpty(data, "intent_prompts", localize(cfg.intentPrompts(), locale));
+        putOmitEmpty(data, "intentPrompts", localize(cfg.intentPrompts(), locale));
         return data;
     }
 

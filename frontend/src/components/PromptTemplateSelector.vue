@@ -130,10 +130,10 @@ const templates = computed<PromptTemplate[]>(() => {
   let list: PromptTemplate[] = [];
   switch (props.type) {
     case 'systemPrompt':
-      list = templatesConfig.value.system_prompt || [];
+      list = templatesConfig.value.systemPrompt || [];
       break;
     case 'contextTemplate':
-      list = templatesConfig.value.context_template || [];
+      list = templatesConfig.value.contextTemplate || [];
       break;
     case 'rewrite':
       list = templatesConfig.value.rewrite || [];
@@ -151,7 +151,7 @@ const templates = computed<PromptTemplate[]>(() => {
       list = templatesConfig.value.agent_system_prompt || [];
       break;
     case 'intentPrompt':
-      list = templatesConfig.value.intent_prompts || [];
+      list = templatesConfig.value.intentPrompts || [];
       break;
     default:
       list = [];

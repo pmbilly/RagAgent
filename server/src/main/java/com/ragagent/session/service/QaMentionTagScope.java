@@ -48,7 +48,7 @@ final class QaMentionTagScope {
                         req.session.getTenantId(), req.tagScopes);
             }
         } else if (req.agentConfig != null
-                && req.agentConfig.path("retrieve_kb_only_when_mentioned").asBoolean(false)) {
+                && req.agentConfig.path("retrieveKbOnlyWhenMentioned").asBoolean(false)) {
             kbIds = new ArrayList<>();
             knowledgeIds = new ArrayList<>();
             log.info("RetrieveKBOnlyWhenMentioned is enabled and no @ mention found, "

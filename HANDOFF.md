@@ -2784,7 +2784,8 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B14 存储读侧投影合并** | 引擎面 env 回落行 vs 落库面类型化记录（两套词汇） | P2 | 中 | ✅ **完成（2026-10-02）**——合并为「一面一源」（落库面 camel、引擎面由唯一次名器派生）+ 修掉两个同源静默 bug（① 非 minio 行凭据被丢；② 环境供给行读回来为空），含红态证明、消费者层断言与真机验证；另登记供给器明文落库（未修）。详见 15.1.1 |
 | **B15 供给行明文落库** | 供给器绕过加密直写 jsonb | P2 | 小 | ✅ **完成（2026-10-02）**——抽出唯一读写口 `StorageConfigCodec`（存储服务与供给器共用），真机 A/B 证明凭据由明文转为 `enc:v1:`；全量绿。详见 15.1.1 |
 | **B16 静默失效定向扫描** | 枚举「静默丢数据」机制点并逐对核写读词汇 | P1 | 中 | ✅ **完成（2026-10-02）**——未发现新缺陷（负面结果如实记录）；产出两个此前不存在的守卫（EPP 运行时守卫 + 契约面键名防回流守卫，均含红态证明）；附带盘出 B17 换锚欠账清单。详见 15.1.1 |
-| **B17 换锚收尾** | 残余逐字段 `@JsonProperty`（我方 ≈57）按「零风险 / 动形状 / 冻结」判定后分批清 | P2 | 小~中 | ✅ **完成（2026-10-02）**——判定批（三类 + 承重注解判据）+ 安全子集 6 处 + **websearch 请求键 camel 收口**（真机 A/B 实证）；**agent 配置面经专项试做后判定不做**（后端已全绿但前端 42 文件/850 处横跨多面、实测中止，分支已删）。详见 15.1.1 |
+| **B17 换锚收尾** | 残余逐字段 `@JsonProperty`（我方 ≈57）按「零风险 / 动形状 / 冻结」判定后分批清 | P2 | 小~中 | ✅ **完成（2026-10-02）**——判定批（三类 + 承重注解判据）+ 安全子集 6 处 + **websearch 请求键 camel 收口**（真机 A/B 实证）；其中 **agent 配置面**原判「不做」，后经用户决定由 **B18** 完成（见下一行）。详见 15.1.1 |
+| **B18 agent 配置面换锚** | 见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3070,10 +3071,22 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 **🔎 B17① agent 配置面：判定「暂不做」（建议，待用户拍板）**
 - 盘面：≈60 个 snake 键 × 面——`AgentConfig` 12 / `AgentConfigJson` 默认值 ≈60 / `BuiltinAgentRegistry.CONFIG_KEYS` ≈60 / `AgentConfigAssembler` ≈20 个读取点 / 内置定义文件 / `custom_agents.config` jsonb / `ag-*.json` 夹具 / 前端 `api/agent/index.ts` 类型；引用量级实测：主代码 **625**、测试 **2150**、前端 **298** 处（含同名词干扰）。
 - **判定理由**：① **不是缺陷**——读写两端一致（前端类型也是 snake）；② 收益纯风格（§2 第 11 条的一致性）；③ 代价大（≈60 键 × 4~5 面 + 用户数据迁移 + 夹具重录 + 前端）；④ **风险正是本会话一路在消的那一类**——迁移中任何漏改的 `path("snake")` 都会**静默回落默认值**（不报错）；⑤ 契约测试只覆盖 API 面，运行时读取面覆盖不全。
-- **结论（2026-10-02 定案：不做）**：**登记为「有意保留」**（同 B4/B11 的处理）。⚠️ 期间用户要求"专项做掉"，实际动手后**按实证中止**：
-  - 后端部分**已全部完成且全量绿**（main 330 处 + 补充 11 处 + 内置定义 120 处，`AgentConfig` 14 处注解删除，夹具/测试 1933+133 处，4711 用例绿）——产出保存在临时分支 `feat/agent-config-camel`（`32d4fae`+`3dd1234`），**随后按用户决定删除该分支**，成果未合入。
+- **结论（2026-10-02 修订）**：原判定「不做」（同 B4/B11），**其后用户决定继续推进，已由 B18 完成**：后端 + 前端（按面判定）+ 落库迁移 V3 + 真机冒烟，后端 4711 / 前端 690 用例全绿。以下保留原判定的实证记录，作为「爆炸半径」的方法论归档：
+  - （原）后端部分**曾完成且全量绿**（main 330 处 + 补充 11 处 + 内置定义 120 处，`AgentConfig` 14 处注解删除，夹具/测试 1933+133 处，4711 用例绿）——产出保存在临时分支 `feat/agent-config-camel`（`32d4fae`+`3dd1234`），**随后按用户决定删除该分支**，成果未合入。
   - **中止理由（实证，非推测）**：前端纠缠度远超键面清单——同批键名在 `frontend/src` 命中 **42 文件 / 850 处**，其中约 20 个确属 agent 面，但**另有一大批属别的面**（租户检索设置 `api/retrieval.ts`、系统提示词模板 `api/system/index.ts`、公共组件 `Input-field.vue`、新建对话 `creatChat.vue`、`utils/tool-capabilities.ts`、`stores/settings.ts`、模型选择器用例 …），**必须逐文件判定、不能批量改**；9 文件试改 644 处后即出现类型报错与散点 ⇒ 硬推会把"静默回落默认值"的风险带进前端。
   - **方法论沉淀**：*重命名/换锚类专项的"键面清单"会系统性低估纠缠度——同名键横跨多个面（前端尤甚），必须先按面判定、再动手；且判定"不做"与"做"都要以实测半径为准，而不是键数量。*
+
+**✅ B18 agent 配置面 camel 换锚（专项，2026-10-02 完成）**——§2 第 11 条"落库格式走 Java 字段名"的最后一块大口子。⚠️ 本批一度按用户决定中止（见 main 上的定案提交），随后用户决定继续推进，最终**完成交付**。
+- **后端**（23 文件）：main 330 处键字面量（agentm/session/im）+ 补充 11 处（agent/PromptTemplateCatalog、agent/AgentEngine 的配置读取、im/ImQaRequests、session/SessionAgentQaService）+ 内置定义 120 处（`builtin_agents.yaml`/`agent_type_presets.yaml`）；`AgentConfig` 按 B17 判据删除 14 处逐字段注解（private 字段有访问器 ⇒ 安全）。
+- **边界（逐条判定后不动）**：租户配置 jsonb、事件载荷、LLM 载荷、检索参数、langfuse、**chat span 元数据**（`AgentEngine`/`ReActIteration`/chatpipeline 的 spanMap——曾误改，已回退）、SQL 表名/列名、**提示词占位符名**（`AgentPromptPlaceholders`，非 JSON 键）、`MessageJsonContractTest` 的负向断言（已回退）。
+- **前端**（20 文件 / 761 处，按面判定）：`views/agent/AgentEditorModal.vue`（466）、`api/agent/index.ts`（65）、`utils/agentPromptTemplates.ts`+测试、`AgentList.vue`、`components/Input-field.vue`、`AgentSelector.vue`、`agent-readiness.ts`、`agentWebSearch.ts`、`PromptTemplateSelector.vue`、`api/system/index.ts`（提示词模板面）、`creatChat.vue`、`AgentEmbedChannelPanel.vue`、`stores/settings.ts`、两个 model-selector 测试、三个 `.mjs` 测试。
+  **不改的别面**：租户检索/模型/系统设置、对话历史、工具结果载荷（`SearchResults.vue` 等）、能力名（`manage_mcp_services` 等**子串误伤已用词边界避开**）、localStorage 键名（`weknora_knowledge_bases` 等）。
+- **落库迁移**：新增 `migrations/versioned/V3__agent_config_keys_camel.sql`（沿用 V2 范式：递归 camelize + 幂等 + 回滚说明）。实测扫描 dev 库**全部 jsonb 列**：仅 `custom_agents.config` 有存量（2 行 → 迁移后 camel，残留 snake 检查 0）；sessions/messages 等短名单列命中 0。
+- **真机冒烟**：建 agent（camel 配置）→ 回读 `config` 全 camel（`agentMode`/`kbSelectionMode`/`questionSuggestions`…）✓；`GET /api/v1/agents/{id}/suggested-questions` 返回 curated 两条 ✓（读的正是迁移过的 `questionSuggestions`）；探针 agent 已删。
+- **闸门**：后端 **4711 用例绿 + spotlessCheck 绿**；前端 `vue-tsc` 0 错 + **690 用例绿**。
+- **方法论沉淀（写进记忆）**：换锚/重命名类专项的"键面清单"会系统性低估纠缠度——**必须先按面判定、用词边界正则防子串误伤、并在分支上试改探半径**；判"做/不做"以实测半径为准。
+
+
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
