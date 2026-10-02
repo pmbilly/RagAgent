@@ -89,9 +89,17 @@ class InProcessWikiIngestTaskQueueTest {
     }
 
     private void buildQueue(WikiIngestTaskHandler taskHandler, TaskDeadLetterRepository deadLetters) {
+        buildQueue(taskHandler, deadLetters, null);
+    }
+
+    private void buildQueue(WikiIngestTaskHandler taskHandler, TaskDeadLetterRepository deadLetters,
+                            WikiIngestService ingestService) {
         queue = new InProcessWikiIngestTaskQueue(
                 taskHandler == null ? emptyProvider() : providerOf(taskHandler),
-                deadLetters == null ? emptyProvider() : providerOf(deadLetters));
+                deadLetters == null ? emptyProvider() : providerOf(deadLetters),
+                ingestService == null
+                        ? providerOf(Mockito.mock(WikiIngestService.class))
+                        : providerOf(ingestService));
     }
 
     private static WikiIngestTask ingest(String kbId, Duration delay, int maxRetry, String taskId) {
@@ -207,6 +215,47 @@ class InProcessWikiIngestTaskQueueTest {
         assertThat(archived.getTenantId()).isEqualTo(7L);
         assertThat(archived.getFailCount()).isEqualTo(2);
         assertThat(archived.getLastError()).contains("boom");
+    }
+
+    @Test
+    @DisplayName("任务级死信时释放该 KB 在途 op 的 finalizing 槽位（B12）")
+    void releasesSubtaskSlotsOnArchive() throws Exception {
+        handler = new RecordingHandler();
+        CountDownLatch done = new CountDownLatch(1);
+        handler.callLatch = done;
+        handler.failuresRemaining.set(1); // maxRetry=0 → 第一次失败即终态
+        TaskDeadLetterRepository deadLetters = Mockito.mock(TaskDeadLetterRepository.class);
+        WikiIngestService ingestService = Mockito.mock(WikiIngestService.class);
+        buildQueue(handler, deadLetters, ingestService);
+        queue.setRetryDelayOverrideSeconds(0L);
+
+        // 带 TaskID：否则 activeTaskIdCount 恒为 0，等待循环会立即退出、提前断言（首版实测假绿）
+        queue.enqueue(ingest("kb-slots", Duration.ZERO, 0, "wiki-ingest-kb-slots"));
+
+        assertThat(done.await(5, TimeUnit.SECONDS)).isTrue();
+        // 死信写档 + 槽位收尾都发生在终态路径上；用超时断言而不是手写等待循环
+        Mockito.verify(deadLetters, Mockito.timeout(5000)).insert(Mockito.any(TaskDeadLetter.class));
+        Mockito.verify(ingestService, Mockito.timeout(5000)).releaseSlotsForAbandonedTask("kb-slots");
+    }
+
+    @Test
+    @DisplayName("finalize 类任务不进槽位收尾（只对 ingest 任务）")
+    void doesNotReleaseSlotsForFinalizeTask() throws Exception {
+        handler = new RecordingHandler();
+        CountDownLatch done = new CountDownLatch(1);
+        handler.callLatch = done;
+        handler.failuresRemaining.set(1);
+        WikiIngestService ingestService = Mockito.mock(WikiIngestService.class);
+        buildQueue(handler, Mockito.mock(TaskDeadLetterRepository.class), ingestService);
+        queue.setRetryDelayOverrideSeconds(0L);
+
+        queue.enqueue(new WikiIngestTask(
+                WikiIngestTask.TYPE_WIKI_FINALIZE,
+                "{\"tenantId\":7,\"knowledgeBaseId\":\"kb-fin\",\"language\":\"en-US\"}",
+                Duration.ZERO, 0, Duration.ofMinutes(60), "wiki-finalize-kb-fin"));
+
+        assertThat(done.await(5, TimeUnit.SECONDS)).isTrue();
+        Mockito.verify(ingestService, Mockito.never()).releaseSlotsForAbandonedTask(Mockito.anyString());
     }
 
     @Test

@@ -224,7 +224,7 @@ class MemoryTextTest {
      */
     @Test
     void sanitizeMemoryContentDropsControlCharacters() {
-        assertThat(MemoryText.sanitizeMemoryContent("a bc")).isEqualTo("abc");
+        assertThat(MemoryText.sanitizeMemoryContent("a\0bc")).isEqualTo("abc");
     }
 
     /**

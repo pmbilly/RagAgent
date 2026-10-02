@@ -1,11 +1,13 @@
 package com.ragagent.wiki.mapper;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.ragagent.wiki.domain.TaskPendingOp;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
@@ -57,4 +59,13 @@ public interface TaskPendingOpMapper extends BaseMapper<TaskPendingOp> {
     int claimByIds(@Param("ids") java.util.List<Long> ids,
                    @Param("now") OffsetDateTime now,
                    @Param("staleBefore") OffsetDateTime staleBefore);
+    /**
+     * 有在途（未结算）ingest op 的 KB 列表——供启动期孤儿任务重放用（B12）。
+     *
+     * <p>只取 {@code scope_id} 单列：单实例下 KB id 全局唯一，租户由该 KB 的任一行
+     * 反查（{@code peekBatch} 取一条即可），避免多列结果集的列名大小写差异（H2 与 PG 不同）。</p>
+     */
+    @Select("SELECT DISTINCT scope_id FROM task_pending_ops "
+            + "WHERE task_type = #{taskType} AND op = 'ingest'")
+    List<String> distinctIngestScopeIds(@Param("taskType") String taskType);
 }

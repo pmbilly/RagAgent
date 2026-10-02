@@ -76,6 +76,12 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
     private final ObjectProvider<com.ragagent.wiki.mapper.TaskDeadLetterRepository> deadLetterProvider;
 
     /**
+     * 任务级死信后的槽位收尾入口（B12）。用 {@code ObjectProvider} 懒取：
+     * {@code WikiIngestService} 反向持有本队列的 provider，硬注入会成为构造环。
+     */
+    private final ObjectProvider<WikiIngestService> ingestServiceProvider;
+
+    /**
      * 测试钩子：覆盖重试延迟（秒）。{@code null} = 用 {@link #retryDelaySeconds} 的默认公式。
      *
      * <p>存在的理由很实际：默认退避是 {@code n^4 + 15 + rand(30)*(n+1)} 秒，
@@ -91,9 +97,11 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
 
     public InProcessWikiIngestTaskQueue(
             ObjectProvider<WikiIngestTaskHandler> handlerProvider,
-            ObjectProvider<com.ragagent.wiki.mapper.TaskDeadLetterRepository> deadLetterProvider) {
+            ObjectProvider<com.ragagent.wiki.mapper.TaskDeadLetterRepository> deadLetterProvider,
+            ObjectProvider<WikiIngestService> ingestServiceProvider) {
         this.handlerProvider = handlerProvider;
         this.deadLetterProvider = deadLetterProvider;
+        this.ingestServiceProvider = ingestServiceProvider;
     }
 
     @Override
@@ -234,6 +242,9 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
     }
 
     private void archive(WikiIngestTask task, Throwable failure, int attempt) {
+        // 先释放槽位再归档：任务级的终态失败意味着该 KB 的 op 没人结算了，
+        // 不释放的话对应文档会一直停在「优化中」（B12；op 保留，等下次触发重跑）。
+        releaseAbandonedSubtaskSlots(task);
         com.ragagent.wiki.mapper.TaskDeadLetterRepository repo = deadLetterProvider.getIfAvailable();
         if (repo == null) {
             return;
@@ -253,6 +264,24 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
         } catch (Exception e) {
             // 尽力而为：归档失败不得掩盖底层任务错误
             log.warn("wiki task queue: failed to archive {} to dead letters", task.type(), e);
+        }
+    }
+
+    /** 任务进死信时，释放该 KB 在途 op 对应文档的 finalizing 槽位（只对 ingest 任务）。 */
+    private void releaseAbandonedSubtaskSlots(WikiIngestTask task) {
+        if (!WikiIngestTask.TYPE_WIKI_INGEST.equals(task.type())) {
+            return;
+        }
+        WikiIngestService service = ingestServiceProvider.getIfAvailable();
+        if (service == null) {
+            return;   // 未接线（测试/裁剪装配）
+        }
+        try {
+            WikiIngestPayload payload = parsePayload(task);
+            service.releaseSlotsForAbandonedTask(payload.knowledgeBaseId());
+        } catch (RuntimeException e) {
+            // 尽力而为：收尾失败不得掩盖底层任务错误
+            log.warn("wiki task queue: release abandoned subtask slots failed", e);
         }
     }
 

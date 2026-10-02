@@ -346,6 +346,11 @@ public class WikiIngestService implements WikiIngestPort {
         return enqueueOps.newWikiIngestPendingOp(tenantId, kbId, knowledgeId);
     }
 
+    /** 队列侧任务级重试耗尽后的槽位收尾（B12）——见 {@code WikiIngestSettleOps#releaseSlotsForAbandonedTask}。 */
+    public void releaseSlotsForAbandonedTask(String kbId) {
+        settleOps.releaseSlotsForAbandonedTask(kbId);
+    }
+
     public void enqueueWikiIngestTrigger(long tenantId, String kbId) {
         enqueueOps.enqueueWikiIngestTrigger(tenantId, kbId);
     }

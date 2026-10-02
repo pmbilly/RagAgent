@@ -167,6 +167,36 @@ class ArchitectureRulesTest {
                 .check(MAIN);
     }
 
+    // ── R5 源码不得含裸 NUL 字节 ────────────────────────────────────────────
+
+    @Test
+    @DisplayName("R5：源文件不得含裸 NUL 字节（会让 grep/ripgrep 判为二进制并静默跳过该文件）")
+    void noRawNulBytesInSources() throws java.io.IOException {
+        java.util.List<String> offenders = new java.util.ArrayList<>();
+        for (java.nio.file.Path root : java.util.List.of(
+                java.nio.file.Path.of("src/main/java"), java.nio.file.Path.of("src/test/java"))) {
+            if (!java.nio.file.Files.isDirectory(root)) {
+                continue;
+            }
+            try (java.util.stream.Stream<java.nio.file.Path> walk = java.nio.file.Files.walk(root)) {
+                for (java.nio.file.Path file : walk.filter(java.nio.file.Files::isRegularFile)
+                        .filter(f -> f.toString().endsWith(".java")).toList()) {
+                    byte[] raw = java.nio.file.Files.readAllBytes(file);
+                    for (byte b : raw) {
+                        if (b == 0) {
+                            offenders.add(file.toString());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        assertThat(offenders)
+                .as("裸 NUL（常见于把 \\0 哨兵直接写成字节）会让文本工具跳过整个文件，"
+                        + "审计因此静默漏文件；改写为 Java 的 \\0 八进制转义即可（B12 实测）")
+                .isEmpty();
+    }
+
     private static boolean isWiringPackage(String packageName) {
         return "com.ragagent.config".equals(packageName) || packageName.endsWith(".config");
     }

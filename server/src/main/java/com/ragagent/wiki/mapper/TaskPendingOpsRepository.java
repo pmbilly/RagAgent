@@ -176,6 +176,15 @@ public class TaskPendingOpsRepository {
      * 按 id ASC（队列内 FIFO）。<b>行不会被移除</b>——消费方处理完必须
      * 显式删除（或加 fail_count 后留着给下一轮）。
      */
+    /**
+     * 有在途 ingest op 的 KB 列表（B12：启动期孤儿任务重放用）。
+     *
+     * <p>只返回 scope_id 单列；租户由该 KB 的任一行反查（见重放器）。</p>
+     */
+    public List<String> distinctIngestScopeIds(String taskType) {
+        return mapper.distinctIngestScopeIds(taskType);
+    }
+
     public List<TaskPendingOp> peekBatch(String taskType, String scope, String scopeId, int limit) {
         if (limit <= 0) {
             // 原实现的 SQL 里 LIMIT n 在 n<=0 时是"无限制"；Java 侧显式挡掉，
@@ -249,7 +258,7 @@ public class TaskPendingOpsRepository {
         for (TaskPendingOp row : eligible) {
             String key = row.getDedupKey();
             if (key == null || key.isEmpty()) {
-                key = " row " + row.getId();
+                key = "\0row\0" + row.getId();
             } else if (blockedKeys.contains(key)) {
                 continue;
             }

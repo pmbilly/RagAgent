@@ -24,6 +24,40 @@ final class WikiIngestSettleOps {
     }
 
     /**
+     * 队列侧<b>任务级</b>重试耗尽（整个批次反复失败、最后进死信）后的槽位收尾（B12）。
+     *
+     * <p>{@code requeueFailedOps} 已覆盖「批内失败预算耗尽」这条终态路径；但任务可能在
+     * <b>根本没跑到结算</b>的情况下死掉（处理器未接线、载荷损坏、批次入口反复抛错），
+     * 此时 op 仍留在 {@code task_pending_ops} 里，而它们对应的文档已经 +1 播种过 finalizing
+     * ——没人排空就永远停在「优化中」。op 刻意<b>不删</b>：留待下一次触发的批次正常处理
+     * （wiki 内容不丢），这里只释放槽位让文档不悬着。</p>
+     */
+    void releaseSlotsForAbandonedTask(String kbId) {
+        if (kbId == null || kbId.isEmpty()) {
+            return;
+        }
+        WikiIngestService.PendingBatch batch;
+        try {
+            // 复用消费面的解码（rows → WikiPendingOp：含 payload 解析与 last-write-wins 去重），
+            // 而不是直接读 domain 行——域行里没有 knowledgeId/isIngest 这些语义字段
+            batch = service.queueOps.peekPendingList(kbId, WikiIngestConstants.MAX_DOCS_PER_BATCH);
+        } catch (RuntimeException e) {
+            log.warn("wiki ingest: list pending ops for abandoned batch {} failed: {}", kbId, e.getMessage());
+            return;
+        }
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        for (WikiPendingOp op : batch.ops()) {
+            if (op.isIngest() && seen.add(op.getKnowledgeId())) {
+                finalizeWikiSubtask(op.getKnowledgeId());
+            }
+        }
+        if (!seen.isEmpty()) {
+            log.info("wiki ingest: released finalizing slots for {} doc(s) of abandoned batch (KB {})",
+                    seen.size(), kbId);
+        }
+    }
+
+    /**
      * 该文档的 wiki op 到达终态
      * （成功映射或已进死信）时，释放它在 finalizing 计数里的槽位。
      *
