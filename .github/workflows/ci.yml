@@ -27,6 +27,8 @@ jobs:
         run: python3 scripts/check-go-anchors.py
       - name: 前端契约键棘轮（前端 snake / 后端 camel 只许减不许增）
         run: python3 scripts/check-fe-contract-keys.py
+      - name: 换锚棘轮（非冻结面不许新增 snake JSON 键；基线含逐条理由）
+        run: python3 scripts/check-json-key-case.py --strict
 
   backend:
     name: 后端 build + test + spotless

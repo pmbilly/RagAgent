@@ -3207,6 +3207,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **本批零生产代码改动**（仅工具与文档）⇒ 未跑测试。
 
 **🔧 B29 订正（2026-10-02）**：B29 的 BASELINE 插入代码多写了一个提前闭合字典的 `}`，脚本出现 `IndentationError`；而当时的"待判 66 → 0"是**用坏脚本 grep 出来的假象**（报错输出里自然数不到"新增"）。已修复：① 去掉多余大括号；② 整块重写 BASELINE（**68 文件 / 328 键，逐条带理由注释**），把漏登的 9 个文件按其**已判族**补齐（`KnowledgeFileService` 的列名、`McpUsageInstructionsOps` 的模板变量、`session/controller/*` 的 SSE/消息与附件载荷、`session/mapper/*` 的列名、`WikiIngestMapPhase` 的内部 jsonb）。**以可用脚本重验**：默认模式 `✓ 无新增`、`--strict` 退出码 **0** ⇒「待判清零」这次是真的。
+**棘轮已接进 CI**（`.github/workflows/ci.yml` 的 guards 作业，与 go 锚点/前端契约键并列）——今后非冻结面出现**新的** snake JSON 键会直接红；基线 68 文件 / 328 键逐条带理由。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
