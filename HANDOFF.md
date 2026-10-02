@@ -2784,6 +2784,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B14 存储读侧投影合并** | 引擎面 env 回落行 vs 落库面类型化记录（两套词汇） | P2 | 中 | ✅ **完成（2026-10-02）**——合并为「一面一源」（落库面 camel、引擎面由唯一次名器派生）+ 修掉两个同源静默 bug（① 非 minio 行凭据被丢；② 环境供给行读回来为空），含红态证明、消费者层断言与真机验证；另登记供给器明文落库（未修）。详见 15.1.1 |
 | **B15 供给行明文落库** | 供给器绕过加密直写 jsonb | P2 | 小 | ✅ **完成（2026-10-02）**——抽出唯一读写口 `StorageConfigCodec`（存储服务与供给器共用），真机 A/B 证明凭据由明文转为 `enc:v1:`；全量绿。详见 15.1.1 |
 | **B16 静默失效定向扫描** | 枚举「静默丢数据」机制点并逐对核写读词汇 | P1 | 中 | ✅ **完成（2026-10-02）**——未发现新缺陷（负面结果如实记录）；产出两个此前不存在的守卫（EPP 运行时守卫 + 契约面键名防回流守卫，均含红态证明）；附带盘出 B17 换锚欠账清单。详见 15.1.1 |
+| **B17 换锚收尾** | 残余逐字段 `@JsonProperty`（我方 ≈57）按「零风险 / 动形状 / 冻结」判定后分批清 | P2 | 小~中 | 🚧 **判定批完成（2026-10-02）**——三类判定已落；关键发现：键名＝字段名的注解里**有承重的**（包级可见字段靠它才被 Jackson 绑定，实测删除致 9 条契约测试失败，已回退）；主体＝`AgentConfig` 12 snake + `is_default` 等。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3046,6 +3047,14 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **扫描附带盘出的欠账（→ B17 换锚收尾）**：`AgentConfig` 14（最大单点：落库 jsonb 逐字段 snake）、websearch controller 7（含 `is_default`）、wiki page 面 ≈15、auth controller ≈6、session 2、common 13、`datasource/domain`（`SyncCursor`/`SyncResult`/`DataSourceSyncPayload`/`DataSourceConfig` 的本地 mapper）等。
 - **另登记（小，未做）**：① `WebSearchTempKbStateService.migrateLegacyKeys` 是「仅部署窗口用」的旧键迁移 shim，按 §2 第 2 条（产品未上线、无数据连续性负担）**可删**；② 约 50 处**自建**宽松 mapper 未接 §2 第 12 条的 `JsonMappers.lenient()` 工厂（约定债，机械可清，宜配 ArchUnit 规则）。
 - 闸门：`spotlessCheck` 绿 + 全量测试绿（含两个新守卫）。
+
+**🚧 B17 换锚收尾·判定批（2026-10-02）**——把「残余 @JsonProperty」逐条判定为三类，本批**无代码变更**（实验性删除已回退，全量复绿）。
+- **口径修正**：此前「残余 98 处」混入了类级 `@JsonPropertyOrder`；**逐字段**精确计数 = **914**（冻结面 ≈848 + 我方面 ≈57）。我方面里：键名＝字段名 **31**、键名≠字段名 **26**。
+- **一类：键名＝字段名（看似零风险）——踩到一个承重例外（血泪）**：实测删掉 11 处（websearch 控制器 5 / websearch 响应 1 / auth 三文件 5）→ **9 条契约测试失败**（`Key: 'createTenantRequest.Name' … required`）。根因：**这些请求 DTO 的字段是包级可见（无修饰符），Jackson 默认不识别非公开字段——是 `@JsonProperty` 强制其可见才绑上的**，注解**承重**（承载可见性，不只是键名）。
+  **判据（写进方法库）**：删「键名＝字段名」的 `@JsonProperty` 前，先查字段可见性——`public`／有访问器／record 组件 ⇒ 可删；否则删了会**静默丢绑定**。且注意闸门表现：报错出现在**下游校验**（"某字段必填"），不是绑定异常——比直接报错更隐蔽。要清这类需先给可见性（改 record 或加访问器），属独立小批，**本批不做**。
+- **二类：键名≠字段名（会动线上形状，B17 主体）**：`AgentConfig` 12（snake → camel 的最大单点，落库 jsonb，按 §2 第 11 条 + §2 第 2 条走 dev 库迁移 SQL，参照 model 域先例）、`websearch` 的 `is_default` 1（另须按 §2 第 4 条顺带把布尔字段去 `is` 前缀）、`AuthSessionOps` 等零星项。
+- **三类：冻结面（不做）**：`MemoryExtractionLlm` 10 / `NewSlugFromCitation` 7 / `MemoryExtractPayload` 9（LLM 载荷）等。
+- **附带**：`@JsonProperty` 与 `@JsonPropertyOrder` 混算过是本次口径错源——**统计契约注解要按 `@JsonProperty(` 精确匹配**。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
