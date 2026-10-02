@@ -2,8 +2,10 @@
 
 > 本文档写给在 `~/ragagent` 打开的新会话/新成员。**一切背景以本文为准**；最近的执行细节在 `git log`。
 > 种子：自 `~/ragagent-java` @ `646aba7`（2026-09-28）分叉，git 历史完整保留。
-> **最近更新 2026-10-02**（契约尾巴全清 + 两个真单类出榜：散存量七域批、错误体统一、
-> M6、SourceRegistry/UserService 切片、例外复核——§14.9s）。
+> **最近更新 2026-10-02（晚）**（§15 全面修复计划执行中：B1/B2/B3/B4/B7/B8 六批完成——
+> GoldenContract 对比器统一、契约文档 v1.1、恒输出化真面 68 处、死成员 19 处、FQ 注解清零、
+> 零值哨兵判不改；两轮前端对齐债修复 + /tenants/search 等漏翻译端点补齐。**下一刀 B0 端到端走查**，
+> 批次表与纪律见 §15）。
 
 ## ⭐ 接手须知（5 分钟版）
 
@@ -41,11 +43,14 @@
    M6（mcp `@JsonInclude` 恒输出）；`SourceRegistry` 878→534、`UserService` 876→748 切片出榜；
    4 个登记例外复核结论入册（§14.3）。**至此 ⭐ 第 4 条所列全部剩余工作完成：
    复查批后全仓 `@JsonProperty` 余量 913 处全部是登记冻结面（§14.6）**。
-4. **下一步**：**全部排期输入已集中到 §15「全面修复计划」**（2026-10-02 立项）——
-   B0 端到端真实走查（P0 最高优先：复查两批证明静态闸门兜不住视图层断点）/ B1 契约文档 v1.1 /
-   B2 金片对比器统一 / B3 残留 `@JsonInclude` 恒输出化 / B4 零值时间哨兵 / B5 lf_* 评估 /
-   B6 getenv 收敛 / B7 死成员 / B8 注解形态 / B9 Go 锚点 / B10 ArchUnit 进 CI / B11 多模块。
-   批次纪律与非目标见 §15.2/§15.3；做完一批把 ✅ 记录写回 §15.1。
+4. **下一步（2026-10-02 更新）**：§15 计划已完成 **B1 契约文档 v1.1 / B2 金片对比器统一（GoldenContract 上线，
+   字节级对比清零）/ B3 `@JsonInclude` 恒输出化（真面 68 处；yunzhijia 第三方回退；KB config 双轨登记 B3b）/
+   B4 零值哨兵（结论：不改，已知例外）/ B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行）。
+   **剩余待做**：**B0 端到端真实走查（P0，下一刀）**——起服（后端 8083 + 前端 dev）按 §15.1 的
+   14 条链路清单逐域走查（API 形状 × 视图渲染 × 控制台报错逐条记录）；随后 B5 lf_* 评估 /
+   B6 getenv 收敛 151 处 / B9 Go 锚点随批 / B10 ArchUnit 进 CI / B11 多模块 / B3b（可选，见 15.1.1）。
+   **新会话接手**：直接读 §15.1 批次表（状态列）+ §15.1.1 执行记录 + §15.2 纪律五条（开工前必读）+
+   §15.3 非目标冻结清单；做完一批把 ✅ 与记录写回 §15.1。
 5. **落刀方法论**：§13 是**必读**（判据 + harness 流水线 + 守卫口径 + 忠实性核验手法），
    harness 模板已入库：`scripts/refactor-harness.sh`；切片产物排版闸门：`scripts/normalize-blank-lines.py`（§13.8）。
 6. **全仓存量**：≥800 行的类只剩 **4 个登记例外**（§14.3，真单类已清零）；**检索 / auth controller / wiki / im / mcp / embed / chatpipeline / datasource / evaluation 域 ≥800 全为零**，memory 域已出榜 3/3（2026-10-01 m5 后仅剩 `MemoryIndexStore` 929，登记例外）。
@@ -2757,32 +2762,40 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 > Go 零值时间哨兵、lf_* 载具）、以及 §5 阶段 4 既定面。**批次表就是排期输入**，做完一批
 > 勾一批、把执行记录写回本节。
 
-### 15.1 批次总表
+### 15.1 批次总表（状态：✅ 完成 / ⬜ 待做；执行记录见 15.1.1）
 
-| 批 | 内容 | 优先级 | 量级 | 依赖/说明 |
+| 批 | 内容 | 优先级 | 量级 | 状态 |
 |---|---|---|---|---|
-| **B0 端到端真实走查** | 起服（后端 8083 + 前端 dev）按域走查：注册/登录/**令牌刷新**/登出 → 空间创建/切换/成员邀请/**审计页** → KB 创建/摄取/**处理时间线**/预览 → 检索/对话（SSE）→ wiki 浏览/编辑 → datasource（RSS 桩）同步/凭据 → im 渠道 CRUD → vectorstore/storage 设置 → 收藏/技能目录/模型调试/系统运行时页。每条记录 API 形状 × 视图渲染 × 控制台报错 | **P0** | 1-2 天 | **最高优先**——复查两批揪出的断点（登录分支不可达、刷新静默失败、恒空列表等）全部是静态闸门盲区，同类问题只能靠走查兜底；发现问题按域归档成修复单 |
-✅ **B2（2026-10-02）**：`support/GoldenContract` 共享基建上线（deep 归一+strip+refresh 单开关）；
-Faq/W5d/W5c 三文件迁移；Knowledge/Mcp/Model/Wiki 四个字节级文件 23 处 `content().bytes` 断言迁移
-（`goldenBytes` 助手退役，字节级对比类别清零）。教训：跨行 Java 语句的正则迁移必须以语句锚扫描，
-逐行扫描会在嵌套 perform 上重复插入（第一版已回退重写）。
-✅ **B1（2026-10-02）**：`docs/knowledge-api-contract-v1.md` 已升 v1.1——升格全服务端标准、§2.2 错误体与 §2.2.1 补充形态、§8 收官批记录。
-| **B2 金片对比器统一** | 字节级（`goldenBytes`/裸 compare）与语义级（`ContractJson.semantic`）两套并存 + 四份各写各的 refresh 开关 → 统一共享基建（semantic + strip 归一 + `-Dcontract.refresh=true`），存量字节级测试逐个迁移 | P0 | 中 | 防"改金片先看对比器"事故复发（§14.9s 教训）；迁移即顺手重录 |
-| **B3 残留 `@JsonInclude` 288 处恒输出化** | 真面集中在 wiki 域早批（C 波先于 §1.6 恒输出口径，约 60 处）与散点；tenantconfig(65)/LLM 载荷/事件面**豁免**（§14.6）；每域重录夹具 + 前端键集合核对 | P1 | 中 | 逐域独立批；先扫"哪批键集合真的会变"再动 |
-✅ **B3（2026-10-02）**：真面 68 处（19 文件）`@JsonInclude` 退役——wiki domain 全家（10 文件）
-+ websearch 三 DTO + VectorStoreTypes + im/yunzhijia（**回退**：YunzhijiaTypes 是云之家第三方出站
-线格式，NON_EMPTY 是对端契约，误列真面——测试抓回，并入 §14.6 IM 第三方口径）；金片 vs-types/
-wsp-*/wiki 四件 refresh 重录；WikiDomainTest omitempty 负断言翻转；**B3b 登记**：KB 更新请求的
-`faq_config/wiki_config/...` 外层 dispatch 键+内层业务键是落库 jsonb 透传三方咬合面（服务端
-`path("question_count")` 等读取器保留 snake 是收官批口径），改键=落库格式变更，独立可选批。
-✅ **B4（2026-10-02，结论：不改）**：调查后判定哨兵不是债——① datasource 域零值=「从未同步」的**业务信号**（`lastSyncTime` 进调度比较逻辑，改 null 要动调度语义）；② AgentStep 是冻结 SSE 事件面，前端消费已安全（负时间戳 falsy→undefined）；③ agentm/init 两处前端无读点；④ 11 个金片 126 处字面量钉住。收益 < 风险，按 §14.5 判据登记已知例外，从计划移除。
-| **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键（§14.6 登记的"另批"）；先出判定（收益 vs 四域联动+死信读侧兼容成本），判定通过再动刀 | P1 | 判定小/动刀中 | 可判定后搁置——载具当前工作正常 |
-| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`（§4 口径），按域分批 | P1 | 中 | 每域一批；配置键语义不变 |
-✅ **B7（2026-10-02）**：依赖级扫描实锤断成员 19 处全清——只注入不读取字段 3（`PluginSearchParallel` 的 graphRepo/chunkRepo/knowledgeRepo）+ 死 logger 8 + 死 `ObjectMapper` 3 + 死 `Pattern` 1 + 死私有方法 4 + 冗余 import 4（javadoc 规避后复核）；66 处历史候选在本轮口径下复核为零（多数已被前批清掉）。**残留口径**：Spotless ratchet 外的 23 处 import 命中经复核多为泛型/javadoc 误报，真死仅 4 处已清。
-✅ **B8（2026-10-02）**：全限定名注解 **177→0**（annotation 177 + databind JsonSerialize 6，全部改 import 短名，14 文件；冲突扫描后逐文件注入）。`@JsonIgnoreProperties` 48 处**评估后保留**：14 个严格 mapper 读取点全是外部/不可信 JSON（第三方 API 响应、OAuth 文档、租户落库、Redis blob），注解是正确的纵深防御；WEB 侧 8 个读路径已宽松、注解冗余但无害——按 §2 第 12 条"勿批量删"口径不动。
-| **B9 Go 锚点注释清洗** | ~6,000 处；按 §4 既定"随触碰清洗"继续；若专项则按域分批（先摘不变量信息再删锚点） | P2 | 大（专项）/零（随批） | 建议随批，不立专项 |
-| **B10 ArchUnit 边界规则进 CI** | 环 0 组基线 + 包依赖白名单固化（§5 阶段 4） | P2 | 中 | 规则现成（§11.2 守卫长期绿），差 CI 化 |
-| **B11 Gradle 多模块** | 按域拆模块（§5 阶段 4 尾） | P2 | 大 | 动 build 面，**最后做**；B10 先行 |
+| **B0 端到端真实走查** | 起服（后端 8083 + 前端 dev）按域走查 14 条链路：注册/登录/**令牌刷新**/登出 → 空间创建/切换/成员邀请/**审计页** → KB 创建/摄取/**处理时间线**/预览 → 检索/对话（SSE）→ wiki 浏览/编辑 → datasource（RSS 桩）同步/凭据 → im 渠道 CRUD → vectorstore/storage 设置 → 收藏/技能目录/模型调试/系统运行时页。每条记录 API 形状 × 视图渲染 × 控制台报错 | **P0** | 1-2 天 | ⬜ **待做（下一刀）**——复查两批的断点全是静态闸门盲区，同类问题只能靠走查兜底 |
+| **B1 契约文档同步** | `docs/knowledge-api-contract-v1.md` v1.0→v1.1：错误体、裸信封/裸数组、游标分页、恒输出、204 语义、七域差异表 | P0 | 小 | ✅ |
+| **B2 金片对比器统一** | `support/GoldenContract` 共享基建（deep 归一 + strip + 单一 refresh 开关）；字节级（`goldenBytes`/裸 compare）与语义级双轨并存 → 语义单轨，存量字节级测试逐个迁移 | P0 | 中 | ✅ |
+| **B3 `@JsonInclude` 恒输出化** | 真面 68 处（19 文件：wiki domain 全家 + websearch 三 DTO + VectorStoreTypes）；冻结面豁免（tenantconfig/LLM 载荷/event/tracing/common/agent/stream + connector + lf_*）；每域重录夹具 + 前端键集合核对 | P1 | 中 | ✅（**B3b 已登记**：KB 更新请求 `faq_config/wiki_config/...` 外层 dispatch 键+内层业务键是落库 jsonb 透传三方咬合面，改键=落库格式变更，独立可选批） |
+| **B4 Go 零值时间哨兵 → null** | `0001-01-01T00:00:00Z`（AgentStep / agentm GO_ZERO_TIME / init goTime 系） | P1 | 小-中 | ✅ **结论：不改**（调查后判已知例外，见 15.1.1） |
+| **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键；先出判定再动刀 | P1 | 判定小 | ⬜ 待做（可判定后搁置——载具当前工作正常） |
+| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | ⬜ 待做 |
+| **B7 死成员清扫** | 只注入不读取依赖（依赖级口径）+ 死 logger/`ObjectMapper`/`Pattern`/私有方法/冗余 import | P1 | 小-中 | ✅ |
+| **B8 注解形态收尾** | 全限定名注解 → import 短名；`@JsonIgnoreProperties` 44 处接工厂评估 | P2 | 小 | ✅（FQ 177→0；`@JsonIgnoreProperties` 评估后保留） |
+| **B9 Go 锚点注释清洗** | ~6,000 处；按 §4 既定"随触碰清洗"继续；若专项则按域分批 | P2 | 大（专项）/零（随批） | ⬜ 建议随批，不立专项 |
+| **B10 ArchUnit 边界规则进 CI** | 环 0 组基线 + 包依赖白名单固化（§5 阶段 4） | P2 | 中 | ⬜ 待做（规则现成，差 CI 化） |
+| **B11 Gradle 多模块** | 按域拆模块（§5 阶段 4 尾） | P2 | 大 | ⬜ **最后做**；B10 先行 |
+
+#### 15.1.1 执行记录（按批次，✅ 批必读）
+
+**✅ B2**：`support/GoldenContract` 共享基建上线（`ContractJson.deep` 归一 + strip + 单一 `-Dcontract.refresh` 开关）；Faq/W5d/W5c 三文件迁移；Knowledge/Mcp/Model/Wiki 四个字节级文件 23 处 `content().bytes` 断言迁移（`goldenBytes` 助手退役——字节级对比类别清零）。教训：跨行 Java 语句的正则迁移必须以**语句锚**扫描（perform 起点 + `;` 终点），逐行扫描会在嵌套 perform 上重复插入（第一版已回退重写）。
+
+**✅ B1**：`docs/knowledge-api-contract-v1.md` v1.0→v1.1——升格全服务端标准；§2.2 错误体（顶层仅 `error`、键序声明序、`details` 显式 null、纯字符串错误体两类场景）+ §2.2.1 收敛口径表（游标分页/附加字段分页/条件键恒输出/连通性测试/凭据状态/客户端本地态）+ §8 收官批记录。
+
+**✅ B3**：真面 68 处（19 文件）`@JsonInclude` 退役——wiki domain 全家（10 文件）+ websearch 三 DTO + VectorStoreTypes；键恒输出/空数组 `[]`/空串照写；金片 vs-types/wsp-*（11 文件）/wiki 四件 refresh 重录；WikiDomainTest omitempty 负断言翻转、WikiHttpContractTest `depth:0` 断言翻转。
+- **回退一则**：`im/yunzhijia/YunzhijiaTypes` 误列真面——它是云之家第三方出站线格式（NON_EMPTY 省略键是对端 API 契约），YunzhijiaAdapterTest 抓回，并入 §14.6 IM 第三方口径。
+- **B3b 登记（独立可选批）**：KB 更新请求的 `faq_config/wiki_config/chunking_config/...` 外层 dispatch 键 + 内层业务键（`question_count`/`synthesis_model_id`/`index_mode`…，服务端 `path()` 读取器保留 snake 是收官批口径）+ `knowledge_bases.*_config` 落库列三方咬合——改键=落库格式变更+迁移 SQL，超出恒输出轴；仅当有真实需求（如前端统一读 camel）时立项。
+- **新坑**：掩码正则 `TS_PATTERN` 只匹配数字、替换串带引号，产出 `""<ts>""` 非法 JSON——掩码应**连成对引号一起匹配**；refresh 写出的夹具才可再解析。
+
+**✅ B4（结论：不改）**：哨兵不是债——① datasource 域零值=「从未同步」的**业务信号**（`lastSyncTime` 进调度比较，改 null 要动调度语义）；② AgentStep 是冻结 SSE 事件面，前端消费已安全（负时间戳 falsy→undefined，`useChatStreamHandler` 实测）；③ agentm/init 两处前端无读点；④ 11 个金片 126 处字面量钉住。收益 < 风险，按 §14.5 登记已知例外。
+
+**✅ B7**：依赖级口径（声明+构造赋值 ≤2 次）实锤断成员 19 处全清——只注入不读取字段 3（`PluginSearchParallel`）+ 死 logger 8 + 死 `ObjectMapper` 3 + 死 `Pattern` 1 + 死私有方法 4（含孤立 javadoc 清理）+ 冗余 import 4（javadoc 行规避后复核）。66 处历史候选复核为零。
+
+**✅ B8**：全限定名注解 177+6 → 0（14 文件，注入前逐文件同名符号冲突扫描）；`@JsonIgnoreProperties` 48 处评估**保留**——14 个严格 mapper 读取点全是外部/不可信 JSON（第三方 API 响应/OAuth 文档/租户落库/Redis blob），注解是正确纵深防御；WEB 侧 8 个读路径已宽松，冗余但无害（§2 第 12 条勿批量删）。
+
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
