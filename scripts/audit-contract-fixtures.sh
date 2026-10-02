@@ -10,6 +10,12 @@
 #      ⇒ 该夹具**被引用**；全程无失败的候选 ⇒ **孤儿**（可删）。
 # 结束必定还原（trap），无论中途成败。
 #
+# ⚠️ 结论仅作**人工复核线索**，**禁止按本脚本输出批量删除**：
+#   - 本脚本"一次移出全部候选"，归因是**类级**的——同类共享 setup 的首个失败会**掩盖**其余候选，
+#     于是它们被误判为"孤儿"（B31 实测：按输出删 13 个 → 2 条测试失败，全部还原）。
+#   - 且"无测试加载"≠无用：B31 实测 115 个孤儿里 102 个是 `scripts/record-*-golden.sh` 的**录制
+#     清单**（Go 期金鹰的案例表），1 个被 `docs/known-issues` 引用 ⇒ 属**证据链**。
+#
 # 用法：scripts/audit-contract-fixtures.sh
 # 产物：/tmp/contract-fixture-audit/{candidates.txt,referenced.txt,orphans.txt,test.log}
 set -uo pipefail
@@ -79,4 +85,25 @@ print(f'候选 {len(candidates)}：被引用 {len(referenced)}、可判孤儿 {l
 for f in orphans[:60]:
     print('  孤儿候选:', f)
 PY
+# ── ④ 二次筛：区分「录制清单/文档证据」与「真·可删」──────────────────────────
+# 教训（B31）：115 个"无测试加载"的孤儿里有 102 个被 scripts/record-*-golden.sh 引用
+# ——它们是**金鹰的录制清单**（重录时的案例表），删掉等于毁掉证据链。
+# 故：只有"既无测试加载、又无脚本/文档引用"者才标为可删。
+python3 - "$OUT" <<'INNER'
+import pathlib, subprocess, sys
+out = pathlib.Path(sys.argv[1])
+orphans = [l.strip() for l in (out / 'orphans.txt').read_text(encoding='utf-8').splitlines() if l.strip()]
+keep, deletable = [], []
+for name in orphans:
+    r = subprocess.run(['bash', '-c',
+        f"grep -rlw --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=build "
+        f"--exclude-dir=dist '{name}' . 2>/dev/null | "
+        f"grep -vE '^./server/src/test/(resources/contracts|java)' | head -1"],
+        capture_output=True, text=True).stdout.strip()
+    (keep if r else deletable).append(name if not r else f'{name}  <- {r}')
+(out / 'keep-as-evidence.txt').write_text('\n'.join(keep) + ('\n' if keep else ''), encoding='utf-8')
+(out / 'no-reference-candidates.txt').write_text('\n'.join(deletable) + ('\n' if deletable else ''), encoding='utf-8')
+print(f'无人加载的孤儿 {len(orphans)}：录制清单/文档证据 {len(keep)}（保留）、')
+print(f'  其余 {len(deletable)} 个写入 no-reference-candidates.txt——**仍需逐个确认**，别直接删')
+INNER
 echo "产物目录: $OUT"
