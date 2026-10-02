@@ -47,7 +47,7 @@
    B1 契约文档 v1.1 / B2 金片对比器统一（GoldenContract 上线，字节级对比清零）/ B3 `@JsonInclude` 恒输出化
    （真面 68 处；yunzhijia 第三方回退）/ **B3b KB 配置 jsonb 键名统一（camelCase + V2 存量迁移，2026-10-02 收官）** /
    B4 零值哨兵（结论：不改，已知例外）/ B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行与 §15.1.1）。
-   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **B6 getenv 收敛（🚧 批 1~7 已完成，余 50 处按 §15.1.1 清单继续；余量集中在 provider 环境族动态助手 / retrieval 引擎仓 / Gate 两处 / 零散单点）** /
+   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **B6 getenv 收敛（🚧 批 1~8 已完成，余 46 处按 §15.1.1 清单继续；余量**已无「成族」项**：retrieval 18（引擎仓 9 文件 15 处 + Neo4j 4 / HybridSearch / VLM 传输）、auth 5、llm 4、initialization 4，其余 11 处为零散单点（session 2 / model 2 / knowledge 2 / config 2 / common 2 / vectorstore 1 / mcp 1 / embedding 1）——可考虑与其它批次并跑或直接收尾）** /
    B9 Go 锚点随批 / B10 ArchUnit 进 CI / B11 多模块（最后做）。**B0 登记残留见 §15.1.1**（B3b′ 已修；其余 4 项含 `process_overrides` 写了不用、
    wiki 死信槽位无人释放、孤儿 wiki op 不重放、存储引擎设置孤儿组件）。
    **新会话接手**：直接读 §15.1 批次表（状态列）+ §15.1.1 执行记录 + §15.2 纪律五条（开工前必读）+
@@ -2774,7 +2774,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B3b KB 配置 jsonb 键名统一（camelCase）** | 由 B0 走查升格为真实缺陷：`knowledge_bases` 的 `*_config` 列三方咬合面（前端 payload / 服务端读取器 / 落库 jsonb）键名分裂，导致界面上的 wiki 合成模型、问题生成参数、索引开关被静默忽略。服务端读取器 + 更新路径 dispatch 键 + 前端 payload/读取/类型 + V2 存量迁移 + 列默认值（连带修掉「编辑弹窗恒打不开」的裸资源读取） | **P1** | 中 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B4 Go 零值时间哨兵 → null** | `0001-01-01T00:00:00Z`（AgentStep / agentm GO_ZERO_TIME / init goTime 系） | P1 | 小-中 | ✅ **结论：不改**（调查后判已知例外，见 15.1.1） |
 | **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键；先出判定再动刀 | P1 | 判定小 | ⬜ 待做（可判定后搁置——载具当前工作正常） |
-| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | 🚧 **批 1~7 完成（2026-10-02）**：storage 装配 / langfuse / 检索驱动 / 系统部署面（含 `GIN_MODE`→`WEKNORA_DEPLOYMENT_MODE`）/ 知识域单值 / common 静态工具族（**启动期快照口径确立**）/ 存储静态单值族 + JWT——全仓 149→57（代码内 50）；余量清单与登记见 15.1.1 |
+| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | 🚧 **批 1~8 完成（2026-10-02）**：storage 装配 / langfuse / 检索驱动 / 系统部署面（含 `GIN_MODE`→`WEKNORA_DEPLOYMENT_MODE`）/ 知识域单值 / common 静态工具族（**启动期快照口径确立**）/ 存储静态单值族 + JWT / 存储 provider 环境族查找面（**storage 域归零**）——全仓 149→53（代码内 46）；余量清单与登记见 15.1.1 |
 | **B7 死成员清扫** | 只注入不读取依赖（依赖级口径）+ 死 logger/`ObjectMapper`/`Pattern`/私有方法/冗余 import | P1 | 小-中 | ✅ |
 | **B8 注解形态收尾** | 全限定名注解 → import 短名；`@JsonIgnoreProperties` 44 处接工厂评估 | P2 | 小 | ✅（FQ 177→0；`@JsonIgnoreProperties` 评估后保留） |
 | **B9 Go 锚点注释清洗** | ~6,000 处；按 §4 既定"随触碰清洗"继续；若专项则按域分批 | P2 | 大（专项）/零（随批） | ⬜ 建议随批，不立专项 |
@@ -2873,6 +2873,23 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - 验证：真机冒烟——① 登录拿令牌 + 刷新 200（`refreshToken` camelCase 契约）；② 存量文档 `preview`/`download` 200（本地存储根快照生效）；③ **受控跨重启验证**：`JWT_SECRET` 置 ≥32 字节 → 取令牌 → 同密钥重启 → 旧令牌仍 200（`jwt.secret` 绑定生效）。`Mode` 的语义由 `ModeTest` 覆盖（快照未装 → HANDLE）。`spotlessCheck` 绿 + 全量测试绿。
 - **踩坑（值得记）**：把 `FileServiceResolver.localStorageBaseDir()` 判为死方法删掉后**编译立刻报错**——类内**非限定调用**（`localStorageBaseDir()`）不在 `grep "FileServiceResolver.localStorageBaseDir"` 的结果里。**死成员判定必须按方法名全仓扫（含类内调用）**，别按限定名扫。已恢复为快照改造版。
 - **登记（本批未动）**：① 动态 key 助手三处（`StorageFileResolver.env` 约 15 个调用点、`FileServiceFactory.envOr`、`StorageBackendService.env`）——getenv 点只有 3 个，但服务约 30 个 provider 家族读取（`MINIO_*`/`S3_*`/`OSS_*`/`OBS_*`/`APP_EXTERNAL_URL`/`STORAGE_TYPE`/`LOCAL_STORAGE_PATH_PREFIX`…），宜与批 1 的 `StorageProviderEnv` 类型化记录**合流**成专门一批。② `JWT_SECRET` 短于 32 字节时 jjwt 到**登录时**才抛 `UnsupportedKeyException`（文案含糊、运维难定位）——建议启动期校验 + 明确文案，独立小批。③ `AuthController` 的 refresh javadoc 仍引用 Go 的 `json:"refresh_token"`，而绑定实现只认 camelCase `refreshToken`（§2.1 契约 ✓、前端已对齐）——文档陈旧，随触碰修正。
+
+**🚧 B6 批 8（2026-10-02，存储 provider 环境族查找面）**：3 处清零（全仓 57→53，代码内 46；**storage 域归零**）。
+- 新增 `storage/config/StorageEnvLookup`（存储域唯一的 provider 键查找面，启动期由 `RuntimeSnapshotWiring` 安装）：`StorageFileResolver.env`（约 15 个调用点）/`FileServiceFactory.envOr`（12 个）/`StorageBackendService.env`（4 个）三个助手改走它——裸 getenv 只有 3 处，但服务约 30 个键读取（`MINIO_*`/`S3_*`/`OSS_*`/`OBS_*`/`APP_EXTERNAL_URL`…）。
+- 查找面语义：**键名原样优先**（`MINIO_ENDPOINT`——系统环境变量本就是 Environment 的一个 property source），**再回落属性风格**（`minio.endpoint`，可被属性源/命令行/`SPRING_APPLICATION_JSON` 覆盖）；未装配 → 视为未配置。
+- **同一 env 只有一条读取路径**：这三个助手原先重复读的 `STORAGE_TYPE`（批 7 快照）与 `LOCAL_STORAGE_BASE_DIR`（`StoragePaths.localStorageBaseDir()`）一并归位；顺带删掉 `FileServiceFactory` 两个已无引用的公开常量（`DEFAULT_LOCAL_BASE_DIR`/`ENV_LOCAL_BASE_DIR`，全仓 0 引用）。
+- 验证：以 minio **docker 模式**的连通性测试当探针（该分支的 endpoint 强制取自 env），本地起 TCP 桩，在「桩在听/不在听」两侧让结果分叉——
+
+  | 场景 | `MINIO_*` 环境变量 | 属性源 `minio.endpoint` | 实测 |
+  |---|---|---|---|
+  | A | 127.0.0.1:19997（桩在听） | — | `connected:true` ✓ |
+  | A₂ | 127.0.0.1:19997（无人听） | — | `连接被拒绝` ✓ |
+  | B′ | 无 | 无 | `连接被拒绝` ✓ |
+  | C‴ | 无 | 127.0.0.1:19997（桩在听） | `connected:true` ✓ |
+
+  每次实验都 `ps eww <pid>` 自证目标进程环境（MINIO 计数 0）。`spotlessCheck` 绿 + 全量 4693 测试绿（0 失败）。
+- **踩坑（两条都在「验证方法」层，值得固化）**：① **`execute_command` 的 shell 会复用**——某条命令里 `export MINIO_ENDPOINT=…` 泄漏进了后续命令，我先得到「无 env 也 connected:true」的**错误结论**（其实是上一轮的 export 还在），清理后才得出正确矩阵。**对照实验必须 `env -u` 显式清键，并在实验前打印目标进程环境自证**。② 同源的**假失败**：泄漏的 4 个 `MINIO_*` 让 `SystemContractTest` 两条 golden 断言（`sys-storage-status`/`sys-info`）失败，看着像回归；`env -u` 后全绿——**宿主 env 有值会改变这些 golden 的输出，失败先查 shell 泄漏**。③ `-Dspring-boot.run.arguments="--minio.endpoint=…"` 写在**任务名之后没生效**（据此先得了一次假失败，改用 `SPRING_APPLICATION_JSON` 才验成）——Gradle 传参姿势问题，与代码无关，记一笔免得再踩。
+- **登记（本批未动）**：读侧投影与批 1 的类型化记录**仍是两套**——`StorageFileResolver.storageBackendFromEnvironment`（约 60 行 switch 逐键 `env(...)` 拼 JSON）与 `StorageProviderEnv.*.toStorageEngineConfig()` 形状重叠，宜合成一条投影；后者要动「静态读取点 → 注入 bean / 装记录快照」，是存储域最后一块结构性债务。另：**不经 Spring 装配的入口**（单元测试/未来 CLI）读这些键会得到「未配置」（装配面未装）——与本仓 CI 里这些 env 本来就未设置**等价**，全量测试已绿；但若将来出现脱离 Spring 的调用方，需显式安装查找面。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

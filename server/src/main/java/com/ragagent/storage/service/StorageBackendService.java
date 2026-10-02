@@ -526,8 +526,9 @@ public class StorageBackendService {
         return result;
     }
 
+    /** provider 家族键读取（统一查找面，B6 批 8）；未配置 → 空串。 */
     private static String env(String key) {
-        String v = System.getenv(key);
+        String v = com.ragagent.storage.config.StorageEnvLookup.get(key);
         return v == null ? "" : v;
     }
 

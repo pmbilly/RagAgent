@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import com.ragagent.auth.domain.tenantconfig.StorageEngineConfig;
+import com.ragagent.storage.fileserve.StoragePaths;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
@@ -23,9 +24,9 @@ import com.ragagent.common.security.SsrfGuard;
  */
 public final class FileServiceFactory {
 
-    /** 对照 Go：{@code LOCAL_STORAGE_BASE_DIR} 的缺省。 */
-    public static final String DEFAULT_LOCAL_BASE_DIR = "/data/files";
-    public static final String ENV_LOCAL_BASE_DIR = "LOCAL_STORAGE_BASE_DIR";
+    // 本地存储根与 go 的 LOCAL_STORAGE_BASE_DIR 缺省（/data/files）统一由
+    // StoragePaths.localStorageBaseDir() 提供（B6 批 7/8：同一个 env 只有一条读取路径）；
+    // 原先在此的两个公开常量已无引用，随之删除。
     /** 对照 Go：本地后端的预签名基址来源。 */
     public static final String ENV_EXTERNAL_URL = "APP_EXTERNAL_URL";
     /** provider 缺省前缀（照 Go：s3/obs/ks3 均以 {@code weknora/} 起）。 */
@@ -63,7 +64,7 @@ public final class FileServiceFactory {
         switch (p) {
             case "local" -> {
                 String base = localBaseDir == null || localBaseDir.trim().isEmpty()
-                        ? envOr(ENV_LOCAL_BASE_DIR, DEFAULT_LOCAL_BASE_DIR)
+                        ? StoragePaths.localStorageBaseDir()
                         : localBaseDir.trim();
                 String dir = base;
                 if (sec != null && sec.getLocal() != null
@@ -220,8 +221,9 @@ public final class FileServiceFactory {
         return a == null || a.isEmpty() ? (b == null ? "" : b) : a;
     }
 
+    /** provider 家族键读取（统一查找面，B6 批 8）；未配置/空白 → {@code fallback}。 */
     private static String envOr(String name, String fallback) {
-        String v = System.getenv(name);
+        String v = com.ragagent.storage.config.StorageEnvLookup.get(name);
         return v == null || v.trim().isEmpty() ? fallback : v.trim();
     }
 }

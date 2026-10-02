@@ -421,8 +421,12 @@ public class StorageFileResolver {
         return n == null || n.isNull() ? def : n.asText();
     }
 
+    /**
+     * provider 家族键读取（{@code MINIO_*} / {@code OBS_*} / {@code APP_EXTERNAL_URL} …）——
+     * 走存储域统一查找面（B6 批 8）；未配置 → 空串。
+     */
     private static String env(String key) {
-        String v = System.getenv(key);
+        String v = com.ragagent.storage.config.StorageEnvLookup.get(key);
         return v == null ? "" : v.trim();
     }
 
@@ -510,7 +514,8 @@ public class StorageFileResolver {
 
     /** 对照 Go {@code StorageBackendFromEnvironment}：env 快照的 System 只读行。 */
     static StorageBackend storageBackendFromEnvironment(long tenantId) {
-        String provider = env("STORAGE_TYPE").toLowerCase(java.util.Locale.ROOT);
+        String provider = com.ragagent.storage.config.StorageRuntimeEnv.storageType()
+                .trim().toLowerCase(java.util.Locale.ROOT);
         if (provider.isEmpty()) {
             provider = "local";
         }
