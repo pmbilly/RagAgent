@@ -3,6 +3,7 @@ package com.ragagent.system.service;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import com.ragagent.common.deployment.DeploymentProperties;
 import com.ragagent.system.dto.SystemDtos;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
@@ -27,8 +28,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class DeploymentCapabilitiesHolder {
 
+    /** 部署形态（B6 批 4：{@code WEKNORA_EDITION} 走属性绑定，取代裸 env 读）。 */
+    private final DeploymentProperties deploymentProperties;
+
     private volatile SystemDtos.DeploymentCapabilitiesData snapshot =
             new SystemDtos.DeploymentCapabilitiesData("standard", new LinkedHashMap<>());
+
+    public DeploymentCapabilitiesHolder(DeploymentProperties deploymentProperties) {
+        this.deploymentProperties = deploymentProperties;
+    }
 
     public SystemDtos.DeploymentCapabilitiesData snapshot() {
         return snapshot;
@@ -55,9 +63,8 @@ public class DeploymentCapabilitiesHolder {
         snapshot = new SystemDtos.DeploymentCapabilitiesData(edition(), caps);
     }
 
-    private static String edition() {
-        String raw = System.getenv("WEKNORA_EDITION");
-        return raw == null || raw.isBlank() ? "standard" : raw.trim();
+    private String edition() {
+        return deploymentProperties.editionOrDefault();
     }
 
     private static SystemDtos.DeploymentCapability capability(boolean present) {

@@ -20,6 +20,7 @@ import com.ragagent.storage.mapper.StorageBackendRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.info.BuildProperties;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Service;
 
@@ -58,6 +59,8 @@ public class SystemInfoService {
     private final com.ragagent.retrieval.graph.RetrieveGraphRepository graphRepository;
     /** RETRIEVE_DRIVER（B6 批 3：属性绑定，取代裸 env 读；未配置 → 页面显示「未配置」）。 */
     private final RetrievalDriverProperties driverProperties;
+    /** env 读取面（B6 批 4：存储 env 可用性探测等按名读取）。 */
+    private final Environment environment;
 
     /** 覆盖项（配置/测试可固定值）；为空则取构建信息或运行时值。edition 无构建注入。 */
     @Value("${weknora.system.version:}")
@@ -76,12 +79,14 @@ public class SystemInfoService {
                              DataSource dataSource,
                              ObjectProvider<BuildProperties> buildProperties,
                              com.ragagent.retrieval.graph.RetrieveGraphRepository graphRepository,
-                             RetrievalDriverProperties driverProperties) {
+                             RetrievalDriverProperties driverProperties,
+                             Environment environment) {
         this.allowList = allowList;
         this.backendRepository = backendRepository;
         this.dataSource = dataSource;
         this.buildProperties = buildProperties;
         this.driverProperties = driverProperties;
+        this.environment = environment;
         this.graphRepository = graphRepository;
     }
 
@@ -192,8 +197,8 @@ public class SystemInfoService {
         return env("MINIO_ENDPOINT") && env("MINIO_ACCESS_KEY_ID") && env("MINIO_SECRET_ACCESS_KEY");
     }
 
-    private static boolean env(String name) {
-        String v = System.getenv(name);
+    private boolean env(String name) {
+        String v = environment.getProperty(name);
         return v != null && !v.isEmpty();
     }
 

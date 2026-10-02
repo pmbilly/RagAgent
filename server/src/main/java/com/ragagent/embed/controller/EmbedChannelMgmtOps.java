@@ -35,7 +35,7 @@ final class EmbedChannelMgmtOps {
                                                       @RequestBody(required = false) String rawBody) {
         EmbedChannelController.EmbedChannelRequest req = EmbedChannelController.bind(rawBody);
         try {
-            EmbedChannelService.validateAllowedOrigins(EmbedChannelController.stringList(req.allowedOrigins()));
+            ctrl.service.validateAllowedOrigins(EmbedChannelController.stringList(req.allowedOrigins()));
             if (req.launcherIcon() != null) {
                 EmbedChannelService.validateLauncherIcon(req.launcherIcon().trim());
             }
@@ -104,7 +104,7 @@ final class EmbedChannelMgmtOps {
         EmbedChannelController.EmbedChannelRequest req = EmbedChannelController.bind(rawBody);
         try {
             if (req.allowedOrigins() != null) {
-                EmbedChannelService.validateAllowedOrigins(EmbedChannelController.stringList(req.allowedOrigins()));
+                ctrl.service.validateAllowedOrigins(EmbedChannelController.stringList(req.allowedOrigins()));
             }
             if (req.webhookUrl() != null) {
                 EmbedChannelService.validateWebhookUrl(req.webhookUrl());

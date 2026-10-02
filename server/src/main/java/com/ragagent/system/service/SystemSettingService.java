@@ -26,6 +26,7 @@ import com.ragagent.system.mapper.SystemSettingMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 /**
@@ -61,6 +62,8 @@ public class SystemSettingService implements SystemSettingGateway {
     private final AuditLogService auditService;
     /** 白名单是进程级静态——注入任意实例即可（reloadWhitelist 改的是静态字段）。 */
     private final SsrfGuard ssrfGuard;
+    /** 三层解析的 ENV 层（B6 批 4：取代裸 System.getenv；键名由调用方给）。 */
+    private final Environment environment;
     /** 对照 Go 的 cfg.Auth.RegistrationMode 兜底（dev 未配置 → self_serve）。 */
     @Value("${weknora.auth.registration-mode:}")
     private String configuredRegistrationMode;
@@ -68,11 +71,13 @@ public class SystemSettingService implements SystemSettingGateway {
     public SystemSettingService(SystemSettingMapper mapper,
                                 UserMapper userMapper,
                                 AuditLogService auditService,
-                                SsrfGuard ssrfGuard) {
+                                SsrfGuard ssrfGuard,
+                                Environment environment) {
         this.mapper = mapper;
         this.userMapper = userMapper;
         this.auditService = auditService;
         this.ssrfGuard = ssrfGuard;
+        this.environment = environment;
     }
 
     // ── 三层解析（业务侧 GetXxx） ─────────────────────────────────────────
@@ -111,7 +116,7 @@ public class SystemSettingService implements SystemSettingGateway {
             log.warn("[system_settings] {}: cannot parse as int, falling back", key);
         }
         if (envName != null && !envName.isEmpty()) {
-            String v = System.getenv(envName);
+            String v = environment.getProperty(envName);
             if (v != null && !v.isEmpty()) {
                 try {
                     return Long.parseLong(v);
@@ -129,7 +134,7 @@ public class SystemSettingService implements SystemSettingGateway {
             return r.raw().asText();
         }
         if (envName != null && !envName.isEmpty()) {
-            String v = System.getenv(envName);
+            String v = environment.getProperty(envName);
             if (v != null && !v.isEmpty()) {
                 return v;
             }
@@ -144,7 +149,7 @@ public class SystemSettingService implements SystemSettingGateway {
             return r.raw().asBoolean();
         }
         if (envName != null && !envName.isEmpty()) {
-            String v = System.getenv(envName);
+            String v = environment.getProperty(envName);
             if (v != null && !v.isEmpty()) {
                 Boolean parsed = goParseBool(v);
                 if (parsed != null) {
@@ -164,7 +169,7 @@ public class SystemSettingService implements SystemSettingGateway {
             return out;
         }
         if (envName != null && !envName.isEmpty()) {
-            String raw = System.getenv(envName);
+            String raw = environment.getProperty(envName);
             if (raw != null && !raw.isEmpty()) {
                 List<String> out = new ArrayList<>();
                 for (String entry : raw.split(",")) {
@@ -363,7 +368,7 @@ public class SystemSettingService implements SystemSettingGateway {
      */
     private JsonNode fallbackJsonForSpec(String key, SystemSettingRegistry.Spec spec) {
         if (!spec.envName().isEmpty()) {
-            String raw = System.getenv(spec.envName());
+            String raw = environment.getProperty(spec.envName());
             if (raw != null && !raw.trim().isEmpty()) {
                 try {
                     return switch (spec.type()) {
@@ -430,7 +435,7 @@ public class SystemSettingService implements SystemSettingGateway {
     private void dispatchSideEffects(String changedKey) {        if ("ssrf.whitelist".equals(changedKey)) {
             List<String> list = getStringList("ssrf.whitelist", "SSRF_WHITELIST", new ArrayList<>());
             String primary = String.join(",", list);
-            String extra = System.getenv("SSRF_WHITELIST_EXTRA");
+            String extra = environment.getProperty("SSRF_WHITELIST_EXTRA");
             String merged = primary;
             if (extra != null && !extra.trim().isEmpty()) {
                 merged = merged.isEmpty() ? extra : merged + "," + extra;

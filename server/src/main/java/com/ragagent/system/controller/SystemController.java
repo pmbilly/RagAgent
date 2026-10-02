@@ -19,6 +19,7 @@ import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.system.dto.SystemDtos;
 import com.ragagent.system.service.ParserEngineRegistry;
 import com.ragagent.system.service.SystemInfoService;
+import org.springframework.core.env.Environment;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -55,6 +56,8 @@ public class SystemController {
     private final SsrfGuard ssrfGuard;
     private final com.ragagent.system.service.DeploymentCapabilitiesHolder capabilitiesHolder;
     private final com.ragagent.storage.service.StorageBackendService storageBackendService;
+    /** env 读取面（B6 批 4：取代裸 System.getenv；含 DOCREADER_* 与存储 env 可用性探测）。 */
+    private final Environment environment;
 
     public SystemController(SystemInfoService infoService,
                             ParserEngineRegistry parserEngines,
@@ -62,7 +65,8 @@ public class SystemController {
                             DocReaderClient docReader,
                             SsrfGuard ssrfGuard,
                             com.ragagent.system.service.DeploymentCapabilitiesHolder capabilitiesHolder,
-                            com.ragagent.storage.service.StorageBackendService storageBackendService) {
+                            com.ragagent.storage.service.StorageBackendService storageBackendService,
+                            Environment environment) {
         this.infoService = infoService;
         this.parserEngines = parserEngines;
         this.tenantService = tenantService;
@@ -70,6 +74,7 @@ public class SystemController {
         this.ssrfGuard = ssrfGuard;
         this.capabilitiesHolder = capabilitiesHolder;
         this.storageBackendService = storageBackendService;
+        this.environment = environment;
     }
 
     // ── GET /capabilities ─────────────────────────────────────────────────
@@ -638,9 +643,9 @@ public class SystemController {
                 envAll("OBS_ENDPOINT", "OBS_REGION", "OBS_ACCESS_KEY", "OBS_SECRET_KEY", "OBS_BUCKET_NAME"));
     }
 
-    private static boolean envAll(String... names) {
+    private boolean envAll(String... names) {
         for (String n : names) {
-            String v = System.getenv(n);
+            String v = environment.getProperty(n);
             if (v == null || v.isEmpty()) {
                 return false;
             }
@@ -693,24 +698,24 @@ public class SystemController {
     }
 
     private String docReaderAddr() {
-        String addr = System.getenv("DOCREADER_ADDR");
+        String addr = environment.getProperty("DOCREADER_ADDR");
         return addr == null ? "" : addr.trim();
     }
 
     /** 对照 getDocReaderConnInfo：transport 缺省 grpc（小写归一）。 */
     private String docreaderTransport() {
-        String transport = System.getenv("DOCREADER_TRANSPORT");
+        String transport = environment.getProperty("DOCREADER_TRANSPORT");
         if (transport == null || transport.trim().isEmpty()) {
             return "grpc";
         }
         return transport.trim().toLowerCase();
     }
 
-    private static String orEnv(String value, String envName) {
+    private String orEnv(String value, String envName) {
         if (!value.isEmpty()) {
             return value;
         }
-        String v = System.getenv(envName);
+        String v = environment.getProperty(envName);
         return v == null ? "" : v;
     }
 

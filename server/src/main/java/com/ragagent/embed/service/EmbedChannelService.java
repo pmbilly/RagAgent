@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import com.ragagent.common.deployment.DeploymentProperties;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -61,17 +62,21 @@ public class EmbedChannelService {
     private final CustomAgentService agentService;
     private final ChunkRepository chunkRepository;
     private final EmbedTokenStore tokenStore;
+    /** 部署形态（B6 批 4：是否生产影响 embed 渠道来源白名单校验）。 */
+    private final DeploymentProperties deploymentProperties;
 
     public EmbedChannelService(EmbedChannelMapper repo,
                                CustomAgentMapper agentMapper,
                                CustomAgentService agentService,
                                ChunkRepository chunkRepository,
-                               EmbedTokenStore tokenStore) {
+                               EmbedTokenStore tokenStore,
+                               DeploymentProperties deploymentProperties) {
         this.repo = repo;
         this.agentMapper = agentMapper;
         this.agentService = agentService;
         this.chunkRepository = chunkRepository;
         this.tokenStore = tokenStore;
+        this.deploymentProperties = deploymentProperties;
     }
 
     // ═══════════════════ 规范化（对照 types/embed_channel.go 的 Normalize 族） ═══════════════════
@@ -94,8 +99,8 @@ public class EmbedChannelService {
 
     // ═══════════════════ 校验（对照 handler/service 两段校验，文案逐字） ═══════════════════
 
-    /** 对照 validateAllowedOrigins（handler L101-130）。 */
-    public static void validateAllowedOrigins(List<String> origins) {
+    /** 对照 validateAllowedOrigins（handler L101-130）；生产判定取部署模式属性（B6 批 4）。 */
+    public void validateAllowedOrigins(List<String> origins) {
         List<String> cleaned = new ArrayList<>();
         if (origins != null) {
             for (String o : origins) {
@@ -108,8 +113,8 @@ public class EmbedChannelService {
         if (cleaned.isEmpty()) {
             throw EmbedError.badRequest("at least one allowed origin is required");
         }
-        boolean production = "release".equalsIgnoreCase(
-                System.getenv("GIN_MODE") == null ? "" : System.getenv("GIN_MODE").trim());
+        // B6 批 4：WEKNORA_DEPLOYMENT_MODE（生产/开发）取代 Go 时代的 GIN_MODE
+        boolean production = deploymentProperties.isProduction();
         for (String o : cleaned) {
             if ("*".equals(o)) {
                 if (production) {

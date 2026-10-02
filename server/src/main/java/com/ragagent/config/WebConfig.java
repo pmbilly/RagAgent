@@ -655,8 +655,9 @@ public class WebConfig implements WebMvcConfigurer {
      */
     @org.springframework.context.annotation.Bean
     public com.ragagent.system.service.DeploymentCapabilitiesHolder deploymentCapabilitiesHolder(
-            com.ragagent.auth.apikey.service.TenantAPIKeyService apiKeyService) {
-        var holder = new com.ragagent.system.service.DeploymentCapabilitiesHolder();
+            com.ragagent.auth.apikey.service.TenantAPIKeyService apiKeyService,
+            com.ragagent.common.deployment.DeploymentProperties deploymentProperties) {
+        var holder = new com.ragagent.system.service.DeploymentCapabilitiesHolder(deploymentProperties);
         holder.bind(
                 /* agents */ true, // 波 3 agents 批注册了 routes_agent.go 的 agents 家族
                 /* im */ true, // 波 4.3：RegisterIMChannelRoutes 的渠道 CRUD 面落地
