@@ -3017,6 +3017,19 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **副作用（良性，已核对）**：走 `StorageConfig` 往返后，供给行与接口建的行**形状归一**（含空串/false 的完整字段集）→ 引擎面读到时与"缺省"等价（逐字段核对：布尔缺省与显式 false 同义、`use_temp_bucket` 只由临时桶名决定）。既有明文行（若有）**无需迁移**：读侧「无前缀原样」仍能读。
 - **dev 库留痕（我的操作，均可删）**：租户 **9 `b14-probe-1015`**（行 `03e70033…`，明文，B14 建的）与租户 **10 `b15-probe-1030`**（行 `3ebd7f75…`，密文，B15 建的）。
 
+**📋 下一步候选（2026-10-02 实测盘点，待用户拍板）**
+- **完成度快照（本仓实测，取代 §4/§7.2 的过时数字）**：
+  - 代码内裸 `System.getenv` = **0**（B6 ✅ 十批结项）；`@JsonInclude` **227** 全落在 §15.3 冻结面。
+  - `@JsonProperty` 全仓 **1009**：其中 §15.3 明文列出的冻结路径 **911**（tenantconfig 126 / datasource connector 351 / event 181 / llm 190 / stream 11 / SearchParams 13 / mcp oauth 10 / memory LLM 载荷 22 / …）；
+    其余 **98 处 / 35 文件**（长尾多为 1~2 处/文件）**含少数冻结邻近项**——`rerank/RankResult` 6、`tracing/langfuse/TokenUsage` 7、`retrieval/engine/doris/DorisStreamLoadClient` 6、`common/context/TracingContext` 6、`retrieval/domain/ImageInfo` 7（§15.3 已点名 image_info）⇒ **实际待判定债务 ≈60~70 处**，较大者：`agent/AgentConfig` 14（落库 jsonb，读写两端一致的 §11.2 边界）、wiki page 面 8+3+3、`common/wiki/ExtractedItem` 7、`websearch` 7、auth controller 4、session 2、knowledge 6。
+  - Go 锚点注释 **3884 处**（政策不变：随触碰清洗 + 棘轮守卫，不立专项）；≥800 行的类 = **4 个登记例外**（§14.3）。
+- **候选（按价值排序）**：
+  1. **「静默失效」定向扫描（推荐）**——B3b（KB 配置键名分裂）、B14/B15（存储两套词汇 + 绕过加密）三处真实缺陷同属**一类**：*同一份数据两条路径 ⇒ 配置被静默忽略、且不报错*。建议 1 批定向排查：枚举所有「配置/JSON 跨层且带改名或忽略未知键」的读写对（jsonb 读写、`JsonMappers.lenient()`、快照安装点、手写改名器），对照写读词汇并补**消费者层**钉测；产出「候选清单 + 判定 + 修复 + 守卫」。
+  2. **换锚收尾（阶段 3 收口）**——把上述 ≈60~70 处按「真债 / 有意保留」逐条判定后，1~2 个小批清完（同批带前端，按 §2 第 3/4 条）。
+  3. **登记小项（B6 批 7 遗留，仍开着）**——`JWT_SECRET` 短于 32 字节应**启动期**校验并给明确文案（现为登录时才抛 `UnsupportedKeyException`）；`AuthController` refresh javadoc 仍引用 Go 的 `refresh_token`（契约实为 camel `refreshToken`）。两项都小，可随任一批捎带。
+  4. **产品项（需拍板）**——`process_overrides` 后端落地（用户已定调"未来补"，草图见本文件 15.1.1 的 B13 段）。
+  5. **不做**：Go 锚点专项、Gradle 多模块（B11 判定）、§15.3 全部冻结面、`QaSearchTargets`(706) 内部细分（低价值，维持搁置）。
+
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
 1. §14.2 七步 SOP：一次只动一个轴、独立提交独立全绿、双端闸门（后端全量+spotless；触前端契约则 vue-tsc+npm test）。
