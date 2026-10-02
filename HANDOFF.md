@@ -2762,9 +2762,19 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | 批 | 内容 | 优先级 | 量级 | 依赖/说明 |
 |---|---|---|---|---|
 | **B0 端到端真实走查** | 起服（后端 8083 + 前端 dev）按域走查：注册/登录/**令牌刷新**/登出 → 空间创建/切换/成员邀请/**审计页** → KB 创建/摄取/**处理时间线**/预览 → 检索/对话（SSE）→ wiki 浏览/编辑 → datasource（RSS 桩）同步/凭据 → im 渠道 CRUD → vectorstore/storage 设置 → 收藏/技能目录/模型调试/系统运行时页。每条记录 API 形状 × 视图渲染 × 控制台报错 | **P0** | 1-2 天 | **最高优先**——复查两批揪出的断点（登录分支不可达、刷新静默失败、恒空列表等）全部是静态闸门盲区，同类问题只能靠走查兜底；发现问题按域归档成修复单 |
+✅ **B2（2026-10-02）**：`support/GoldenContract` 共享基建上线（deep 归一+strip+refresh 单开关）；
+Faq/W5d/W5c 三文件迁移；Knowledge/Mcp/Model/Wiki 四个字节级文件 23 处 `content().bytes` 断言迁移
+（`goldenBytes` 助手退役，字节级对比类别清零）。教训：跨行 Java 语句的正则迁移必须以语句锚扫描，
+逐行扫描会在嵌套 perform 上重复插入（第一版已回退重写）。
 ✅ **B1（2026-10-02）**：`docs/knowledge-api-contract-v1.md` 已升 v1.1——升格全服务端标准、§2.2 错误体与 §2.2.1 补充形态、§8 收官批记录。
 | **B2 金片对比器统一** | 字节级（`goldenBytes`/裸 compare）与语义级（`ContractJson.semantic`）两套并存 + 四份各写各的 refresh 开关 → 统一共享基建（semantic + strip 归一 + `-Dcontract.refresh=true`），存量字节级测试逐个迁移 | P0 | 中 | 防"改金片先看对比器"事故复发（§14.9s 教训）；迁移即顺手重录 |
 | **B3 残留 `@JsonInclude` 288 处恒输出化** | 真面集中在 wiki 域早批（C 波先于 §1.6 恒输出口径，约 60 处）与散点；tenantconfig(65)/LLM 载荷/事件面**豁免**（§14.6）；每域重录夹具 + 前端键集合核对 | P1 | 中 | 逐域独立批；先扫"哪批键集合真的会变"再动 |
+✅ **B3（2026-10-02）**：真面 68 处（19 文件）`@JsonInclude` 退役——wiki domain 全家（10 文件）
++ websearch 三 DTO + VectorStoreTypes + im/yunzhijia（**回退**：YunzhijiaTypes 是云之家第三方出站
+线格式，NON_EMPTY 是对端契约，误列真面——测试抓回，并入 §14.6 IM 第三方口径）；金片 vs-types/
+wsp-*/wiki 四件 refresh 重录；WikiDomainTest omitempty 负断言翻转；**B3b 登记**：KB 更新请求的
+`faq_config/wiki_config/...` 外层 dispatch 键+内层业务键是落库 jsonb 透传三方咬合面（服务端
+`path("question_count")` 等读取器保留 snake 是收官批口径），改键=落库格式变更，独立可选批。
 ✅ **B4（2026-10-02，结论：不改）**：调查后判定哨兵不是债——① datasource 域零值=「从未同步」的**业务信号**（`lastSyncTime` 进调度比较逻辑，改 null 要动调度语义）；② AgentStep 是冻结 SSE 事件面，前端消费已安全（负时间戳 falsy→undefined）；③ agentm/init 两处前端无读点；④ 11 个金片 126 处字面量钉住。收益 < 风险，按 §14.5 判据登记已知例外，从计划移除。
 | **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键（§14.6 登记的"另批"）；先出判定（收益 vs 四域联动+死信读侧兼容成本），判定通过再动刀 | P1 | 判定小/动刀中 | 可判定后搁置——载具当前工作正常 |
 | **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`（§4 口径），按域分批 | P1 | 中 | 每域一批；配置键语义不变 |
