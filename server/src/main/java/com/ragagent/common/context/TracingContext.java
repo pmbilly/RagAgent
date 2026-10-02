@@ -36,6 +36,27 @@ public record TracingContext(
     /** 全空（对照 Go 的零值 {@code TracingContext{}}）。 */
     public static final TracingContext EMPTY = new TracingContext("", "", "", "", "");
 
+    /**
+     * 「空载体 → 整键省略」的序列化过滤器（B5）。
+     *
+     * <p>为什么需要它：record 的属性按<b>访问器</b>序列化，而各载荷的 {@code tracing()}
+     * 会把 {@code null} 归一成 {@link #EMPTY}（消费侧不必判空）——于是字段上的
+     * {@code @JsonInclude(NON_NULL)} 永远看不到 null，空载体就会写成 {@code "tracing":{}}。
+     * 用 {@code Include.CUSTOM} + 本过滤器按<b>值</b>判定：与空载体相等即省略，
+     * 未启用追踪时负载字节与平铺期一致。</p>
+     */
+    public static final class EmptyOmitFilter {
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof TracingContext tc && tc.isEmpty();
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+    }
+
     public TracingContext {
         traceId = traceId == null ? "" : traceId;
         parentObservationId = parentObservationId == null ? "" : parentObservationId;

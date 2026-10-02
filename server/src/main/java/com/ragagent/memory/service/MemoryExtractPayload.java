@@ -1,6 +1,7 @@
 package com.ragagent.memory.service;
 
 import com.ragagent.common.web.JsonMappers;
+import com.ragagent.common.context.TracingContext;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -28,8 +29,9 @@ import com.ragagent.memory.domain.MemoryScope;
  * <p>该差异在 §8 的模块日志里记过。</p>
  *
  * <p><b>langfuse 追踪载体（2026-09-24 C 批接线）</b>：Go 内嵌
- * {@code types.TracingContext}，匿名字段嵌入在 JSON 里是<b>平铺</b>的；Java 侧同形——
- * 五个 {@code lf_*} 键直接平铺在 record 上（{@code @JsonUnwrapped} 不支持 record 的
+ * {@code types.TracingContext}）。<b>B5 起</b>载体以嵌套对象 {@code tracing} 随负载携带
+ * （Go 期是五个平铺的 {@code lf_*} 键；载具只在进程内队列流动、无外部消费者，故改形）。
+ * 早期之所以平铺，是因为
  * Creator 参数），空值整键省略。worker 侧取 {@link #tracing()} 续接同一棵树。</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -52,17 +54,13 @@ public record MemoryExtractPayload(
         /** {@code language} 同样 omitempty。 */
         @JsonProperty("language")
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) String language,
-        /** 追踪载体五键（平铺；空值整键省略，未启用追踪时字节与接线前一致）。 */
-        @JsonProperty("lf_trace_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,
-        @JsonProperty("lf_parent_obs_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfParentObsId,
-        @JsonProperty("lf_traceparent")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceparent,
-        @JsonProperty("lf_user_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
-        @JsonProperty("lf_session_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
+        /**
+         * 观测载体（B5：嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
+         * 空载体经 {@code EmptyOmitFilter} 整键省略：未启用追踪时负载字节与平铺期逐字一致。
+         */
+        @JsonProperty("tracing")
+        @JsonInclude(value = JsonInclude.Include.CUSTOM,
+                valueFilter = TracingContext.EmptyOmitFilter.class) TracingContext tracing) {
 
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -73,18 +71,12 @@ public record MemoryExtractPayload(
         messageId = messageId == null ? "" : messageId;
         chatModelId = chatModelId == null ? "" : chatModelId;
         language = language == null ? "" : language;
-        lfTraceId = lfTraceId == null ? "" : lfTraceId;
-        lfParentObsId = lfParentObsId == null ? "" : lfParentObsId;
-        lfTraceparent = lfTraceparent == null ? "" : lfTraceparent;
-        lfUserId = lfUserId == null ? "" : lfUserId;
-        lfSessionId = lfSessionId == null ? "" : lfSessionId;
     }
 
     /** 兼容构造：不带追踪载体（等价于未启用追踪的入队点）。 */
     public MemoryExtractPayload(long tenantId, String subjectId, String sessionId,
                                 String messageId, String chatModelId, String language) {
-        this(tenantId, subjectId, sessionId, messageId, chatModelId, language,
-                "", "", "", "", "");
+        this(tenantId, subjectId, sessionId, messageId, chatModelId, language, null);
     }
 
     /** 带追踪载体的构造（入队侧用；载体为空时与兼容构造等价）。 */
@@ -94,19 +86,17 @@ public record MemoryExtractPayload(
         com.ragagent.common.context.TracingContext tc = tracing == null
                 ? com.ragagent.common.context.TracingContext.EMPTY : tracing;
         return new MemoryExtractPayload(tenantId, subjectId, sessionId, messageId, chatModelId,
-                language, tc.traceId(), tc.parentObservationId(), tc.traceparent(),
-                tc.userId(), tc.sessionId());
+                language, tc.isEmpty() ? null : tc);
     }
 
     /** 追踪载体的结构视图（worker 侧续接用）。 */
     public com.ragagent.common.context.TracingContext tracing() {
-        return new com.ragagent.common.context.TracingContext(
-                lfTraceId, lfParentObsId, lfTraceparent, lfUserId, lfSessionId);
+        return tracing == null ? com.ragagent.common.context.TracingContext.EMPTY : tracing;
     }
 
     /** 对照 Go 的 {@code types.MemoryExtractPayload{}}：全零值，供"没有触发轮次"的调用点。 */
     public static MemoryExtractPayload empty() {
-        return new MemoryExtractPayload(0, "", "", "", "", "");
+        return new MemoryExtractPayload(0, "", "", "", "", "", null);
     }
 
     /** 对照 Go 的 {@code json.Marshal(payload)}：负载以 JSON 形态进队列。 */

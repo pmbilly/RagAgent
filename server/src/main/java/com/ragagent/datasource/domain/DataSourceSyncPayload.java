@@ -1,6 +1,7 @@
 package com.ragagent.datasource.domain;
 
 import com.ragagent.common.web.JsonMappers;
+import com.ragagent.common.context.TracingContext;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -29,15 +30,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *       Java 侧对应 {@code NON_NULL}（而不是 {@code NON_EMPTY}）：即便值为
  *       {@link TaskInitiator#empty()} 也要输出。</li>
  *   <li><b>§1.6</b>：自有键全部恒输出（{@code forceFull} false 照写、{@code trigger} 空串照写、
- *       {@code maxItems} 0 照写）；只有 {@code lf_*} 平铺键保持"空值整键省略"的载具口径。</li>
+ *       {@code maxItems} 0 照写）；只有追踪载体保持"空值整键省略"的载具口径（B5 起为嵌套 {@code tracing} 键）。</li>
  * </ol>
  *
  * <h2>langfuse 追踪载体（2026-09-24 C 批接线）</h2>
- * <p>追踪载体（{@code lf_*} 五键）直接平铺在 record 上（{@code @JsonUnwrapped} 不支持
- * record 的 Creator 参数），空值整键省略。载荷只在进程内队列里流动，不落库、不出响应。</p>
+ * <p>追踪载体（{@code TracingContext}）自 <b>B5</b> 起以嵌套键 {@code tracing} 随负载携带
+ * （Go 期是五个平铺的 {@code lf_*} 键）；空载体整键省略，未启用追踪时字节与平铺期一致。
+ * 载荷只在进程内队列里流动，不落库、不出响应——这正是可以改形的依据。</p>
  *
- * <p><b>⚠️ {@code lf_*} 五键冻结</b>（§14.9q D3 判定）：它们是<b>平铺载具的命名空间前缀</b>
- * ——{@code TracingContext}（{@code common/context}）被平铺进本载荷与 memory / wiki / knowledge
+ * <p><b>⚠️ 追踪载体命名空间</b>（§14.9q D3 判定 + B5 复核）：{@code lf_*} 前缀属于
+ * <b>{@code TracingContext} 自身</b>的键（{@code common/context}）；B5 之前它被平铺进本载荷与 memory / wiki / knowledge
  * 三个兄弟载荷，去掉 {@code lf_} 前缀就会与载荷自有字段撞名（如 {@code userId}、{@code sessionId}）。
  * 四域 + 共享记录是同一个形状，改名要一起动且失去命名空间保护；确需清理时应改成"嵌套一个
  * {@code tracing} 键"（形状变更，另批），而不是去掉前缀。除这五键外，本类的键名＝组件名（§1.6）。</p>
@@ -65,17 +67,14 @@ public record DataSourceSyncPayload(
         boolean forceFull,
         /** 最多抓取多少条（0 = 不限）。§1.6：0 照写。 */
         int maxItems,
-        /** 追踪载体五键（平铺成 {@code lf_*}；空值整键省略）。 */
-        @JsonProperty("lf_trace_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,
-        @JsonProperty("lf_parent_obs_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfParentObsId,
-        @JsonProperty("lf_traceparent")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceparent,
-        @JsonProperty("lf_user_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
-        @JsonProperty("lf_session_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
+        /** 追踪载体（B5 起嵌套键 {@code tracing}；空载体整键省略）。 */
+        /**
+         * 观测载体（B5：嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
+         * 空载体经 {@code EmptyOmitFilter} 整键省略：未启用追踪时负载字节与平铺期逐字一致。
+         */
+        @JsonProperty("tracing")
+        @JsonInclude(value = JsonInclude.Include.CUSTOM,
+                valueFilter = TracingContext.EmptyOmitFilter.class) TracingContext tracing) {
 
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -85,11 +84,6 @@ public record DataSourceSyncPayload(
         trigger = trigger == null ? "" : trigger;
         dataSourceId = dataSourceId == null ? "" : dataSourceId;
         syncLogId = syncLogId == null ? "" : syncLogId;
-        lfTraceId = lfTraceId == null ? "" : lfTraceId;
-        lfParentObsId = lfParentObsId == null ? "" : lfParentObsId;
-        lfTraceparent = lfTraceparent == null ? "" : lfTraceparent;
-        lfUserId = lfUserId == null ? "" : lfUserId;
-        lfSessionId = lfSessionId == null ? "" : lfSessionId;
         // Go 的零值是 TaskInitiator{} 而不是 nil；这里把 null 归一成它，
         // 保证 "initiator 恒输出" 这条在任何构造路径上都成立。
         initiator = initiator == null ? TaskInitiator.empty() : initiator;
@@ -98,8 +92,7 @@ public record DataSourceSyncPayload(
     /** 兼容构造：不带追踪载体（等价于未启用追踪的入队点）。 */
     public DataSourceSyncPayload(TaskInitiator initiator, String trigger, String dataSourceId,
                                  long tenantId, String syncLogId, boolean forceFull, int maxItems) {
-        this(initiator, trigger, dataSourceId, tenantId, syncLogId, forceFull, maxItems,
-                "", "", "", "", "");
+        this(initiator, trigger, dataSourceId, tenantId, syncLogId, forceFull, maxItems, null);
     }
 
     /** 带追踪载体的构造（入队侧用；载体为空时与兼容构造等价）。 */
@@ -110,14 +103,12 @@ public record DataSourceSyncPayload(
         com.ragagent.common.context.TracingContext tc = tracing == null
                 ? com.ragagent.common.context.TracingContext.EMPTY : tracing;
         return new DataSourceSyncPayload(initiator, trigger, dataSourceId, tenantId, syncLogId,
-                forceFull, maxItems, tc.traceId(), tc.parentObservationId(), tc.traceparent(),
-                tc.userId(), tc.sessionId());
+                forceFull, maxItems, tc.isEmpty() ? null : tc);
     }
 
     /** 追踪载体的结构视图（worker 侧续接用）。 */
     public com.ragagent.common.context.TracingContext tracing() {
-        return new com.ragagent.common.context.TracingContext(
-                lfTraceId, lfParentObsId, lfTraceparent, lfUserId, lfSessionId);
+        return tracing == null ? com.ragagent.common.context.TracingContext.EMPTY : tracing;
     }
 
     /** 对照 Go 的 {@code json.Marshal(payload)}：载荷以 JSON 形态进队列。 */

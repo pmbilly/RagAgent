@@ -19,11 +19,14 @@ public record ExtractChunkPayload(
         int attempt,
         /** 该分块在父知识文本分块集中的 0 基序数（子 span 名后缀 {@code chunk[i]}）。 */
         int chunkIndex,
-        String lfTraceId,
-        String lfParentObsId,
-        String lfTraceparent,
-        String lfUserId,
-        String lfSessionId) {
+        /**
+         * 观测载体（B5：嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
+         *
+         * <p>知识域约定：字段一律<b>显式输出</b>、键名即 Java 字段名（禁 {@code @JsonInclude}/
+         * {@code @JsonProperty}）——故此处不加注解，空载体输出 {@code "tracing":{}}；
+         * 载体自身组件的省略规则由 {@link TracingContext} 负责。</p>
+         */
+        TracingContext tracing) {
 
     private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
@@ -31,17 +34,12 @@ public record ExtractChunkPayload(
         chunkId = chunkId == null ? "" : chunkId;
         modelId = modelId == null ? "" : modelId;
         knowledgeId = knowledgeId == null ? "" : knowledgeId;
-        lfTraceId = lfTraceId == null ? "" : lfTraceId;
-        lfParentObsId = lfParentObsId == null ? "" : lfParentObsId;
-        lfTraceparent = lfTraceparent == null ? "" : lfTraceparent;
-        lfUserId = lfUserId == null ? "" : lfUserId;
-        lfSessionId = lfSessionId == null ? "" : lfSessionId;
     }
 
     /** 兼容构造：不带追踪载体。 */
     public ExtractChunkPayload(long tenantId, String chunkId, String modelId,
                                String knowledgeId, int attempt, int chunkIndex) {
-        this(tenantId, chunkId, modelId, knowledgeId, attempt, chunkIndex, "", "", "", "", "");
+        this(tenantId, chunkId, modelId, knowledgeId, attempt, chunkIndex, null);
     }
 
     /** 带追踪载体的构造（入队侧用；载体为空时与兼容构造等价）。 */
@@ -50,12 +48,12 @@ public record ExtractChunkPayload(
                                                   TracingContext tracing) {
         TracingContext tc = tracing == null ? TracingContext.EMPTY : tracing;
         return new ExtractChunkPayload(tenantId, chunkId, modelId, knowledgeId, attempt, chunkIndex,
-                tc.traceId(), tc.parentObservationId(), tc.traceparent(), tc.userId(), tc.sessionId());
+                tc.isEmpty() ? null : tc);
     }
 
     /** 追踪载体的结构视图（worker 侧续接用）。 */
     public TracingContext tracing() {
-        return new TracingContext(lfTraceId, lfParentObsId, lfTraceparent, lfUserId, lfSessionId);
+        return tracing == null ? TracingContext.EMPTY : tracing;
     }
 
     public String toJson() {

@@ -1,6 +1,7 @@
 package com.ragagent.wiki.service.ingest;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.ragagent.common.context.TracingContext;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
@@ -23,33 +24,20 @@ public record WikiIngestPayload(
         long tenantId,
         String knowledgeBaseId,
         String language,
-        /** 发起该任务的根 trace id（兼容旧负载；关联以 traceparent 为准）。 */
-        @JsonProperty("lf_trace_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceId,
-        /** 仅向后兼容保留：OTLP 路径的父子关系走 traceparent。 */
-        @JsonProperty("lf_parent_obs_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfParentObsId,
-        /** W3C Trace Context：{@code 00-<trace_id>-<span_id>-<flags>}。 */
-        @JsonProperty("lf_traceparent")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfTraceparent,
-        /** 跨异步边界保留的用户/租户标签。 */
-        @JsonProperty("lf_user_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfUserId,
-        /** 跨异步边界保留的会话标签。 */
-        @JsonProperty("lf_session_id")
-        @JsonInclude(JsonInclude.Include.NON_EMPTY) String lfSessionId) {
+        /**
+         * 观测载体（B5：嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
+         * 空载体经 {@code EmptyOmitFilter} 整键省略：未启用追踪时负载字节与平铺期逐字一致。
+         */
+        @JsonProperty("tracing")
+        @JsonInclude(value = JsonInclude.Include.CUSTOM,
+                valueFilter = TracingContext.EmptyOmitFilter.class) TracingContext tracing) {
 
     public WikiIngestPayload {
-        lfTraceId = lfTraceId == null ? "" : lfTraceId;
-        lfParentObsId = lfParentObsId == null ? "" : lfParentObsId;
-        lfTraceparent = lfTraceparent == null ? "" : lfTraceparent;
-        lfUserId = lfUserId == null ? "" : lfUserId;
-        lfSessionId = lfSessionId == null ? "" : lfSessionId;
     }
 
     /** 兼容构造：不带追踪载体（等价于未启用追踪的入队点）。 */
     public WikiIngestPayload(long tenantId, String knowledgeBaseId, String language) {
-        this(tenantId, knowledgeBaseId, language, "", "", "", "", "");
+        this(tenantId, knowledgeBaseId, language, null);
     }
 
     /** 带追踪载体的构造（入队侧用；载体为空时与兼容构造等价）。 */
@@ -58,15 +46,12 @@ public record WikiIngestPayload(
                                                 com.ragagent.common.context.TracingContext tracing) {
         com.ragagent.common.context.TracingContext tc = tracing == null
                 ? com.ragagent.common.context.TracingContext.EMPTY : tracing;
-        return new WikiIngestPayload(tenantId, knowledgeBaseId, language,
-                tc.traceId(), tc.parentObservationId(), tc.traceparent(),
-                tc.userId(), tc.sessionId());
+        return new WikiIngestPayload(tenantId, knowledgeBaseId, language, tc.isEmpty() ? null : tc);
     }
 
     /** 追踪载体的结构视图（worker 侧续接用）。 */
     public com.ragagent.common.context.TracingContext tracing() {
-        return new com.ragagent.common.context.TracingContext(
-                lfTraceId, lfParentObsId, lfTraceparent, lfUserId, lfSessionId);
+        return tracing == null ? com.ragagent.common.context.TracingContext.EMPTY : tracing;
     }
 
     /** 零值载荷（测试与"仅知 KB"的调度路径用）。 */

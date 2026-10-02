@@ -108,7 +108,8 @@ class QuestionBatchPlannerTest {
         assertThat(json).contains("\"chunkIds\":[\"c1\",\"c2\"]");
         assertThat(json).contains("\"batchIndex\":1");
         assertThat(json).contains("\"prevChunkId\":\"c0\"");
-        assertThat(json).contains("\"lfTraceId\":\"tid\"");
+        assertThat(json).contains("\"tracing\":{\"lf_trace_id\":\"tid\",\"lf_parent_obs_id\":\"obs\","
+                + "\"lf_traceparent\":\"tp\",\"lf_user_id\":\"uid\",\"lf_session_id\":\"sid\"}");
         QuestionBatchPayload back = QuestionBatchPayload.fromJson(json);
         assertThat(back.tenantId()).isEqualTo(10002);
         assertThat(back.knowledgeBaseId()).isEqualTo("kb-1");

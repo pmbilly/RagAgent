@@ -47,7 +47,7 @@
    B1 契约文档 v1.1 / B2 金片对比器统一（GoldenContract 上线，字节级对比清零）/ B3 `@JsonInclude` 恒输出化
    （真面 68 处；yunzhijia 第三方回退）/ **B3b KB 配置 jsonb 键名统一（camelCase + V2 存量迁移，2026-10-02 收官）** /
    B4 零值哨兵（结论：不改，已知例外）/ B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行与 §15.1.1）。
-   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **~~B6 getenv 收敛~~（✅ 已结项：十批清完，代码内裸 getenv 149→0；四种落点形态与踩坑见 §15.1.1）** /
+   **剩余待做**：~~B5 lf_* 载具嵌套化~~（✅ 2026-10-02 判定并执行）/ **~~B6 getenv 收敛~~（✅ 已结项：十批清完，代码内裸 getenv 149→0；四种落点形态与踩坑见 §15.1.1）** /
    ~~B10 ArchUnit 进 CI~~（✅ 2026-10-02）/ B11 多模块（最后做）。**B0 登记残留见 §15.1.1**（B3b′ 已修；wiki 死信槽位（②）与孤儿 op 重放（③）已由 **B12** 修；其余两项已由 **B13** 处理：④ 判定为 Go 期 KV 页、已被后端行取代 → 删孤儿；⑤ 加 `edition` 信号前置跳过。**B0 残留全部清完**；新登记：`process_overrides` 移植缺口（待立项或删除链路）。
    **新会话接手**：直接读 §15.1 批次表（状态列）+ §15.1.1 执行记录 + §15.2 纪律五条（开工前必读）+
    §15.3 非目标冻结清单；做完一批把 ✅ 与记录写回 §15.1。
@@ -2772,7 +2772,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B3 `@JsonInclude` 恒输出化** | 真面 68 处（19 文件：wiki domain 全家 + websearch 三 DTO + VectorStoreTypes）；冻结面豁免（tenantconfig/LLM 载荷/event/tracing/common/agent/stream + connector + lf_*）；每域重录夹具 + 前端键集合核对 | P1 | 中 | ✅（**B3b 已登记并已执行**——见下行） |
 | **B3b KB 配置 jsonb 键名统一（camelCase）** | 由 B0 走查升格为真实缺陷：`knowledge_bases` 的 `*_config` 列三方咬合面（前端 payload / 服务端读取器 / 落库 jsonb）键名分裂，导致界面上的 wiki 合成模型、问题生成参数、索引开关被静默忽略。服务端读取器 + 更新路径 dispatch 键 + 前端 payload/读取/类型 + V2 存量迁移 + 列默认值（连带修掉「编辑弹窗恒打不开」的裸资源读取） | **P1** | 中 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B4 Go 零值时间哨兵 → null** | `0001-01-01T00:00:00Z`（AgentStep / agentm GO_ZERO_TIME / init goTime 系） | P1 | 小-中 | ✅ **结论：不改**（调查后判已知例外，见 15.1.1） |
-| **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键；先出判定再动刀 | P1 | 判定小 | ⬜ 待做（可判定后搁置——载具当前工作正常） |
+| **B5 lf_* 载具嵌套化** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键 | P1 | 判定小 | ✅ **完成（2026-10-02）——判定：做**（载荷只在进程内队列流动、无外部消费面）；五载荷改嵌套 + 两域两种空值形状（三域省略 / 知识域按模块约定恒输出）；详见 15.1.1 |
 | **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | ✅ **完成（2026-10-02，批 1~10）**：storage 装配 / langfuse / 检索驱动 / 系统部署面（含 `GIN_MODE`→`WEKNORA_DEPLOYMENT_MODE`）/ 知识域单值 / common 静态工具族（**启动期快照口径确立**）/ 存储静态单值族 + JWT / 存储 provider 环境族查找面（**storage 域归零**）/ 检索域引擎命名·开关·超时族（**retrieval 域归零**）/ 收尾批（全局查找面 + `EnvironmentPostProcessor`）——**全仓裸 getenv 代码内 149→0**（余 7 处为注释引用）；十批明细与两处新机制见 15.1.1 |
 | **B7 死成员清扫** | 只注入不读取依赖（依赖级口径）+ 死 logger/`ObjectMapper`/`Pattern`/私有方法/冗余 import | P1 | 小-中 | ✅ |
 | **B8 注解形态收尾** | 全限定名注解 → import 短名；`@JsonIgnoreProperties` 44 处接工厂评估 | P2 | 小 | ✅（FQ 177→0；`@JsonIgnoreProperties` 评估后保留） |
@@ -2943,6 +2943,14 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **验证**：前端 `vue-tsc` 0 错 + `npm test` **690** 绿；后端 `spotlessCheck` 绿 + 全量 **4700** 绿（含三条重录后的 auth 契约用例）。**真机 UI 冒烟**（Playwright，全新浏览器上下文）：登录页 **0 次** `/auth/auto-setup` 请求、0 API 错误、0 控制台错误；存储设置页正常渲染后端管理页（截图：System LOCAL 默认 + 添加存储实例）。`/auth/config` 实测 `{"complexPasswordEnabled":false,"registrationMode":"self_serve","edition":"standard"}` ✓。
 - **顺手清了两处陈旧注释**（引用已删组件的样式注释）。
 
+**✅ B5（2026-10-02，lf_* 载具嵌套化：判定 + 执行）**
+- **判定（结论：做）**：`TracingContext`（`common/context`，共享记录）早已存在，但四个域的队列载荷各自把它的 5 个组件**平铺**了一份（4×5＝20 个字段声明 + 25 行空值归一）。根因是 Go 的匿名字段嵌入在 JSON 里自动摊平，而 Java record 无法自动摊平（各载荷 javadoc 记着这条限制）。判定依据：这些载荷**只在进程内队列流动、不落库、不出响应** → 无外部消费面 → 可以改形；收益是去掉 20 处重复，以后加追踪字段只改一处。
+- **执行**：五个载荷（wiki / memory / datasource / knowledge 的 extractChunk + questionBatch）改为**嵌套 `tracing` 键**；`withTracing(...)` 工厂签名不变（**调用点零改动**）；`tracing()` 访问器保持"永不返回 null"。
+- **两域两种形状（照各自模块约定，不再一刀切）**：wiki/memory/datasource 用 `Include.CUSTOM + TracingContext.EmptyOmitFilter`（空载体**整键省略** → 未启用追踪时负载字节与平铺期**完全一致**）；**知识域两个载荷不加任何注解**（该模块约定「字段一律显式输出、键名即字段名」，禁 `@JsonInclude`/`@JsonProperty`）→ 空载体输出 `"tracing":{}`。
+- **踩坑（Jackson + record，值得记）**：record 的属性按**访问器**序列化——把访问器归一成 `EMPTY` 之后，字段上的 `@JsonInclude(NON_NULL)` 永远看不到 null，空载体被写成 `"tracing":{}`（本意是省略）。改用 `Include.CUSTOM + valueFilter`（按**值**判定）才拿到"空即省略"。**先写测试后实现**的探针当场抓到，否则会以为省略已成。
+- **验证**：新增 `common/context/TracingCarrierNestingTest`（五载荷 × 非空回环 + 空载体形状两分支）；同步更新两处钉知识域形状的存量测试（`GraphChunkSelectorTest`/`QuestionBatchPlannerTest` 原先钉的是**平铺 camelCase** 键——与 wiki/memory/datasource 的 snake 键本就不一致，本次一并归位）。`spotlessCheck` 绿 + 全量 **4702** 绿。真机：新构建起服 + 上传文档 → `completed` / `pending 0`（链路无回归）；再经 B12 的孤儿重放入口**活体触发 wiki 载荷** → 队列解析 **0 错误**、批次跑到业务校验（`no synthesis model configured`，预期失败），证明嵌套载荷在真实队列里序列化/反序列化正确。
+- **§14.6 冻结面更新**：`lf_*` 平铺键一项**已消解**（B5 执行完毕，改为嵌套 `tracing`）。
+
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
 1. §14.2 七步 SOP：一次只动一个轴、独立提交独立全绿、双端闸门（后端全量+spotless；触前端契约则 vue-tsc+npm test）。
@@ -2970,6 +2978,6 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 
 租户配置 jsonb（`auth/domain/tenantconfig`）、connector 第三方线格式（datasource 345 处等）、
 SSE/Redis 事件载荷（event/stream）、provider 请求体（llm/ollama/anthropic）、LLM 输出解析面
-（wiki/mcp/memory）、image_info（docreader 第三方载荷）、`lf_*` 平铺键（B5 判定前）、
+（wiki/mcp/memory）、image_info（docreader 第三方载荷）、
 Go 工具面 5 类、IM 平台 ACK、chat span 载荷（SearchParams）、rerank RankResult、
 i18n 键与系统设置键（`tenant.default_storage_quota_gb` 等——DB/文案字符串）。

@@ -66,15 +66,14 @@ class GraphChunkSelectorTest {
     }
 
     @Test
-    @DisplayName("载荷 JSON：业务键 + 平铺 lf_* 键；空值键同样输出")
+    @DisplayName("载荷 JSON：业务键 + 嵌套 tracing 载体；空载体输出空对象")
     void payloadJsonShape() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
 
         ExtractChunkPayload bare = new ExtractChunkPayload(7L, "ck-1", "model-1", "", 0, 0);
         assertEquals("{\"tenantId\":7,\"chunkId\":\"ck-1\",\"modelId\":\"model-1\","
                         + "\"knowledgeId\":\"\",\"attempt\":0,\"chunkIndex\":0,"
-                        + "\"lfTraceId\":\"\",\"lfParentObsId\":\"\",\"lfTraceparent\":\"\","
-                        + "\"lfUserId\":\"\",\"lfSessionId\":\"\"}",
+                        + "\"tracing\":{}}",
                 mapper.writeValueAsString(bare));
 
         ExtractChunkPayload withTracing = ExtractChunkPayload.withTracing(7L, "ck-1", "model-1",
@@ -83,8 +82,8 @@ class GraphChunkSelectorTest {
         assertTrue(json.contains("\"knowledgeId\":\"kn-9\""));
         assertTrue(json.contains("\"attempt\":2"));
         assertTrue(json.contains("\"chunkIndex\":3"));
-        assertTrue(json.contains("\"lfTraceparent\":\"00-tr-sp-01\""));
-        assertTrue(json.contains("\"lfUserId\":\"u\""));
+        assertTrue(json.contains("\"tracing\":{\"lf_trace_id\":\"tr\",\"lf_traceparent\":\"00-tr-sp-01\","
+                + "\"lf_user_id\":\"u\",\"lf_session_id\":\"r\"}"), json);
 
         ExtractChunkPayload parsed = ExtractChunkPayload.fromJson(json + ",\"unknown\":1}");
         assertEquals("kn-9", parsed.knowledgeId());
