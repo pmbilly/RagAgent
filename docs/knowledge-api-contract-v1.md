@@ -1,7 +1,15 @@
-# 知识库模块接口契约规范 v1（camelCase）
+# 服务端接口契约规范（camelCase）
 
-> **状态**：**v1.0（决策点 A–D 已定稿，2026-09-29）**
-> **适用范围**：知识库模块全部对外 HTTP 接口——`/api/v1/knowledge-bases/**`、`/api/v1/knowledge/**`、`/api/v1/chunks/**`、`/api/v1/faq/**`（含 hybrid-search、分块调试等内部接口）
+> **状态**：**v1.1（2026-10-02）**——v1.0（2026-09-29）只覆盖知识库模块；v1.1 起升格为**全服务端契约标准**，
+> 知识库模块的原有细则保留为第一批落地的实例。
+> **适用范围**：全部对外 HTTP 接口。v1.0 以来已完成：knowledge/retrieval/会话链/chunker/evaluation/model/
+> system/auth/memory/session/embed/mcp/datasource/wiki 十四域换锚 + 契约尾巴全清（HANDOFF §14.9r/§14.9s，
+> 2026-10-02 收官），残留 `@JsonProperty` 均为 §14.6 登记冻结面。
+> **依据决策（2026-09-29 定稿 / 2026-10-02 全面落地）**：
+> ① JSON 全面改用 camelCase；
+> ② 顺手统一历史怪癖；
+> ③ 不保留 Go 字节兼容层；
+> ④ 系统未正式上线，无兼容包袱，**前端适配后端**，无过渡期。
 > **依据决策（2026-09-29）**：
 > ① JSON 全面改用 camelCase；
 > ② 顺手统一历史怪癖；
@@ -55,21 +63,39 @@
 | 异步受理 | `{"data": {...}, "message": "...", "success": true}` | **HTTP 202** + `{...}`（任务标识/计数，无 message） |
 | 创建 | `{"data": {...}, "success": true}` | **HTTP 201** + 资源视图 |
 
-### 2.2 错误响应（全部统一）
+### 2.2 错误响应（全部统一，✅ 2026-10-02 全域落地）
 
 ```json
 {
   "error": {
-    "code": 2200,
+    "code": 1000,
     "message": "vector store not found",
-    "details": { "field": "vectorStoreId" }
+    "details": null
   }
 }
 ```
 
+- **顶层只有 `error` 一个键**——`success:false` 已全域退役（v1.0 的 Go `gin.H` 字母序复刻随批次清除）；
+  内层键序固定 `code` → `message` → `details`（契约声明序，不再是字母序）；
+- `details` 可为 `null`（显式输出）；多字段校验失败时是多行文案串（`
+` 连接）；
 - HTTP 状态码语义化：`400` 参数/业务校验、`401` 未认证、`403` 无权限、`404` 不存在、`409` 冲突、`500` 服务端错误；
-- 保留数值 `code`（现有 1000–2300 号段，前端已有分支逻辑）；
-- 废除特殊信封（现状：重复文档 409 走 `code/data/message/success` 独立格式）。
+- 保留数值 `code`（1000–2300 号段，前端分支逻辑不变）；
+- 同族**纯字符串错误体** `{"error":"…"}` 保留于两类场景：路由守卫式 403（`{"error":"Forbidden: …"}`）
+  与 handler 直写文案（如 system admin 组）；前端拦截器两种都按 `error.message` 读。
+
+### 2.2.1 成功响应的实际收敛口径（✅ 2026-10-02 全域核对）
+
+除 §2.1 标准形态外，本轮收官核准的补充形态（均已全域落地）：
+
+| 形态 | 适用 | 例 |
+|---|---|---|
+| 游标分页 | 按游标翻页的列表（审计、运行时任务等） | `{"items":[…],"nextCursor":N}`；空页 `items=[]`，`nextCursor` 为 0/空串=没有更多 |
+| 附加字段的分页 | 列表 + 单一伴随值 | `{"items":[…],"defaultStorageBackendId":…}` |
+| 条件键恒输出 | 「恰好一个分支被设置」的载荷 | 未设分支显式 `null`（如 finalize 行、wechat 扫码未确认态） |
+| 连通性测试 | test 端点 | 成功 `{connected:true}` 或 `{version:"…"}`；失败 `{connected:false,"error":"…"}`（200 + 业务结论，同 mcp `McpTestResult` 口径） |
+| 凭据状态 | credentials 子资源查询 | `{fields:{apiKey:{configured:bool}}}` |
+| 客户端本地态 | 前端 setTenant 快照等 | 后端不发的键（如 `owner_id`）前端可自填，类型注释注明 |
 
 ### 2.3 示例：创建知识库
 
@@ -509,4 +535,6 @@
 | **4** | 知识库模块停用 `Go*` 序列化器（时间走全局 OffsetDateTime 序列化器，double 走标准 Jackson；`GoJsonBindError` 改标准文案）+ 注释打磨（黑话转人话、清空 JavaDoc） | ✅ 2026-09-29 |
 
 > **四批收官（2026-09-29）**：知识库模块的对外契约与请求侧已完成 Java 本位化——camelCase、裸资源信封、显式 null、DTO 解耦（实体不再直连 API）、手搓解析清零、Go 序列化器不再被引用。
-> **仍待办（后续专项）**：① 全仓序列化层一次性删除（本模块已不再引用，删除需全仓同批，见 HANDOFF 判定）；② CI 门禁（Checkstyle/ArchUnit）与规范文档；③ 其余域（agent/session/wiki…）的同类改造。
+> **后续批次（逐域）**：evaluation → model → system → auth → memory → session → embed → mcp → datasource → wiki（执行记录见 HANDOFF §14.9b~r）；契约尾巴全清 + 散存量七域 + 错误体统一（HANDOFF §14.9s）；两轮前端对齐债修复（HANDOFF §14.9s 复查批/复查二批）。
+> **收官（2026-10-02）**：全服务端 ① camelCase（`@JsonProperty` 残留 913 处均为 §14.6 冻结面）② 错误体统一 ③ 信封/分页/恒输出口径统一 ④ 前端同 PR 对齐——**本规范自此升格 v1.1 全服务端标准**。
+> **仍待办**：见 HANDOFF §15 全面修复计划（B0 端到端走查 P0 起步）。

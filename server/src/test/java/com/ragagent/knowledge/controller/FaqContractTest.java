@@ -6,8 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.regex.Pattern;
 
 import com.ragagent.TestSchema;
@@ -277,18 +275,8 @@ class FaqContractTest {
     }
 
     private void compare(String golden, String actual) throws Exception {
-        Path file = Path.of("src/test/resources/contracts", golden);
-        if (!Files.exists(file)) {
-            file = Path.of("server/src/test/resources/contracts", golden);
-        }
-        String expected = mask(Files.readString(file, java.nio.charset.StandardCharsets.UTF_8));
-        String masked = mask(actual);
-        boolean semanticEqual = com.ragagent.support.ContractJson.semantic(expected)
-                .equals(com.ragagent.support.ContractJson.semantic(masked));
-        if (!semanticEqual) {
-            assertEquals(expected, masked,
-                    () -> "golden mismatch: " + golden + "\nexpected: " + expected + "\nactual:   " + masked);
-        }
+        com.ragagent.support.GoldenContract.assertEquals("src/test/resources/contracts",
+                golden, FaqContractTest::mask, actual);
     }
 
     private void compareAndStatus(String golden, int expectedStatus, String method, String path,

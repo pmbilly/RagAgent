@@ -158,18 +158,16 @@ class W5dTerminalEmbedContractTest {
         }
     }
 
-    /** JSON 场景：状态 + 体逐字节（mask 为 null 时原样）。 */
+    /** JSON 场景：状态 + 体语义对比（deep 归一 + strip；refresh 开关重录）。 */
     private void compareJson(String goldenName, int expectedStatus, MvcResult r,
             java.util.function.UnaryOperator<String> mask) throws Exception {
         assertEquals(expectedStatus, r.getResponse().getStatus(),
                 () -> goldenName + " status, body=" + raw(r));
-        String expected = readGolden(goldenName);
-        String actual = raw(r);
-        if (mask != null) {
-            expected = mask.apply(expected);
-            actual = mask.apply(actual);
-        }
-        assertEquals(expected, actual, () -> "golden mismatch: " + goldenName);
+        String actual = mask == null ? raw(r) : mask.apply(raw(r));
+        java.util.function.UnaryOperator<String> effective =
+                mask == null ? java.util.function.UnaryOperator.identity() : mask;
+        com.ragagent.support.GoldenContract.assertEquals("src/test/resources/contracts",
+                goldenName, effective, actual);
     }
 
     private void compareJson(String goldenName, int expectedStatus, MvcResult r) throws Exception {

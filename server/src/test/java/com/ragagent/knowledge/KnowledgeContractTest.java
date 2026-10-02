@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
@@ -30,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
@@ -165,10 +163,11 @@ class KnowledgeContractTest {
                 "kb-get 应与 golden 一致（掩码后）");
 
         // 5. 404 → 静态 golden
-        mockMvc.perform(get("/api/v1/knowledge-bases/00000000-0000-0000-0000-000000000000")
+        MvcResult gb1 = mockMvc.perform(get("/api/v1/knowledge-bases/00000000-0000-0000-0000-000000000000")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound())
-                .andExpect(content().bytes(goldenBytes("kb-not-found.json")));
+            .andReturn();
+        assertGolden(gb1, "kb-not-found.json");
 
         // 6. {} 空名 KB（不录 golden，作为 move-targets 第三行）
         mockMvc.perform(post("/api/v1/knowledge-bases")
@@ -210,12 +209,13 @@ class KnowledgeContractTest {
     @Test
     void kbCreateForbiddenForViewer() throws Exception {
         String token = login("java-phase1-viewer@weknora.test");
-        mockMvc.perform(post("/api/v1/knowledge-bases")
+        MvcResult gb2 = mockMvc.perform(post("/api/v1/knowledge-bases")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"v-kb\"}"))
                 .andExpect(status().isForbidden())
-                .andExpect(content().bytes(goldenBytes("kb-create-forbidden-viewer.json")));
+            .andReturn();
+        assertGolden(gb2, "kb-create-forbidden-viewer.json");
     }
 
     // ── 文档 CRUD ─────────────────────────────────────────────────────────
@@ -275,16 +275,18 @@ class KnowledgeContractTest {
         assertTrue(gotBody.contains("\"title\":\"golden-doc.txt\""), "get 应返回该文档: " + gotBody);
 
         // 3. 404 → 静态 golden
-        mockMvc.perform(get("/api/v1/knowledge/00000000-0000-0000-0000-000000000000")
+        MvcResult gb3 = mockMvc.perform(get("/api/v1/knowledge/00000000-0000-0000-0000-000000000000")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound())
-                .andExpect(content().bytes(goldenBytes("doc-not-found.json")));
+            .andReturn();
+        assertGolden(gb3, "doc-not-found.json");
 
         // 4. folders → 静态 golden（录制时仅上传文档 1 篇；Go 只排除 deleting，draft 计入）
-        mockMvc.perform(get("/api/v1/knowledge-bases/" + kbId + "/knowledge/folders")
+        MvcResult gb4 = mockMvc.perform(get("/api/v1/knowledge-bases/" + kbId + "/knowledge/folders")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("doc-folders.json")));
+            .andReturn();
+        assertGolden(gb4, "doc-folders.json");
 
         // 5. manual draft → 掩码比对
         MvcResult manual = mockMvc.perform(post("/api/v1/knowledge-bases/" + kbId + "/knowledge/manual")
@@ -299,12 +301,13 @@ class KnowledgeContractTest {
         String manualId = extractUuid(manual.getResponse().getContentAsString(StandardCharsets.UTF_8), "\"id\":\"");
 
         // 6. manual 非法 status → 静态 golden（400）
-        mockMvc.perform(post("/api/v1/knowledge-bases/" + kbId + "/knowledge/manual")
+        MvcResult gb5 = mockMvc.perform(post("/api/v1/knowledge-bases/" + kbId + "/knowledge/manual")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"title\":\"x\",\"content\":\"y\",\"status\":\"enabled\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().bytes(goldenBytes("doc-manual-bad-status.json")));
+            .andReturn();
+        assertGolden(gb5, "doc-manual-bad-status.json");
 
         // 7. update → 掩码比对
         MvcResult updated = mockMvc.perform(put("/api/v1/knowledge/" + manualId)
@@ -354,9 +357,6 @@ class KnowledgeContractTest {
         return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
-    private static byte[] goldenBytes(String name) throws Exception {
-        return new ClassPathResource("contracts/" + name).getInputStream().readAllBytes();
-    }
 
     private static String extractUuid(String body, String keyPrefix) {
         java.util.regex.Matcher m = Pattern.compile(
@@ -367,6 +367,15 @@ class KnowledgeContractTest {
     }
 
     /** 与 golden 比对前的统一掩码 */
+    // ── 金片对比（B2 统一基建：语义归一 + strip + -Dcontract.refresh 重录） ──
+
+    private static void assertGolden(org.springframework.test.web.servlet.MvcResult r,
+            String name) throws Exception {
+        com.ragagent.support.GoldenContract.assertEquals("src/test/resources/contracts",
+                name, KnowledgeContractTest::mask,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private static String mask(String s) {
         // PR4 语义比较入口：键序/转义归一后再掩码
         s = com.ragagent.support.ContractJson.semantic(s);

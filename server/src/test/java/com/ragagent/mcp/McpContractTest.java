@@ -29,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -152,10 +151,11 @@ class McpContractTest {
                 "mcp-get 应与 golden 一致（掩码后）");
 
         // 4. 404 → 静态 golden
-        mockMvc.perform(get("/api/v1/mcp-services/00000000-0000-0000-0000-000000000000")
+        MvcResult gb1 = mockMvc.perform(get("/api/v1/mcp-services/00000000-0000-0000-0000-000000000000")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound())
-                .andExpect(content().bytes(goldenBytes("mcp-not-found.json")));
+            .andReturn();
+        assertGolden(gb1, "mcp-not-found.json");
 
         // 5. update → 掩码比对
         MvcResult updated = mockMvc.perform(put("/api/v1/mcp-services/" + id)
@@ -207,10 +207,11 @@ class McpContractTest {
                 .andExpect(status().isNoContent());
 
         // 11. 非法 field → 静态 golden（"unknown credential field: bogus"）
-        mockMvc.perform(delete("/api/v1/mcp-services/" + id + "/credentials/bogus")
+        MvcResult gb2 = mockMvc.perform(delete("/api/v1/mcp-services/" + id + "/credentials/bogus")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().bytes(goldenBytes("mcp-credentials-bad-field.json")));
+            .andReturn();
+        assertGolden(gb2, "mcp-credentials-bad-field.json");
 
         // 12. metadata（无快照）→ 静态 golden（{"data":null,"success":true}）
         MvcResult meta = mockMvc.perform(get("/api/v1/mcp-services/" + id + "/metadata")
@@ -290,25 +291,27 @@ class McpContractTest {
     @Test
     void createRejectsSsrfUnsafeUrl() throws Exception {
         String token = login("java-phase1@weknora.test");
-        mockMvc.perform(post("/api/v1/mcp-services")
+        MvcResult gb3 = mockMvc.perform(post("/api/v1/mcp-services")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"ssrf-probe\",\"transportType\":\"http-streamable\","
                                 + "\"url\":\"http://10.0.0.1/mcp\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().bytes(goldenBytes("mcp-create-ssrf-rejected.json")));
+            .andReturn();
+        assertGolden(gb3, "mcp-create-ssrf-rejected.json");
     }
 
     /** Viewer 无权创建 MCP 服务（对照 Go g.Admin()）。 */
     @Test
     void createForbiddenForViewer() throws Exception {
         String token = login("java-phase1-viewer@weknora.test");
-        mockMvc.perform(post("/api/v1/mcp-services")
+        MvcResult gb4 = mockMvc.perform(post("/api/v1/mcp-services")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"name\":\"v-mcp\",\"transportType\":\"http-streamable\",\"url\":\"" + MCP_URL + "\"}"))
                 .andExpect(status().isForbidden())
-                .andExpect(content().bytes(goldenBytes("mcp-create-forbidden-viewer.json")));
+            .andReturn();
+        assertGolden(gb4, "mcp-create-forbidden-viewer.json");
     }
 
     // ── 工具 ─────────────────────────────────────────────────────────────
@@ -355,9 +358,6 @@ class McpContractTest {
         return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
-    private static byte[] goldenBytes(String name) throws Exception {
-        return new ClassPathResource("contracts/" + name).getInputStream().readAllBytes();
-    }
 
     private static String extractUuid(String body) {
         java.util.regex.Matcher m = Pattern.compile(
@@ -367,6 +367,15 @@ class McpContractTest {
     }
 
     /** 与 golden 比对前的统一掩码：UUID + 时间戳 */
+    // ── 金片对比（B2 统一基建：语义归一 + strip + -Dcontract.refresh 重录） ──
+
+    private static void assertGolden(org.springframework.test.web.servlet.MvcResult r,
+            String name) throws Exception {
+        com.ragagent.support.GoldenContract.assertEquals("src/test/resources/contracts",
+                name, McpContractTest::mask,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private static String mask(String s) {
         // PR4 语义比较入口：键序/转义归一后再掩码
         s = com.ragagent.support.ContractJson.semantic(s);

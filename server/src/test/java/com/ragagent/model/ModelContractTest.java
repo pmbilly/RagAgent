@@ -28,7 +28,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -120,84 +119,93 @@ class ModelContractTest {
 
     @Test
     void listModelsEmpty() throws Exception {
-        mockMvc.perform(get("/api/v1/models").header("Authorization", "Bearer " + loginOwner()))
+        MvcResult gb1 = mockMvc.perform(get("/api/v1/models").header("Authorization", "Bearer " + loginOwner()))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("models-list-empty.json")));
+            .andReturn();
+        assertGolden(gb1, "models-list-empty.json");
     }
 
     @Test
     void providers() throws Exception {
-        mockMvc.perform(get("/api/v1/models/providers").header("Authorization", "Bearer " + loginOwner()))
+        MvcResult gb2 = mockMvc.perform(get("/api/v1/models/providers").header("Authorization", "Bearer " + loginOwner()))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("model-providers.json")));
+            .andReturn();
+        assertGolden(gb2, "model-providers.json");
     }
 
     @Test
     void providersFilteredByChat() throws Exception {
-        mockMvc.perform(get("/api/v1/models/providers?modelType=chat")
+        MvcResult gb3 = mockMvc.perform(get("/api/v1/models/providers?modelType=chat")
                         .header("Authorization", "Bearer " + loginOwner()))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("model-providers-chat.json")));
+            .andReturn();
+        assertGolden(gb3, "model-providers-chat.json");
     }
 
     @Test
     void getModelNotFound() throws Exception {
-        mockMvc.perform(get("/api/v1/models/no-such-model-id")
+        MvcResult gb4 = mockMvc.perform(get("/api/v1/models/no-such-model-id")
                         .header("Authorization", "Bearer " + loginOwner()))
                 .andExpect(status().isNotFound())
-                .andExpect(content().bytes(goldenBytes("model-not-found.json")));
+            .andReturn();
+        assertGolden(gb4, "model-not-found.json");
     }
 
     @Test
     void weknoracloudStatus() throws Exception {
-        mockMvc.perform(get("/api/v1/models/weknoracloud/status")
+        MvcResult gb5 = mockMvc.perform(get("/api/v1/models/weknoracloud/status")
                         .header("Authorization", "Bearer " + loginOwner()))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("weknoracloud-status.json")));
+            .andReturn();
+        assertGolden(gb5, "weknoracloud-status.json");
     }
 
     /** 凭证保存的校验路径（外呼校验路径需真实 WeKnoraCloud，不做集成）。 */
     @Test
     void weknoracloudCredentialsValidation() throws Exception {
-        mockMvc.perform(post("/api/v1/weknoracloud/credentials")
+        MvcResult gb6 = mockMvc.perform(post("/api/v1/weknoracloud/credentials")
                         .header("Authorization", "Bearer " + loginOwner())
                         .contentType("application/json")
                         .content("{\"appId\":\"app-x\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().bytes(goldenBytes("weknoracloud-cred-validation.json")));
+            .andReturn();
+        assertGolden(gb6, "weknoracloud-cred-validation.json");
     }
 
     @Test
     void createValidationError() throws Exception {
-        mockMvc.perform(post("/api/v1/models")
+        MvcResult gb7 = mockMvc.perform(post("/api/v1/models")
                         .header("Authorization", "Bearer " + loginOwner())
                         .contentType("application/json")
                         .content("{\"type\":\"KnowledgeQA\",\"source\":\"openai\","
                                 + "\"parameters\":{\"baseUrl\":\"https://api.openai.com/v1\"}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().bytes(goldenBytes("model-create-validation.json")));
+            .andReturn();
+        assertGolden(gb7, "model-create-validation.json");
     }
 
     @Test
     void createSsrfBlocked() throws Exception {
-        mockMvc.perform(post("/api/v1/models")
+        MvcResult gb8 = mockMvc.perform(post("/api/v1/models")
                         .header("Authorization", "Bearer " + loginOwner())
                         .contentType("application/json")
                         .content("{\"name\":\"ssrf-test\",\"type\":\"KnowledgeQA\",\"source\":\"openai\","
                                 + "\"parameters\":{\"baseUrl\":\"http://127.0.0.1:8080/v1\",\"apiKey\":\"sk-test\"}}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().bytes(goldenBytes("model-create-ssrf.json")));
+            .andReturn();
+        assertGolden(gb8, "model-create-ssrf.json");
     }
 
     @Test
     void createForbiddenForViewer() throws Exception {
-        mockMvc.perform(post("/api/v1/models")
+        MvcResult gb9 = mockMvc.perform(post("/api/v1/models")
                         .header("Authorization", "Bearer " + loginViewer())
                         .contentType("application/json")
                         .content("{\"name\":\"v\",\"type\":\"KnowledgeQA\",\"source\":\"openai\","
                                 + "\"parameters\":{\"baseUrl\":\"https://api.openai.com/v1\"}}"))
                 .andExpect(status().isForbidden())
-                .andExpect(content().bytes(goldenBytes("model-create-forbidden-viewer.json")));
+            .andReturn();
+        assertGolden(gb9, "model-create-forbidden-viewer.json");
     }
 
     // ── 生命周期（掩码后逐字节） ──────────────────────────────────────────
@@ -236,20 +244,22 @@ class ModelContractTest {
                 "update 响应应与 golden 一致（掩码后）");
 
         // credentials PUT → 200（静态）
-        mockMvc.perform(put("/api/v1/models/" + modelId + "/credentials")
+        MvcResult gb10 = mockMvc.perform(put("/api/v1/models/" + modelId + "/credentials")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"apiKey\":\"sk-rotated-key\"}"))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("model-cred-put.json")));
+            .andReturn();
+        assertGolden(gb10, "model-cred-put.json");
 
         // credentials PUT（空 body = 查询已配置状态）→ 200（静态）
-        mockMvc.perform(put("/api/v1/models/" + modelId + "/credentials")
+        MvcResult gb11 = mockMvc.perform(put("/api/v1/models/" + modelId + "/credentials")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("model-cred-get.json")));
+            .andReturn();
+        assertGolden(gb11, "model-cred-get.json");
 
         // credentials DELETE → 204
         mockMvc.perform(delete("/api/v1/models/" + modelId + "/credentials/api_key")
@@ -299,9 +309,6 @@ class ModelContractTest {
         return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
-    private static byte[] goldenBytes(String name) throws Exception {
-        return new ClassPathResource("contracts/" + name).getInputStream().readAllBytes();
-    }
 
     private static String extractModelId(String body) {
         java.util.regex.Matcher m = Pattern.compile(
@@ -311,6 +318,15 @@ class ModelContractTest {
     }
 
     /** 与 golden 比对前对动态字段做同一种掩码（UUID + 时间戳） */
+    // ── 金片对比（B2 统一基建：语义归一 + strip + -Dcontract.refresh 重录） ──
+
+    private static void assertGolden(org.springframework.test.web.servlet.MvcResult r,
+            String name) throws Exception {
+        com.ragagent.support.GoldenContract.assertEquals("src/test/resources/contracts",
+                name, ModelContractTest::mask,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private static String mask(String s) {
         // PR4 语义比较入口：键序/转义归一后再掩码
         s = com.ragagent.support.ContractJson.semantic(s);

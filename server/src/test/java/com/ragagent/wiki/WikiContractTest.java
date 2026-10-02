@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
@@ -29,7 +28,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -174,10 +172,11 @@ class WikiContractTest {
                 .andExpect(status().isOk());
 
         // 4. 404 → 纯字符串错误（逐字节）
-        mockMvc.perform(get(base + "/pages/no-such-page")
+        MvcResult gb1 = mockMvc.perform(get(base + "/pages/no-such-page")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound())
-                .andExpect(content().bytes(goldenBytes("wiki-page-not-found.json")));
+            .andReturn();
+        assertGolden(gb1, "wiki-page-not-found.json");
 
         // 5. update → 裸实体 + version 自增
         MvcResult updated = mockMvc.perform(put(base + "/pages/golden-page")
@@ -211,9 +210,10 @@ class WikiContractTest {
         String base = "/api/v1/knowledgebase/" + kbId + "/wiki";
 
         // 空列表 → 逐字节（{"parent_id":"","folders":[]}）
-        mockMvc.perform(get(base + "/folders").header("Authorization", "Bearer " + token))
+        MvcResult gb2 = mockMvc.perform(get(base + "/folders").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(content().bytes(goldenBytes("wiki-folders-empty.json")));
+            .andReturn();
+        assertGolden(gb2, "wiki-folders-empty.json");
 
         // 创建 → 裸实体
         mockMvc.perform(post(base + "/folders")
@@ -264,12 +264,13 @@ class WikiContractTest {
     @Test
     void viewerCannotCreatePage() throws Exception {
         String token = login("java-phase1-viewer@weknora.test");
-        mockMvc.perform(post("/api/v1/knowledgebase/" + kbId + "/wiki/pages")
+        MvcResult gb3 = mockMvc.perform(post("/api/v1/knowledgebase/" + kbId + "/wiki/pages")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json")
                         .content("{\"slug\":\"v-page\",\"title\":\"V\"}"))
                 .andExpect(status().isForbidden())
-                .andExpect(content().bytes(goldenBytes("wiki-create-forbidden.json")));
+            .andReturn();
+        assertGolden(gb3, "wiki-create-forbidden.json");
     }
 
     /**
@@ -323,11 +324,17 @@ class WikiContractTest {
         return com.ragagent.support.ContractJson.semantic(GOLDEN_SEMANTIC_MAPPER, text);
     }
 
-    private static byte[] goldenBytes(String name) throws Exception {
-        return new ClassPathResource("contracts/" + name).getInputStream().readAllBytes();
-    }
 
     /** 掩码：UUID（含任意位置的裸 UUID，如 recent_updates 里的 id）与时间戳 */
+    // ── 金片对比（B2 统一基建：语义归一 + strip + -Dcontract.refresh 重录） ──
+
+    private static void assertGolden(org.springframework.test.web.servlet.MvcResult r,
+            String name) throws Exception {
+        com.ragagent.support.GoldenContract.assertEquals("src/test/resources/contracts",
+                name, WikiContractTest::mask,
+                r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private static String mask(String s) {
         // PR4 语义比较入口：键序/转义归一后再掩码
         s = com.ragagent.support.ContractJson.semantic(s);

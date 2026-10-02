@@ -279,8 +279,8 @@ class W5cFileProxyContractTest {
         MvcResult r = call(method, path, auth, extraHeaders);
         assertEquals(expectedStatus, r.getResponse().getStatus(),
                 () -> goldenName + " status, body=" + raw(r));
-        assertEquals(readGolden(goldenName), raw(r),
-                () -> "golden mismatch: " + goldenName);
+        com.ragagent.support.GoldenContract.assertEquals("src/test/resources/contracts",
+                goldenName, java.util.function.UnaryOperator.identity(), raw(r));
     }
 
     /** 二进制场景：体逐字节 + 归一化头部逐行。 */
