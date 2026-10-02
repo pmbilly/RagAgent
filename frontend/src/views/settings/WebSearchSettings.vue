@@ -260,7 +260,7 @@
             class="form-item"
           >
             <label class="form-label" :class="{ required: field.required }">
-              {{ configFieldText(field.label_key, field.label) }}
+              {{ configFieldText(field.labelKey, field.label) }}
             </label>
             <t-select
               v-if="field.type === 'select'"
@@ -270,11 +270,11 @@
                 v-for="option in field.options || []"
                 :key="option.value"
                 :value="option.value"
-                :label="configFieldText(option.label_key, option.label)"
+                :label="configFieldText(option.labelKey, option.label)"
               />
             </t-select>
             <p v-if="field.description" class="form-desc">
-              {{ configFieldText(field.description_key, field.description) }}
+              {{ configFieldText(field.descriptionKey, field.description) }}
             </p>
           </div>
         </section>

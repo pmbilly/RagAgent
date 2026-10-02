@@ -2795,6 +2795,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B25 批甲（首面）** | 模板标志位收口 + 引用/进度载荷判冻结 | P3 | 小 | ✅ **完成（2026-10-02）**——`hasKnowledgeBase`/`hasWebSearch` 收口（YAML 输入面未动）；引用载荷因落库+回放+前端重建而冻结；并纠正 B24 筛子的「FE 可见」低估 |
 | **B26 批甲续（websearch 凭据面）** | 逐面看消费者链 | P2 | 中 | 🐞 **修掉真 bug（2026-10-02）**——凭据面三处键名错位（保存静默失效 / 删除 400 / 徽标恒「未配置」），金鹰记录的缺陷态一并纠正；另四面判冻结并入 BASELINE |
 | **B27 批甲续 2** | 推荐问题键收口 + 6 类面判冻结 | P3 | 小 | ✅ **完成（2026-10-02）**——`knowledgeBaseId` 收口；观测面/内部预设名/agent_steps 落库桶/存储引擎面/wiki 内部状态/模型契约均判冻结并入 BASELINE；待判 80→66 |
+| **B28 批甲续 3** | websearch provider-types 字段面收口 | P3 | 小 | ✅ **完成（2026-10-02）**——`labelKey`/`descriptionKey` 收口（只改键、不动 i18n 值）；闸门全绿 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3185,6 +3186,12 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - 扫描器待判清单 **80 → 66 文件**。
 - 闸门：后端全量 **4713** 绿 + `spotlessCheck` 绿；前端 `vue-tsc` 绿 + **690** 绿 + 契约键棘轮无新增。
 - **队列剩余**：`system/*`（`quota_bytes`/`quota_gb`/`new_value`/`is_revoked` 等）、`websearch/dto/WebSearchProviderTypes`（`label_key`/`description_key`——前端按 snake 读 ⇒ 真债候选）、`mcp/controller` 其余项、`wiki/*` 其余、以及 model 凭据面（snake，两端自洽）是否与 websearch/MCP 统一。
+
+**✅ B28（2026-10-02，批甲续 3：websearch provider-types 配置字段面收口）**
+- **收口**：`label_key` / `description_key` → `labelKey` / `descriptionKey`。落点：后端 `WebSearchProviderTypes`（7 处）；前端 `api/web-search-provider.ts`（类型 3 处）与 `WebSearchSettings.vue`（用法 3 处）；夹具 `wsp-types.json` / `wsp-legacy-providers.json`（各 10 处）。
+- **判定说明**：该面两端本来一致（snake↔snake，**不是 bug**），按 §2「我们自己的 JSON 面 ⇒ camel」收口。特别地：这两键的**值**是国际化文案键（形如 `webSearchSettings.configFields.*`）——**值是数据、键才是 JSON 面**，故只改键、不动值（B20 教训的又一次应用）。
+- 闸门：后端全量 **4713** 绿 + `spotlessCheck` 绿；前端 `vue-tsc` 绿 + **690** 绿 + 契约键棘轮无新增。
+- **队列剩余**：`system/*`（`quota_bytes`/`quota_gb`/`new_value`/`old_value`/`value_type`/`is_revoked`…）、`mcp/controller` 其余项、`wiki/*` 其余项、`storage/fileserve/FileProxyService`（`file_path`）、以及 model 凭据面（snake，两端自洽）是否与 websearch/MCP 统一。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

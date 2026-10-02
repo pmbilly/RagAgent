@@ -42,13 +42,13 @@ export interface WebSearchProviderTypeInfo {
 export interface WebSearchProviderConfigField {
   key: string
   label: string
-  label_key?: string
+  labelKey?: string
   type: 'select'
   required?: boolean
   default?: string
   description?: string
-  description_key?: string
-  options?: Array<{ label: string; label_key?: string; value: string }>
+  descriptionKey?: string
+  options?: Array<{ label: string; labelKey?: string; value: string }>
 }
 
 // Create a new web search provider

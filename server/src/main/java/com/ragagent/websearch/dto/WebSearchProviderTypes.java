@@ -61,17 +61,17 @@ public final class WebSearchProviderTypes {
         out.add(of("metaso", "Metaso AI Search", true, false, false, false, true,
                 "Metaso AI Search API (requires API key)",
                 "https://metaso.cn/search-api/playground", metasoFields));
-        // zhipu：config_fields.search_engine + content_size（带 label_key/description_key）
+        // zhipu：config_fields.search_engine + content_size（带 labelKey/descriptionKey）
         List<Map<String, Object>> zhipuFields = new ArrayList<>();
         Map<String, Object> engine = new LinkedHashMap<>();
         engine.put("key", "search_engine");
         engine.put("label", "Search engine");
-        engine.put("label_key", "webSearchSettings.configFields.searchEngine");
+        engine.put("labelKey", "webSearchSettings.configFields.searchEngine");
         engine.put("type", "select");
         engine.put("required", true);
         engine.put("default", "search_std");
         engine.put("description", "Select the Zhipu search engine and per-request price tier.");
-        engine.put("description_key", "webSearchSettings.configFields.searchEngineDesc");
+        engine.put("descriptionKey", "webSearchSettings.configFields.searchEngineDesc");
         engine.put("options", options(new String[][] {
                 {"Standard · ¥0.01/request", "search_std"},
                 {"Pro · ¥0.03/request", "search_pro"},
@@ -81,12 +81,12 @@ public final class WebSearchProviderTypes {
         Map<String, Object> size = new LinkedHashMap<>();
         size.put("key", "content_size");
         size.put("label", "Content size");
-        size.put("label_key", "webSearchSettings.configFields.contentSize");
+        size.put("labelKey", "webSearchSettings.configFields.contentSize");
         size.put("type", "select");
         size.put("required", true);
         size.put("default", "medium");
         size.put("description", "Medium returns concise summaries; high returns more context.");
-        size.put("description_key", "webSearchSettings.configFields.contentSizeDesc");
+        size.put("descriptionKey", "webSearchSettings.configFields.contentSizeDesc");
         size.put("options", options(new String[][] {
                 {"Medium", "medium"}, {"High", "high"}}, true));
         zhipuFields.add(size);
@@ -141,7 +141,7 @@ public final class WebSearchProviderTypes {
             Map<String, Object> o = new LinkedHashMap<>();
             o.put("label", pair[0]);
             if (withLabelKey) {
-                o.put("label_key", "webSearchSettings.configFields." + labelKeyOf(pair[1]));
+                o.put("labelKey", "webSearchSettings.configFields." + labelKeyOf(pair[1]));
             }
             o.put("value", pair[1]);
             out.add(o);
