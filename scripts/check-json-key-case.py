@@ -11,7 +11,10 @@
   ③ 帮手式写入：`putNonEmpty|putTrue|putAlways|putOmitEmpty(<任意>, "snake"`
 基线只记录**已逐条复核**的例外；出现基线之外的新命中即失败（棘轮：只许减不许增）。
 
-用法：python3 scripts/check-json-key-case.py [--list]
+用法：python3 scripts/check-json-key-case.py [--list|--strict]
+  默认＝报告（列出基线外命中但**退出 0**）；--strict＝闸门（有基线外命中即退出 1，
+  供将来判定完成后接 CI 用——当前基线只含 3 组已逐条复核的例外，其余待判项
+  （SQL 参数键假阳性、诊断载荷等）不能当作已复核例外入基线）。
 
 **已知边界（诚实声明）**：本扫描器按文本模式匹配 `put/set("snake"` 等，**会命中 SQL 参数
 Map / MyBatis 列名等非 JSON 键**（如 `*Repository` 的 `deleted_at`），故 `--list` 是**待判
@@ -96,6 +99,10 @@ def main() -> int:
             print(f'  [{mark}] {f}: {sorted(keys)}')
         return 0
 
+    if violations and '--strict' not in sys.argv:
+        print(f'ℹ 待判清单：{len(violations)} 个文件有基线外的 snake 键 '
+              f'（未复核为真债，也未被入基线；详见 --list）。默认不判失败。')
+        return 0
     if violations:
         print('✗ 非冻结面出现新的 snake JSON 键（§2：自己的 JSON 面用 camel）：')
         for f, keys in sorted(violations.items()):

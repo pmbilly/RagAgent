@@ -3149,7 +3149,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
   | 内部/诊断/状态载荷（pipeline 进度、span、同步日志、审计、内存洞察…） | 33 文件 / 127 键 | 待判（多属"诊断面"，倾向登记保留） |
   | FE 可见 | 33 文件 / 42 键 | **真债候选**（如 `chatpipeline/support/ReferencesSupport` 的 `chunk_id/knowledge_title/display_type…`、`PipelineProgress` 的 `candidate_count/search_source…`、`PromptTemplateCatalog` 的 `has_knowledge_base/has_web_search`、mcp/datasource/agent 面若干） |
   | 仅夹具断言 | 23 文件 / 39 键 | 自有面，待判 |
-- **工具**：`scripts/check-json-key-case.py`（`--list` 出待判清单；默认棘轮模式只在基线外**新增**命中时失败）。**边界诚实声明**：按文本模式匹配会命中 **SQL 参数 Map / MyBatis 列名**（`*Repository` 的 `deleted_at` 等）⇒ `--list` 是**待判**清单而非违规清单；判真债必须看**消费者**。基线当前仅含 3 组已核实例外（langfuse、模型契约 `new_slugs`、内部 jsonb `new_slugs`）。
+- **工具**：`scripts/check-json-key-case.py`（`--list` 出待判清单；默认＝**报告**、退出 0；`--strict` 才是闸门，**当前未启用**——启用前置＝批甲/批乙判定完成，现基线只含 3 组已逐条复核的例外）。**边界诚实声明**：按文本模式匹配会命中 **SQL 参数 Map / MyBatis 列名**（`*Repository` 的 `deleted_at` 等）⇒ `--list` 是**待判**清单而非违规清单；判真债必须看**消费者**。基线当前仅含 3 组已核实例外（langfuse、模型契约 `new_slugs`、内部 jsonb `new_slugs`）。
 - **方法论**：不要机械批改（B18 教训）——按**面**逐条判定，FE 可见的同批带前端与夹具；判不动的先登记，别猜。
 - **下一批（批甲，建议）**：FE 可见的"自有 JSON 面"逐面收口——先做聊天管线两组（`ReferencesSupport`/`PipelineProgress`/`SearchSupport`）与模板载荷标志位（`has_knowledge_base`/`has_web_search`），每个面＝后端 + 前端 + 夹具 + 契约测试同批。
 
