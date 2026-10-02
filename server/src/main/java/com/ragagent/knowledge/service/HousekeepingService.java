@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.service;
 
 import java.time.Duration;
+import com.ragagent.knowledge.config.HousekeepingProperties;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -115,8 +116,11 @@ public class HousekeepingService {
     private final KnowledgeTaskExecutor taskExecutor;
 
     @Autowired
-    public HousekeepingService(JdbcTemplate jdbc, KnowledgeTaskExecutor taskExecutor) {
-        this(jdbc, null, documentProcessTimeoutFromEnv(), housekeepingEnabledFromEnv(), taskExecutor);
+    public HousekeepingService(JdbcTemplate jdbc, KnowledgeTaskExecutor taskExecutor,
+                               HousekeepingProperties properties) {
+        this(jdbc, null,
+                documentProcessTimeoutFromEnv(properties.documentProcessTimeout()),
+                housekeepingEnabledFromEnv(properties.enabledRaw()), taskExecutor);
     }
 
     /** 测试口：显式给阈值与开关/注入 inspector。 */
@@ -380,10 +384,6 @@ public class HousekeepingService {
     /**
      * 缺省、非正数或解析失败回落 {@code DefaultDocumentProcessTimeout}（2h）。
      */
-    static Duration documentProcessTimeoutFromEnv() {
-        return documentProcessTimeoutFromEnv(System.getenv(DOCUMENT_PROCESS_TIMEOUT_ENV));
-    }
-
     static Duration documentProcessTimeoutFromEnv(String raw) {
         if (raw == null || raw.trim().isEmpty()) {
             return DEFAULT_DOCUMENT_PROCESS_TIMEOUT;
@@ -438,10 +438,6 @@ public class HousekeepingService {
     }
 
     /** 缺省开启，只有显式 0/false/off/no 才关。 */
-    static boolean housekeepingEnabledFromEnv() {
-        return housekeepingEnabledFromEnv(System.getenv(ENABLED_ENV));
-    }
-
     static boolean housekeepingEnabledFromEnv(String raw) {
         String v = raw == null ? "" : raw.trim();
         if (v.isEmpty()) {

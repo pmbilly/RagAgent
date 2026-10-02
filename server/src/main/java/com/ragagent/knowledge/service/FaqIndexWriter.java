@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.service;
 
 import java.time.OffsetDateTime;
+import com.ragagent.knowledge.config.BatchEmbedProperties;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -45,6 +46,8 @@ public class FaqIndexWriter {
     private final VectorStoreService vectorStore;
     private final EmbedderClient embedder;
     private final ModelRuntimeFactory modelRuntimeFactory;
+    /** 批量向量化批大小（B6 批 5：属性绑定）。 */
+    private final BatchEmbedProperties batchEmbedProperties;
 
     public FaqIndexWriter(KnowledgeMapper knowledgeMapper,
                           ModelMapper modelMapper,
@@ -53,7 +56,8 @@ public class FaqIndexWriter {
                           KnowledgeVectorWrites vectorWrites,
                           VectorStoreService vectorStore,
                           EmbedderClient embedder,
-                          ModelRuntimeFactory modelRuntimeFactory) {
+                          ModelRuntimeFactory modelRuntimeFactory,
+                          BatchEmbedProperties batchEmbedProperties) {
         this.knowledgeMapper = knowledgeMapper;
         this.modelMapper = modelMapper;
         this.chunkMapper = chunkMapper;
@@ -62,6 +66,7 @@ public class FaqIndexWriter {
         this.vectorStore = vectorStore;
         this.embedder = embedder;
         this.modelRuntimeFactory = modelRuntimeFactory;
+        this.batchEmbedProperties = batchEmbedProperties;
     }
 
     private static long tenantId() {
@@ -186,7 +191,7 @@ public class FaqIndexWriter {
         }
         vectorStore.deleteByChunkId(chunkIds);
         EmbedderClient.EmbedConfig cfg = EmbedderClient.configFrom(embeddingModel);
-        int batchSize = ChunkVectorIndexer.embedBatchSize();
+        int batchSize = ChunkVectorIndexer.embedBatchSize(batchEmbedProperties.embedSize());
         for (int from = 0; from < rows.size(); from += batchSize) {
             int to = Math.min(from + batchSize, rows.size());
             List<VectorStoreService.IndexRow> batchRows = rows.subList(from, to);

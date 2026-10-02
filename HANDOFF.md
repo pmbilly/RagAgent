@@ -47,7 +47,7 @@
    B1 契约文档 v1.1 / B2 金片对比器统一（GoldenContract 上线，字节级对比清零）/ B3 `@JsonInclude` 恒输出化
    （真面 68 处；yunzhijia 第三方回退）/ **B3b KB 配置 jsonb 键名统一（camelCase + V2 存量迁移，2026-10-02 收官）** /
    B4 零值哨兵（结论：不改，已知例外）/ B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行与 §15.1.1）。
-   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **B6 getenv 收敛（🚧 批 1~4 已完成：storage 装配 / langfuse / 检索驱动 / 系统部署面，余 68 处按 §15.1.1 的 A/B 类清单继续）** /
+   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **B6 getenv 收敛（🚧 批 1~5 已完成，余 62 处按 §15.1.1 的 A/B 类清单继续；余量集中在静态工具族：SSRF/语言/AES/存储路径）** /
    B9 Go 锚点随批 / B10 ArchUnit 进 CI / B11 多模块（最后做）。**B0 登记残留见 §15.1.1**（B3b′ 已修；其余 4 项含 `process_overrides` 写了不用、
    wiki 死信槽位无人释放、孤儿 wiki op 不重放、存储引擎设置孤儿组件）。
    **新会话接手**：直接读 §15.1 批次表（状态列）+ §15.1.1 执行记录 + §15.2 纪律五条（开工前必读）+
@@ -2774,7 +2774,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B3b KB 配置 jsonb 键名统一（camelCase）** | 由 B0 走查升格为真实缺陷：`knowledge_bases` 的 `*_config` 列三方咬合面（前端 payload / 服务端读取器 / 落库 jsonb）键名分裂，导致界面上的 wiki 合成模型、问题生成参数、索引开关被静默忽略。服务端读取器 + 更新路径 dispatch 键 + 前端 payload/读取/类型 + V2 存量迁移 + 列默认值（连带修掉「编辑弹窗恒打不开」的裸资源读取） | **P1** | 中 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B4 Go 零值时间哨兵 → null** | `0001-01-01T00:00:00Z`（AgentStep / agentm GO_ZERO_TIME / init goTime 系） | P1 | 小-中 | ✅ **结论：不改**（调查后判已知例外，见 15.1.1） |
 | **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键；先出判定再动刀 | P1 | 判定小 | ⬜ 待做（可判定后搁置——载具当前工作正常） |
-| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | 🚧 **批 1（storage 装配）+ 批 2（langfuse）+ 批 3（检索驱动）+ 批 4（系统/部署面，含 `GIN_MODE`→`WEKNORA_DEPLOYMENT_MODE` 改名）完成（2026-10-02）**——全仓 149→75（代码内 68）；余量清单与「静态上下文」口径见 15.1.1 |
+| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | 🚧 **批 1~5 完成（2026-10-02）**：storage 装配 / langfuse / 检索驱动 / 系统部署面（含 `GIN_MODE`→`WEKNORA_DEPLOYMENT_MODE`）/ 知识域单值（docreader·批大小·清理开关）——全仓 149→69（代码内 62）；余量清单与「静态上下文」口径见 15.1.1 |
 | **B7 死成员清扫** | 只注入不读取依赖（依赖级口径）+ 死 logger/`ObjectMapper`/`Pattern`/私有方法/冗余 import | P1 | 小-中 | ✅ |
 | **B8 注解形态收尾** | 全限定名注解 → import 短名；`@JsonIgnoreProperties` 44 处接工厂评估 | P2 | 小 | ✅（FQ 177→0；`@JsonIgnoreProperties` 评估后保留） |
 | **B9 Go 锚点注释清洗** | ~6,000 处；按 §4 既定"随触碰清洗"继续；若专项则按域分批 | P2 | 大（专项）/零（随批） | ⬜ 建议随批，不立专项 |
@@ -2853,6 +2853,12 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - 读取点改造：`SystemSettingService`（6 处：三层解析的 ENV 层）、`SystemController`（4 处：`envAll`/`orEnv`/docreader addr+transport）、`SystemInfoService`（1 处：存储 env 可用性探测）改注入 Spring `Environment`——键名仍由调用方给，`Environment.getProperty` 与 `System.getenv` 等价（系统环境变量本就是 Environment 的一个 property source），但测试属性可覆盖；`envAll`/`orEnv`/`env` 由 static 改实例（调用方本就是实例方法）。`DeploymentCapabilitiesHolder`（版次）注入属性；`EmbedChannelService.validateAllowedOrigins` 由 static 改实例（生产判定取属性；两处调用点走门面回引 `ctrl.service.`）；`WebConfig` 组装 holder 时补传属性。
 - 验证：真机冒烟两轮——① `WEKNORA_EDITION=lite WEKNORA_DEPLOYMENT_MODE=production` 起服：capabilities 报 `edition=lite`、建 embed 渠道带 `allowedOrigins:["*"]` 被拒（`wildcard origin '*' is not allowed in production`，400）；② 清环境后：`edition=standard`、同一请求 201 放行、`/system/parser-engines` 报 `connected:true addr=localhost:50051 transport=grpc`（走 Environment）。冒烟渠道已删；`spotlessCheck` 绿 + 全量测试绿。
 - **教训**：这批判的 15 处里有 4 处读点藏在 **static 方法**里（`envAll`/`orEnv`/`env`/`validateAllowedOrigins`）——改注入时得连带把方法改实例并核调用方（`validateAllowedOrigins` 的两个调用点在门面协作类里，走 `ctrl.service.` 即可）；`WebConfig` 手工 `new` 的 holder 也要补传参数（Spring 装配点漏了就编译期报错，属好事）。
+
+**🚧 B6 批 5（2026-10-02，知识域单值：docreader / 批大小 / 清理开关）**：6 处清零（全仓 75→69，代码内 62）。
+- 新增 `knowledge/config/` 三个属性类：`DocReaderProperties`（前缀 `docreader`：`addr`+`transport`，含 `addrOrDefault()`＝`localhost:50051` / `addrConfigured()`＝**连接判据仍是「有没有显式配置」而非真探活** / `transportOrDefault()`＝小写归一缺省 `grpc`）、`BatchEmbedProperties`（前缀 `batch`：`embedSize` 只承载原始串）、`HousekeepingProperties`（前缀 `weknora`：`housekeeping.enabled` + `documentProcessTimeout`）；扫描名单加 `com.ragagent.knowledge.config`。
+- 读取点：`DocReaderClient` 构造注入（2 处 env 读清零）、`SystemController` 的 `docReaderAddr()/docreaderTransport()` 改走属性（批 4 的 Environment 读法针对 DOCREADER_* 被属性取代）、`HousekeepingService` 的生产构造器注入属性（**两个无参 env 包装直接删除**——测试一直用的是「传原始串」的纯函数版，正好是纯函数化的收益）、`KnowledgeProcessWorker`（方法由 static 改实例读字段）、`ChunkVectorIndexer.embedBatchSize()` 改 `embedBatchSize(String raw)` + `FaqIndexWriter` 传值。
+- 验证：真机冒烟三处可观测点——① `WEKNORA_HOUSEKEEPING_ENABLED=false` 起服 → 日志 `[Housekeeping] disabled via ...`；清环境后 → `[Housekeeping] started with 5-minute sweep`（开关双向都对）。② `/system/parser-engines` 报 `connected:true addr=localhost:50051 transport=grpc`。③ `BATCH_EMBED_SIZE=abc`（非法值）起服 → 上传新文档后 `parseStatus=failed` 且 `errorMessage=strconv.Atoi: parsing "abc": invalid syntax`——**证明值确实流到了向量化读点**。冒烟文档/渠道已删；`spotlessCheck` 绿 + 全量测试绿。
+- **顺带发现（登记，未动）**：`embedding/BatchEmbedder` **生产无装配**（全仓只有它自己的测试 `EmbeddingWireTest` 构造它）→ 死类；其 `BATCH_EMBED_SIZE` 读点同属死代码（本批只改了两个在用的读点，没碰它）。删除与否留给 B7 类比批判定（删类要连带处理 `EmbedderPooler` 接口与测试）。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

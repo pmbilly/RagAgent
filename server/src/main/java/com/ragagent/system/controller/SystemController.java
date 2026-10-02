@@ -58,6 +58,8 @@ public class SystemController {
     private final com.ragagent.storage.service.StorageBackendService storageBackendService;
     /** env 读取面（B6 批 4：取代裸 System.getenv；含 DOCREADER_* 与存储 env 可用性探测）。 */
     private final Environment environment;
+    /** DocReader 连接信息（B6 批 5：走属性绑定，取代 DOCREADER_* 的 env 直读）。 */
+    private final com.ragagent.knowledge.config.DocReaderProperties docReaderProperties;
 
     public SystemController(SystemInfoService infoService,
                             ParserEngineRegistry parserEngines,
@@ -66,7 +68,8 @@ public class SystemController {
                             SsrfGuard ssrfGuard,
                             com.ragagent.system.service.DeploymentCapabilitiesHolder capabilitiesHolder,
                             com.ragagent.storage.service.StorageBackendService storageBackendService,
-                            Environment environment) {
+                            Environment environment,
+                            com.ragagent.knowledge.config.DocReaderProperties docReaderProperties) {
         this.infoService = infoService;
         this.parserEngines = parserEngines;
         this.tenantService = tenantService;
@@ -75,6 +78,7 @@ public class SystemController {
         this.capabilitiesHolder = capabilitiesHolder;
         this.storageBackendService = storageBackendService;
         this.environment = environment;
+        this.docReaderProperties = docReaderProperties;
     }
 
     // ── GET /capabilities ─────────────────────────────────────────────────
@@ -698,17 +702,12 @@ public class SystemController {
     }
 
     private String docReaderAddr() {
-        String addr = environment.getProperty("DOCREADER_ADDR");
-        return addr == null ? "" : addr.trim();
+        return docReaderProperties.addr() == null ? "" : docReaderProperties.addr().trim();
     }
 
     /** 对照 getDocReaderConnInfo：transport 缺省 grpc（小写归一）。 */
     private String docreaderTransport() {
-        String transport = environment.getProperty("DOCREADER_TRANSPORT");
-        if (transport == null || transport.trim().isEmpty()) {
-            return "grpc";
-        }
-        return transport.trim().toLowerCase();
+        return docReaderProperties.transportOrDefault();
     }
 
     private String orEnv(String value, String envName) {

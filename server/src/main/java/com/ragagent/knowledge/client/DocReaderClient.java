@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.client;
 
 import java.time.Duration;
+import com.ragagent.knowledge.config.DocReaderProperties;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -41,11 +42,11 @@ public class DocReaderClient {
     private volatile boolean connected;
     private final Object reconnectLock = new Object();
 
-    public DocReaderClient() {
-        String addr = System.getenv("DOCREADER_ADDR");
-        if (addr == null || addr.isBlank()) {
-            addr = "localhost:50051";
-        }
+    /**
+     * B6 批 5：地址/传输走 {@link DocReaderProperties} 绑定（env 名与语义未变）。
+     */
+    public DocReaderClient(DocReaderProperties properties) {
+        String addr = properties.addrOrDefault();
         String host = addr;
         int port = 50051;
         int idx = addr.lastIndexOf(':');
@@ -62,10 +63,9 @@ public class DocReaderClient {
                 .build();
         this.blocking = DocReaderGrpc.newBlockingStub(channel);
         this.asyncStub = DocReaderGrpc.newStub(channel);
-        // DOCREADER_ADDR 缺省时 DocReaderClient 构造用 localhost:50051 兜底——
-        // 为连接判据（dev/e2e 都显式配置，行为一致）。
-        String configured = System.getenv("DOCREADER_ADDR");
-        this.connected = configured != null && !configured.isBlank();
+        // DOCREADER_ADDR 缺省时构造用 localhost:50051 兜底——但连接判据是
+        // 「有没有显式配置」（dev/e2e 都显式配置，行为一致），不是真实探活。
+        this.connected = properties.addrConfigured();
     }
 
     /**

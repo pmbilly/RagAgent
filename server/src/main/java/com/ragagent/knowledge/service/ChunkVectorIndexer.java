@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.service;
 
 import java.util.ArrayList;
+import com.ragagent.knowledge.config.BatchEmbedProperties;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,8 @@ public class ChunkVectorIndexer {
     private final VectorStoreService vectorStore;
     private final KnowledgeVectorWrites vectorWrites;
     private final ModelRuntimeFactory modelRuntimeFactory;
+    /** 批量向量化批大小（B6 批 5：属性绑定）。 */
+    private final BatchEmbedProperties batchEmbedProperties;
 
     public ChunkVectorIndexer(KnowledgeBaseMapper kbMapper,
                               KnowledgeMapper knowledgeMapper,
@@ -68,7 +71,8 @@ public class ChunkVectorIndexer {
                               EmbedderClient embedder,
                               VectorStoreService vectorStore,
                               KnowledgeVectorWrites vectorWrites,
-                              ModelRuntimeFactory modelRuntimeFactory) {
+                              ModelRuntimeFactory modelRuntimeFactory,
+                              BatchEmbedProperties batchEmbedProperties) {
         this.kbMapper = kbMapper;
         this.knowledgeMapper = knowledgeMapper;
         this.modelService = modelService;
@@ -76,6 +80,7 @@ public class ChunkVectorIndexer {
         this.vectorStore = vectorStore;
         this.vectorWrites = vectorWrites;
         this.modelRuntimeFactory = modelRuntimeFactory;
+        this.batchEmbedProperties = batchEmbedProperties;
     }
 
     /**
@@ -187,7 +192,7 @@ public class ChunkVectorIndexer {
             }
         }
         vectorStore.deleteByChunkId(ids);
-        int embedBatch = embedBatchSize();
+        int embedBatch = embedBatchSize(batchEmbedProperties.embedSize());
         for (int from = 0; from < rows.size(); from += embedBatch) {
             int to = Math.min(from + embedBatch, rows.size());
             List<VectorStoreService.IndexRow> batchRows = rows.subList(from, to);
@@ -335,8 +340,8 @@ public class ChunkVectorIndexer {
         }
     }
 
-    static int embedBatchSize() {
-        String env = System.getenv("BATCH_EMBED_SIZE");
+    static int embedBatchSize(String raw) {
+        String env = raw;
         if (env == null || env.isEmpty()) {
             return 5;
         }

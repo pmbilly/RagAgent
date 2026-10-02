@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.task;
 
 import java.util.ArrayList;
+import com.ragagent.knowledge.config.BatchEmbedProperties;
 import java.util.concurrent.Executors;
 import java.util.List;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
@@ -90,8 +91,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
      * 批大小来自 BATCH_EMBED_SIZE env，空 → 5，非法值 → 报错。
      * strconv.Atoi 文案——会落进 knowledge 的 error_message）。走查实案：
      */
-    private static int embedBatchSize() {
-        String env = System.getenv("BATCH_EMBED_SIZE");
+    private int embedBatchSize() {
+        String env = batchEmbedProperties.embedSize();
         if (env == null || env.isEmpty()) {
             return 5;
         }
@@ -102,6 +103,9 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                     "strconv.Atoi: parsing \"" + env + "\": invalid syntax");
         }
     }
+
+    /** 批量向量化批大小（B6 批 5：走属性绑定，取代 BATCH_EMBED_SIZE 的 env 直读）。 */
+    private final BatchEmbedProperties batchEmbedProperties;
 
     private final ExecutorService executor =
             Executors.newVirtualThreadPerTaskExecutor();
@@ -154,7 +158,8 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
                                   ObjectProvider<
                                           ChunkExtractTaskQueue> chunkExtractQueue,
                                   ObjectProvider<
-                                          QuestionGenerationTaskQueue> questionGenerationQueue) {
+                                          QuestionGenerationTaskQueue> questionGenerationQueue,
+                                  BatchEmbedProperties batchEmbedProperties) {
         this.knowledgeMapper = knowledgeMapper;
         this.kbMapper = kbMapper;
         this.chunkMapper = chunkMapper;
@@ -172,6 +177,7 @@ public class KnowledgeProcessWorker implements KnowledgeService.KnowledgeProcess
         this.wikiKnowledgeFinalizer = wikiKnowledgeFinalizer;
         this.chunkExtractQueue = chunkExtractQueue;
         this.questionGenerationQueue = questionGenerationQueue;
+        this.batchEmbedProperties = batchEmbedProperties;
     }
 
     @Override
