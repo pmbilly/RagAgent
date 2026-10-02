@@ -1,6 +1,7 @@
 package com.ragagent.initialization.service;
 
 import java.time.OffsetDateTime;
+import com.ragagent.config.AppEnvLookup;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -254,7 +255,7 @@ public final class ModelConnectivityTestService {
             org.springframework.web.multipart.MultipartFile image) {
         // ollama 场景自动拼接 base url
         if ("ollama".equals(vlmInterfaceType)) {
-            vlmBaseUrl = orEmpty(System.getenv("OLLAMA_BASE_URL")) + "/v1";
+            vlmBaseUrl = orEmpty(AppEnvLookup.get("OLLAMA_BASE_URL")) + "/v1";
         }
         storageType = storageType == null ? "" : storageType.toLowerCase(Locale.ROOT);
         if (orEmpty(vlmModel).isEmpty() || orEmpty(vlmBaseUrl).isEmpty()) {

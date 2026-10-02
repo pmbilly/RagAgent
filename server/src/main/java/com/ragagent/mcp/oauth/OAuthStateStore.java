@@ -1,6 +1,7 @@
 package com.ragagent.mcp.oauth;
 
 import java.time.Duration;
+import com.ragagent.config.AppEnvLookup;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -79,7 +80,7 @@ public class OAuthStateStore {
 
     /** 对照 Go {@code key()}：`weknora:mcp_oauth_state:[<ns>:]<state>`。 */
     String key(String state) {
-        String ns = trimToEmpty(System.getenv(REDIS_NAMESPACE_ENV));
+        String ns = trimToEmpty(AppEnvLookup.get(REDIS_NAMESPACE_ENV));
         if (!ns.isEmpty()) {
             return KEY_PREFIX + ns + ":" + state;
         }

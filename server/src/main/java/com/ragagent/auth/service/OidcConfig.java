@@ -1,6 +1,7 @@
 package com.ragagent.auth.service;
 
 import java.util.ArrayList;
+import com.ragagent.config.AppEnvLookup;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -54,13 +55,13 @@ public class OidcConfig {
 
     /** 对照 env 读取：TrimSpace 后为空 = 未设置（value != "" 才覆盖），值为 trim 后原文 */
     private static String env(String name) {
-        String v = System.getenv(name);
+        String v = AppEnvLookup.get(name);
         return v == null ? "" : v.trim();
     }
 
     private static String envTrim(String name) {
-        String v = System.getenv(name);
-        return v == null ? "" : v.trim();
+        // 与 env() 同实现同来源（B6 批 10）：两处各自持一份裸读，容易只改一处
+        return env(name);
     }
 
     /** 对照 strings.Fields(strings.ReplaceAll(value, ",", " ")) */

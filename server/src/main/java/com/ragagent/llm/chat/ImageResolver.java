@@ -1,6 +1,7 @@
 package com.ragagent.llm.chat;
 
 import java.io.File;
+import com.ragagent.storage.fileserve.StoragePaths;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -201,7 +202,7 @@ public final class ImageResolver {
         String relPath = storagePath.startsWith("local://")
                 ? storagePath.substring("local://".length())
                 : storagePath;
-        String baseDir = System.getenv("LOCAL_STORAGE_BASE_DIR");
+        String baseDir = StoragePaths.localStorageBaseDir();
         if (baseDir == null || baseDir.isEmpty()) {
             baseDir = DEFAULT_LOCAL_STORAGE_BASE_DIR;
         }

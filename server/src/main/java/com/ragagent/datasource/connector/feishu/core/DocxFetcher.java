@@ -1,6 +1,7 @@
 package com.ragagent.datasource.connector.feishu.core;
 
 import java.time.OffsetDateTime;
+import com.ragagent.config.AppEnvLookup;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -61,7 +62,7 @@ public final class DocxFetcher {
      * <p>默认实现读 {@code System.getenv}（对照 Go 的 {@code os.Getenv}）；
      * 测试可替换为固定值以覆盖两条分支。**可变静态字段**是刻意留的注入缝。</p>
      */
-    public static volatile Supplier<String> parseMode = () -> System.getenv("FEISHU_DOCX_PARSE_MODE");
+    public static volatile Supplier<String> parseMode = () -> AppEnvLookup.get("FEISHU_DOCX_PARSE_MODE");
 
     private DocxFetcher() {
     }

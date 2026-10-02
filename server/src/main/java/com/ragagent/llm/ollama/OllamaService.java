@@ -1,6 +1,7 @@
 package com.ragagent.llm.ollama;
 
 import java.io.BufferedReader;
+import com.ragagent.config.AppEnvLookup;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -81,10 +82,10 @@ public class OllamaService {
      * {@code http://localhost:11434}；{@code OLLAMA_OPTIONAL=true} 时服务不可用也不报错。</p>
      */
     public static OllamaService getOllamaService() {
-        String envUrl = System.getenv("OLLAMA_BASE_URL");
+        String envUrl = AppEnvLookup.get("OLLAMA_BASE_URL");
         log.info("Ollama base URL: {}", envUrl == null ? "" : envUrl);
         String baseUrl = envUrl == null || envUrl.isEmpty() ? DEFAULT_BASE_URL : envUrl;
-        boolean isOptional = "true".equals(System.getenv("OLLAMA_OPTIONAL"));
+        boolean isOptional = "true".equals(AppEnvLookup.get("OLLAMA_OPTIONAL"));
         if (isOptional) {
             log.info("Ollama service set to optional mode");
         }

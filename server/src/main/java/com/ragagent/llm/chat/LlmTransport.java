@@ -1,6 +1,7 @@
 package com.ragagent.llm.chat;
 
 import java.io.IOException;
+import com.ragagent.config.AppEnvLookup;
 import java.io.InputStream;
 import java.net.ProxySelector;
 import java.net.URI;
@@ -72,7 +73,7 @@ public final class LlmTransport {
      * 未设置、解析失败或非正值一律回退到 fallback。
      */
     public static Duration envDurationSeconds(String key, Duration fallback) {
-        return parseDurationSeconds(System.getenv(key), fallback);
+        return parseDurationSeconds(AppEnvLookup.get(key), fallback);
     }
 
     /** 便于测试的纯函数版本（Java 无法像 Go 的 t.Setenv 那样改环境变量）。 */

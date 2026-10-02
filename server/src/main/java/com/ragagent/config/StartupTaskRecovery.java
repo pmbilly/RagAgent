@@ -92,7 +92,7 @@ public class StartupTaskRecovery {
     }
 
     boolean distributed() {
-        String addr = System.getenv("REDIS_ADDR");
+        String addr = AppEnvLookup.get("REDIS_ADDR");
         return addr != null && !addr.isEmpty();
     }
 

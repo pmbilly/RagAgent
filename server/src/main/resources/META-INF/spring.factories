@@ -1,0 +1,7 @@
+# B6 批 10：应用级 env 查找面的启动安装点。
+# 注意：Spring Boot 3.3 的 EnvironmentPostProcessor 仍由 META-INF/spring.factories 装载，
+# 不是 META-INF/spring/org.springframework.boot.env.EnvironmentPostProcessor.imports
+# （后者是 Spring Framework 的 Initializer/Listener 与 Boot 的 AutoConfiguration 用的机制）。
+# 实测：写在 .imports 里会被静默忽略——不报错、不执行、读点回落到「未配置」。
+org.springframework.boot.env.EnvironmentPostProcessor=\
+com.ragagent.config.AppEnvLookupEnvironmentPostProcessor

@@ -1,6 +1,7 @@
 package com.ragagent.session.service;
 
 import java.util.ArrayList;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -507,7 +508,7 @@ final class MessageSuggestionPipeline {
         if (locale != null && !locale.trim().isEmpty()) {
             return locale;
         }
-        String env = System.getenv("WEKNORA_LANGUAGE");
-        return env == null || env.trim().isEmpty() ? "zh-CN" : env;
+        // 语言快照（批 6）已 trim；与 resolveLanguage 的 trim 口径一致（原实现返回未 trim 的原值）
+        return WikiLanguageSupport.defaultLanguage();
     }
 }

@@ -392,7 +392,7 @@ public class RetrievalEngineWiringConfig {
     }
 
     private static String env(String key) {
-        String v = System.getenv(key);
+        String v = RetrievalEnvLookup.get(key);
         return v == null ? "" : v;
     }
 }

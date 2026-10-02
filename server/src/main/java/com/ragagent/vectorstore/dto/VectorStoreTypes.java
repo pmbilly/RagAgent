@@ -1,6 +1,7 @@
 package com.ragagent.vectorstore.dto;
 
 import java.util.ArrayList;
+import com.ragagent.config.AppEnvLookup;
 import java.util.List;
 
 
@@ -17,7 +18,8 @@ public final class VectorStoreTypes {
     }
 
     public static List<TypeInfo> all() {
-        int tencentReplicas = resolveTencentVectorDBReplicaNumber(System.getenv("TENCENT_VECTORDB_REPLICA_NUMBER"));
+        int tencentReplicas = resolveTencentVectorDBReplicaNumber(
+                AppEnvLookup.get("TENCENT_VECTORDB_REPLICA_NUMBER"));
         List<TypeInfo> out = new ArrayList<>();
 
         // elasticsearch

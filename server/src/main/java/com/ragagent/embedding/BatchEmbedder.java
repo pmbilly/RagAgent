@@ -1,6 +1,7 @@
 package com.ragagent.embedding;
 
 import java.util.ArrayList;
+import com.ragagent.config.AppEnvLookup;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -93,7 +94,7 @@ public final class BatchEmbedder implements EmbedderPooler {
     }
 
     private static int parseBatchSize() {
-        String raw = System.getenv("BATCH_EMBED_SIZE");
+        String raw = AppEnvLookup.get("BATCH_EMBED_SIZE");
         if (raw == null || raw.isEmpty()) {
             raw = "5";
         }

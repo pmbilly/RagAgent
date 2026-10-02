@@ -1,6 +1,7 @@
 package com.ragagent.initialization.service;
 
 import java.time.OffsetDateTime;
+import com.ragagent.config.AppEnvLookup;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -41,7 +42,7 @@ public final class OllamaManageService {
     public ResponseEntity<Object> ollamaStatus() {
         // 展示用基址的缺省是 host.docker.internal（与 OllamaService 的
         // localhost:11434 连接缺省刻意不同）
-        String envUrl = System.getenv("OLLAMA_BASE_URL");
+        String envUrl = AppEnvLookup.get("OLLAMA_BASE_URL");
         String baseURL = envUrl == null || envUrl.isEmpty()
                 ? "http://host.docker.internal:11434" : envUrl;
         ObjectNode data = MAPPER.createObjectNode();

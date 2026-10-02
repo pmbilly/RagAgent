@@ -1,6 +1,7 @@
 package com.ragagent.initialization.service;
 
 import java.util.ArrayList;
+import com.ragagent.config.AppEnvLookup;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -351,7 +352,7 @@ public final class InitializationConfigService {
             String modelName = vlm.path("modelName").asText("");
             String baseUrl = vlm.path("baseUrl").asText("");
             if ("ollama".equals(vlm.path("interfaceType").asText(""))) {
-                String ollama = System.getenv("OLLAMA_BASE_URL");
+                String ollama = AppEnvLookup.get("OLLAMA_BASE_URL");
                 baseUrl = (ollama == null ? "" : ollama) + "/v1";
             }
             if (modelName.isEmpty() || baseUrl.isEmpty()) {
@@ -362,7 +363,7 @@ public final class InitializationConfigService {
             throw new BizException(AppError.badRequest("Rerank配置不完整"));
         }
         if (req.nodeExtractEnabled()) {
-            String neo4j = System.getenv("NEO4J_ENABLE");
+            String neo4j = AppEnvLookup.get("NEO4J_ENABLE");
             if (!"true".equalsIgnoreCase(neo4j == null ? "" : neo4j)) {
                 throw new BizException(AppError.badRequest("请正确配置环境变量NEO4J_ENABLE"));
             }

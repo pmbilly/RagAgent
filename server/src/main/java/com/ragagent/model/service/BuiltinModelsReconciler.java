@@ -1,6 +1,7 @@
 package com.ragagent.model.service;
 
 import java.nio.file.Files;
+import com.ragagent.config.AppEnvLookup;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -49,7 +50,7 @@ public class BuiltinModelsReconciler implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        String pathEnv = System.getenv("BUILTIN_MODELS_CONFIG");
+        String pathEnv = AppEnvLookup.get("BUILTIN_MODELS_CONFIG");
         Path path = Path.of(pathEnv != null && !pathEnv.isEmpty() ? pathEnv : "./config/builtin_models.yaml");
         try {
             if (!Files.isRegularFile(path)) {
@@ -214,7 +215,7 @@ public class BuiltinModelsReconciler implements ApplicationRunner {
         java.util.regex.Matcher m = ENV_PATTERN.matcher(s);
         StringBuilder sb = new StringBuilder();
         while (m.find()) {
-            String v = System.getenv(m.group(1));
+            String v = AppEnvLookup.get(m.group(1));
             m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(v != null && !v.isEmpty() ? v : m.group()));
         }
         m.appendTail(sb);

@@ -1,6 +1,7 @@
 package com.ragagent.common.approval;
 
 import java.time.Duration;
+import com.ragagent.config.AppEnvLookup;
 import java.util.UUID;
 
 /**
@@ -65,7 +66,7 @@ public record GateOptions(
      * 否则返回 true（fail-close）。
      */
     public static boolean failCloseFromEnv() {
-        String raw = System.getenv(Gate.FAIL_OPEN_ENV);
+        String raw = AppEnvLookup.get(Gate.FAIL_OPEN_ENV);
         return !"true".equalsIgnoreCase(raw == null ? "" : raw.trim());
     }
 

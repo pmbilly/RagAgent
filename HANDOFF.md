@@ -47,7 +47,7 @@
    B1 契约文档 v1.1 / B2 金片对比器统一（GoldenContract 上线，字节级对比清零）/ B3 `@JsonInclude` 恒输出化
    （真面 68 处；yunzhijia 第三方回退）/ **B3b KB 配置 jsonb 键名统一（camelCase + V2 存量迁移，2026-10-02 收官）** /
    B4 零值哨兵（结论：不改，已知例外）/ B7 死成员 19 处 / B8 FQ 注解 177→0**（✅ 记录见 §15.1 各行与 §15.1.1）。
-   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **B6 getenv 收敛（🚧 批 1~9 已完成，余 28 处按 §15.1.1 清单继续；**已无「成族」项**：auth 5（OIDC/邀请/API-Key 引导）、llm 4（Ollama/传输/图片解析）、initialization 4（Ollama 管理/连通性测试）、model 2（内置模型调和）、其余 13 处为零散单点（session 2 / knowledge 2 / config 2 / common 2 / vectorstore 1 / mcp 1 / embedding 1 / datasource 1 / agentm 1）——下一批可一次收尾，或与其它批次并跑）** /
+   **剩余待做**：B5 lf_* 评估（判定后可搁置）/ **~~B6 getenv 收敛~~（✅ 已结项：十批清完，代码内裸 getenv 149→0；四种落点形态与踩坑见 §15.1.1）** /
    B9 Go 锚点随批 / B10 ArchUnit 进 CI / B11 多模块（最后做）。**B0 登记残留见 §15.1.1**（B3b′ 已修；其余 4 项含 `process_overrides` 写了不用、
    wiki 死信槽位无人释放、孤儿 wiki op 不重放、存储引擎设置孤儿组件）。
    **新会话接手**：直接读 §15.1 批次表（状态列）+ §15.1.1 执行记录 + §15.2 纪律五条（开工前必读）+
@@ -2774,7 +2774,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B3b KB 配置 jsonb 键名统一（camelCase）** | 由 B0 走查升格为真实缺陷：`knowledge_bases` 的 `*_config` 列三方咬合面（前端 payload / 服务端读取器 / 落库 jsonb）键名分裂，导致界面上的 wiki 合成模型、问题生成参数、索引开关被静默忽略。服务端读取器 + 更新路径 dispatch 键 + 前端 payload/读取/类型 + V2 存量迁移 + 列默认值（连带修掉「编辑弹窗恒打不开」的裸资源读取） | **P1** | 中 | ✅ **完成（2026-10-02）**——详见 15.1.1 |
 | **B4 Go 零值时间哨兵 → null** | `0001-01-01T00:00:00Z`（AgentStep / agentm GO_ZERO_TIME / init goTime 系） | P1 | 小-中 | ✅ **结论：不改**（调查后判已知例外，见 15.1.1） |
 | **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键；先出判定再动刀 | P1 | 判定小 | ⬜ 待做（可判定后搁置——载具当前工作正常） |
-| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | 🚧 **批 1~9 完成（2026-10-02）**：storage 装配 / langfuse / 检索驱动 / 系统部署面（含 `GIN_MODE`→`WEKNORA_DEPLOYMENT_MODE`）/ 知识域单值 / common 静态工具族（**启动期快照口径确立**）/ 存储静态单值族 + JWT / 存储 provider 环境族查找面（**storage 域归零**）/ 检索域引擎命名·开关·超时族（**retrieval 域归零**）——全仓 149→35（代码内 28）；余量清单与登记见 15.1.1 |
+| **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`，按域分批 | P1 | 中 | ✅ **完成（2026-10-02，批 1~10）**：storage 装配 / langfuse / 检索驱动 / 系统部署面（含 `GIN_MODE`→`WEKNORA_DEPLOYMENT_MODE`）/ 知识域单值 / common 静态工具族（**启动期快照口径确立**）/ 存储静态单值族 + JWT / 存储 provider 环境族查找面（**storage 域归零**）/ 检索域引擎命名·开关·超时族（**retrieval 域归零**）/ 收尾批（全局查找面 + `EnvironmentPostProcessor`）——**全仓裸 getenv 代码内 149→0**（余 7 处为注释引用）；十批明细与两处新机制见 15.1.1 |
 | **B7 死成员清扫** | 只注入不读取依赖（依赖级口径）+ 死 logger/`ObjectMapper`/`Pattern`/私有方法/冗余 import | P1 | 小-中 | ✅ |
 | **B8 注解形态收尾** | 全限定名注解 → import 短名；`@JsonIgnoreProperties` 44 处接工厂评估 | P2 | 小 | ✅（FQ 177→0；`@JsonIgnoreProperties` 评估后保留） |
 | **B9 Go 锚点注释清洗** | ~6,000 处；按 §4 既定"随触碰清洗"继续；若专项则按域分批 | P2 | 大（专项）/零（随批） | ⬜ 建议随批，不立专项 |
@@ -2907,6 +2907,26 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 
   `spotlessCheck` 绿 + 全量测试绿。
 - **踩坑（第三条验证方法教训）**：B 组日志一度出现 18 条 Neo4j 重试，形似「没配也重试」的真回归——**实为 A 进程未杀干净**（`pkill` 后它仍在 30 次重试循环里），其输出继续写进了被 B 截断的**同一份日志文件**。日志行自带 pid，`grep -c '6652'/'6617'` 一验即明：B=0、A=21，控制组有效。教训：**多轮实验各用独立日志文件，且下一轮启动前确认端口已释放**（别只 sleep）；读日志下结论前先按 pid 归属。
+
+**✅ B6 批 10（2026-10-02，收尾批——裸 `getenv` 代码内清零，B6 结项）**：28 处清零（代码内 46→**0**；余 7 处仅注释/文档提及）。
+- 新机制：`config/AppEnvLookup`（应用级兜底查找面）+ `config/AppEnvLookupEnvironmentPostProcessor`——在**任何 bean 实例化之前**安装。理由：本批读点里有启动期就触发的（`StartupTaskRecovery.distributed()` 决定 Lite/分布式分支、`BuiltinModelsReconciler` 是启动 runner、API-Key 引导、Gate 的 pubsub 频道），`@Configuration` 顺序不保证（批 9 已踩过同类风险）。装的是**查找函数**而非值 → 不存在「装早了看不到后到的 property source」。
+- **注册机制的坑（实测，重要）**：Boot **3.3 的 `EnvironmentPostProcessor` 仍由 `META-INF/spring.factories` 装载**；写成 `META-INF/spring/org.springframework.boot.env.EnvironmentPostProcessor.imports`（那是 Initializer/Listener/AutoConfiguration 的机制）会**被静默忽略**——不报错、不执行、读点全部回落到「未配置」。已改回 `spring.factories` 并在文件里写明原因。
+- 归属既有正典的读点（不新开路径）：`WEKNORA_LANGUAGE` ×2 → 批 6 `WikiLanguageSupport`（其一改用 `defaultLanguage()`，顺带与 `resolveLanguage` 的 trim 口径一致）；`LOCAL_STORAGE_BASE_DIR` → `StoragePaths.localStorageBaseDir()`（批 7）；`STORAGE_ALLOW_LIST` ×2 → `StorageEnvLookup`（批 8）；检索装配内的动态 key → `RetrievalEnvLookup`（批 9）。
+- 其余 22 处（auth 的 OIDC/邀请/API-Key、Gate/GateOptions、StartupTaskRecovery、DocxFetcher、BatchEmbedder、initialization 三件、LlmTransport、OllamaService、OAuthStateStore、BuiltinModelsReconciler、TemporaryDocumentService、VectorStoreTypes …）统一走 `AppEnvLookup`。
+- 验证（4 次起服，判别式）：
+
+  | 起服 | 配置 | 实测 |
+  |---|---|---|
+  | 1 | 无（Lite） | 预置卡住文档复位 `failed` + 日志 `distributed=false` ✓ |
+  | 2 | `SPRING_APPLICATION_JSON` 内置模型路径 + `STORAGE_ALLOW_LIST=local,minio` | `/storage-backends/types` = `["local","minio"]` ✓；内置模型日志仍是**默认路径** ✗ → **暴露注册缺失** |
+  | 4 | 同上（改用 `spring.factories` 后） | 启动 runner 读到属性路径 `/tmp/b0/b10-models.yaml` ✓（属性风格 + 启动期 + 排序三者同证） |
+  | 5 | `REDIS_ADDR=127.0.0.1:6379` | 卡住文档**不被复位**（保持 `processing`）= 分布式分支 ✓（与起服 1 反向对照） |
+
+  `spotlessCheck` 绿 + 全量 4693 测试绿。
+- **踩坑（两条，如实记录）**：① 上述 `.imports` **静默失效**——**注册类扩展点必须实测行为，别只信「文件已就位」**。② 我一度把「起服 5 没有 `distributed=true` 日志」判成「日志文案写死误导」并改了文案——**实为该类注释明确写的设计**（分布式模式刻意不复位知识/摘要行：`resetStuckKnowledge` 首行 `if (distributed) return`，该日志仅 Lite 可达），**已回退**。教训：**拿日志/行为当证据前先读被验对象的类注释**（与 §15.2「验收前先读锚点」同源）。
+- 另：本批内联全限定名被 `KnowledgeCodeConventionsTest` 拦下 1 例（knowledge 模块禁代码体内联 FQN）→ 全部改导入（仓库口径：FQN 归零）。
+
+**B6 结项小结（149 → 0）**：十批分别是 storage 装配 46 / langfuse 12 / 检索驱动 7 / 系统部署面 15 / 知识域单值 6 / common 静态族 5 / 存储单值+JWT 8 / 存储 provider 查找面 3 / 检索引擎族 18 / 收尾 28（分批口径含同批内追加项，故与各行数字之和不必相等）。四种落点形态已定型：**① `@ConfigurationProperties`（bean 可注入时）；② 域查找面 holder（键名运行期决定、静态读点）；③ 启动期值快照（纯静态工具 + 单一值）；④ `EnvironmentPostProcessor` 装的全局查找面（启动期就触发的零散静态读点）**。取用判据写在各自类的注释里。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

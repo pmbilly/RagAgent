@@ -1,6 +1,7 @@
 package com.ragagent.common.approval;
 
 import java.time.Duration;
+import com.ragagent.config.AppEnvLookup;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -112,7 +113,7 @@ public class Gate implements McpApproval, AutoCloseable {
 
     /** namespaced 的 pubsub 频道名 */
     static String pubsubChannel() {
-        String ns = System.getenv(NAMESPACE_ENV);
+        String ns = AppEnvLookup.get(NAMESPACE_ENV);
         if (ns != null && !ns.isBlank()) {
             return PUBSUB_CHANNEL_BASE + ":" + ns.trim();
         }

@@ -1,6 +1,7 @@
 package com.ragagent.auth.service;
 
 import java.security.SecureRandom;
+import com.ragagent.config.AppEnvLookup;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -83,7 +84,7 @@ public class TenantInvitationService {
      * 裸秒数（"604800"）两种写法；解析失败或非正值回落默认。
      */
     static Duration invitationTtl() {
-        String raw = System.getenv("WEKNORA_INVITATION_TTL");
+        String raw = AppEnvLookup.get("WEKNORA_INVITATION_TTL");
         if (raw == null || raw.isEmpty()) {
             return DEFAULT_TTL;
         }
@@ -129,7 +130,7 @@ public class TenantInvitationService {
      * SystemSettingService，只保留 env 层（默认 false），DB 层随系统设置模块收口。
      */
     public static boolean autoAcceptInvitationEnabled() {
-        String raw = System.getenv("WEKNORA_TENANT_AUTO_ACCEPT_INVITATION");
+        String raw = AppEnvLookup.get("WEKNORA_TENANT_AUTO_ACCEPT_INVITATION");
         if (raw == null) {
             return false;
         }

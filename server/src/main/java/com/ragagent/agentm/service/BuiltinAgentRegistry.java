@@ -1,6 +1,7 @@
 package com.ragagent.agentm.service;
 
 import java.io.InputStream;
+import com.ragagent.common.wiki.WikiLanguageSupport;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -251,9 +252,9 @@ public class BuiltinAgentRegistry {
 
     /** env → Accept-Language 首个 tag → zh-CN。 */
     public static String localeFromRequest(String acceptLanguage) {
-        String env = System.getenv("WEKNORA_LANGUAGE");
-        if (env != null && !env.trim().isEmpty()) {
-            return env.trim();
+        String env = WikiLanguageSupport.envLanguage();
+        if (!env.isEmpty()) {
+            return env;
         }
         String lang = "";
         if (acceptLanguage != null && !acceptLanguage.isEmpty()) {

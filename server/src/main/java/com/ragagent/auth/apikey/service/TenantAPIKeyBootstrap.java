@@ -1,6 +1,7 @@
 package com.ragagent.auth.apikey.service;
 
 import java.util.LinkedHashMap;
+import com.ragagent.config.AppEnvLookup;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -63,7 +64,7 @@ public final class TenantAPIKeyBootstrap {
 
     /** Go 的 {@code strconv.ParseBool} 语义（systemsettings 层用它解析 env 字符串）。 */
     static boolean parseBoolEnv(String name) {
-        String raw = System.getenv(name);
+        String raw = AppEnvLookup.get(name);
         if (raw == null) {
             return false;
         }

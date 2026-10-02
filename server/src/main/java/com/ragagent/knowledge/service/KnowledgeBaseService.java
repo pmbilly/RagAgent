@@ -1,6 +1,7 @@
 package com.ragagent.knowledge.service;
 
 import com.ragagent.common.knowledge.KnowledgeBaseFacts;
+import com.ragagent.storage.config.StorageEnvLookup;
 import com.ragagent.common.retrieval.RetrievalDriverProperties;
 import com.ragagent.common.knowledge.KnowledgeBaseGateway;
 import com.ragagent.common.knowledge.KnowledgeBaseProvisioner;
@@ -223,7 +224,7 @@ public class KnowledgeBaseService
 
     /** STORAGE_ALLOW_LIST env（默认仅 local） */
     static boolean isStorageAllowed(String provider) {
-        String raw = System.getenv("STORAGE_ALLOW_LIST");
+        String raw = StorageEnvLookup.get("STORAGE_ALLOW_LIST");
         if (raw == null || raw.isBlank()) {
             return "local".equals(provider);
         }
@@ -236,7 +237,7 @@ public class KnowledgeBaseService
     }
 
     static String firstAllowedStorage() {
-        String raw = System.getenv("STORAGE_ALLOW_LIST");
+        String raw = StorageEnvLookup.get("STORAGE_ALLOW_LIST");
         if (raw == null || raw.isBlank()) {
             return "local";
         }
