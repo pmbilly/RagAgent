@@ -1162,7 +1162,7 @@ onMounted(loadAll)
 
 <!--
   Non-scoped block: per-engine header-icon coloring. Same approach as
-  StorageEngineSettings — keep these rules global so they always apply
+  存储引擎/解析引擎设置页共用 — keep these rules global so they always apply
   regardless of whether the drawer panel inherits the parent's scoped
   data attributes. Each rule mirrors the matching .engine-card--{name}
   .engine-card__badge from the scoped block above.

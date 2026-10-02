@@ -137,7 +137,7 @@
 
                   <!-- 存储引擎 -->
                   <div v-if="currentSection === 'storage'" class="section">
-                    <StorageEngineSettings />
+                    <StorageBackendSettings />
                   </div>
 
                   <!-- 系统信息 -->
@@ -220,7 +220,10 @@ import MemorySettings from './MemorySettings.vue'
 import MemoryWorkspaceSettings from './MemoryWorkspaceSettings.vue'
 import VectorStoreSettings from './VectorStoreSettings.vue'
 import ParserEngineSettings from './ParserEngineSettings.vue'
-import StorageEngineSettings from './StorageBackendSettings.vue'
+// 渲染的是**存储后端**管理页（原代码用同名别名 import 了 StorageBackendSettings，
+// 使真正的 StorageEngineSettings.vue 成了不可达孤儿——B13 残留④：该页是 Go 期
+// KV 引擎配置，已被后端行（含凭据 + 连通性测试 + 设默认）取代，故删除孤儿并正名。
+import StorageBackendSettings from './StorageBackendSettings.vue'
 import WeKnoraCloudSettings from './WeKnoraCloudSettings.vue'
 import TenantMembers from './TenantMembers.vue'
 import SystemSettings from '@/views/system/SystemSettings.vue'

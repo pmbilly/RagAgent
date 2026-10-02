@@ -295,6 +295,8 @@ const oidcProviderName = ref('')
 // In invite_only mode the link/card are hidden.
 const registrationEnabled = ref(true)
 const complexPasswordEnabled = ref(false)
+/** 部署是否为 lite（决定是否尝试透明 auto-setup；见 loadAuthConfig）。 */
+const editionIsLite = ref(false)
 
 // invite-link state. When the URL carries ?token=xxx we resolve it to
 // the originating tenant + role and switch the form into a "register
@@ -494,9 +496,13 @@ const loadAuthConfig = async () => {
     const response = await getAuthConfig()
     registrationEnabled.value = response.registrationMode !== 'invite_only'
     complexPasswordEnabled.value = response.complexPasswordEnabled
+    // 版本信号：非 lite 的后端对 /auth/auto-setup 恒 403，盲打只会在控制台留一条
+    // 掩盖真 403 的噪音（B13 残留⑤）。取不到时按 standard 处理（宁可少打一次）。
+    editionIsLite.value = response.edition === 'lite'
   } catch {
     registrationEnabled.value = true
     complexPasswordEnabled.value = false
+    editionIsLite.value = false
   }
 }
 
@@ -689,7 +695,8 @@ onMounted(async () => {
   }
 
   const AUTO_SETUP_FAILED_KEY = 'weknora_auto_setup_failed'
-  if (localStorage.getItem(AUTO_SETUP_FAILED_KEY) !== 'true') {
+  await loadAuthConfig()
+  if (editionIsLite.value && localStorage.getItem(AUTO_SETUP_FAILED_KEY) !== 'true') {
     try {
       const response = await autoSetup()
       if (response.success) {

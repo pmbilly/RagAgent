@@ -1870,6 +1870,7 @@ const confirmRebuildKnowledge = async (index: number, item: KnowledgeCard) => {
     const result = await uploadConfirmStore.open({
       mode: 'reparse',
       kbInfo: kbInfo.value,
+      // processOverrides 恒为 null：服务端从不写 metadata.process_overrides（移植缺口，见 B13）
       reparse: { knowledgeId: item.id, fileName, fileType, processOverrides },
     });
     if (result.mode === 'reparse' && result.reparse) {

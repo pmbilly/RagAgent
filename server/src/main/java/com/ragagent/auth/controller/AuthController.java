@@ -389,7 +389,7 @@ public class AuthController {
     @GetMapping("/config")
     public ResponseEntity<AuthConfigResponse> getAuthConfig() {
         return ResponseEntity.ok(new AuthConfigResponse(
-                userService.complexPasswordEnabled(), resolveRegistrationMode()));
+                userService.complexPasswordEnabled(), resolveRegistrationMode(), edition));
     }
 
     // ── GET /validate（对照 auth.go L984-1024） ────────────────────────────

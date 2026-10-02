@@ -253,11 +253,9 @@ export async function getStorageEngineConfig(): Promise<{ data: StorageEngineCon
   return { data: resp }
 }
 
-export async function updateStorageEngineConfig(config: StorageEngineConfig): Promise<{ data: StorageEngineConfig }> {
-  // 后端 200 裸配置对象（§2.1）；适配成消费端既有的 { data } 契约
-  const resp = (await put('/api/v1/tenants/kv/storage-engine-config', config)) as unknown as StorageEngineConfig
-  return { data: resp }
-}
+// 注：KV 存储引擎配置的**写入**面随 StorageEngineSettings.vue 一起退役（B13 残留④）——
+// 提供者凭据/连通性/默认走 storage-backends 行；读面（getStorageEngineConfig）仍由
+// 编辑器资源 store 使用，故保留。
 
 export function getStorageEngineStatus(): Promise<GetStorageEngineStatusResponse> {
   return get('/api/v1/system/storage-engine-status')

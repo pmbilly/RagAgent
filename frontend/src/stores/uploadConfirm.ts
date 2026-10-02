@@ -15,6 +15,14 @@ export interface UploadConfirmReparseSource {
   knowledgeId: string
   fileName?: string
   fileType?: string
+  /**
+   * 逐文档处理覆盖参数。
+   *
+   * <p><b>移植缺口（B13 判定）</b>：字段从 Go 期前端原样带过来，但 Java 侧从未移植——
+   * 服务端既不写 {@code knowledge.metadata.process_overrides}，也不读；此处传入的覆盖
+   * 参数**不会**发给上传/重解析请求。当前有效行为恒为「KB 默认」。要么补齐服务端
+   * （请求体 → metadata → 处理管线），要么删掉这条链路；见 HANDOFF §15.1.1 B13 记录。</p>
+   */
   processOverrides?: KnowledgeProcessOverrides | null
 }
 

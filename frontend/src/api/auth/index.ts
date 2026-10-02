@@ -263,6 +263,8 @@ export async function getOIDCConfig(): Promise<OIDCConfigResponse> {
  * 失败时回落到 self_serve，避免接口异常导致注册入口直接消失。
  */
 export interface AuthConfigResponse {
+  /** 部署版本（weknora.system.edition，缺省 standard）：lite 之外 /auth/auto-setup 恒 403。 */
+  edition: string
   success: boolean
   registrationMode: 'self_serve' | 'invite_only' | string
   complexPasswordEnabled: boolean
@@ -273,7 +275,7 @@ export async function getAuthConfig(): Promise<AuthConfigResponse> {
     const response = await get('/api/v1/auth/config')
     return { ...(response as object), success: true } as unknown as AuthConfigResponse
   } catch {
-    return { success: false, registrationMode: 'self_serve', complexPasswordEnabled: false }
+    return { success: false, registrationMode: 'self_serve', complexPasswordEnabled: false, edition: 'standard' }
   }
 }
 
