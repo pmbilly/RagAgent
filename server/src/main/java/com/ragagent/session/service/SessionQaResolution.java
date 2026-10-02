@@ -1,8 +1,6 @@
 package com.ragagent.session.service;
 
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -19,7 +17,6 @@ import com.ragagent.session.domain.Session;
  */
 final class SessionQaResolution {
 
-    private static final Logger log = LoggerFactory.getLogger(SessionQaResolution.class);
 
     private static final ObjectMapper JSON = new ObjectMapper();
 

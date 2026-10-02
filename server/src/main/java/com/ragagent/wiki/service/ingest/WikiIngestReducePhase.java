@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.knowledge.service.SpanTracker;
 import com.ragagent.llm.LlmChatClient;
 import com.ragagent.wiki.domain.WikiConstants;
@@ -31,7 +30,6 @@ final class WikiIngestReducePhase {
 
     private static final Logger log = LoggerFactory.getLogger(WikiIngestReducePhase.class);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final WikiIngestBatchHandler handler;
 

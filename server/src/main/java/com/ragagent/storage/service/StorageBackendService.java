@@ -7,7 +7,6 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -60,7 +59,6 @@ public class StorageBackendService {
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     /** Go path.Clean 的近似：用于 path_prefix 规范化比较（../ 与 .. 收敛） */
-    private static final Pattern LEADING_SLASH = Pattern.compile("^/+");
 
     private final StorageBackendRepository repo;
     private final StorageAllowList allowList;

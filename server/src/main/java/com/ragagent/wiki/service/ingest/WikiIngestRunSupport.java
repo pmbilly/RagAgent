@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 import com.ragagent.knowledge.service.SpanTracker;
 import com.ragagent.llm.LlmChatClient;
@@ -32,7 +31,6 @@ final class WikiIngestRunSupport {
 
     private static final Logger log = LoggerFactory.getLogger(WikiIngestRunSupport.class);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     final WikiIngestBatchHandler handler;
     final WikiIngestFinalizePhase finalize;

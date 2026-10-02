@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import com.ragagent.knowledge.client.DocReaderClient;
 import com.ragagent.system.dto.SystemDtos;
@@ -192,10 +191,4 @@ public class ParserEngineRegistry {
         }
     }
 
-    /** overrides 的可读快照（日志/调试用；响应不携带）。 */
-    @SuppressWarnings("unused")
-    private static String summarize(Map<String, String> overrides) {
-        return overrides == null ? "[]"
-                : overrides.keySet().stream().sorted().collect(Collectors.joining(","));
-    }
 }

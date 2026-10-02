@@ -14,8 +14,6 @@ import com.ragagent.auth.domain.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.SignatureException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -33,8 +31,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtService {
 
-    private static final Logger log = LoggerFactory.getLogger(JwtService.class);
-    private static final SecureRandom RANDOM = new SecureRandom();
+        private static final SecureRandom RANDOM = new SecureRandom();
 
     private final SecretKey key;
 

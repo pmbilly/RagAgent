@@ -14,8 +14,6 @@ import com.ragagent.memory.domain.MemoryPage;
 import com.ragagent.memory.domain.MemoryScope;
 import com.ragagent.memory.domain.MemorySubjectMissingException;
 import com.ragagent.memory.domain.MemoryTombstone;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * 记忆条目与墓碑的读写：条目 CRUD 与批量维护、召回所需的各类查询、
@@ -25,7 +23,6 @@ import org.slf4j.LoggerFactory;
  */
 final class MemoryItemStore {
 
-    private static final Logger log = LoggerFactory.getLogger(MemoryItemStore.class);
 
     private final MemoryRepository repo;
 

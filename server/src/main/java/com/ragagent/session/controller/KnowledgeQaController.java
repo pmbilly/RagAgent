@@ -5,8 +5,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -73,7 +71,6 @@ import jakarta.servlet.http.HttpServletResponse;
 @RestController
 public class KnowledgeQaController {
 
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeQaController.class);
 
     private final SessionService sessionService;
 

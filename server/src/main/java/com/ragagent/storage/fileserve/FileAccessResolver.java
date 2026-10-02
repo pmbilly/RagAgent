@@ -258,17 +258,4 @@ public class FileAccessResolver {
      * 按当时上下文归因 KB（无 KB 上下文则记 knowledge 待二次解析）。
      */
 
-    private static String stringFromMap(java.util.Map<?, ?> m, String key) {
-        Object v = m.get(key);
-        return v instanceof String s ? s.trim() : "";
-    }
-
-    private static String firstNonEmptyString(String... values) {
-        for (String value : values) {
-            if (value != null && !value.trim().isEmpty()) {
-                return value.trim();
-            }
-        }
-        return "";
-    }
 }

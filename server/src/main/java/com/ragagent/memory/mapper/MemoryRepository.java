@@ -24,8 +24,6 @@ import com.ragagent.memory.domain.MemoryTombstone;
 import com.ragagent.memory.domain.MemoryTopicStat;
 import com.ragagent.memory.domain.MemoryVectorHit;
 import com.ragagent.memory.domain.MemoryVectorQuery;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -76,7 +74,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class MemoryRepository {
 
-    private static final Logger log = LoggerFactory.getLogger(MemoryRepository.class);
 
     /** 对照 Go {@code fallbackVectorScanCap}：内存兜底排名的扫描上限。 */
     static final int FALLBACK_VECTOR_SCAN_CAP = 5000;

@@ -35,10 +35,6 @@ public final class PluginSearchParallel implements Plugin {
     private final PipelinePorts.TenantService tenantService;
     private final PipelinePorts.SessionService sessionService;
 
-    private final RetrieveGraphRepository graphRepo;
-    private final PipelinePorts.ChunkRepository chunkRepo;
-    private final PipelinePorts.KnowledgeRepository knowledgeRepo;
-
     private final PluginSearch searchPlugin;
     private final PluginSearchEntity searchEntityPlugin;
 
@@ -67,9 +63,6 @@ public final class PluginSearchParallel implements Plugin {
         this.webSearchService = webSearchService;
         this.tenantService = tenantService;
         this.sessionService = sessionService;
-        this.graphRepo = graphRepository;
-        this.chunkRepo = chunkRepository;
-        this.knowledgeRepo = knowledgeRepository;
     }
 
     @Override

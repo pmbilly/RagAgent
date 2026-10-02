@@ -17,15 +17,12 @@ import com.ragagent.common.knowledge.KnowledgeDocumentFacts;
 import com.ragagent.common.knowledge.KnowledgeDocumentFacts;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.retrieval.engine.PgVectorRetrieveRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * HybridSearch 的结果装配簇：命中 → SearchResult（chunk 元数据补全 + FAQ 问题回填）。
  */
 final class HybridResultOps {
 
-    private static final Logger log = LoggerFactory.getLogger(HybridResultOps.class);
 
     private final HybridSearchService service;
 

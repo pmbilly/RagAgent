@@ -64,10 +64,6 @@ public class ResourceRepository {
         }
     }
 
-    private static String cols() {
-        return COLS;
-    }
-
     /** 对照 Go GetByID：NotFound → empty（Go 是 (nil, nil)，不是错误）。 */
     public Optional<StoredResource> getByID(String id) {
         return jdbc.sql("SELECT " + COLS + " FROM resources WHERE id = ? AND state = ?")

@@ -9,8 +9,6 @@ import com.ragagent.model.dto.ModelCredentialsPutRequest;
 import com.ragagent.model.service.ModelService;
 import com.ragagent.model.service.ModelService.ModelNotFoundException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,7 +28,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/models")
 public class ModelCredentialsController {
 
-    private static final Logger log = LoggerFactory.getLogger(ModelCredentialsController.class);
 
     private final ModelService modelService;
 

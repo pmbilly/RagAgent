@@ -38,8 +38,6 @@ import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.Reranker;
 import com.ragagent.retrieval.vlm.VlmClient;
 import com.ragagent.retrieval.vlm.VlmHttpTransport;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -66,7 +64,6 @@ import com.ragagent.model.service.ModelRuntimeConfigs;
 @RequestMapping("/api/v1/models")
 public class ModelDebugController {
 
-    private static final Logger log = LoggerFactory.getLogger(ModelDebugController.class);
 
     /** 对照 modelDebugMaxInputBytes = 64 * 1024。 */
     private static final int MAX_INPUT_BYTES = 64 * 1024;

@@ -2768,7 +2768,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B4 Go 零值时间哨兵 → null** | `0001-01-01T00:00:00Z`：AgentStep（**冻结 SSE 事件面**——须连前端消费点一起核）+ agentm `GO_ZERO_TIME` + init `goTime` 系 | P1 | 小-中 | 形状变更批，单独走；前端读点先查（是否有人 parse 该哨兵） |
 | **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键（§14.6 登记的"另批"）；先出判定（收益 vs 四域联动+死信读侧兼容成本），判定通过再动刀 | P1 | 判定小/动刀中 | 可判定后搁置——载具当前工作正常 |
 | **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`（§4 口径），按域分批 | P1 | 中 | 每域一批；配置键语义不变 |
-| **B7 死成员清扫** | 全仓候选 66 处（字段 51/私有方法 14/遮蔽 import 1；**含误报类需逐条人工确认**）+ 只注入不读取的依赖（依赖级口径扫，§4 已知缺口） | P1 | 小-中 | javac/Spotless 抓不到，必须主动扫 |
+✅ **B7（2026-10-02）**：依赖级扫描实锤断成员 19 处全清——只注入不读取字段 3（`PluginSearchParallel` 的 graphRepo/chunkRepo/knowledgeRepo）+ 死 logger 8 + 死 `ObjectMapper` 3 + 死 `Pattern` 1 + 死私有方法 4 + 冗余 import 4（javadoc 规避后复核）；66 处历史候选在本轮口径下复核为零（多数已被前批清掉）。**残留口径**：Spotless ratchet 外的 23 处 import 命中经复核多为泛型/javadoc 误报，真死仅 4 处已清。
 | **B8 注解形态收尾** | 全限定名注解 ~177 处 → import 短名；逐类 `@JsonIgnoreProperties` 44 处接 `JsonMappers.lenient()` 工厂（§2 第 12 条） | P2 | 小 | 随各域触碰顺带亦可 |
 | **B9 Go 锚点注释清洗** | ~6,000 处；按 §4 既定"随触碰清洗"继续；若专项则按域分批（先摘不变量信息再删锚点） | P2 | 大（专项）/零（随批） | 建议随批，不立专项 |
 | **B10 ArchUnit 边界规则进 CI** | 环 0 组基线 + 包依赖白名单固化（§5 阶段 4） | P2 | 中 | 规则现成（§11.2 守卫长期绿），差 CI 化 |

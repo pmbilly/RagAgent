@@ -6,7 +6,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.service.SpanTracker;
@@ -30,7 +29,6 @@ final class WikiIngestMapPhase {
 
     private static final Logger log = LoggerFactory.getLogger(WikiIngestMapPhase.class);
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final WikiIngestBatchHandler handler;
 

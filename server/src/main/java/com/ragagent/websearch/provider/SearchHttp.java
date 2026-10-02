@@ -7,13 +7,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
 import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.llm.chat.LlmTransport;
-import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
  * 出站搜索 HTTP 设施（对照 Go {@code web_search/proxy.go} 的
