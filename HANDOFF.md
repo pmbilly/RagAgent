@@ -3101,6 +3101,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **判定口径（写进两份守卫的注释）**：*这个键是不是「我们定义的、跨进程 JSON 字段」？是 ⇒ camel；否 ⇒ 看那一层的规范（DB=snake、Spring 配置=kebab、环境变量=UPPER_SNAKE、第三方=照抄）。*
 - **登记（未做）**：① `api/knowledge-base` 的 `start_time`/`end_time`：前端仍拼、后端该端点**未声明** ⇒ 筛选不生效（要修的是接线或补参数，属产品取舍）；② `api/auth` 的 `owner_id`：前端**死字段**（后端 API 无此名，前端有 `|| user.id` 兜底）；③ `types/knowledgeProcess.ts` 那批 snake 属逐文档 `process_overrides` 面（已定「未来补后端」，届时一并 camel）。
 - 闸门：后端 4711 用例 + `spotlessCheck` 绿；前端 `vue-tsc` 0 错 + **690 用例绿**；迁移已在 dev 应用且残留 0。
+- **踩坑（Flyway，值得记）**：V3 文件在 **App 已应用过它之后**又被我扩展改写 ⇒ 启动期 `Migration checksum mismatch for version 3` 直接导致**服务起不来**。处置：删掉 `flyway_schema_history` 里 V3 那行让 Flyway **重放**（因 V3 幂等，重放无副作用），启动即恢复，历史表记录的校验和随之更新。**教训：迁移文件一旦被 App 应用过就别再改**（要么先定稿，要么用 repair/删行重放）；这也是"迁移必须写成幂等"的一条实际收益。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
