@@ -2,7 +2,7 @@ import type { CustomAgentConfig } from '../api/agent'
 import type { PromptTemplate, PromptTemplatesConfig } from '../api/system'
 
 const systemTemplates = (config: CustomAgentConfig, templates: PromptTemplatesConfig) =>
-  config.agentMode === 'smart-reasoning' ? templates.agent_system_prompt || [] : templates.systemPrompt
+  config.agentMode === 'smart-reasoning' ? templates.agentSystemPrompt || [] : templates.systemPrompt
 
 function matchingTemplate(body: string | undefined, id: string | undefined, list: PromptTemplate[]) {
   // Preserve the selected identity if multiple templates have identical bodies.

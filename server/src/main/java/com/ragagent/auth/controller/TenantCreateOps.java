@@ -198,7 +198,7 @@ final class TenantCreateOps {
         Object sorted = deepSortKeys(node);
         @SuppressWarnings("unchecked")
         TreeMap<String, Object> m = (TreeMap<String, Object>) sorted;
-        m.put("api_key", token);
+        m.put("apiKey", token);
         return m;
     }
 

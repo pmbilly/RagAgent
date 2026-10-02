@@ -2789,6 +2789,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B19 前端契约键收口 + 守卫** | 前端 snake 契约键排查 + 嵌套层 + 双侧守卫进 CI | P2 | 中 | ✅ **完成（2026-10-02）**——修掉两处静默缺陷（B18 的 ModelService 回归、前端 tagScopes 链路断）+ 嵌套 7 键 camel + V3 扩到 66 键（并修 WHERE 漏行）；新增前端契约键棘轮（进 CI）与后端键名守卫测试。详见 15.1.1 |
 | **B20 占位符令牌回归** | 批量改名误伤数据值（模板令牌）+ 缺跨面对照守卫 | P2 | 小 | ✅ **完成（2026-10-02）**——修回 `knowledge_bases` 令牌（夹具曾被同步改掉=假绿），新增「HTTP 面 ↔ 渲染面令牌一致」守卫（含红态证明）；组键半改状态待拍板。详见 15.1.1 |
 | **B21 占位符组键收口 + 同类排查** | 只改一半的「混搭面」与被误伤的数据值 | P2 | 小 | ✅ **完成（2026-10-02）**——3 组键收口 camel（模板面有意不动）；两道筛子给出同类清单：模板面 4 键、`api_key`、死模块 `api/web-search.ts`、4 个待判孤儿夹具；「令牌被误伤」**只有已修的一处**。详见 15.1.1 |
+| **B22 模板面 4 键 + api_key 收口** | 混搭面续清（只读派生视图，无写回副作用） | P2 | 小 | ✅ **完成（2026-10-02）**——模板面 4 键与 `api_key` 改 camel（含 FE 映射/读者/夹具/测试侧归一化），删死模块 `api/web-search.ts`；另：文本资源名与 DB 列名等数据值一律未动。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3121,6 +3122,14 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
   - **附带发现**：`frontend/src/api/web-search.ts` 是**死模块**（全 FE 无人 import；内含 snake `requires_api_key`，在用版本 `api/web-search-provider.ts` 是 camel）⇒ 建议删。
 - **守卫判别力实证**：组键一改，`AgentPlaceholdersTest` 立刻变红（常量即旧组键名）——已同步更新。闸门：后端全量 4713 用例绿 + `spotlessCheck` 绿；FE `vue-tsc` 绿 + `tsx --test` **690** 用例绿 + FE 契约键棘轮无新增（基线 42）。未做真机（该响应有逐字节契约测试覆盖）。
 - **下一批候选（同类，按性价比）**：① `ct-kv-get-prompt-templates` 模板面收口（4 键；动 `PromptTemplateCatalog` + FE `api/system`/`PromptTemplateSelector`/`agentPromptTemplates.ts` + 夹具）；② `ct-create-apikey` 的 `api_key`（后端 2 处 + 夹具；FE 无读者）；③ 删死模块 `api/web-search.ts`；④ 孤儿夹具核查（应写「夹具被引用」检查，不按名字猜）。
+
+**✅ B22（2026-10-02，模板面 4 键 + `api_key` 收口 + 删死模块）**
+- **模板面收口**：`PromptTemplateCatalog` 的 `agent_system_prompt`/`generate_session_title`/`generate_summary`/`keywords_extraction` → camel。**动手前核实**：KV `prompt-templates` 是**只读派生视图**——`TenantConfigOps` 的 PUT 白名单里没有它，GET 从 `config.yaml` 装载 + 按 `Accept-Language` 本地化 ⇒ 改输出键**没有写回副作用**（若该键可写，就必须先统一落库绑定键，否则会重演 B14 那类「读了 camel、写回 snake 被静默丢弃」）。
+- **落点**：后端 `PromptTemplateCatalog`（4 键）；夹具 `ct-kv-get-prompt-templates.json`（4 个根键，各仅一处、形如 `"key":[`）；前端 `api/system/index.ts`（4 键 + 删死字段 `chat_summary`——无读者且后端从不产出）、`PromptTemplateSelector.vue`（type→键映射）、`agentPromptTemplates.ts` 与其测试、`AgentEditorModal.vue`（含 5 处 `cfg.agent_system_prompt` 读者 + 2 处注释/日志文案）。
+- **有意不动**：磁盘资源名 `agent_system_prompt.yaml`、`generate_summary.yaml` 等——**文件名是数据值，不是 JSON 键**（B20 教训当场两处都用上了）。
+- **`api_key` 收口**：`TenantCreateOps`、`TenantAPIKeyBootstrap` 两处 `m.put("api_key", token)` → `apiKey` + 夹具 `ct-create-apikey.json`；**测试侧同步**（契约测试的归一化正则与占位符 `<api_key>` → `<apiKey>`、bootstrap 两处期望含**键序**）。**有意不动**：DB 列名 `api_key`（MyBatis `@Result(column=…)`）、设置键 `tenant.auto_create_api_key`、租户配置 jsonb 里的 `api_key`（冻结面）、i18n 键 `system.api_key_created`。
+- **删死模块**：`frontend/src/api/web-search.ts`（全 FE 无人 import；在用版本 `api/web-search-provider.ts` 已是 camel）。
+- **闸门**：后端全量 **4713** 绿 + `spotlessCheck` 绿；FE `vue-tsc` 绿 + `tsx --test` **690** 绿 + 契约键棘轮无新增。期间 3 条后端失败均为**测试侧读旧键**（合同测试归一化失配、bootstrap 期望），已按"断言的是契约而非实现"逐条核对后同步。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

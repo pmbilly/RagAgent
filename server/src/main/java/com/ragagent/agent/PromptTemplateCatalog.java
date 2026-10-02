@@ -179,10 +179,10 @@ public final class PromptTemplateCatalog {
         putAlways(data, "contextTemplate", localize(cfg.contextTemplate(), locale));
         putAlways(data, "rewrite", localize(cfg.rewrite(), locale));
         putAlways(data, "fallback", localize(cfg.fallback(), locale));
-        putOmitEmpty(data, "generate_session_title", cfg.generateSessionTitle());
-        putOmitEmpty(data, "generate_summary", cfg.generateSummary());
-        putOmitEmpty(data, "keywords_extraction", cfg.keywordsExtraction());
-        putOmitEmpty(data, "agent_system_prompt", localize(cfg.agentSystemPrompt(), locale));
+        putOmitEmpty(data, "generateSessionTitle", cfg.generateSessionTitle());
+        putOmitEmpty(data, "generateSummary", cfg.generateSummary());
+        putOmitEmpty(data, "keywordsExtraction", cfg.keywordsExtraction());
+        putOmitEmpty(data, "agentSystemPrompt", localize(cfg.agentSystemPrompt(), locale));
         putOmitEmpty(data, "intentPrompts", localize(cfg.intentPrompts(), locale));
         return data;
     }

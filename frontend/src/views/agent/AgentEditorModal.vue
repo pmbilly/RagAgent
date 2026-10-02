@@ -1967,7 +1967,7 @@ const imageStorageOptions = computed(() => {
 
 // 系统默认配置（用于内置智能体显示默认提示词）
 // Agent (smart-reasoning) 模式的默认系统提示词。直接从 prompt-templates
-// 的 agent_system_prompt 数组里挑 mode==='rag' && default 的那条得到，
+// 的 agentSystemPrompt 数组里挑 mode==='rag' && default 的那条得到，
 // 与后端 agent.GetProgressiveRAGSystemPrompt 是同一份数据源。
 const defaultAgentSystemPrompt = ref('');
 const defaultNormalSystemPrompt = ref('');  // 普通模式默认系统提示词（来自 prompt-templates 的 default 项）
@@ -2919,7 +2919,7 @@ const applyAgentTypePreset = (preset: AgentTypePreset | null) => {
       // 模板列表还没加载完 / 或预设引用了不存在的 id：清空让用户感知到变化
       target.systemPrompt = '';
       if (c.systemPromptId) {
-        console.warn(`[AgentType] systemPromptId "${c.systemPromptId}" not found in agent_system_prompt templates`);
+        console.warn(`[AgentType] systemPromptId "${c.systemPromptId}" not found in agentSystemPrompt templates`);
       }
     }
   }
@@ -3433,11 +3433,11 @@ const mapKbToOption = (kb: any) => {
 const applyPromptTemplateDefaults = (cfg: PromptTemplatesConfig | null) => {
   promptTemplates.value = cfg;
   if (!cfg) return;
-  if (cfg.agent_system_prompt && Array.isArray(cfg.agent_system_prompt)) {
-    agentSystemPromptTemplates.value = cfg.agent_system_prompt;
+  if (cfg.agentSystemPrompt && Array.isArray(cfg.agentSystemPrompt)) {
+    agentSystemPromptTemplates.value = cfg.agentSystemPrompt;
     const ragDefault =
-      cfg.agent_system_prompt.find(t => t.mode === 'rag' && t.default) ||
-      cfg.agent_system_prompt.find(t => t.mode === 'rag');
+      cfg.agentSystemPrompt.find(t => t.mode === 'rag' && t.default) ||
+      cfg.agentSystemPrompt.find(t => t.mode === 'rag');
     if (ragDefault?.content) {
       defaultAgentSystemPrompt.value = ragDefault.content;
     }
@@ -4266,7 +4266,7 @@ const handleSystemPromptTemplateSelect = (template: PromptTemplate) => {
 
 // Agent 系统提示词的"恢复默认"：
 // 当前选中了非 custom 的智能体类型时，"默认"应当是该类型预设绑定的提示词
-// （比如 Wiki 问答 → wiki_researcher），而不是 agent_system_prompt 模板表里
+// （比如 Wiki 问答 → wiki_researcher），而不是 agentSystemPrompt 模板表里
 // 全局 default: true 的那一条。只有当类型为 custom 或找不到预设绑定的模板时，
 // 才回退到 PromptTemplateSelector 传来的全局默认模板。
 const handleAgentSystemPromptResetDefault = (fallback: PromptTemplate) => {

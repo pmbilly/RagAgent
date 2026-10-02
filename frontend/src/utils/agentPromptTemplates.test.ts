@@ -6,7 +6,7 @@ import type { PromptTemplatesConfig } from '../api/system'
 
 const template = (id: string, content: string, extra = {}) => ({ id, name: id, description: '', content, ...extra })
 const templates: PromptTemplatesConfig = {
-  agent_system_prompt: [template('agent', 'Agent default'), template('wiki', 'Wiki workflow')],
+  agentSystemPrompt: [template('agent', 'Agent default'), template('wiki', 'Wiki workflow')],
   systemPrompt: [template('normal', 'QA default')],
   contextTemplate: [template('context', '{{contexts}}')],
   rewrite: [template('rewrite', 'Rewrite default', { default: true, user: '{{query}}' })],
@@ -28,7 +28,7 @@ test('untouched templates round trip as references and follow updates in both mo
     assert.equal(saved.fallbackPrompt, '')
     assert.equal(hydrateAgentPromptRefs(saved, templates).systemPrompt, input.systemPrompt)
     const updated = structuredClone(templates)
-    const list = agentMode === 'smart-reasoning' ? updated.agent_system_prompt! : updated.systemPrompt
+    const list = agentMode === 'smart-reasoning' ? updated.agentSystemPrompt! : updated.systemPrompt
     list.find(t => t.id === saved.systemPromptId)!.content = 'Updated template'
     assert.equal(hydrateAgentPromptRefs(saved, updated).systemPrompt, 'Updated template')
     assert.notEqual(input.systemPrompt, '', 'serialization must not alter the visible textarea')

@@ -45,7 +45,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  *
  * <p>掩码（两侧同掩码）：租户/设置行的数字 id、UUID（default_storage_backend_id、
  * knowledge_base_id、last_modified_by、embedding_model_id）、时间戳、
- * api_key 明文、parser SSRF 错误里的解析 IP（fake-ip 段每次解析可能不同）。</p>
+ * apiKey 明文、parser SSRF 错误里的解析 IP（fake-ip 段每次解析可能不同）。</p>
  *
  * <p><b>已知不录</b>：parser 三条 PUT 全是 SSRF 失败路径（无成功路径 golden，
  * 见 docs §9）。GET prompt-templates 的推迟已随走查补翻清零——Java 侧
@@ -76,7 +76,7 @@ class TenantCatalogContractTest {
             "\"([a-zA-Z_]+)\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"");
     private static final Pattern TS_VALUE = Pattern.compile(
             "\"([a-zA-Z_]+)\":\"[2-9]\\d{3}-\\d{2}-\\d{2}T[0-9:.+\\-Z]+\"");
-    private static final Pattern API_KEY = Pattern.compile("\"api_key\":\"[^\"]*\"");
+    private static final Pattern API_KEY = Pattern.compile("\"apiKey\":\"[^\"]*\"");
     // DNS 是否解析随环境而变（录制机 fake-IP DNS 返回 198.18/15；离线环境解析失败），
     // 两种都是 SSRF 拒绝，统一归一化到 <ssrf-host> 避免环境依赖。
     private static final Pattern SSRF_DNS_PREFIX =
@@ -460,7 +460,7 @@ class TenantCatalogContractTest {
      * api_key 先于 UUID（token 字母数字连字符形态不会误中 UUID 模式，顺序双保险）。
      */
     private static String mask(String s) {
-        String out = API_KEY.matcher(s).replaceAll("\"api_key\":\"<api_key>\"");
+        String out = API_KEY.matcher(s).replaceAll("\"apiKey\":\"<apiKey>\"");
         out = UUID_VALUE.matcher(out).replaceAll("\"$1\":\"<uuid>\"");
         out = TS_VALUE.matcher(out).replaceAll("\"$1\":\"<ts>\"");
         out = DATA_ID.matcher(out).replaceAll("\"id\":\"<id>\"");

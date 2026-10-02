@@ -83,11 +83,10 @@ export interface PromptTemplatesConfig {
   // Fallback templates — fixed responses + model fallback prompts (mode: "model")
   fallback: PromptTemplate[]
 
-  generate_session_title?: PromptTemplate[]
-  generate_summary?: PromptTemplate[]
-  keywords_extraction?: PromptTemplate[]
-  chat_summary?: PromptTemplate[]
-  agent_system_prompt?: PromptTemplate[]
+  generateSessionTitle?: PromptTemplate[]
+  generateSummary?: PromptTemplate[]
+  keywordsExtraction?: PromptTemplate[]
+  agentSystemPrompt?: PromptTemplate[]
   intentPrompts?: PromptTemplate[]
 }
 

@@ -148,7 +148,7 @@ const templates = computed<PromptTemplate[]>(() => {
       }
       break;
     case 'agentSystemPrompt':
-      list = templatesConfig.value.agent_system_prompt || [];
+      list = templatesConfig.value.agentSystemPrompt || [];
       break;
     case 'intentPrompt':
       list = templatesConfig.value.intentPrompts || [];

@@ -91,7 +91,7 @@ public final class TenantAPIKeyBootstrap {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = MAPPER.convertValue(tenant, Map.class);
             Map<String, Object> merged = new LinkedHashMap<>(map);
-            merged.put("api_key", token);
+            merged.put("apiKey", token);
             return sortRecursively(merged);
         } catch (RuntimeException e) {
             throw new IllegalStateException("failed to embed api_key into tenant response", e);

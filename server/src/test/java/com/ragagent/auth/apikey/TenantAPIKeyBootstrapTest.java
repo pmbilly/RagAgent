@@ -49,10 +49,10 @@ class TenantAPIKeyBootstrapTest {
 
         Map<String, Object> merged = TenantAPIKeyBootstrap.tenantWithApiKey(tenant, "sk-once");
 
-        assertThat(merged).containsEntry("api_key", "sk-once");
+        assertThat(merged).containsEntry("apiKey", "sk-once");
         // Go 的实现走 map（Marshal → map → 加键），encoding/json 对 map 按字母序输出，
         // 且**递归**对嵌套 map 生效
-        assertThat(merged.keySet()).containsExactly("api_key", "id", "name", "nested", "status");
+        assertThat(merged.keySet()).containsExactly("apiKey", "id", "name", "nested", "status");
         @SuppressWarnings("unchecked")
         Map<String, Object> nested = (Map<String, Object>) merged.get("nested");
         assertThat(nested.keySet()).containsExactly("a_key", "z_key");
@@ -64,8 +64,8 @@ class TenantAPIKeyBootstrapTest {
                 "id", 1,
                 "engines", List.of(Map.of("z", 1, "a", 2)));
         Map<String, Object> merged = TenantAPIKeyBootstrap.tenantWithApiKey(tenant, "sk-x");
-        assertThat(merged.keySet()).containsExactly("api_key", "engines", "id");
-        assertThat(merged).containsEntry("api_key", "sk-x");
+        assertThat(merged.keySet()).containsExactly("apiKey", "engines", "id");
+        assertThat(merged).containsEntry("apiKey", "sk-x");
     }
 
     // ── isPlatformTenantOptionalAPI（平台 Key 不带 X-Tenant-ID 时的放行清单） ──
