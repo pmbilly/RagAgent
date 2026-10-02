@@ -12,7 +12,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 // 那会把 session 等处"未注册"的配置类一并绑定，属行为变化。
 @ConfigurationPropertiesScan({"com.ragagent.config", "com.ragagent.common.tenant", "com.ragagent.common.settings",
         "com.ragagent.storage.config", "com.ragagent.tracing.langfuse", "com.ragagent.common.retrieval",
-        "com.ragagent.common.deployment", "com.ragagent.knowledge.config"})
+        "com.ragagent.common.deployment", "com.ragagent.knowledge.config",
+        "com.ragagent.common.crypto", "com.ragagent.common.security", "com.ragagent.common.storage",
+        "com.ragagent.common.wiki"})
 public class RagAgentApplication {
 
     public static void main(String[] args) {

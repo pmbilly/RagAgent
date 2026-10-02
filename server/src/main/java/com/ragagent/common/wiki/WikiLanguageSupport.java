@@ -58,10 +58,23 @@ public final class WikiLanguageSupport {
     // 解析
     // ═══════════════════════════════════════════════════════════════
 
-    /** {@code WEKNORA_LANGUAGE} 环境变量的 trim 值，未设则空串。 */
+    /**
+     * 部署默认语言的原始值（{@code WEKNORA_LANGUAGE}）——**启动期快照**。
+     *
+     * <p>本类是纯静态工具（17 处调用点散布在 wiki/session/agentm），没有 Spring 装配点，
+     * 故值由 {@code config.RuntimeSnapshotWiring} 在启动期写入一次（B6 批 6）；
+     * <b>只允许装配层调用 install</b>，运行期不得改写（那是状态不是配置）。</p>
+     */
+    private static volatile String configuredLanguage = "";
+
+    /** 启动期安装默认语言（{@code null}/空白 → 回落 {@code zh-CN}，见 {@link #defaultLanguage()}）。 */
+    public static void installLanguage(String raw) {
+        configuredLanguage = raw == null ? "" : raw;
+    }
+
+    /** {@code WEKNORA_LANGUAGE} 的 trim 值，未设则空串。 */
     public static String envLanguage() {
-        String v = System.getenv("WEKNORA_LANGUAGE");
-        return v == null ? "" : v.trim();
+        return configuredLanguage.trim();
     }
 
     /**

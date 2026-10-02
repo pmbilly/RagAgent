@@ -73,11 +73,18 @@ public class SsrfGuard {
      * {@code reloadWhitelist} 可能作用在一个已被替换掉的实例上，表现为契约测试随机 400。
      * 静态化后所有上下文共享同一份白名单，行为确定。</p>
      */
-    private static volatile Whitelist whitelist = parseWhitelistRaw(mergeRaws(
-            System.getenv("SSRF_WHITELIST"), System.getenv("SSRF_WHITELIST_EXTRA")));
+    private static volatile Whitelist whitelist = Whitelist.empty();
 
     public SsrfGuard() {
-        // 白名单在类初始化时读取 env；构造只保证 bean 可注入
+        // 白名单是进程级静态；值由 config.RuntimeSnapshotWiring 启动期安装（B6 批 6）
+    }
+
+    /**
+     * 启动期安装白名单（{@code SSRF_WHITELIST} / {@code SSRF_WHITELIST_EXTRA} 的原始串）——
+     * <b>只允许装配层调用</b>：解析与合并规则仍是本类的 {@code parseWhitelistRaw/mergeRaws}。
+     */
+    public static void installWhitelist(String raw, String extraRaw) {
+        whitelist = parseWhitelistRaw(mergeRaws(raw, extraRaw));
     }
 
     /** 对照 Go SetSSRFWhitelistFromRaw：原子替换白名单（SystemSettingService 运行时调谐路径；测试亦用） */

@@ -17,9 +17,23 @@ public final class UploadLimits {
     private UploadLimits() {
     }
 
+    /**
+     * 配置原始值（{@code MAX_FILE_SIZE_MB}）——**启动期快照**（B6 批 6）。
+     *
+     * <p>本类是纯静态规则（调用点散布 knowledge/model/initialization 四处），没有 Spring
+     * 装配点，故值由 {@code config.RuntimeSnapshotWiring} 在启动期写入一次；
+     * <b>只允许装配层调用 install</b>。</p>
+     */
+    private static volatile String configuredRaw = "";
+
+    /** 启动期安装限额原始值（{@code null} → 空串，回落缺省 50MB）。 */
+    public static void installFileSizeMb(String raw) {
+        configuredRaw = raw == null ? "" : raw;
+    }
+
     /** 限额的字节数。 */
     public static long maxFileSizeBytes() {
-        String env = System.getenv(MAX_FILE_SIZE_MB_ENV);
+        String env = configuredRaw;
         int mb = DEFAULT_MB;
         if (env != null && !env.isBlank()) {
             try {

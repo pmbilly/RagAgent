@@ -26,9 +26,22 @@ public class CryptoService {
     private static final int GCM_TAG_BITS = 128;
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    /** 对照 GetAESKey：env SYSTEM_AES_KEY，非 32 字节返回 null */
+    /**
+     * 密钥原始值（{@code SYSTEM_AES_KEY}）——**启动期快照**（B6 批 6）。
+     *
+     * <p>本类在 MyBatis 类型处理器等处是手工 {@code new} 出来的（不经 Spring 注入），
+     * 故值由 {@code config.RuntimeSnapshotWiring} 启动期写入一次；<b>只允许装配层调用 install</b>。</p>
+     */
+    private static volatile String configuredAesKey = "";
+
+    /** 启动期安装密钥原始值（{@code null} → 空串，即不可用）。 */
+    public static void installAesKey(String raw) {
+        configuredAesKey = raw == null ? "" : raw;
+    }
+
+    /** 对照 GetAESKey：非 32 字节返回 null */
     public byte[] getAESKey() {
-        String key = System.getenv("SYSTEM_AES_KEY");
+        String key = configuredAesKey;
         if (key != null && key.getBytes(StandardCharsets.UTF_8).length == 32) {
             return key.getBytes(StandardCharsets.UTF_8);
         }

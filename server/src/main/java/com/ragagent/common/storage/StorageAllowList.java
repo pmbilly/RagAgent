@@ -30,9 +30,16 @@ public class StorageAllowList {
         return List.copyOf(SUPPORTED);
     }
 
+    /** 白名单原始串（B6 批 6：{@code STORAGE_ALLOW_LIST} 走属性绑定）。 */
+    private final String configuredRaw;
+
+    public StorageAllowList(StorageAllowListProperties properties) {
+        this.configuredRaw = properties.allowList();
+    }
+
     /** 对照 AllowedMap：分隔符 , ; | \n \t 空格；非法/未知条目丢弃 */
     public Set<String> allowedMap() {
-        String raw = System.getenv(ALLOW_LIST_ENV);
+        String raw = configuredRaw;
         Set<String> allowed = new HashSet<>();
         if (raw == null || raw.trim().isEmpty()) {
             allowed.addAll(SUPPORTED);
