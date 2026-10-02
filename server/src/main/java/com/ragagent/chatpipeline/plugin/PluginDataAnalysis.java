@@ -14,7 +14,7 @@ import com.ragagent.chatpipeline.PipelineLog;
 import com.ragagent.chatpipeline.PipelinePorts;
 import com.ragagent.chatpipeline.support.MatchTypes;
 import com.ragagent.common.llm.ToolResult;
-import com.ragagent.agent.tools.DataAnalysisTool;
+import com.ragagent.agent.tools.data.DataAnalysisTool;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;

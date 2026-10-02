@@ -454,3 +454,13 @@
 - **红态证明（天然探针）**：本批起点即闸门红（5 组环），修复后转绿——守卫「会红」由 B6 批 10 的真实引入证明，非空转。
 - **纪律注记**：B6 批 10 的提交信息只写了「测试绿」，未跑/未记包结构守卫（教训：涉及新类落点的批次，守卫是必跑闸门，与测试同级）。
 
+**✅ B34（2026-10-02，agent/tools 分包：94 文件单层 → 根 + 5 个能力子包）**
+- **触发**：`docs/backend-package-map.md` 登记「`agent/tools`（94）待做——别按前缀切，等 agent 域自身重构时按能力分组」；agent 域自身重构（A/B 波）已于 2026-09-30 完成 ⇒ 前提满足、该待办悬空。
+- **分类判据（按调用点定，不按名字猜）**：子包装「族内工具 + 族内辅助」；**根留**三类——① 框架/基建（`ToolRegistry`/`BaseTool`/执行上下文/预算/参数校验/结果持久化）；② 跨域或跨族共享的接缝与值类型（`SearchTarget` 被 chatpipeline/session/evaluation 13 处引用；`SearchAuth` 被 wiki/knowledge/sql/data 共用；`DocChunkSupport` 被 wiki/knowledge 共用）；③ 通用单件工具（`SequentialThinkingTool`/`TodoWriteTool`）。
+- **结果**：`wiki/` 30、`knowledge/` 11、`sql/` 5、`data/` 4、`web/` 2；根 42（31 类 + MCP 10 + package-info）。5 个子包各配 package-info；根 package-info 重写（含 MCP 留根原因）。
+- **MCP 族留根（本批关键判定）**：`McpCatalog`/`McpDiscoverTool`/`McpExposure`/`McpCatalogPagination` 与 `ToolRegistry` 同包紧耦合——`servers`/`preloadLock`/`preloadStarted`/`authorizeExecution` 等**包内可见成员**、`McpToolWrapper` 的 **protected 成员**互访（编译实测约 40 处）。硬移会强制把内部状态放宽 public（语义不佳）⇒ 整族暂留根，待注册表中的 MCP 段外提后再分组（已写进根 package-info）。
+- **可见性放宽（逐条登记，main 8 处声明）**：`SearchAuth` 的 `dedupNonEmptyStrings`/`searchTargetScope`/`searchTargetIsWholeKb`/`Scope`（wiki 工具跨子包调用）、`KnowledgeSearchTool.RecordingSupportHolder` + `MAPPER`（data/sql 工具借用）、`ApprovalBridge` 类 + `toCancellation`（MCP 工具调用）、`DocChunkSupport.goFmtV`。测试侧：`RecordingSupport`/`Tools45cFakes` 放宽 public（跨族测试引用）并放宽其成员。
+- **测试随之镜像**：12 个测试跟移到对应子包（wiki/knowledge/sql/data/web）；跨族 `DocToolsRecordingTest` 与 MCP 的 `McpStubABTest` 留根。
+- **验证**：编译绿；守卫绿（环 0 / 依赖 config 1 / L2→L3 6 条）；全量 **4713** 绿 + `spotlessCheck` 绿；rename 识别 R093~R099；**忠实性核验**——非 package/import 的改动行只有上述 8 处可见性放宽 + package-info。
+- **踩坑实录（harness 复用要点）**：① 先改文本后 `git mv` ⇒ 「同包判定」用旧包名 → 漏加 import；② 删除行后未重算 `last_import` 索引 → import 插进类体（`illegal start of type`），已重置重跑；③ 域外文件的词边界命中含同名类误报（`GoPath` 与 datasource/connector/gitlab 同名、`McpOAuthSupport` 与 mcp/protocol 同名、wiki 域嵌套 `RepairResult`）⇒ 域外只做「import/FQN 路径改写」，不新增 import。
+

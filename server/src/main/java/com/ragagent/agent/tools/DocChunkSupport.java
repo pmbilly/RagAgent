@@ -256,7 +256,7 @@ public final class DocChunkSupport {
     }
 
     /** 常见标量的输出形态（metadata 值用；嵌套容器的序不保证）。 */
-    static String goFmtV(Object v) {
+    public static String goFmtV(Object v) {
         if (v == null) {
             return "<nil>";
         }

@@ -18,6 +18,9 @@ import com.ragagent.agent.tools.DocChunkSupport.KnowledgeInfoView;
 import com.ragagent.agent.tools.DocChunkSupport.PagedChunks;
 import com.ragagent.agent.tools.SearchAuth.TagView;
 import com.ragagent.knowledge.domain.Chunk;
+import com.ragagent.agent.tools.knowledge.GetDocumentInfoTool;
+import com.ragagent.agent.tools.knowledge.ListKnowledgeChunksTool;
+import com.ragagent.agent.tools.wiki.WikiReadSourceDocTool;
 
 /**
  * 波 4.5b 回放：wiki_read_source_doc / get_document_info / list_knowledge_chunks

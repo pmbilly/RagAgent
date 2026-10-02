@@ -11,31 +11,31 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import com.ragagent.agent.tools.DataSchemaTool;
-import com.ragagent.agent.tools.DatabaseQueryTool;
+import com.ragagent.agent.tools.data.DataSchemaTool;
+import com.ragagent.agent.tools.sql.DatabaseQueryTool;
 import com.ragagent.agent.tools.DocChunkSupport;
-import com.ragagent.agent.tools.GrepChunksTool;
-import com.ragagent.agent.tools.KnowledgeSearchTool;
-import com.ragagent.agent.tools.QueryKnowledgeGraphTool;
+import com.ragagent.agent.tools.knowledge.GrepChunksTool;
+import com.ragagent.agent.tools.knowledge.KnowledgeSearchTool;
+import com.ragagent.agent.tools.knowledge.QueryKnowledgeGraphTool;
 import com.ragagent.agent.tools.SearchAuth;
-import com.ragagent.agent.tools.SearchConversationsTool;
-import com.ragagent.agent.tools.SearchMemoryTool;
+import com.ragagent.agent.tools.knowledge.SearchConversationsTool;
+import com.ragagent.agent.tools.knowledge.SearchMemoryTool;
 import com.ragagent.agent.tools.SearchTarget;
-import com.ragagent.agent.tools.WebFetchTool;
-import com.ragagent.agent.tools.WebSearchTool;
-import com.ragagent.agent.tools.WikiDeletePageTool;
-import com.ragagent.agent.tools.WikiFlagIssueTool;
-import com.ragagent.agent.tools.WikiReadIssueTool;
-import com.ragagent.agent.tools.WikiReadPageTool;
-import com.ragagent.agent.tools.WikiRenamePageTool;
-import com.ragagent.agent.tools.WikiReplaceTextTool;
-import com.ragagent.agent.tools.WikiPages;
-import com.ragagent.agent.tools.WikiRouteResolver;
-import com.ragagent.agent.tools.WikiScope;
-import com.ragagent.agent.tools.WikiUpdateIssueTool;
-import com.ragagent.agent.tools.WikiWritePageTool;
-import com.ragagent.agent.tools.WikiSearchTool;
-import com.ragagent.agent.tools.WikiReadSourceDocTool;
+import com.ragagent.agent.tools.web.WebFetchTool;
+import com.ragagent.agent.tools.web.WebSearchTool;
+import com.ragagent.agent.tools.wiki.WikiDeletePageTool;
+import com.ragagent.agent.tools.wiki.WikiFlagIssueTool;
+import com.ragagent.agent.tools.wiki.WikiReadIssueTool;
+import com.ragagent.agent.tools.wiki.WikiReadPageTool;
+import com.ragagent.agent.tools.wiki.WikiRenamePageTool;
+import com.ragagent.agent.tools.wiki.WikiReplaceTextTool;
+import com.ragagent.agent.tools.wiki.WikiPages;
+import com.ragagent.agent.tools.wiki.WikiRouteResolver;
+import com.ragagent.agent.tools.wiki.WikiScope;
+import com.ragagent.agent.tools.wiki.WikiUpdateIssueTool;
+import com.ragagent.agent.tools.wiki.WikiWritePageTool;
+import com.ragagent.agent.tools.wiki.WikiSearchTool;
+import com.ragagent.agent.tools.wiki.WikiReadSourceDocTool;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.memory.domain.MemoryItem;
 import com.ragagent.memory.service.MemorySearchResult;
@@ -134,13 +134,13 @@ public class AgentToolBackends {
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_GREP_CHUNKS ->
                     new GrepChunksTool(grepChunkSearch(), targets);
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_LIST_KNOWLEDGE_CHUNKS ->
-                    new com.ragagent.agent.tools.ListKnowledgeChunksTool(knowledgeInfoReader(),
+                    new com.ragagent.agent.tools.knowledge.ListKnowledgeChunksTool(knowledgeInfoReader(),
                             chunkById(), pagedChunks(), imageInfoCollector(), targets);
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_QUERY_KNOWLEDGE_GRAPH ->
                     new QueryKnowledgeGraphTool(graphSearch(), targets,
                             DocChunkSupport.asScopeReader(knowledgeInfoReader()));
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_GET_DOCUMENT_INFO ->
-                    new com.ragagent.agent.tools.GetDocumentInfoTool(knowledgeInfoReader(),
+                    new com.ragagent.agent.tools.knowledge.GetDocumentInfoTool(knowledgeInfoReader(),
                             chunkById(), pagedChunks(), targets);
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_SEARCH_CONVERSATIONS ->
                     new SearchConversationsTool(conversationSearch(), ownerId, sessionId);
@@ -177,20 +177,20 @@ public class AgentToolBackends {
      */
     private com.ragagent.agent.tools.AgentTool createDataAnalysisTool(
             SearchTarget.SearchTargets targets, String sessionId) {
-        com.ragagent.agent.tools.DataAnalysisTool tool =
-                new com.ragagent.agent.tools.DataAnalysisTool(
+        com.ragagent.agent.tools.data.DataAnalysisTool tool =
+                new com.ragagent.agent.tools.data.DataAnalysisTool(
                         knowledgeId -> {
                             Knowledge k = knowledgeService.getKnowledgeByIdOnly(knowledgeId);
                             if (k == null) {
                                 return null;
                             }
-                            return new com.ragagent.agent.tools.DataAnalysisTool.KnowledgeData(
+                            return new com.ragagent.agent.tools.data.DataAnalysisTool.KnowledgeData(
                                     k.getId(), k.getKnowledgeBaseId(),
                                     k.getTenantId() == null ? 0L : k.getTenantId(),
                                     k.getFileType(), k.getFilePath());
                         },
                         knowledge -> materializeKnowledgeFile(knowledge),
-                        com.ragagent.agent.tools.AnalysisDuckDbJdbc.get(),
+                        com.ragagent.agent.tools.data.AnalysisDuckDbJdbc.get(),
                         sessionId);
         if (targets != null) {
             tool.withSearchTargets(targets);
@@ -200,7 +200,7 @@ public class AgentToolBackends {
 
     /** 对照 materializeKnowledgeFile：知识文件 → 带正确扩展名的本地临时文件（用后即删）。 */
     private java.nio.file.Path materializeKnowledgeFile(
-            com.ragagent.agent.tools.DataAnalysisTool.KnowledgeData knowledge) {
+            com.ragagent.agent.tools.data.DataAnalysisTool.KnowledgeData knowledge) {
         if (knowledge == null || knowledge.filePath() == null || knowledge.filePath().isEmpty()) {
             throw new IllegalArgumentException("knowledge file path is empty");
         }

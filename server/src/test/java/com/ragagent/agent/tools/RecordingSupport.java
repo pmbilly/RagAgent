@@ -9,12 +9,12 @@ import com.ragagent.common.web.GoJsonCodec;
 import com.ragagent.common.web.GoJsonEscapes;
 
 /** 4.5a 实录测试的共享小工具。 */
-final class RecordingSupport {
+public final class RecordingSupport {
 
-    static final ObjectMapper PLAIN = new ObjectMapper();
+    public static final ObjectMapper PLAIN = new ObjectMapper();
 
     /** Go json.Marshal 语义的 mapper（HTML 转义恒开；map 键序由类型上的 serializer 负责）。 */
-    static final ObjectMapper GO_MAPPER = goMapper();
+    public static final ObjectMapper GO_MAPPER = goMapper();
 
     private static ObjectMapper goMapper() {
         ObjectMapper m = new ObjectMapper();
@@ -25,16 +25,16 @@ final class RecordingSupport {
     private RecordingSupport() {
     }
 
-    static JsonNode rec(String constant) {
+    public static JsonNode rec(String constant) {
         return GoRecording45A.rec(constant);
     }
 
-    static String text(JsonNode rec, String field) {
+    public static String text(JsonNode rec, String field) {
         JsonNode n = rec.get(field);
         return n == null || n.isNull() ? null : n.asText();
     }
 
-    static JsonNode readTree(String json) {
+    public static JsonNode readTree(String json) {
         try {
             return PLAIN.readTree(json);
         } catch (Exception e) {
@@ -43,7 +43,7 @@ final class RecordingSupport {
     }
 
     /** 用 GoJsonCodec 把 data map 编成 Go json.Marshal 字节形态（对照录制时的 mustJSON(res.Data)）。 */
-    static String goJsonOfData(java.util.Map<String, Object> data) {
+    public static String goJsonOfData(java.util.Map<String, Object> data) {
         return GoJsonCodec.write(PLAIN.valueToTree(data));
     }
 
@@ -53,7 +53,7 @@ final class RecordingSupport {
      * Java 经 valueToTree 的键序取决于序列化层；两边都规范化后比较值本身，
      * 键序契约由 steps_json 字符串与 output 文本的字节断言承担。
      */
-    static String canonicalJson(JsonNode node) {
+    public static String canonicalJson(JsonNode node) {
         return writeCanonical(node);
     }
 
@@ -91,7 +91,7 @@ final class RecordingSupport {
     }
 
     /** 重建 trunc 语料的输入串（对照探针的 pieces/repeats 拼接）。 */
-    static String buildTruncInput(JsonNode rec) {
+    public static String buildTruncInput(JsonNode rec) {
         JsonNode pieces = rec.get("pieces");
         JsonNode repeats = rec.get("repeats");
         StringBuilder sb = new StringBuilder();

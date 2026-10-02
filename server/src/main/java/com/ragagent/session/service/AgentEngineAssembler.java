@@ -11,8 +11,8 @@ import com.ragagent.agent.AgentEngine;
 import com.ragagent.agent.AgentPrompts;
 import com.ragagent.agent.tools.McpExposure;
 import com.ragagent.agent.tools.ToolDefinitions;
-import com.ragagent.agent.tools.WikiRouteResolver;
-import com.ragagent.agent.tools.WikiScope;
+import com.ragagent.agent.tools.wiki.WikiRouteResolver;
+import com.ragagent.agent.tools.wiki.WikiScope;
 import com.ragagent.agent.tools.ToolRegistry;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.event.EventBus;
@@ -381,12 +381,12 @@ final class AgentEngineAssembler {
             return;
         }
         com.ragagent.agent.tools.AgentTool raw = registry.getTool(ToolDefinitions.TOOL_WEB_FETCH);
-        if (!(raw instanceof com.ragagent.agent.tools.WebFetchTool fetch)) {
+        if (!(raw instanceof com.ragagent.agent.tools.web.WebFetchTool fetch)) {
             return;
         }
         // 对照 Go L119-123：web_search 是**另一次** GetTool，与 fetch 是两个实例
         if (registry.getTool(ToolDefinitions.TOOL_WEB_SEARCH)
-                instanceof com.ragagent.agent.tools.WebSearchTool search) {
+                instanceof com.ragagent.agent.tools.web.WebSearchTool search) {
             search.withPageReader(fetch);
         }
         // handler 已把会话存储钉到 owner 租户（对照 SandboxTenantIDFromContext）

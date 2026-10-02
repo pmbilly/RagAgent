@@ -13,12 +13,12 @@ import com.ragagent.event.EventBus;
  *       （gate 只发不订——逐字段转投真实总线）。</li>
  * </ul>
  */
-final class ApprovalBridge {
+public final class ApprovalBridge {
 
     private ApprovalBridge() {
     }
 
-    static com.ragagent.common.approval.Cancellation toCancellation(ToolCancellation cancellation) {
+    public static com.ragagent.common.approval.Cancellation toCancellation(ToolCancellation cancellation) {
         if (cancellation == null) {
             return com.ragagent.common.approval.Cancellation.none();
         }

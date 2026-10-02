@@ -74,7 +74,7 @@ public final class SearchAuth {
 
     // ---- 去重非空字符串 ----
 
-    static List<String> dedupNonEmptyStrings(List<String> values) {
+    public static List<String> dedupNonEmptyStrings(List<String> values) {
         Map<String, Boolean> seen = new LinkedHashMap<>();
         List<String> out = new ArrayList<>();
         if (values == null) {
@@ -109,7 +109,7 @@ public final class SearchAuth {
      * 单个目标授权什么。KnowledgeIDs 与标签是交集不是并集；
      * 有文档白名单时标签不参与授权。
      */
-    static Scope searchTargetScope(SearchTarget target) {
+    public static Scope searchTargetScope(SearchTarget target) {
         if (target == null) {
             return new Scope(null, null);
         }
@@ -120,11 +120,11 @@ public final class SearchAuth {
         return new Scope(null, effectiveSearchTargetTagIds(target));
     }
 
-    record Scope(List<String> knowledgeIds, List<String> tagIds) {
+    public record Scope(List<String> knowledgeIds, List<String> tagIds) {
     }
 
     /** 是否整库目标。 */
-    static boolean searchTargetIsWholeKb(SearchTarget target) {
+    public static boolean searchTargetIsWholeKb(SearchTarget target) {
         if (target == null) {
             return false;
         }

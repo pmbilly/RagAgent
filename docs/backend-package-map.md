@@ -82,7 +82,7 @@ B33 已归位：`AppEnvLookup` → `common/deployment`、`StorageRuntimeEnv` →
 | `rerank` | 根 6 + `provider/`(8) | 8 家 provider 实现进 `provider/`；框架（Reranker/Factory/Http/GoJson/RankResult）留根 |
 
 **余 3 个（判定为"保持扁平"，不拆）**：`stream`(12，SSE/流存储单一契约)、`modelcontext`(12，工具协议层)、
-`config`(9，装配层)。判据：**无天然族就不拆**（别为扁平而扁平）；`agent/tools` 同理待 agent 域重构时按能力分组。
+`config`(9，装配层)。判据：**无天然族就不拆**（别为扁平而扁平）；`agent/tools` 已按能力分组（2026-10-02，B34，见 §P2）。
 
 ### P2 超大单层（≥70 文件）
 
@@ -94,11 +94,12 @@ B33 已归位：`AppEnvLookup` → `common/deployment`、`StorageRuntimeEnv` →
 |---|---|---|
 | `wiki/service` | ✅ 已拆（2026-09-30）：根 11 + `ingest/`(45) + `page/`(19) | `ingest/` = 摄取管线（Ingest 门面 + 四阶段、任务队列、锁、幂等凭据、去重清理）；`page/` = 页面服务、文件夹/视图、链接与 lint、slug 锁与匹配、编辑上下文；根 = 跨切面端口（ChunkCleaner/ImageEnricher/KnowledgeFinalizer/ModelResolver + 缺省实现）与 LLM/提示词适配 |
 | `datasource/connector` | ✅ 早已按 provider 分层 | 无需再动 |
-| `agent/tools` | 待做（94） | `Wiki*` 19、`Mcp*` 10、`Sql*` 4、`Search*` 4 —— 但余下 ~60 是单件工具，**别按前缀切**，等 agent 域自身重构时按能力分组 |
+| `agent/tools` | ✅ **已拆（2026-10-02，B34）**：根 42 + `wiki/` 30 + `knowledge/` 11 + `sql/` 5 + `data/` 4 + `web/` 2 | 分类按**调用点**不按名字前缀：子包 = 族内工具与辅助；根 = 框架/基建 + 跨域或跨族共享的接缝与值类型（`SearchTarget`/`SearchAuth`/`DocChunkSupport`）+ 通用单件工具 + **MCP 族**（与 `ToolRegistry` 同包紧耦合——含 protected 成员互访约 40 处，暂留根，待 MCP 段外提后再分组） |
 | `knowledge/dto` | ✅ 已拆（2026-09-30）：`faq/`(21) + `chunk/`(12) + `kb/`(15) + `doc/`(16) + `tag/`(7) + 根 3 | 按功能切；根留批量删除、检索请求、任务 id 响应三个跨面载荷。**这批最干净**：DTO 之间零跨包引用，脚本 0 处补 import、0 处可见性放宽 |
 
-- [x] `wiki/service` 与 `knowledge/dto` 已拆；`agent/tools` 按上表待做（等 agent 域重构）。
-      判据：有天然族才拆，别为扁平而扁平。
+- [x] `wiki/service` 与 `knowledge/dto` 已拆；`agent/tools` **已拆（2026-10-02，B34）**：
+      根（框架 + 跨族共享 + 通用单件 + MCP 族） + `wiki/knowledge/sql/data/web` 五个能力子包。
+      判据：有天然族才拆，别为扁平而扁平；MCP 族因与 `ToolRegistry` 同包紧耦合暂留根（已登记）。
 
 ### P3 命名与文档
 
