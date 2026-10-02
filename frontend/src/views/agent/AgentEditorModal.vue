@@ -2209,33 +2209,33 @@ const availableFileTypes = [
 // 占位符相关 - 从 API 获取
 const placeholderData = ref<{
   systemPrompt: PlaceholderDefinition[];
-  agent_system_prompt: PlaceholderDefinition[];
+  agentSystemPrompt: PlaceholderDefinition[];
   contextTemplate: PlaceholderDefinition[];
-  rewrite_system_prompt: PlaceholderDefinition[];
-  rewrite_prompt: PlaceholderDefinition[];
+  rewriteSystemPrompt: PlaceholderDefinition[];
+  rewritePrompt: PlaceholderDefinition[];
   fallbackPrompt: PlaceholderDefinition[];
 }>({
   systemPrompt: [],
-  agent_system_prompt: [],
+  agentSystemPrompt: [],
   contextTemplate: [],
-  rewrite_system_prompt: [],
-  rewrite_prompt: [],
+  rewriteSystemPrompt: [],
+  rewritePrompt: [],
   fallbackPrompt: [],
 });
 
 // 系统提示词占位符（根据模式动态选择）
 const availablePlaceholders = computed(() => {
-  return isAgentMode.value ? placeholderData.value.agent_system_prompt : placeholderData.value.systemPrompt;
+  return isAgentMode.value ? placeholderData.value.agentSystemPrompt : placeholderData.value.systemPrompt;
 });
 
 // 上下文模板占位符
 const contextTemplatePlaceholders = computed(() => placeholderData.value.contextTemplate);
 
 // 改写系统提示词占位符
-const rewriteSystemPlaceholders = computed(() => placeholderData.value.rewrite_system_prompt);
+const rewriteSystemPlaceholders = computed(() => placeholderData.value.rewriteSystemPrompt);
 
 // 改写用户提示词占位符
-const rewritePlaceholders = computed(() => placeholderData.value.rewrite_prompt);
+const rewritePlaceholders = computed(() => placeholderData.value.rewritePrompt);
 
 // 兜底提示词占位符
 const fallbackPlaceholders = computed(() => placeholderData.value.fallbackPrompt);

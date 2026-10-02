@@ -37,18 +37,18 @@ public class AgentPlaceholders {
             "用户界面的语言偏好，如 Chinese (Simplified)、English、Korean 等，用于控制 LLM 回答语言");
 
     public ObjectNode data() {
-        // 键按字母序输出(键 = config 模板键,保持 config schema 的 snake);P 名 = 模板令牌
+        // 键按字母序输出(键 = 前端字段面, camel);P 名 = 模板令牌(数据值, 一律 snake——由 AgentPlaceholdersTest 守住)
         ObjectNode data = MAPPER.createObjectNode();
-        data.set("agent_system_prompt", list(
+        data.set("agentSystemPrompt", list(
                 List.of(KNOWLEDGE_BASES, WEB_SEARCH_STATUS, CURRENT_TIME, LANGUAGE)));
         data.set("all", list(List.of(QUERY, CONTEXTS, CURRENT_TIME, CURRENT_WEEK, CONVERSATION,
                 YESTERDAY, ANSWER, KNOWLEDGE_BASES, WEB_SEARCH_STATUS, LANGUAGE)));
         data.set("contextTemplate", list(
                 List.of(QUERY, CONTEXTS, CURRENT_TIME, CURRENT_WEEK, LANGUAGE)));
         data.set("fallbackPrompt", list(List.of(QUERY, LANGUAGE)));
-        data.set("rewrite_prompt", list(
+        data.set("rewritePrompt", list(
                 List.of(QUERY, CONVERSATION, CURRENT_TIME, YESTERDAY, LANGUAGE)));
-        data.set("rewrite_system_prompt", list(
+        data.set("rewriteSystemPrompt", list(
                 List.of(QUERY, CONVERSATION, CURRENT_TIME, YESTERDAY, LANGUAGE)));
         data.set("systemPrompt", list(
                 List.of(QUERY, CONTEXTS, CURRENT_TIME, CURRENT_WEEK, LANGUAGE)));

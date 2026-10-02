@@ -2788,6 +2788,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B18 agent 配置面换锚** | 见 15.1.1 |
 | **B19 前端契约键收口 + 守卫** | 前端 snake 契约键排查 + 嵌套层 + 双侧守卫进 CI | P2 | 中 | ✅ **完成（2026-10-02）**——修掉两处静默缺陷（B18 的 ModelService 回归、前端 tagScopes 链路断）+ 嵌套 7 键 camel + V3 扩到 66 键（并修 WHERE 漏行）；新增前端契约键棘轮（进 CI）与后端键名守卫测试。详见 15.1.1 |
 | **B20 占位符令牌回归** | 批量改名误伤数据值（模板令牌）+ 缺跨面对照守卫 | P2 | 小 | ✅ **完成（2026-10-02）**——修回 `knowledge_bases` 令牌（夹具曾被同步改掉=假绿），新增「HTTP 面 ↔ 渲染面令牌一致」守卫（含红态证明）；组键半改状态待拍板。详见 15.1.1 |
+| **B21 占位符组键收口 + 同类排查** | 只改一半的「混搭面」与被误伤的数据值 | P2 | 小 | ✅ **完成（2026-10-02）**——3 组键收口 camel（模板面有意不动）；两道筛子给出同类清单：模板面 4 键、`api_key`、死模块 `api/web-search.ts`、4 个待判孤儿夹具；「令牌被误伤」**只有已修的一处**。详见 15.1.1 |
 
 #### 15.1.1 执行记录（按批次，✅ 批必读）
 
@@ -3105,12 +3106,21 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 - **踩坑（Flyway，值得记）**：V3 文件在 **App 已应用过它之后**又被我扩展改写 ⇒ 启动期 `Migration checksum mismatch for version 3` 直接导致**服务起不来**。处置：删掉 `flyway_schema_history` 里 V3 那行让 Flyway **重放**（因 V3 幂等，重放无副作用），启动即恢复，历史表记录的校验和随之更新。**教训：迁移文件一旦被 App 应用过就别再改**（要么先定稿，要么用 repair/删行重放）；这也是"迁移必须写成幂等"的一条实际收益。
 
 **🐞 B20（2026-10-02——用户追问 `/agents/placeholders` 的 snake 组键引出的修复）**
-- **用户问题（结论）**：`frontend/src/api/agent/index.ts` 的 `PlaceholdersResponse` 里 `agent_system_prompt`/`rewrite_system_prompt`/`rewrite_prompt` 是 snake——与后端**逐键一致**（`agentm/service/AgentPlaceholders.data()`），故**当前不会静默失效**。但它不是「有意保留」的设计：B18 的批量改名只覆盖了恰好落在 agent 配置 60 键清单里的三个组键（`systemPrompt`/`contextTemplate`/`fallbackPrompt`），其余留 snake ⇒ **半改状态**；该文件原注释「键 = config 模板键，保持 config schema 的 snake」也已过期（B18 后 config schema 是 camel）。**待拍板**：把剩下 3 个组键收口到 camel（后端 3 键 + 前端接口与两处用法 + 夹具，小批），或按「有意保留」登记并改注释。
+- **用户问题（结论）**：`frontend/src/api/agent/index.ts` 的 `PlaceholdersResponse` 里 `agent_system_prompt`/`rewrite_system_prompt`/`rewrite_prompt` 是 snake——与后端**逐键一致**（`agentm/service/AgentPlaceholders.data()`），故**当前不会静默失效**。但它不是「有意保留」的设计：B18 的批量改名只覆盖了恰好落在 agent 配置 60 键清单里的三个组键（`systemPrompt`/`contextTemplate`/`fallbackPrompt`），其余留 snake ⇒ **半改状态**；该文件原注释「键 = config 模板键，保持 config schema 的 snake」也已过期（B18 后 config schema 是 camel）。**已收口（B21，2026-10-02）**：3 个组键改为 `agentSystemPrompt`/`rewriteSystemPrompt`/`rewritePrompt`（详见下条 B21）。
 - **同批挖出并修掉一个 B18 回归（我引入的）**：`AgentPlaceholders` 里 `new P("knowledge_bases", …)` 是**模板令牌**（数据值——渲染器按 `{{knowledge_bases}}` 替换，见 `AgentPrompts:278` 与渲染面表），被 B18 批量改名误改成 `knowledgeBases`，**且契约夹具在同一提交被同步改掉** ⇒ 全线绿、缺陷静默（用户从 UI 插入的该占位符将永远不被替换，提示词里留一段字面量）。
 - **守卫**：新增 `agentm/service/AgentPlaceholdersTest`——HTTP 面令牌表必须与渲染面 `AgentPromptPlaceholders.placeholdersByFieldAgentSystemPrompt()` **逐字一致**，并逐令牌验证渲染器真能替换。**红态证明**：临时还原错令牌 → 用例精确报出 `["knowledgeBases", …]` vs `["knowledge_bases", …]`。
 - **连带修正**：B19 的 `AgentConfigKeyUsageTest` 对该文件**假阳性**（此处的 snake 是模板令牌、非 agent 配置键）→ 加**具名豁免 + 理由**并指向新守卫。
 - **方法论（与既有记忆同源，具体化）**：批量改名要区分**键**与**数据值**——「模板令牌/标识符/枚举值」与 JSON 键同名时会被一并误改；且**同步改夹具会把缺陷洗成绿色**（改 A 忘 B 的变体：改了「被测对象」又改了「期望值」）。对策＝跨面对照守卫 + 红态证明。
 - 闸门：全量 **4713** 用例绿 + `spotlessCheck` 绿。
+
+**✅ B21（2026-10-02，占位符组键收口 + 「同类情况」定向排查）**
+- **收口完成**：`/agents/placeholders` 的 3 个组键 → `agentSystemPrompt` / `rewriteSystemPrompt` / `rewritePrompt`。落点：后端 `AgentPlaceholders.data()`（3 键；注释更新为「键＝前端字段面 camel；P 名＝模板令牌 snake，由 AgentPlaceholdersTest 守」）、夹具 `ag-placeholders.json`（**仅根键**，令牌值未动）、前端 `api/agent/index.ts` 接口 + `AgentEditorModal.vue`（内联类型、默认对象、3 处用法）。**模板面有意不动**：`PromptTemplateCatalog` 的 `agent_system_prompt` 与 FE `cfg.agent_system_prompt` / `api/system` / `PromptTemplateSelector` / `agentPromptTemplates.ts` 属**另一面**（提示词模板配置），本轮零接触。
+- **同类排查（两道筛子，可复现）**：
+  - **筛子 A「混搭面」**：扫描全部 **1344** 个契约夹具，标记「同一对象层级同时出现 camel 与 snake 键」→ 命中 8 个：① `ag-placeholders`（本批已收口）；② `ct-kv-get-prompt-templates`（**待收**：snake `agent_system_prompt`/`generate_session_title`/`generate_summary`/`keywords_extraction`，camel `systemPrompt`/`contextTemplate`/`intentPrompts`）；③ `ct-create-apikey`（`api_key` **待收**，后端 `TenantCreateOps:201`、`TenantAPIKeyBootstrap:94` 的 `m.put("api_key", token)`）；④ 凭证字段标识符（`api_key` 作**内部标识符**、HTTP 键用 camel `apiKey`——**有意**，与「值 vs 键」同理）；⑤ 余下 4 个（`doc-get`/`doc-list`/`wiki-lint`/`wiki-stats`/`wiki-revisions`）按名检索**无测试引用**——可能是孤儿夹具，也可能名字由拼接构造（初筛为启发式，**未定论**，需先判面死活）。
+  - **筛子 B「值位置误伤」**：从改名提交反推 **73** 对映射，再全仓查 camel 形态是否出现在**值位置**（`{{令牌}}`/`new P(`/`case`/枚举/`id:`/`type=`）⇒ **只命中已修的 `knowledge_bases` 一处**；其余命中均良性（MyBatis 结果映射 id、websearch **值映射表** `search_std → searchStd`、旧载荷迁移表 `kbID → kbId`）。**结论：没有第二处「令牌被误伤」**。
+  - **附带发现**：`frontend/src/api/web-search.ts` 是**死模块**（全 FE 无人 import；内含 snake `requires_api_key`，在用版本 `api/web-search-provider.ts` 是 camel）⇒ 建议删。
+- **守卫判别力实证**：组键一改，`AgentPlaceholdersTest` 立刻变红（常量即旧组键名）——已同步更新。闸门：后端全量 4713 用例绿 + `spotlessCheck` 绿；FE `vue-tsc` 绿 + `tsx --test` **690** 用例绿 + FE 契约键棘轮无新增（基线 42）。未做真机（该响应有逐字节契约测试覆盖）。
+- **下一批候选（同类，按性价比）**：① `ct-kv-get-prompt-templates` 模板面收口（4 键；动 `PromptTemplateCatalog` + FE `api/system`/`PromptTemplateSelector`/`agentPromptTemplates.ts` + 夹具）；② `ct-create-apikey` 的 `api_key`（后端 2 处 + 夹具；FE 无读者）；③ 删死模块 `api/web-search.ts`；④ 孤儿夹具核查（应写「夹具被引用」检查，不按名字猜）。
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

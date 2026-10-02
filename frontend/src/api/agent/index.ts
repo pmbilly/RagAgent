@@ -241,10 +241,10 @@ export interface PlaceholderDefinition {
 export interface PlaceholdersResponse {
   all: PlaceholderDefinition[];
   systemPrompt: PlaceholderDefinition[];
-  agent_system_prompt: PlaceholderDefinition[];
+  agentSystemPrompt: PlaceholderDefinition[];
   contextTemplate: PlaceholderDefinition[];
-  rewrite_system_prompt: PlaceholderDefinition[];
-  rewrite_prompt: PlaceholderDefinition[];
+  rewriteSystemPrompt: PlaceholderDefinition[];
+  rewritePrompt: PlaceholderDefinition[];
   fallbackPrompt: PlaceholderDefinition[];
 }
 

@@ -29,13 +29,13 @@ import org.junit.jupiter.api.Test;
  */
 class AgentPlaceholdersTest {
 
-    private static final String FIELD_AGENT_SYSTEM_PROMPT = "agent_system_prompt";
+    private static final String GROUP_AGENT_SYSTEM_PROMPT = "agentSystemPrompt";
 
     @Test
-    @DisplayName("agent_system_prompt 字段：HTTP 面令牌与渲染面逐字一致，且每个令牌渲染器真能替换")
+    @DisplayName("agentSystemPrompt 组：HTTP 面令牌与渲染面逐字一致，且每个令牌渲染器真能替换")
     void agentSystemPromptTokensAgreeWithRenderer() {
         JsonNode data = new AgentPlaceholders().data();
-        List<String> httpSide = names(data.path(FIELD_AGENT_SYSTEM_PROMPT));
+        List<String> httpSide = names(data.path(GROUP_AGENT_SYSTEM_PROMPT));
         List<String> renderSide = AgentPromptPlaceholders.placeholdersByFieldAgentSystemPrompt().stream()
                 .map(AgentPromptPlaceholders.PromptPlaceholder::name)
                 .toList();
