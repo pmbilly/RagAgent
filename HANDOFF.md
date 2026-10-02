@@ -2765,7 +2765,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 ✅ **B1（2026-10-02）**：`docs/knowledge-api-contract-v1.md` 已升 v1.1——升格全服务端标准、§2.2 错误体与 §2.2.1 补充形态、§8 收官批记录。
 | **B2 金片对比器统一** | 字节级（`goldenBytes`/裸 compare）与语义级（`ContractJson.semantic`）两套并存 + 四份各写各的 refresh 开关 → 统一共享基建（semantic + strip 归一 + `-Dcontract.refresh=true`），存量字节级测试逐个迁移 | P0 | 中 | 防"改金片先看对比器"事故复发（§14.9s 教训）；迁移即顺手重录 |
 | **B3 残留 `@JsonInclude` 288 处恒输出化** | 真面集中在 wiki 域早批（C 波先于 §1.6 恒输出口径，约 60 处）与散点；tenantconfig(65)/LLM 载荷/事件面**豁免**（§14.6）；每域重录夹具 + 前端键集合核对 | P1 | 中 | 逐域独立批；先扫"哪批键集合真的会变"再动 |
-| **B4 Go 零值时间哨兵 → null** | `0001-01-01T00:00:00Z`：AgentStep（**冻结 SSE 事件面**——须连前端消费点一起核）+ agentm `GO_ZERO_TIME` + init `goTime` 系 | P1 | 小-中 | 形状变更批，单独走；前端读点先查（是否有人 parse 该哨兵） |
+✅ **B4（2026-10-02，结论：不改）**：调查后判定哨兵不是债——① datasource 域零值=「从未同步」的**业务信号**（`lastSyncTime` 进调度比较逻辑，改 null 要动调度语义）；② AgentStep 是冻结 SSE 事件面，前端消费已安全（负时间戳 falsy→undefined）；③ agentm/init 两处前端无读点；④ 11 个金片 126 处字面量钉住。收益 < 风险，按 §14.5 判据登记已知例外，从计划移除。
 | **B5 lf_* 载具嵌套化评估** | 四域队列载荷的 `lf_*` 平铺键 → 嵌套 `tracing` 键（§14.6 登记的"另批"）；先出判定（收益 vs 四域联动+死信读侧兼容成本），判定通过再动刀 | P1 | 判定小/动刀中 | 可判定后搁置——载具当前工作正常 |
 | **B6 getenv 收敛 151 处** | 裸 `System.getenv()` → `@ConfigurationProperties`（§4 口径），按域分批 | P1 | 中 | 每域一批；配置键语义不变 |
 ✅ **B7（2026-10-02）**：依赖级扫描实锤断成员 19 处全清——只注入不读取字段 3（`PluginSearchParallel` 的 graphRepo/chunkRepo/knowledgeRepo）+ 死 logger 8 + 死 `ObjectMapper` 3 + 死 `Pattern` 1 + 死私有方法 4 + 冗余 import 4（javadoc 规避后复核）；66 处历史候选在本轮口径下复核为零（多数已被前批清掉）。**残留口径**：Spotless ratchet 外的 23 处 import 命中经复核多为泛型/javadoc 误报，真死仅 4 处已清。
