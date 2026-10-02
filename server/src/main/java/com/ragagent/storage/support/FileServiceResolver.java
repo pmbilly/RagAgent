@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.domain.tenantconfig.StorageEngineConfig;
+import com.ragagent.common.storage.StorageRuntimeEnv;
 import com.ragagent.storage.provider.FileServiceFactory;
 
 /**
@@ -49,7 +50,7 @@ public class FileServiceResolver implements Resolver {
      * （{@code LOCAL_STORAGE_BASE_DIR}，B6 批 7 前是裸 env 读），缺省 {@code /data/files}。
      */
     public static String localStorageBaseDir() {
-        String baseDir = com.ragagent.storage.config.StorageRuntimeEnv.localStorageBaseDir();
+        String baseDir = StorageRuntimeEnv.localStorageBaseDir();
         if (baseDir == null || baseDir.isBlank()) {
             return "/data/files";
         }

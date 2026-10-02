@@ -1,7 +1,7 @@
 package com.ragagent.auth.apikey.service;
 
 import java.util.LinkedHashMap;
-import com.ragagent.config.AppEnvLookup;
+import com.ragagent.common.deployment.AppEnvLookup;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;

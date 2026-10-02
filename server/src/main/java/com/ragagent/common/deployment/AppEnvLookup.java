@@ -1,4 +1,4 @@
-package com.ragagent.config;
+package com.ragagent.common.deployment;
 
 import java.util.function.Function;
 
@@ -11,7 +11,13 @@ import java.util.function.Function;
  * {@code OllamaService.getOllamaService}、{@code interpolateEnv} …），既不是某个域的族群，也没有
  * 可注入的装配点。</p>
  *
- * <p><b>装配时机</b>：由 {@link AppEnvLookupEnvironmentPostProcessor} 在
+ * <p><b>归属</b>：读点横跨 11 个域（auth / common / llm / initialization / session / model /
+ * mcp / embedding / datasource / vectorstore / config 自身），故必须落在最低层 {@code common}——
+ * 放在 {@code config}（组合根，只出不进）会让每个读点反向依赖装配层（包结构守卫红灯）。
+ * 与同包的 {@link DeploymentProperties} 同族：都是「运行环境」层面的读取入口。装配点
+ * （{@code AppEnvLookupEnvironmentPostProcessor}）仍留在 {@code config}。</p>
+ *
+ * <p><b>装配时机</b>：由 {@code config.AppEnvLookupEnvironmentPostProcessor} 在
  * <b>任何 bean 实例化之前</b>装好——这些读点里有启动期就跑的（{@code StartupTaskRecovery.distributed()}
  * 决定 Lite/分布式、{@code BuiltinModelsReconciler} 是启动 runner、API-Key 引导），
  * 放通用 {@code RuntimeSnapshotWiring}（@Configuration 构造器）则 bean 顺序不保证。</p>

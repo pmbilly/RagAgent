@@ -1,7 +1,7 @@
 package com.ragagent.datasource.connector.feishu.core;
 
 import java.time.OffsetDateTime;
-import com.ragagent.config.AppEnvLookup;
+import com.ragagent.common.deployment.AppEnvLookup;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

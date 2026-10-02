@@ -1,7 +1,6 @@
 package com.ragagent.llm.chat;
 
 import java.io.File;
-import com.ragagent.storage.fileserve.StoragePaths;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -18,6 +17,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 
+import com.ragagent.common.storage.StorageRuntimeEnv;
 import com.ragagent.llm.domain.ChatMessage;
 
 import org.slf4j.Logger;
@@ -202,8 +202,10 @@ public final class ImageResolver {
         String relPath = storagePath.startsWith("local://")
                 ? storagePath.substring("local://".length())
                 : storagePath;
-        String baseDir = StoragePaths.localStorageBaseDir();
-        if (baseDir == null || baseDir.isEmpty()) {
+        // 与 storage 侧 StoragePaths.localStorageBaseDir 同语义（原始串 trim；空 → /data/files），
+        // 但直接读 common 的快照 holder——llm 不得依赖 storage（能力层禁直连业务域，包结构守卫）。
+        String baseDir = StorageRuntimeEnv.localStorageBaseDir().trim();
+        if (baseDir.isEmpty()) {
             baseDir = DEFAULT_LOCAL_STORAGE_BASE_DIR;
         }
         Path localPath;

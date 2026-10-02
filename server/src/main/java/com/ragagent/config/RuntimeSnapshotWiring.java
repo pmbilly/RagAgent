@@ -12,7 +12,7 @@ import com.ragagent.storage.config.LocalStorageEnvProperties;
 import com.ragagent.storage.config.StorageProviderEnv;
 import com.ragagent.storage.config.ResourceUrlModeProperties;
 import com.ragagent.storage.config.StorageEnvLookup;
-import com.ragagent.storage.config.StorageRuntimeEnv;
+import com.ragagent.common.storage.StorageRuntimeEnv;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 

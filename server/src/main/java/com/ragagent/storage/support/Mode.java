@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import com.ragagent.auth.apikey.domain.APIKeyScopeContext;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
+import com.ragagent.common.storage.StorageRuntimeEnv;
 
 /**
  * 存储文件在 API 响应里的引用方式（对照 Go {@code internal/storageurl/mode.go}）。
@@ -78,7 +79,7 @@ public enum Mode {
      * {@link #HANDLE}——一个笔误应当降级到安全默认，而不是让每个请求都失败。
      */
     public static Mode defaultMode() {
-        String raw = com.ragagent.storage.config.StorageRuntimeEnv.resourceUrlMode();
+        String raw = StorageRuntimeEnv.resourceUrlMode();
         if (raw == null || raw.isBlank()) {
             return HANDLE;
         }

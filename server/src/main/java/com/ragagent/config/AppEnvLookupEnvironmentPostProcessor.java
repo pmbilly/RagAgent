@@ -5,6 +5,8 @@ import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 
+import com.ragagent.common.deployment.AppEnvLookup;
+
 /**
  * 启动最早点安装 {@link AppEnvLookup}（B6 批 10）。
  *

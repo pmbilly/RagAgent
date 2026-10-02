@@ -62,6 +62,9 @@
 `scripts/package-cycles.baseline.json`：环 34 / 依赖 config 5 包 / L2→L3 19 条）；解掉后跑 `--write` 刷新基线。
 当前基线（2026-09-30 批 4n 后）：**环 0 组 / 依赖 `config` 的包 1 个 / 能力层→业务层直连 6 条**（拆分使 `agentm ⇄ knowledge`/`agentm ⇄ model` 改名为 `initialization ⇄ …`，净数不变）。
 
+**更新（2026-10-02，B33）**：B6 批 10 一度把两处工具放错层——`config/AppEnvLookup` 被 11 包引用、`llm/chat/ImageResolver` 直连 `storage/StoragePaths`，守卫红灯（环 5 组 / 依赖 config 11 包）。
+B33 已归位：`AppEnvLookup` → `common/deployment`、`StorageRuntimeEnv` → `common/storage`（+ `ImageResolver` 脱开 storage），守卫回绿至上述基线（环 0 / 依赖 config 1 包 / L2→L3 6 条）。
+
 ### P1 扁平包（原 10 个 → 余 5 个）
 
 **已拆**（2026-09-30 批 P1，纯移动 + 引用改写 + 全绿；`storageurl`/`searchutil`/`webfetch` 三个早先批次已合并掉）：

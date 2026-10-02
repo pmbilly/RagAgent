@@ -6,6 +6,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import com.ragagent.common.deployment.AppEnvLookup;
+
 /**
  * 应用级 env 查找面的<b>装配守卫</b>（B16「静默失效」扫描产出）。
  *

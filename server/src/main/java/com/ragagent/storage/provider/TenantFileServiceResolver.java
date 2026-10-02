@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.ragagent.auth.domain.tenantconfig.StorageEngineConfig;
+import com.ragagent.common.storage.StorageRuntimeEnv;
 
 /**
  * 租户级文件服务解析 + 回退（对照 Go
@@ -75,7 +76,7 @@ public final class TenantFileServiceResolver {
 
     /** 对照 Go：{@code STORAGE_TYPE} 小写归一，空 → {@code local}。 */
     public static String globalStorageType() {
-        String v = com.ragagent.storage.config.StorageRuntimeEnv.storageType();
+        String v = StorageRuntimeEnv.storageType();
         if (v == null || v.trim().isEmpty()) {
             return DEFAULT_STORAGE_TYPE;
         }

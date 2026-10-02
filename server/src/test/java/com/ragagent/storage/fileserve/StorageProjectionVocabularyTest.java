@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.crypto.CryptoService;
 import com.ragagent.storage.config.StorageProviderEnv;
-import com.ragagent.storage.config.StorageRuntimeEnv;
+import com.ragagent.common.storage.StorageRuntimeEnv;
 import com.ragagent.storage.domain.StorageBackend;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;

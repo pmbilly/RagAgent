@@ -11,6 +11,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import com.ragagent.common.deployment.AppEnvLookup;
 import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.repository.KnowledgeSpanRepository;
 

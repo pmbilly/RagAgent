@@ -1,7 +1,7 @@
 package com.ragagent.initialization.service;
 
 import java.time.OffsetDateTime;
-import com.ragagent.config.AppEnvLookup;
+import com.ragagent.common.deployment.AppEnvLookup;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;

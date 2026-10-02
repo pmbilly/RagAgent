@@ -1,7 +1,7 @@
 package com.ragagent.auth.service;
 
 import java.util.ArrayList;
-import com.ragagent.config.AppEnvLookup;
+import com.ragagent.common.deployment.AppEnvLookup;
 import java.util.List;
 
 import org.springframework.stereotype.Component;

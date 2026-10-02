@@ -442,3 +442,15 @@
   4. `AuthSessionOps.extractSwitchRefreshToken` 读 `refresh_token`（snake）——**兼容读取**：测试与前端都只发 `tenantId`，无仓内使用者 ⇒ 登记不动；
   5. **孤儿夹具 115 个**（B31）——其中 102 个是录制脚本清单（证据链）；**待观察，不删**。
 
+**✅ B33（2026-10-02，包结构守卫红灯修复：两个工具类归位到最低层）**
+- **触发**：复测 `scripts/check-package-cycles.py`（挂 CI guards job）为红灯——环 **5 组** / 依赖 `config` 的包 **1 → 11** / L2→L3 新增 1 条。全部由 **B6 批 10（ca86b3b）** 引入（`git grep` 前后对照：该提交前依赖 config 的只有 `stream` 1 个包）。
+- **成因**（两处「工具放错层」）：
+  - `config/AppEnvLookup`（41 行 env 查找面 holder）被 11 个包、16 处引用——它是平台工具，却被放进组合根 `config`（分层规则：config 只出不进）⇒ 4 组环（auth / common / llm / vectorstore ⇄ config）。
+  - `llm/chat/ImageResolver` 为读本地存储根目录引了 `storage/fileserve/StoragePaths` ⇒ `llm ⇄ storage` 环 + L2→L3 直连新增 1 条。
+- **修复（两刀，纯移动 + 引用改写，零行为变更）**：
+  - 刀 1：`config/AppEnvLookup` → `common/deployment/AppEnvLookup`（与 `DeploymentProperties` 同族：运行环境读取入口）。装配点 `AppEnvLookupEnvironmentPostProcessor` 仍留 `config`（R4 规则要求 install 只许装配层调用，调用点未动）。17 个文件改 import。
+  - 刀 2：`storage/config/StorageRuntimeEnv` → `common/storage/StorageRuntimeEnv`（与 `UploadLimits` 同族：跨域共享的存储层配置值）；`ImageResolver` 改直读该 holder（`trim` + 自有 `/data/files` 兜底，与 `StoragePaths.localStorageBaseDir()` 逐字等价——两层兜底归一已核验），去 storage 依赖；storage 域内 5 处 FQN 引用一并 import 化。
+- **验证**：编译绿；守卫回绿（环 **0** / 依赖 config **1**（stream，基线内）/ L2→L3 **6** 条）；`ArchitectureRulesTest`（含 R4）+ `AppEnvLookupWiringTest` + `ImageResolverTest` + `StoragePathsTest` + `ChatLocalImageResolverWiringTest` 等 **212** 例绿；全量 **4713** 绿 + `spotlessCheck` 绿。
+- **红态证明（天然探针）**：本批起点即闸门红（5 组环），修复后转绿——守卫「会红」由 B6 批 10 的真实引入证明，非空转。
+- **纪律注记**：B6 批 10 的提交信息只写了「测试绿」，未跑/未记包结构守卫（教训：涉及新类落点的批次，守卫是必跑闸门，与测试同级）。
+

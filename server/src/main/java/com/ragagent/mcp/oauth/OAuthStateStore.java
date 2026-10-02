@@ -1,7 +1,7 @@
 package com.ragagent.mcp.oauth;
 
 import java.time.Duration;
-import com.ragagent.config.AppEnvLookup;
+import com.ragagent.common.deployment.AppEnvLookup;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;

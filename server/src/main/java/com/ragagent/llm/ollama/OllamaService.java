@@ -1,7 +1,7 @@
 package com.ragagent.llm.ollama;
 
 import java.io.BufferedReader;
-import com.ragagent.config.AppEnvLookup;
+import com.ragagent.common.deployment.AppEnvLookup;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;

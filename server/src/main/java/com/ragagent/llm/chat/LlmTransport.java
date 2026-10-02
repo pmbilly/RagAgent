@@ -1,7 +1,7 @@
 package com.ragagent.llm.chat;
 
 import java.io.IOException;
-import com.ragagent.config.AppEnvLookup;
+import com.ragagent.common.deployment.AppEnvLookup;
 import java.io.InputStream;
 import java.net.ProxySelector;
 import java.net.URI;

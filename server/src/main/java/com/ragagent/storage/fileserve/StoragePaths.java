@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import com.ragagent.common.storage.StorageRuntimeEnv;
+
 /**
  * 存储 provider:// 路径的解析与校验工具（收尾批 W5c，对照 Go 三个源文件）：
  *
@@ -352,7 +354,7 @@ public final class StoragePaths {
 
     /** 对照 Go {@code files.go localStorageBaseDir}：启动期快照缺省 /data/files。 */
     public static String localStorageBaseDir() {
-        String baseDir = com.ragagent.storage.config.StorageRuntimeEnv.localStorageBaseDir();
+        String baseDir = StorageRuntimeEnv.localStorageBaseDir();
         if (baseDir == null || baseDir.trim().isEmpty()) {
             return "/data/files";
         }
@@ -366,7 +368,7 @@ public final class StoragePaths {
 
     /** 对照 Go {@code resolve_tenant.go} 的全局 STORAGE_TYPE 读取（缺省 local，小写化）。 */
     public static String globalStorageType() {
-        String t = com.ragagent.storage.config.StorageRuntimeEnv.storageType();
+        String t = StorageRuntimeEnv.storageType();
         if (t == null || t.trim().isEmpty()) {
             return "local";
         }

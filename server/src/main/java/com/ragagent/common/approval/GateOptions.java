@@ -1,7 +1,7 @@
 package com.ragagent.common.approval;
 
 import java.time.Duration;
-import com.ragagent.config.AppEnvLookup;
+import com.ragagent.common.deployment.AppEnvLookup;
 import java.util.UUID;
 
 /**

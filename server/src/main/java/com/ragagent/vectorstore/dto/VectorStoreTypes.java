@@ -1,7 +1,7 @@
 package com.ragagent.vectorstore.dto;
 
 import java.util.ArrayList;
-import com.ragagent.config.AppEnvLookup;
+import com.ragagent.common.deployment.AppEnvLookup;
 import java.util.List;
 
 

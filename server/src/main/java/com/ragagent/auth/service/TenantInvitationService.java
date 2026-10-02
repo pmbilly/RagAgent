@@ -1,7 +1,7 @@
 package com.ragagent.auth.service;
 
 import java.security.SecureRandom;
-import com.ragagent.config.AppEnvLookup;
+import com.ragagent.common.deployment.AppEnvLookup;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;

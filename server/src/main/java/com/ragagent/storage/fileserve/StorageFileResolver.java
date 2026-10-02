@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.common.crypto.CryptoService;
+import com.ragagent.common.storage.StorageRuntimeEnv;
 import com.ragagent.storage.config.StorageProviderEnv;
 import com.ragagent.storage.domain.StorageBackend;
 import com.ragagent.storage.mapper.StorageBackendRepository;
@@ -569,7 +570,7 @@ public class StorageFileResolver {
      * 投影路径</b>，两处键名漂移（正是 B14 两个静默 bug 的根因）不再可能。</p>
      */
     StorageBackend storageBackendFromEnvironment(long tenantId) {
-        String provider = com.ragagent.storage.config.StorageRuntimeEnv.storageType()
+        String provider = StorageRuntimeEnv.storageType()
                 .trim().toLowerCase(java.util.Locale.ROOT);
         if (provider.isEmpty()) {
             provider = "local";
