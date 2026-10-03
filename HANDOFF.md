@@ -717,6 +717,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B42 档 3 第五刀（工具协议面）** | 转义退役 + 四类去 Go 名（HtmlEntities/JsonValues/ToolJson/JsonQuoting） | P2 | 小 | ✅ **完成（2026-10-03）**——先分类后落刀（真复刻 vs 只是名字带 Go）；`ToolJson.writeString` 去 HTML 转义（保留键序）；测试收编（`normalizeEscapes` 共享辅助 + `ToolJsonRecordingTest` 语义比较 + 键序单独钉住）；**Go\* 21 → 17**；全量 4710 + spotlessCheck 绿。详见 15.1.1 |
 | **B43 档 3 第六刀（真退役）** | 工具协议面换 Java 原生：删 JsonQuoting/GoValueStr/GoJsonMarshal + ToolJson 手写 writer 退役 | P2 | 小 | ✅ **完成（2026-10-03）**——用户拍板「不要只是改名」；`ToolJson.quoted`（标准 Jackson）+ 收敛 WeaviateGql 第 5 份拷贝；`valueStr` 原生字符串化（`<nil>` 退役）；`prettyJson`（Jackson pretty printer）；ToolJson 删手写 writer；**Go\* 17 → 15**；全量 4710 + spotlessCheck 绿。⚠️ 口径修正：B42 改名不计退役。详见 15.1.1 |
 | **B44 档 3 第七刀（connector 面）** | 删 GoBase64 / yuque GoDuration / common.time GoDuration（Java 原生替换） | P2 | 小 | ✅ **完成（2026-10-03）**——`java.util.Base64`（去换行）+ `Double.parseDouble`（与 Feishu 收敛）+ `Duration.toString()`（ISO-8601 文案）；**Go\* 15 → 12**；全量 4706 + spotlessCheck 绿。⚠️ 顺带发现「Go duration 解析」另有 2-3 份（Langfuse/TenantInvitation/env 面）待下批。详见 15.1.1 |
+| **B45 档 3 第八刀（GoStrings 收敛）** | 两份 GoStrings → common/text/Whitespace + CodePointOrder（Unicode 空白统一） | P2 | 中 | ✅ **完成（2026-10-03）**——16 文件 / 45 处改写；`isSpaceChar`+6（Java 原生，精确等于 White_Space）+ 码点序比较器迁出；`trim(x,'/')` 退役为正则一行；**Go\* 12 → 10**；全量 4706 + spotlessCheck 绿。⚠️ 空白判断另剩 3 处私有实现（rss/memory 两处）待收敛。详见 15.1.1 |
 
 ### 15.1.1 执行记录（索引：正文已移出，按批号 Ctrl-F）
 
@@ -781,6 +782,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | ✅ B42（2026-10-03，档 3 第五刀：工具协议面） | **✅ B42（2026-10-03，工具协议面）**——`GoHtml`/`GoJsonValues` 改名（非 Go 语义）+ `GoJsonCodec`→`ToolJson`（去 HTML 转义、保键序）+ `GoQuoting`→`JsonQuoting`；`RecordingSupport.normalizeEscapes` + `ToolJsonRecordingTest`（语义比较 + 键序钉子）；**Go\* 21 → 17**；全量 4710 + spotlessCheck 绿。 |
 | ✅ B43（2026-10-03，档 3 第六刀：真退役） | **✅ B43（2026-10-03，工具协议面换 Java 原生）**——删 `JsonQuoting`（→ `ToolJson.quoted`，收敛 WeaviateGql 第 5 份拷贝）/`GoValueStr`（→ 原生 `valueStr`，`<nil>` 退役）/`GoJsonMarshal`（→ `ToolJson.prettyJson`）+ `ToolJson` 手写 writer 退役（Jackson + 只留键排序）；测试基线化；**Go\* 17 → 15**；全量 4710 + spotlessCheck 绿。 |
 | ✅ B44（2026-10-03，档 3 第七刀：connector 面） | **✅ B44（2026-10-03，connector 三刀）**——删 `GoBase64`（→ JDK Base64，GitLab 换行处理保留）/yuque `GoDuration`（→ `Double.parseDouble`，与 Feishu 收敛）/`common.time.GoDuration`（→ ISO-8601 文案 `PT1H10M`）；`GoCompat`/`Yuque`/`Housekeeping` 测试收编；**Go\* 15 → 12**；全量 4706 + spotlessCheck 绿。 |
+| ✅ B45（2026-10-03，档 3 第八刀：GoStrings 收敛） | **✅ B45（2026-10-03，空白实现统一）**——两份 `GoStrings`（wiki 96 行 + gitlab 82 行）删除 → `common/text/Whitespace`（`isSpaceChar`+6 = White_Space 精确等价）+ `common/text/CodePointOrder`；16 文件 45 处改写；`trim(x,'/')` → 正则；**Go\* 12 → 10**；全量 4706 + spotlessCheck 绿。 |
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

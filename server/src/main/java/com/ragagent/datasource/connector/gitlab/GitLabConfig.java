@@ -7,6 +7,7 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.domain.DataSourceConfig;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * GitLab 数据源的 {@code settings} 形状与解析。
@@ -82,7 +83,7 @@ public final class GitLabConfig {
             if (!(rawProject instanceof Map<?, ?> m)) {
                 throw new ConnectorException.InvalidConfig("invalid project selection");
             }
-            String id = GoStrings.trimSpace(asString(m.get("project_id")));
+            String id = Whitespace.trimSpace(asString(m.get("project_id")));
             if (id.isEmpty() || !seen.add(id)) {
                 throw new ConnectorException.InvalidConfig("project_id must be unique and non-empty");
             }
@@ -99,7 +100,7 @@ public final class GitLabConfig {
                     paths.add(normalizePath(s));
                 }
             }
-            out.add(new ProjectSelection(id, GoStrings.trimSpace(asString(m.get("ref"))),
+            out.add(new ProjectSelection(id, Whitespace.trimSpace(asString(m.get("ref"))),
                     collapsePaths(paths)));
         }
         if (out.isEmpty()) {
@@ -116,7 +117,7 @@ public final class GitLabConfig {
      * 于是 {@code paths: ["/"]} 的语义变成"同步整个项目"。这条链路是一个整体，别拆开看。</p>
      */
     public static String normalizePath(String value) {
-        String v = GoStrings.trim(GoStrings.trimSpace(value), '/');
+        String v = Whitespace.trimSpace(value).replaceAll("^/+|/+$", "");
         if (v.isEmpty()) {
             return "";
         }

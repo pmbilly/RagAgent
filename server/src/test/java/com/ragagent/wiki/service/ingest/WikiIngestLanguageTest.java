@@ -17,7 +17,7 @@ import com.ragagent.wiki.prompt.WikiPromptTemplate;
 import com.ragagent.wiki.prompt.WikiPrompts;
 import com.ragagent.common.wiki.SlugUpdate;
 import com.ragagent.common.wiki.WikiLanguageSupport;
-import com.ragagent.common.wiki.GoStrings;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * 语言持久化与 prompt 渲染的测试。
@@ -187,11 +187,11 @@ class WikiIngestLanguageTest {
     }
 
     @Test
-    @DisplayName("GoStrings.trimSpace 覆盖 Go 的空白定义（含 NBSP / 全角空格）")
+    @DisplayName("Whitespace.trimSpace 覆盖 Unicode White_Space（含 NBSP / 全角空格）")
     void goTrimSpaceCoversGoWhitespace() {
-        assertThat(GoStrings.trimSpace("  x  ")).isEqualTo("x");
-        assertThat(GoStrings.trimSpace("　x　")).isEqualTo("x");
-        assertThat(GoStrings.trimSpace("  x  ")).isEqualTo("x");
+        assertThat(Whitespace.trimSpace("  x  ")).isEqualTo("x");
+        assertThat(Whitespace.trimSpace("　x　")).isEqualTo("x");
+        assertThat(Whitespace.trimSpace("  x  ")).isEqualTo("x");
         // Java 的 String.strip() 不会裁 NBSP，这正是本工具存在的理由
         assertThat(" x ".strip()).isNotEqualTo("x");
     }

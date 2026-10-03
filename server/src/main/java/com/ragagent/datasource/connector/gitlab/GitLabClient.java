@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.ConnectorHttp;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * GitLab REST 客户端。
@@ -77,8 +78,8 @@ public final class GitLabClient {
      * @throws ConnectorException 配置缺失或 base_url 未过 SSRF 策略
      */
     public static GitLabClient newClient(String baseUrl, String token) {
-        String base = GoStrings.trim(GoStrings.trimSpace(baseUrl), '/');
-        if (base.isEmpty() || GoStrings.trimSpace(token).isEmpty()) {
+        String base = Whitespace.trimSpace(baseUrl).replaceAll("^/+|/+$", "");
+        if (base.isEmpty() || Whitespace.trimSpace(token).isEmpty()) {
             throw new ConnectorException("GitLab platform configuration is missing");
         }
         ConnectorHttp.validateConnectorBaseUrl(base);
@@ -238,7 +239,7 @@ public final class GitLabClient {
      * </ol>
      */
     public static String projectPath(String id) {
-        String trimmed = GoStrings.trimSpace(id);
+        String trimmed = Whitespace.trimSpace(id);
         if (trimmed.isEmpty()) {
             return "";
         }

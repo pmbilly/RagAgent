@@ -19,11 +19,11 @@ import com.ragagent.wiki.prompt.WikiPromptTemplate;
 import com.ragagent.wiki.prompt.WikiPrompts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.ragagent.common.wiki.GoStrings;
 import com.ragagent.common.wiki.WikiImageMarkup;
 import com.ragagent.wiki.service.WikiLlmCallMetadata;
 import com.ragagent.wiki.service.WikiLlmRetryPolicy;
 import com.ragagent.wiki.service.WikiPromptInstructions;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * 摄取用 LLM 调用协作者:模板化生成、请求序列化与提示词预热。
@@ -126,7 +126,7 @@ final class WikiIngestLlmSupport {
             Runnable[] warmupHolder = { () -> { } };
             boolean holdsWarmup = tenantScoped
                     && WikiPrompts.WIKI_PAGE_MODIFY_USER_PROMPT.equals(promptTpl)
-                    && !GoStrings.trimSpace(fields.getOrDefault("SharedSourceContexts", "")).isEmpty();
+                    && !Whitespace.trimSpace(fields.getOrDefault("SharedSourceContexts", "")).isEmpty();
             if (holdsWarmup) {
                 warmupHolder[0] = awaitWikiPromptWarmup(resolvedWarmupKey);
             }

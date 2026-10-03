@@ -6,8 +6,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import com.ragagent.common.wiki.GoStrings;
 import com.ragagent.wiki.service.ingest.WikiBatchContext;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * 死链重写。
@@ -82,7 +82,7 @@ public final class WikiDeadLinks {
             }
             String display = "";
             if (m.group(2) != null) {
-                display = GoStrings.trimSpace(m.group(2));
+                display = Whitespace.trimSpace(m.group(2));
             }
 
             // (1) 先试模糊还原。resolver 依次查 display 文本反查、连字符归一化相等、

@@ -10,9 +10,10 @@ import com.ragagent.wiki.domain.WikiConstants;
 import com.ragagent.wiki.domain.WikiIndexEntry;
 import com.ragagent.wiki.domain.WikiPage;
 import com.ragagent.wiki.prompt.WikiPrompts;
+import com.ragagent.common.text.Whitespace;
+import com.ragagent.common.text.CodePointOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.ragagent.common.wiki.GoStrings;
 
 /**
  * 索引页协作者:既有 taxonomy 格式化、既有 slug 收集、索引导语页重建与草稿发布。
@@ -33,7 +34,7 @@ final class WikiIngestIndexOps {
      * 把去重后的
      * category_path 列表渲染成缩进的目录树，供抽取 prompt 使用。
      *
-     * <p>同级标签按<b>字符串升序</b>输出（按码点序，见 {@link GoStrings#compareByCodePoints}）
+     * <p>同级标签按<b>字符串升序</b>输出（按码点序，见 {@link CodePointOrder#compare}）
      * ——否则 prompt 的字节
      * 前缀会随批次抖动，provider 前缀缓存会失效。</p>
      *
@@ -55,11 +56,11 @@ final class WikiIngestIndexOps {
         // 不能用 Collections.sort 的 UTF-16 码元序——顺序会直接影响 prompt 字节，
         // 进而决定 provider 前缀缓存是否命中。
         List<String> keys = new ArrayList<>(root.children.keySet());
-        keys.sort(GoStrings::compareByCodePoints);
+        keys.sort(CodePointOrder::compare);
         for (String k : keys) {
             appendWikiTaxonomyNode(buf, k, root.children.get(k), 0);
         }
-        return GoStrings.trimSpace(buf.toString());
+        return Whitespace.trimSpace(buf.toString());
     }
 
     /** 把一条 category path 插入目录树（trim 空段）。 */
@@ -69,7 +70,7 @@ final class WikiIngestIndexOps {
         }
         TaxonomyNode cur = root;
         for (String raw : path) {
-            String part = GoStrings.trimSpace(raw == null ? "" : raw);
+            String part = Whitespace.trimSpace(raw == null ? "" : raw);
             if (part.isEmpty()) {
                 continue;
             }
@@ -152,15 +153,15 @@ final class WikiIngestIndexOps {
         // 导语同时住在 Content 与 Summary。优先 Content（新的索引视图返回的就是它）；
         // 回落到 Summary 是为了兼容本次重构之前写入的行，
         // 好让增量更新 prompt 有东西可用。
-        String existingIntro = GoStrings.trimSpace(indexPage.getContent());
+        String existingIntro = Whitespace.trimSpace(indexPage.getContent());
         if (existingIntro.isEmpty()) {
-            existingIntro = GoStrings.trimSpace(indexPage.getSummary());
+            existingIntro = Whitespace.trimSpace(indexPage.getSummary());
         }
         // 识别历史的"导语 + 目录"载荷：那种行在导语之后紧跟围栏分隔的 "## Summary" 段，
         // 因此从第一个目录标题起全部裁掉，让回灌进更新 prompt 的导语长度有界。
         int dirIdx = existingIntro.indexOf("\n## ");
         if (dirIdx >= 0) {
-            existingIntro = GoStrings.trimSpace(existingIntro.substring(0, dirIdx));
+            existingIntro = Whitespace.trimSpace(existingIntro.substring(0, dirIdx));
         }
         String intro;
         if (existingIntro.isEmpty() || WikiIngestService.LEGACY_INDEX_PLACEHOLDER.equals(existingIntro)) {
@@ -202,7 +203,7 @@ final class WikiIngestIndexOps {
                                 "Language", lang,
                                 "CustomInstructions", customInstructions == null ? "" : customInstructions,
                                 "InstructionScope", "wiki_content"));
-                intro = GoStrings.trimSpace(generated);
+                intro = Whitespace.trimSpace(generated);
             } catch (Exception e) {
                 intro = "# Wiki Index\n\nThis wiki contains knowledge extracted from uploaded documents.\n";
             }
@@ -220,7 +221,7 @@ final class WikiIngestIndexOps {
                                 "Language", lang,
                                 "CustomInstructions", customInstructions == null ? "" : customInstructions,
                                 "InstructionScope", "wiki_content"));
-                intro = GoStrings.trimSpace(updated);
+                intro = Whitespace.trimSpace(updated);
             } catch (Exception e) {
                 intro = existingIntro; // 出错时保留既有导语
             }
@@ -233,7 +234,7 @@ final class WikiIngestIndexOps {
         // 让 indexPage.Content 保持为长度有界的纯导语。
         int cut = intro.indexOf("\n## ");
         if (cut >= 0) {
-            intro = GoStrings.trimSpace(intro.substring(0, cut));
+            intro = Whitespace.trimSpace(intro.substring(0, cut));
         }
         indexPage.setContent(intro);
         indexPage.setSummary(intro);
@@ -266,6 +267,6 @@ final class WikiIngestIndexOps {
 
     static final class TaxonomyNode {
         private final Map<String, TaxonomyNode> children =
-                new java.util.TreeMap<>(GoStrings::compareByCodePoints);
+                new java.util.TreeMap<>(CodePointOrder::compare);
     }
 }

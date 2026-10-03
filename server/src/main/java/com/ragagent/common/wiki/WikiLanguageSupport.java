@@ -2,6 +2,7 @@ package com.ragagent.common.wiki;
 
 import java.util.List;
 import java.util.Locale;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * prompt 语言的解析与命名。
@@ -90,7 +91,7 @@ public final class WikiLanguageSupport {
      * 显式 locale 优先 → 线程 locale → 默认语言。<b>永不返回空串</b>。
      */
     public static String resolveLanguage(String locale) {
-        String trimmed = GoStrings.trimSpace(locale == null ? "" : locale);
+        String trimmed = Whitespace.trimSpace(locale == null ? "" : locale);
         if (!trimmed.isEmpty()) {
             return trimmed;
         }

@@ -1,7 +1,7 @@
 package com.ragagent.wiki.service.page;
 
 import java.util.List;
-import com.ragagent.common.wiki.GoStrings;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * wiki ingest 的纯文本工具：slug 化、截断、预览、XML 转义、SUMMARY 行解析与
@@ -31,7 +31,7 @@ public final class WikiTextUtils {
         if (s == null) {
             return "";
         }
-        String lower = GoStrings.trimSpace(s).toLowerCase(java.util.Locale.ROOT);
+        String lower = Whitespace.trimSpace(s).toLowerCase(java.util.Locale.ROOT);
 
         StringBuilder mapped = new StringBuilder(lower.length());
         for (int i = 0; i < lower.length(); ) {
@@ -84,7 +84,7 @@ public final class WikiTextUtils {
         if (s == null) {
             s = "";
         }
-        s = GoStrings.trimSpace(s);
+        s = Whitespace.trimSpace(s);
         s = s.replace("\n", " ").replace("\t", " ");
         while (s.contains("  ")) {
             s = s.replace("  ", " ");
@@ -149,7 +149,7 @@ public final class WikiTextUtils {
      * ——中文模型会输出全角。</p>
      */
     public static SummaryLine splitSummaryLine(String raw) {
-        String value = GoStrings.trimSpace(raw);
+        String value = Whitespace.trimSpace(raw);
         boolean halfWidth = value.startsWith("SUMMARY:");
         boolean fullWidth = value.startsWith("SUMMARY：");
         if (halfWidth || fullWidth) {
@@ -163,7 +163,7 @@ public final class WikiTextUtils {
                 if (line.startsWith("SUMMARY：")) {
                     line = line.substring("SUMMARY：".length());
                 }
-                return new SummaryLine(GoStrings.trimSpace(line), "");
+                return new SummaryLine(Whitespace.trimSpace(line), "");
             }
             String summaryLine = value.substring(0, idx);
             if (summaryLine.startsWith("SUMMARY:")) {
@@ -172,8 +172,8 @@ public final class WikiTextUtils {
             if (summaryLine.startsWith("SUMMARY：")) {
                 summaryLine = summaryLine.substring("SUMMARY：".length());
             }
-            return new SummaryLine(GoStrings.trimSpace(summaryLine),
-                    GoStrings.trimSpace(value.substring(idx + 1)));
+            return new SummaryLine(Whitespace.trimSpace(summaryLine),
+                    Whitespace.trimSpace(value.substring(idx + 1)));
         }
         return new SummaryLine("", value);
     }
@@ -190,11 +190,11 @@ public final class WikiTextUtils {
         if (s == null) {
             return "";
         }
-        s = GoStrings.trimSpace(s);
+        s = Whitespace.trimSpace(s);
         s = trimPrefix(s, "```json");
         s = trimPrefix(s, "```");
         s = trimSuffix(s, "```");
-        s = GoStrings.trimSpace(s);
+        s = Whitespace.trimSpace(s);
         return sanitizeJSONString(s);
     }
 

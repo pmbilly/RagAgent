@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * 图片 URL 脱敏 / 还原与图片标记剥离。
@@ -184,7 +185,7 @@ public final class WikiImageMarkup {
     }
 
     private static void addUrl(Map<String, Boolean> seen, List<String> urls, String url) {
-        String trimmed = GoStrings.trimSpace(url);
+        String trimmed = Whitespace.trimSpace(url);
         if (trimmed.isEmpty()) {
             return;
         }
@@ -223,7 +224,7 @@ public final class WikiImageMarkup {
                 m.appendReplacement(sb, Matcher.quoteReplacement(match));
                 continue;
             }
-            String url = GoStrings.trimSpace(m.group(1));
+            String url = Whitespace.trimSpace(m.group(1));
             String realUrl = map.get(url);
             if (realUrl != null) {
                 int idx = match.lastIndexOf('(');
@@ -319,7 +320,7 @@ public final class WikiImageMarkup {
      * 调用方会缓存结果，供阈值判定与后续日志共用，避免对大文档重复跑正则。
      */
     public static String extractRealText(String content) {
-        return GoStrings.trimSpace(stripImageMarkup(content));
+        return Whitespace.trimSpace(stripImageMarkup(content));
     }
 
     /**

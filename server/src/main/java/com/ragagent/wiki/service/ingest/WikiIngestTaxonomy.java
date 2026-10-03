@@ -17,10 +17,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.ragagent.common.wiki.SlugUpdate;
-import com.ragagent.common.wiki.GoStrings;
 import com.ragagent.wiki.service.WikiModelResolver;
 import com.ragagent.wiki.service.page.WikiPageService;
 import com.ragagent.wiki.service.page.WikiTextUtils;
+import com.ragagent.common.text.Whitespace;
+import com.ragagent.common.text.CodePointOrder;
 
 /**
  * 批次目录规划与 embedding 选夹。
@@ -369,7 +370,7 @@ public class WikiIngestTaxonomy {
         }
         List<String> slugs = new ArrayList<>(slugUpdates.keySet());
         // 按码点序排序（不能用 String.compareTo，其对增补平面字符不友好）
-        slugs.sort(GoStrings::compareByCodePoints);
+        slugs.sort(CodePointOrder::compare);
 
         for (String slug : slugs) {
             List<SlugUpdate> updates = slugUpdates.get(slug);
@@ -381,11 +382,11 @@ public class WikiIngestTaxonomy {
                         && !SlugUpdate.TYPE_CONCEPT.equals(u.getType())) {
                     continue;
                 }
-                String title = GoStrings.trimSpace(u.getItem() == null ? "" : u.getItem().getName());
+                String title = Whitespace.trimSpace(u.getItem() == null ? "" : u.getItem().getName());
                 if (title.isEmpty()) {
                     title = slug;
                 }
-                String about = GoStrings.trimSpace(
+                String about = Whitespace.trimSpace(
                         u.getItem() == null ? "" : u.getItem().getDescription());
                 items.add(new TaxonomyItem(slug, title, u.getType(), about));
                 break; // 每个 slug 一条足矣
@@ -423,7 +424,7 @@ public class WikiIngestTaxonomy {
             }
             JsonNode slugNode = a.get("slug");
             String slug = slugNode == null || slugNode.isNull()
-                    ? "" : GoStrings.trimSpace(slugNode.asText(""));
+                    ? "" : Whitespace.trimSpace(slugNode.asText(""));
             if (slug.isEmpty()) {
                 continue;
             }

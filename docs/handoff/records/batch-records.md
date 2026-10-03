@@ -548,3 +548,11 @@
 - **顺带发现（登记待退役）**：`LangfuseConfig.parseGoDurationMs` + `TenantInvitationService.parseGoDuration` + `HousekeepingServiceTest.documentProcessTimeoutFromEnvParsesGoDurations` —— **「Go duration 解析」另有 2-3 份副本**（配置 / env 面）。
 - **验证**：datasource / agent / knowledge 探针绿；全量 **4706** 绿（−4 = 退役的 Go 对照用例）+ `spotlessCheck` 绿。
 
+**✅ B45（2026-10-03，档 3 第八刀：GoStrings×2 收敛——Unicode 空白实现统一）**
+- **收敛**：两份 `GoStrings`（`common.wiki` 96 行 + `gitlab` 82 行）**删除**，16 文件 / 45 处调用改写 → 新的 **`common/text/Whitespace`**（`isSpace` / `trimSpace`；Java 原生组合：`Character.isSpaceChar` + 6 个 ASCII 控制字符 = Unicode White_Space 精确等价）+ **`common/text/CodePointOrder`**（码点序比较，自 wiki 版迁出——Java 无该语义的标准 API，保留自实现：UTF-16 码元序对 emoji 会与实际顺序分歧）。
+- **实现统一**：原两份**不一致**——wiki 版显式列举码点（精确）、gitlab 版 `isWhitespace` + 4 缺口（**多算 U+001C–U+001F**）；统一后以精确实现为准（gitlab 面对含这些控制字符的输入行为微变，实际不可能出现）。
+- **`trim(x, '/')` 退役**：仅服务"去首尾斜杠"的两处 → `replaceAll("^/+|/+$", "")`（Java 原生正则一行）。
+- **Go\* 类计数：12 → 10**。
+- **顺带发现（登记）**：Unicode 空白判断全仓原共 **5 处**——除已收敛的 2 份外，还有 `rss/RssUtil.isGoSpace`（少 U+0085）、`MemoryScopes.isGoSpace`、`MemoryText.isGoSpace`（后两者为 `isSpaceChar`+6 写法，与新 `Whitespace` 同源）；下一批委托收敛（约 20 处调用）。
+- **验证**：wiki / datasource / memory 三域探针绿；全量 **4706** 绿 + `spotlessCheck` 绿（`spotlessApply` 修正 import 序）。
+

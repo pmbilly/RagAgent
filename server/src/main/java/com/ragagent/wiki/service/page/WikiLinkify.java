@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 import com.ragagent.wiki.service.page.WikiCrossLinker.LinkifyResult;
 import com.ragagent.wiki.service.page.WikiCrossLinker.LinkRef;
-import com.ragagent.common.wiki.GoStrings;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * {@code [[slug]]} 交叉链接自动注入（{@link WikiCrossLinker} 的默认实现）。
@@ -369,7 +369,7 @@ public class WikiLinkify implements WikiCrossLinker {
         if (pipe >= 0) {
             inner = inner.substring(0, pipe);
         }
-        inner = GoStrings.trimSpace(inner);
+        inner = Whitespace.trimSpace(inner);
         if (inner.isEmpty()) {
             return "";
         }

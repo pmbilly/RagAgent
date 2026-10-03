@@ -16,10 +16,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.ragagent.common.wiki.SlugUpdate;
 import com.ragagent.common.wiki.ExtractedItem;
-import com.ragagent.common.wiki.GoStrings;
 import com.ragagent.common.wiki.WikiLanguageSupport;
 import com.ragagent.wiki.service.page.WikiSlugHandles;
 import com.ragagent.wiki.service.page.WikiTextUtils;
+import com.ragagent.common.text.CodePointOrder;
 
 /**
  * wiki 摄取 Reduce 阶段协作者:slug 更新按页归并写入(含 span 追踪与 chunk refs 合并)。
@@ -347,7 +347,7 @@ final class WikiIngestReducePhase {
                 }
 
                 List<String> contextKeys = new ArrayList<>(sourceContextByRef.keySet());
-                contextKeys.sort(GoStrings::compareByCodePoints);
+                contextKeys.sort(CodePointOrder::compare);
                 for (String key : contextKeys) {
                     sharedSourceContexts.append(sourceContextByRef.get(key));
                 }

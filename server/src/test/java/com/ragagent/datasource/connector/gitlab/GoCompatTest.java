@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * {@link GoUrl} 的行为对照表。
@@ -135,24 +136,24 @@ class GoCompatTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
-    // ── GoStrings ───────────────────────────────────────────────────────
+    // ── Whitespace（B45：GoStrings 收敛后的共享实现）───────────────────
 
     /**
-     * {@link GoStrings#trimSpace} 比 Java 的 {@code String.strip()} 多认
-     * 4 个字符（U+00A0 / U+2007 / U+202F / U+0085）。
+     * {@link com.ragagent.common.text.Whitespace#trimSpace} 比 Java 的
+     * {@code String.strip()} 多认 4 个字符（U+00A0 / U+2007 / U+202F / U+0085）。
      *
      * <p>差别落在"token 是不是空的"这个判定上——凭据常从网页复制，
      * 夹进 NBSP 完全可能，这条差异决定报的是"配置缺失"还是拿到一个 401。</p>
      */
     @Test
     void trimSpaceCoversGoWhitespace() {
-        assertThat(GoStrings.trimSpace(null)).isEmpty();
-        assertThat(GoStrings.trimSpace("  tok  ")).isEqualTo("tok");
-        assertThat(GoStrings.trimSpace("\u00A0tok\u00A0")).isEqualTo("tok");
-        assertThat(GoStrings.trimSpace("\u2007tok\u202F")).isEqualTo("tok");
-        assertThat(GoStrings.trimSpace("\u0085tok\u3000")).isEqualTo("tok");
-        assertThat(GoStrings.trimSpace("\u3000")).isEmpty();
-        assertThat(GoStrings.trimSpace("\u00A0")).isEmpty();
+        assertThat(Whitespace.trimSpace(null)).isEmpty();
+        assertThat(Whitespace.trimSpace("  tok  ")).isEqualTo("tok");
+        assertThat(Whitespace.trimSpace("\u00A0tok\u00A0")).isEqualTo("tok");
+        assertThat(Whitespace.trimSpace("\u2007tok\u202F")).isEqualTo("tok");
+        assertThat(Whitespace.trimSpace("\u0085tok\u3000")).isEqualTo("tok");
+        assertThat(Whitespace.trimSpace("\u3000")).isEmpty();
+        assertThat(Whitespace.trimSpace("\u00A0")).isEmpty();
         // Java 的 strip() 在这些字符上会放行，正是本工具存在的理由
         assertThat("\u00A0tok\u00A0".strip()).isNotEqualTo("tok");
     }

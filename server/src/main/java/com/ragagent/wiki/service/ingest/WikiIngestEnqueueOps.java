@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.ragagent.common.wiki.GoStrings;
 import com.ragagent.common.wiki.WikiIngestPort;
 import com.ragagent.common.wiki.WikiLanguageSupport;
 import com.ragagent.wiki.domain.TaskPendingOp;
+import com.ragagent.common.text.Whitespace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -275,7 +275,7 @@ final class WikiIngestEnqueueOps {
         Set<String> seen = new LinkedHashSet<>();
         List<String> out = new ArrayList<>(values.size());
         for (String value : values) {
-            String trimmed = GoStrings.trimSpace(value == null ? "" : value);
+            String trimmed = Whitespace.trimSpace(value == null ? "" : value);
             if (trimmed.isEmpty()) {
                 continue;
             }

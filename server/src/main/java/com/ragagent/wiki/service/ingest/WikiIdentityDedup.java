@@ -8,11 +8,12 @@ import java.util.Map;
 import java.util.Set;
 
 import com.ragagent.common.wiki.ExtractedItem;
-import com.ragagent.common.wiki.GoStrings;
 import com.ragagent.wiki.domain.WikiConstants;
 import com.ragagent.wiki.domain.WikiPage;
 import com.ragagent.wiki.domain.WikiPageLite;
 import com.ragagent.wiki.service.page.SlugFuzzy;
+import com.ragagent.common.text.Whitespace;
+import com.ragagent.common.text.CodePointOrder;
 
 /**
  * 实体/概念去重的纯算法：候选页预筛与配对打分，身份标题归一、精确同名解析与身份合并。
@@ -194,7 +195,7 @@ final class WikiIdentityDedup {
             int cp = base.codePointAt(k);
             k += Character.charCount(cp);
             // 分隔符是 - _ . 与 unicode 空白
-            boolean sep = cp == '-' || cp == '_' || cp == '.' || GoStrings.isSpace(cp);
+            boolean sep = cp == '-' || cp == '_' || cp == '.' || Whitespace.isSpace(cp);
             if (sep) {
                 if (token.length() > 0) {
                     out.add(token.toString());
@@ -281,11 +282,11 @@ final class WikiIdentityDedup {
             return "";
         }
         StringBuilder out = new StringBuilder(title.length());
-        String trimmed = GoStrings.trimSpace(title);
+        String trimmed = Whitespace.trimSpace(title);
         for (int i = 0; i < trimmed.length(); ) {
             int cp = trimmed.codePointAt(i);
             i += Character.charCount(cp);
-            if (GoStrings.isSpace(cp)) {
+            if (Whitespace.isSpace(cp)) {
                 continue;
             }
             out.appendCodePoint(Character.toLowerCase(cp));
@@ -328,7 +329,7 @@ final class WikiIdentityDedup {
                 return slug;
             }
         }
-        matches.sort(GoStrings::compareByCodePoints);
+        matches.sort(CodePointOrder::compare);
         return matches.get(0);
     }
 
@@ -392,7 +393,7 @@ final class WikiIdentityDedup {
      */
     public static List<String> appendUniqueString(List<String> values, String value) {
         List<String> out = values == null ? new ArrayList<>() : values;
-        String v = GoStrings.trimSpace(value);
+        String v = Whitespace.trimSpace(value);
         if (v.isEmpty()) {
             return out;
         }

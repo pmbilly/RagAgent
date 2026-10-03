@@ -20,6 +20,7 @@ import com.ragagent.datasource.domain.DataSourceConstants;
 import com.ragagent.datasource.domain.FetchedItem;
 import com.ragagent.datasource.domain.Resource;
 import com.ragagent.datasource.domain.SyncCursor;
+import com.ragagent.common.text.Whitespace;
 
 /**
  * GitLab 数据源连接器。
@@ -497,8 +498,8 @@ public class GitLabConnector implements StreamingConnector {
      * 而 {@code "/a.md"} 这种绝对形态会被 clean 掉前导斜杠挂到根名下面。</p>
      */
     static String knowledgeRelativePath(String projectName, String ref, String file) {
-        String root = GoStrings.trimSpace(projectName) + "-"
-                + GoStrings.trimSpace(ref).replace("/", "-");
+        String root = Whitespace.trimSpace(projectName) + "-"
+                + Whitespace.trimSpace(ref).replace("/", "-");
         return GoPath.join(root, file);
     }
 
