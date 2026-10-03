@@ -1,6 +1,7 @@
 package com.ragagent.knowledge;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,6 +50,8 @@ class KnowledgeContractTest {
     private static final String BCRYPT = "$2a$10$9U3ZmqQkmCqoQUZapJ1Txe5puo70IHlrnyZnSdE9LO/HUagt5exnK"; // Passw0rd!
     private static final OffsetDateTime TS = OffsetDateTime.of(2026, 9, 17, 10, 0, 0, 123456000, ZoneOffset.ofHours(8));
     private static final String STORAGE_BACKEND_ID = "c730730a-70f5-4d86-a7e1-58972cf27567";
+    /** 隐藏库（is_temporary=true）的行 id——模拟 __chat_history__。 */
+    private static final String TEMPORARY_KB_ID = "8b6c77ea-0000-4000-8000-000000000001";
     private static final byte[] DOC_BYTES = "hello world phase3 golden document\n".getBytes(StandardCharsets.UTF_8);
 
     private static final Pattern TS_PATTERN = Pattern.compile(
@@ -328,6 +331,46 @@ class KnowledgeContractTest {
         assertEquals(mask(golden("doc-delete.json")),
                 mask(deleted.getResponse().getContentAsString(StandardCharsets.UTF_8)),
                 "doc-delete 应与 golden 一致（掩码后）");
+    }
+
+    // ── 隐藏库过滤（2026-10-03 点检发现） ──────────────────────────────────
+
+    /**
+     * 列表必须排除系统托管/隐藏库（{@code is_temporary = true}）。
+     *
+     * <p>实案：「聊天历史」自动开通的 {@code __chat_history__} 曾出现在知识库列表里
+     * （翻译期漏了 Go 的 hidden-KB 过滤，见 {@code KnowledgeBaseService.listKnowledgeBases}
+     * 的 javadoc）。这里直接落一行隐藏库，断言列表不含它、且普通库照常出现。</p>
+     */
+    @Test
+    void listKnowledgeBasesExcludesTemporary() throws Exception {
+        String token = login("java-phase1@weknora.test");
+
+        MvcResult visible = mockMvc.perform(post("/api/v1/knowledge-bases")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType("application/json")
+                        .content("{\"name\":\"visible-kb\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String visibleId = extractUuid(
+                visible.getResponse().getContentAsString(StandardCharsets.UTF_8), "\"id\":\"");
+
+        // 生产路径只有 provisionChatHistoryKnowledgeBase 会建隐藏库，测试直接落一行。
+        jdbc.update("INSERT INTO knowledge_bases"
+                        + " (id, name, tenant_id, type, is_temporary, description, creator_id)"
+                        + " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                TEMPORARY_KB_ID, "__chat_history__", 10002L, "document", true,
+                "Auto-managed knowledge base for chat history message indexing",
+                "11111111-2222-3333-4444-555555555501");
+
+        MvcResult list = mockMvc.perform(get("/api/v1/knowledge-bases")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+        String body = list.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertTrue(body.contains(visibleId), "普通库应出现在列表里: " + body);
+        assertFalse(body.contains(TEMPORARY_KB_ID),
+                "隐藏库（is_temporary=true）不得出现在列表里: " + body);
     }
 
     // ── 工具 ─────────────────────────────────────────────────────────────
