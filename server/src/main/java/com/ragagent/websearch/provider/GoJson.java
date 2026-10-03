@@ -4,19 +4,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.common.web.GoJsonEscapes;
 
 /**
- * websearch provider 包内的 Go {@code encoding/json} 等价编解码（第三份包内副本，
- * 收敛点与 embedding/rerank 两份同案——请求侧 HTML/控制字符转义走
- * {@link GoJsonEscapes}，响应侧容忍未知字段）。
+ * websearch provider 包内的 provider 请求/响应 JSON 编解码。
+ *
+ * <p><b>2026-10-03 档 3 退役</b>：不再复刻 Go {@code encoding/json} 的 HTML 转义——
+ * provider 接受标准 JSON，语义等价。第三份包内副本（收敛点与 embedding/rerank 同案）。</p>
  */
 public final class GoJson {
 
     private static final JsonMapper MARSHAL = JsonMapper.builder().build();
-    static {
-        MARSHAL.getFactory().setCharacterEscapes(new GoJsonEscapes());
-    }
 
     private static final JsonMapper UNMARSHAL = JsonMapper.builder().build();
 

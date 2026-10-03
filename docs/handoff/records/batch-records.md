@@ -480,3 +480,11 @@
 - **验证**：编译绿；守卫绿（环 0 / 依赖 config 1 / L2→L3 6 条——embed/im/session/auth 对 `agent.management` 的引用属 L3→L3 域间，无新增违例）；全量 **4713** 绿 + `spotlessCheck` 绿。
 - **无需改动项（已核对）**：`@ConfigurationPropertiesScan` 名单不含 agentm；`@MapperScan("com.ragagent.**.mapper")` 通配；资源目录改名后全部 loader 路径同步（核心 prompt 装载有测试覆盖）。
 
+**🚧 B37（2026-10-03，档 3 第一刀：provider 请求面退役 Go 转义复刻）**
+- **背景**：用户 2026-10-03 拍板开始「档 3」（彻底退役 Go 字节兼容层，25 个 `Go*` 类 / 2,798 行）。
+- **第 1 步产出——字节流向盘（四类流向）**：① **provider 请求体**（低风险，本刀已退役）；② **Redis 事件**（`stream/StreamJson` 的 `GoJsonEscapes`——类注释明说「事件落 Go 与 Java **共用**的 Redis 键，跨语言 CAS 靠字节比对」⚠️ **前置问题：Go 版是否还在运行**）；③ **落库/响应**（`GoTimeSerializer` 含业务语义 `isGoZero` 零值时间判定、`GoJsonBindError` 是前端可见文案）；④ **工具输出/协议**（`GoJsonCodec`/`GoQuoting`/`GoHtml`/`GoValueStr`——进 LLM 提示词与 MCP 文案）。
+- **本刀动作**：三份 provider 副本（`embedding/GoJson`、`rerank/GoJson`、`websearch/provider/GoJson`）去掉 `setCharacterEscapes(new GoJsonEscapes())`——provider 接受标准 JSON，语义等价；**探针先行**（先只改 embedding 跑该域绿，再同批改另两份）。
+- **保留**：`GoJsonEscapes` 类本身（仍被 stream / langfuse / McpCatalog / `RemoteApiBodyCodec` 使用）。
+- **验证**：三域测试绿；全量 **4713** 绿 + `spotlessCheck` 绿。
+- **待决/待设计**：stream 面（Redis 跨语言 CAS）需确认「Go 版是否还在跑」；`GoTimeSerializer.isGoZero`（业务语义）与 `GoMapSerializer`（被 datasource 继承、`GoDoubleSerializer.format` 被当静态工具调）需单独设计退役方案，不能直删。
+

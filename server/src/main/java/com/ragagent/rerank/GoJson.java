@@ -4,20 +4,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.common.web.GoJsonEscapes;
 
 /**
- * rerank 包共用的 Go {@code encoding/json} 等价编解码（与
- * {@code com.ragagent.embedding.GoJson} 同一份语义的两份包内副本——跨包公共化
- * 待主会话收敛）。请求侧 Go json.Marshal 的 HTML/控制字符转义由
- * {@link GoJsonEscapes} 复刻；响应侧容忍未知字段（Go json.Unmarshal 语义）。
+ * rerank 包共用的 provider 请求/响应 JSON 编解码。
+ *
+ * <p><b>2026-10-03 档 3 退役</b>：不再复刻 Go {@code encoding/json} 的 HTML 转义——
+ * provider 接受标准 JSON，语义等价。与 {@code com.ragagent.embedding.GoJson} 是同语义的
+ * 两份包内副本（跨包公共化待收敛）。</p>
  */
 public final class GoJson {
 
     private static final JsonMapper MARSHAL = JsonMapper.builder().build();
-    static {
-        MARSHAL.getFactory().setCharacterEscapes(new GoJsonEscapes());
-    }
 
     private static final JsonMapper UNMARSHAL = JsonMapper.builder().build();
 

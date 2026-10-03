@@ -4,25 +4,19 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.common.web.GoJsonEscapes;
 
 /**
- * embedding/rerank 包共用的 Go {@code encoding/json} 等价 JSON 编解码。
+ * embedding/rerank 包共用的 provider 请求/响应 JSON 编解码。
  *
- * <p><b>请求侧</b>（发给 provider 的字节流 = 契约）：Go 的 {@code json.Marshal} 默认
- * 开 HTML 转义（{@code < > &} 转成小写的 003C/003E/0026 形式转义），控制字符同样
- * 小写十六进制——由 {@link GoJsonEscapes} 复刻（§9「JSON 编码器系统性差分排查」）。
- * 字段序 = Go struct 声明序（ObjectNode 插入序），omitempty 零值在构造处显式省略。</p>
+ * <p><b>2026-10-03 档 3 退役</b>：不再复刻 Go {@code encoding/json} 的 HTML 转义
+ * （{@code < > &} → {@code \u003C} 等形态）——provider 接受标准 JSON，语义等价；
+ * 字段序仍由 ObjectNode 插入序保证。</p>
  *
- * <p><b>响应侧</b>（解析 provider 回包）：Go 的 {@code json.Unmarshal} 默认忽略未知
- * 字段 → Jackson 配 {@code FAIL_ON_UNKNOWN_PROPERTIES=false}。</p>
+ * <p><b>响应侧</b>（解析 provider 回包）：忽略未知字段（Jackson 默认行为）。</p>
  */
 public final class GoJson {
 
     private static final JsonMapper MARSHAL = JsonMapper.builder().build();
-    static {
-        MARSHAL.getFactory().setCharacterEscapes(new GoJsonEscapes());
-    }
 
     private static final JsonMapper UNMARSHAL = JsonMapper.builder().build();
 
