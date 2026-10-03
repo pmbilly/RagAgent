@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ragagent.common.web.ToolJson;
 import com.ragagent.retrieval.engine.weaviate.WeaviateRestClient.Json;
 
 /**
@@ -304,31 +305,13 @@ public final class WeaviateGql {
     // ── 字面量 ─────────────────────────────────────────────────────────────
 
     /**
-     * 字符串引号：加双引号并转义（{@code \"}、{@code \\}、换行/制表/回车与
-     * 不可打印字符走 {@code U+XXXX}）。中文等可打印 Unicode 原样保留。
+     * 字符串引号：委托 {@link ToolJson#quoted}（标准 Jackson 转义）。
+     *
+     * <p><b>2026-10-03（B43）</b>：手写复刻已退役（Go 版下线）——原实现与
+     * {@code GoQuoting.quoteGo} 同源拷贝，属第 5 份重复；现收敛为 Java 原生做法。</p>
      */
     static String quoteGo(String s) {
-        StringBuilder b = new StringBuilder(s.length() + 2);
-        b.append('"');
-        for (int i = 0; i < s.length(); ) {
-            int cp = s.codePointAt(i);
-            i += Character.charCount(cp);
-            switch (cp) {
-                case '"' -> b.append("\\\"");
-                case '\\' -> b.append("\\\\");
-                case '\n' -> b.append("\\n");
-                case '\t' -> b.append("\\t");
-                case '\r' -> b.append("\\r");
-                default -> {
-                    if (cp < 0x20 || cp == 0x7f) {
-                        b.append(String.format("\\u%04x", cp));
-                    } else {
-                        b.appendCodePoint(cp);
-                    }
-                }
-            }
-        }
-        return b.append('"').toString();
+        return ToolJson.quoted(s);
     }
 
     /** 向量字面量（最短表示、整数值不带小数）。 */

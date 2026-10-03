@@ -20,7 +20,6 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.graph.GraphRelation;
 import com.ragagent.retrieval.graph.RetrieveGraphRepository;
-import com.ragagent.common.web.GoValueStr;
 
 /**
  * ENTITY_SEARCH 阶段插件：
@@ -229,7 +228,8 @@ public final class PluginSearchEntity implements Plugin {
         var fields = knowledge.getMetadata().fields();
         while (fields.hasNext()) {
             var e = fields.next();
-            metadata.put(e.getKey(), GoValueStr.goStringify(e.getValue()));
+            var v = e.getValue();
+            metadata.put(e.getKey(), v.isContainerNode() ? v.toString() : v.asText());
         }
         return metadata;
     }

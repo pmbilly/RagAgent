@@ -88,8 +88,6 @@ import com.ragagent.common.web.ToolJson;
         }
 
         private static String goJsonString(String s) {
-            StringBuilder sb = new StringBuilder();
-            ToolJson.writeString(s == null ? "" : s, sb);
-            return sb.toString();
+            return ToolJson.quoted(s == null ? "" : s);
         }
     }

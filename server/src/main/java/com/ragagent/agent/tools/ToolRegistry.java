@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.llm.ToolResult;
 import com.ragagent.llm.domain.FunctionDef;
+import com.ragagent.common.web.ToolJson;
 
 /**
  * 工具注册表。
@@ -604,9 +605,9 @@ public class ToolRegistry {
         return discovery.catalog().servers.containsKey(id);
     }
 
-    /** 双引号字符串形态（registry 侧 MCP 文案需要，经 {@link JsonQuoting}）。 */
+    /** 双引号字符串形态（registry 侧 MCP 文案需要，标准 Jackson 转义，经 {@link ToolJson#quoted}）。 */
     static String quotedGo(String s) {
-        return JsonQuoting.quoteGo(s);
+        return ToolJson.quoted(s);
     }
 
     private static void logExecution(String stage, ToolExecContext meta, Map<String, String> fields) {

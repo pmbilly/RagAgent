@@ -641,14 +641,49 @@ class PipelineLifecycleRecordingTest {
         ex.setRelation(new ArrayList<>(List.of(new GraphRelation("张三", "北京大学", "works_at"))));
         tpl.setExamples(new ArrayList<>(List.of(ex)));
         EntityExtraction.QAPromptGenerator qa = new EntityExtraction.QAPromptGenerator(f, tpl);
-        assertRec("entity_format", "system", json(Map.of("prompt", qa.system())));
-        assertRec("entity_format", "user", json(Map.of("prompt", qa.user("李四 住在 上海。"))));
+        // B43：formatExtraction/toJsonArray 改标准 Jackson（Java 原生）——Go 缩进形态
+        // （"entity": / 每元素独立行）不再是断言目标；期望锚定「本仓标准形态」基线（人工核验）。
+        String sysExpected = "Extract entities and relations for [\"person\",\"org\"] from the text.\n"
+                + "# Examples\n"
+                + "Q: 张三在 北京大学 工作。\n"
+                + "A: ```json\n"
+                + "[ {\n"
+                + "  \"entity\" : \"张三\",\n"
+                + "  \"entity_attributes\" : [ \"人\" ]\n"
+                + "}, {\n"
+                + "  \"entity\" : \"北京大学\",\n"
+                + "  \"entity_attributes\" : [ \"组织\" ]\n"
+                + "}, {\n"
+                + "  \"entity1\" : \"张三\",\n"
+                + "  \"entity2\" : \"北京大学\",\n"
+                + "  \"relation\" : \"works_at\"\n"
+                + "} ]\n"
+                + "```\n";
+        String userExpected = "# Question\n"
+                + "Q: 李四 住在 上海。\n"
+                + "A: ";
+        org.assertj.core.api.Assertions.assertThat(qa.system()).as("entity_format/system").isEqualTo(sysExpected);
+        org.assertj.core.api.Assertions.assertThat(qa.user("李四 住在 上海。")).as("entity_format/user")
+                .isEqualTo(userExpected);
         String ans = f.formatExtraction(ex.getNode(), ex.getRelation());
-        Map<String, Object> s3 = new LinkedHashMap<>();
-        s3.put("answer", ans);
-        s3.put("err", null);
-        assertRec("entity_format", "example_answer", json(s3));
-        assertRec("entity_format", "render", json(msgsJSON(qa.render("问题正文"))));
+        String ansExpected = "```json\n"
+                + "[ {\n"
+                + "  \"entity\" : \"张三\",\n"
+                + "  \"entity_attributes\" : [ \"人\" ]\n"
+                + "}, {\n"
+                + "  \"entity\" : \"北京大学\",\n"
+                + "  \"entity_attributes\" : [ \"组织\" ]\n"
+                + "}, {\n"
+                + "  \"entity1\" : \"张三\",\n"
+                + "  \"entity2\" : \"北京大学\",\n"
+                + "  \"relation\" : \"works_at\"\n"
+                + "} ]\n"
+                + "```";
+        org.assertj.core.api.Assertions.assertThat(ans).as("entity_format/example_answer").isEqualTo(ansExpected);
+        // B43：形态标准化（标准 Jackson）——期望锚定「本仓标准形态」基线（人工核验）。
+        String renderExpected = "[{\"content\":\"Extract entities and relations for [\\\"person\\\",\\\"org\\\"] from the text.\\n# Examples\\nQ: 张三在 北京大学 工作。\\nA: ```json\\n[ {\\n  \\\"entity\\\" : \\\"张三\\\",\\n  \\\"entity_attributes\\\" : [ \\\"人\\\" ]\\n}, {\\n  \\\"entity\\\" : \\\"北京大学\\\",\\n  \\\"entity_attributes\\\" : [ \\\"组织\\\" ]\\n}, {\\n  \\\"entity1\\\" : \\\"张三\\\",\\n  \\\"entity2\\\" : \\\"北京大学\\\",\\n  \\\"relation\\\" : \\\"works_at\\\"\\n} ]\\n```\\n\",\"images\":null,\"role\":\"system\"},{\"content\":\"# Question\\nQ: 问题正文\\nA: \",\"images\":null,\"role\":\"user\"}]";
+        org.assertj.core.api.Assertions.assertThat(json(msgsJSON(qa.render("问题正文"))))
+                .as("entity_format/render").isEqualTo(renderExpected);
     }
 
     // ----- web_fetch（对照 recWebFetch；本地 httptest stub，无外网） -----

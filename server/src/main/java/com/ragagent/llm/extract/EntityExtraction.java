@@ -16,8 +16,7 @@ import com.ragagent.llm.LlmChatClient;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.common.web.JsonMappers;
-import com.ragagent.common.web.GoJsonMarshal;
-import com.ragagent.common.web.GoValueStr;
+import com.ragagent.common.web.ToolJson;
 
 /**
  * 实体抽取的提示词生成与 LLM 输出解析。
@@ -133,15 +132,15 @@ public final class EntityExtraction {
     }
 
     private static String toJsonArray(List<String> tags) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < tags.size(); i++) {
-            if (i > 0) {
-                sb.append(",");
-            }
-            sb.append(GoJsonMarshal.indent(
-                    com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.textNode(tags.get(i))));
+        return ToolJson.compactJson(tags);
+    }
+
+    /** 值字符串化（Java 原生）：标量走 asText、容器走 JSON 形态、null → "null"。 */
+    private static String valueStr(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node == null || node.isNull()) {
+            return "null";
         }
-        return sb.append(']').toString();
+        return node.isContainerNode() ? node.toString() : node.asText();
     }
 
     // ------------------------------------------------------------------
@@ -178,7 +177,7 @@ public final class EntityExtraction {
                     items.add(item);
                 }
             }
-            String formatted = GoJsonMarshal.indentListOfMaps(items);
+            String formatted = ToolJson.prettyJson(items);
             formatted = addFences(formatted);
             return formatted;
         }
@@ -271,16 +270,16 @@ public final class EntityExtraction {
                     JsonNode attrs = group.get(attributesKey);
                     if (attrs != null && attrs.isArray()) {
                         for (JsonNode v : attrs) {
-                            attributes.add(GoValueStr.goStringify(v));
+                            attributes.add(valueStr(v));
                         }
                     }
-                    nodes.add(new GraphNode(GoValueStr.goStringify(nodeVal), null, attributes));
+                    nodes.add(new GraphNode(valueStr(nodeVal), null, attributes));
                 } else if (srcVal != null && tgtVal != null) {
-                    // 对照 fmt.Sprintf("%v", group[relationPrefix])：键缺失 → "<nil>"（Go 既有形态）
+                    // 键缺失 → "null"（Java 原生形态；B43 前为 Go 的 "<nil>"）
                     JsonNode relType = group.get(relationPrefix);
-                    relations.add(new GraphRelation(GoValueStr.goStringify(srcVal),
-                            GoValueStr.goStringify(tgtVal),
-                            relType == null ? "<nil>" : GoValueStr.goStringify(relType)));
+                    relations.add(new GraphRelation(valueStr(srcVal),
+                            valueStr(tgtVal),
+                            relType == null ? "null" : valueStr(relType)));
                 }
                 // 其余组告警跳过（unsupported group）
             }

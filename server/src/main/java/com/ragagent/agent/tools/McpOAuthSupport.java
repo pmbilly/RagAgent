@@ -14,6 +14,7 @@ import com.ragagent.mcp.domain.McpService;
 import com.ragagent.mcp.oauth.OAuthReauthorizationRequiredException;
 import com.ragagent.mcp.protocol.McpAuthorizationRequiredException;
 import com.ragagent.mcp.protocol.McpOAuthRequiredException;
+import com.ragagent.common.web.ToolJson;
 
 /**
  * MCP OAuth 的会话挂载与重试。
@@ -260,8 +261,8 @@ public final class McpOAuthSupport {
         return t.getMessage() != null ? t.getMessage() : t.toString();
     }
 
-    /** 双引号字符串形态（经 {@link JsonQuoting}）。 */
+    /** 双引号字符串形态（标准 Jackson 转义，经 {@link ToolJson#quoted}）。 */
     static String quoteGo(String s) {
-        return JsonQuoting.quoteGo(s);
+        return ToolJson.quoted(s);
     }
 }

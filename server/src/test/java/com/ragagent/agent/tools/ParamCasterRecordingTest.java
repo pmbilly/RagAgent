@@ -58,9 +58,10 @@ class ParamCasterRecordingTest {
             JsonNode argsNode = RecordingSupport.readTree(args);
             JsonNode schemaNode = schemaJson.isEmpty() ? null : RecordingSupport.readTree(schemaJson);
             JsonNode got = ParamCaster.castParams(argsNode, schemaNode);
-            assertThat(ToolJson.write(got))
+            // B43：ToolJson 换标准 Jackson（数字形态 Go→标准）——语义比较吸收形态差异
+            assertThat(com.ragagent.support.ContractJson.deep(ToolJson.write(got)))
                     .as("castParams %s", r.get("id").asText())
-                    .isEqualTo(want);
+                    .isEqualTo(com.ragagent.support.ContractJson.deep(want));
         }
     }
 

@@ -17,6 +17,7 @@ import com.ragagent.mcp.protocol.ContentItem;
 import com.ragagent.mcp.protocol.McpClient;
 import com.ragagent.mcp.protocol.McpClientManager;
 import com.ragagent.mcp.protocol.McpContext;
+import com.ragagent.common.web.ToolJson;
 
 /**
  * MCP 工具的动态包装。
@@ -481,7 +482,7 @@ public class McpToolWrapper implements AgentTool {
     }
 
     static String quoteGo(String s) {
-        return JsonQuoting.quoteGo(s);
+        return ToolJson.quoted(s);
     }
 
     private static final com.fasterxml.jackson.databind.ObjectMapper MCP_JSON = new com.fasterxml.jackson.databind.ObjectMapper();

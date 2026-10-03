@@ -713,7 +713,7 @@ public final class McpCatalog {
     }
 
     static String quoteGo(String s) {
-        return JsonQuoting.quoteGo(s);
+        return ToolJson.quoted(s);
     }
 
     /** cursor 的 base64url 编码（无 padding）。 */

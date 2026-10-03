@@ -526,4 +526,16 @@
 - **测试收编**：`RecordingSupport.normalizeEscapes`（共享辅助：实录文本的 Go 转义形态还原）；`DataAnalysisRecordingTest` output 断言两侧归一（`<nil>` 的 `\u003cnil\u003e` 字形）；`GoJsonCodecRecordingTest` → `ToolJsonRecordingTest`（对比升级为 `ContractJson.deep` 语义比较 + **键序单独钉住** `keysAreSortedAlphabetically`）。
 - **Go\* 类计数：21 → 17**。
 - **验证**：agent + wiki 探针绿；全量 **4710** 绿（+1 = 新增键序用例）+ `spotlessCheck` 绿。
+- **⚠️ 口径修正（2026-10-03 用户质疑后回写）**：上列「改名」**不计退役进度**——它只修正两个误标类（`HtmlEntities`/`JsonValues` 本非 Go 复刻），`ToolJson`/`JsonQuoting` 当时**仍属待退役**。真实待退役 = 17 个仍叫 `Go*` 的 + `ToolJson` + `JsonQuoting` = **19 个**（而非 17）。**教训：改名≠退役；档 3 的完成标准是「Go 字节兼容层不存在」（行为换标准或类删除），不是名字消失。**
+
+**✅ B43（2026-10-03，档 3 第六刀：工具协议面真退役——Java 原生替换，删三类）**
+- **前置**：用户拍板「不要只是改名，用 Java 原生方式处理」——本批按原定档 3 套路（行为换标准 / 删类）执行。
+- **退役动作**：
+  - `JsonQuoting` **删除** → `ToolJson.quoted`（标准 Jackson `writeValueAsString`）；顺带收敛**第 5 份拷贝** `WeaviateGql.quoteGo`（4 处包装 + 1 处拷贝 → 一处）。
+  - `GoValueStr` **删除** → Java 原生字符串化：`EntityExtraction.valueStr`（标量 `asText` / 容器 JSON 形态 / null → `"null"`）；`PluginSearchEntity` 内联 2 行；`<nil>` 惯用法退役。
+  - `GoJsonMarshal` **删除** → `ToolJson.prettyJson`（Jackson `writerWithDefaultPrettyPrinter`）；`toJsonArray` 改 `compactJson`。
+  - `ToolJson` 手写 writer 退役：删 `writeNode` / `writeNumber`（Go 浮点形态）/ `writeString`（手写转义）→ 标准 Jackson 序列化 + **仅保留递归键排序**（确定性需求，非 Go 复刻）。
+- **测试收编**：`ParamCasterRecordingTest` / `GrepChunksRecordingTest.assertToolResult` 改 `ContractJson.deep` 语义比较（吸收数字形态差异）；`PipelineLifecycleRecordingTest` 三处 `assertRec` 改「本仓标准形态」基线（人工核验后硬编码）+ `render` 基线。
+- **Go\* 类计数：17 → 15**（删 `GoValueStr` / `GoJsonMarshal`；`JsonQuoting` 删除后 `ToolJson` 完成退役、不再计为待退役对象）。
+- **验证**：四域探针绿（含 9 例实录红的收编）；全量 **4710** 绿 + `spotlessCheck` 绿。
 

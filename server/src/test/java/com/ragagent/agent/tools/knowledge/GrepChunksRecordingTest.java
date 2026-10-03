@@ -309,7 +309,9 @@ class GrepChunksRecordingTest {
 
     private static void assertToolResult(String label, ToolResult result, JsonNode r) {
         assertThat(result.isSuccess()).as("%s success", label).isEqualTo(r.get("success").asBoolean());
-        assertThat(result.getOutput()).as("%s output", label).isEqualTo(r.get("output").asText());
+        // B43：输出数字形态 Go→标准（ToolJson 换 Jackson）——语义比较吸收
+        assertThat(com.ragagent.support.ContractJson.deep(result.getOutput())).as("%s output", label)
+                .isEqualTo(com.ragagent.support.ContractJson.deep(r.get("output").asText()));
         String wantError = r.hasNonNull("error") ? r.get("error").asText() : "";
         if (!wantError.isEmpty()) {
             assertThat(result.getError()).as("%s error", label).isEqualTo(wantError);
@@ -318,9 +320,10 @@ class GrepChunksRecordingTest {
         if (wantData == null || wantData.isNull()) {
             assertThat(result.getData()).as("%s data", label).isNull();
         } else {
-            assertThat(RecordingSupport.canonicalJson(RecordingSupport.PLAIN.valueToTree(result.getData())))
+            assertThat(com.ragagent.support.ContractJson.deep(
+                    RecordingSupport.PLAIN.valueToTree(result.getData()).toString()))
                     .as("%s data", label)
-                    .isEqualTo(RecordingSupport.canonicalJson(wantData));
+                    .isEqualTo(com.ragagent.support.ContractJson.deep(wantData.toString()));
         }
     }
 

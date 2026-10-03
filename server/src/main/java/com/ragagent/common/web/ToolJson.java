@@ -1,131 +1,90 @@
 package com.ragagent.common.web;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * 紧凑 JSON 编码器（参数转型后重新序列化整棵 args 用），输出遵循四条规则：
- * <ol>
- *   <li><b>map 键按字节序排序</b>（所有层级）；</li>
- *   <li><b>标准 JSON 转义</b>（2026-10-03 B42：Go 版下线后不再复刻 {@code < > &} 的
- *       {@code \u003c} 形态，控制字符用大写十六进制）；</li>
- *   <li><b>数字按浮点形态编码</b>（{@link GoDoubleSerializer}；例：{@code 1e21}）；</li>
- *   <li><b>紧凑输出</b>（无空格无换行）。</li>
- * </ol>
+ * 工具参数/输出的 JSON 编码（标准 Jackson 实现）。
  *
- * <p>整型（cast 出的 int64）按十进制直写；U+2028/29 转义为 \u2028/\u2029
- * （本 writer 是手写的，不受 Jackson 对非 ASCII 的默认处理限制）。</p>
- *
- * <p>与同包的 {@link GoJsonMarshal} 同源：后者是宽松版（可读缩进/转义开关），
- * 本类是紧凑版（键序 + 浮点形态 + HTML 转义恒开），被工具参数重编码与
- * modelcontext 复用——原先落在 {@code agent.tools} 时被 modelcontext 反向依赖。</p>
+ * <p><b>2026-10-03（B43）</b>：手写 writer 退役——原实现（135 行）为逐字节对齐 Go
+ * {@code encoding/json} 而写（紧凑输出 / map 键字节序 / HTML 转义 / Go 浮点形态）。
+ * Go 版下线后改回 Java 生态原生做法：标准 Jackson 序列化；仅保留<b>递归键排序</b>
+ * 一条（不是 Go 复刻，是 LLM 载荷的字节稳定性前提——同一参数两次编码需同字节）。</p>
  */
 public final class ToolJson {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private static final ObjectWriter PRETTY = MAPPER.writerWithDefaultPrettyPrinter();
 
     private ToolJson() {
     }
 
-    /** 按类注释的四条规则把 args 树编码为紧凑 JSON。 */
-    public static String write(JsonNode node) {
-        StringBuilder sb = new StringBuilder();
-        writeNode(node, sb);
-        return sb.toString();
-    }
-
-    private static void writeNode(JsonNode node, StringBuilder sb) {
-        if (node == null || node.isNull()) {
-            sb.append("null");
-            return;
-        }
-        if (node.isBoolean()) {
-            sb.append(node.booleanValue() ? "true" : "false");
-            return;
-        }
-        if (node.isNumber()) {
-            writeNumber(node, sb);
-            return;
-        }
-        if (node.isTextual() || !node.isContainerNode()) {
-            writeString(node.isTextual() ? node.textValue() : node.asText(), sb);
-            return;
-        }
-        if (node instanceof ArrayNode array) {
-            sb.append('[');
-            boolean first = true;
-            for (JsonNode item : array) {
-                if (!first) {
-                    sb.append(',');
-                }
-                first = false;
-                writeNode(item, sb);
-            }
-            sb.append(']');
-            return;
-        }
-        if (node instanceof ObjectNode obj) {
-            List<Map.Entry<String, JsonNode>> entries = new ArrayList<>();
-            obj.fields().forEachRemaining(entries::add);
-            entries.sort(Comparator.comparing(Map.Entry::getKey));
-            sb.append('{');
-            boolean first = true;
-            for (Map.Entry<String, JsonNode> e : entries) {
-                if (!first) {
-                    sb.append(',');
-                }
-                first = false;
-                writeString(e.getKey(), sb);
-                sb.append(':');
-                writeNode(e.getValue(), sb);
-            }
-            sb.append('}');
+    /** 标准 Jackson 紧凑 JSON（Java 原生做法，替代手写 writer）。 */
+    public static String compactJson(Object value) {
+        try {
+            return MAPPER.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("JSON 序列化失败", e);
         }
     }
 
-    /** JSON 解析出的数字一律按浮点形态编码；cast 产出的整型按十进制直写。 */
-    private static void writeNumber(JsonNode node, StringBuilder sb) {
-        if (node.isFloatingPointNumber()) {
-            sb.append(GoDoubleSerializer.format(node.doubleValue()));
-        } else {
-            // 整型：cast 出的 int64，十进制直写
-            sb.append(node.longValue());
+    /** 标准 Jackson 缩进 JSON（替代原 GoJsonMarshal 的手写缩进器）。 */
+    public static String prettyJson(Object value) {
+        try {
+            return PRETTY.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("JSON 序列化失败", e);
         }
     }
 
     /**
-     * 字符串字面量编码（连引号一起写）：标准 JSON 转义（大写十六进制控制字符）+ U+2028/29。
+     * JSON 字符串字面量（连引号）：标准 Jackson 转义——Java 生态原生做法。
      *
-     * <p>公开给"自行拼装 JSON"的调用方（如 agent 的 issue 视图）；
-     * 整棵树编码请直接用 {@link #write(JsonNode)}。</p>
+     * <p>替代原 {@code GoQuoting.quoteGo}、{@code WeaviateGql.quoteGo} 与手写
+     * {@code writeString}（三份复刻，Go 版已下线）。</p>
      */
-    public static void writeString(String s, StringBuilder sb) {
-        sb.append('"');
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\b' -> sb.append("\\b");
-                case '\t' -> sb.append("\\t");
-                case '\n' -> sb.append("\\n");
-                case '\f' -> sb.append("\\f");
-                case '\r' -> sb.append("\\r");
-                case 0x2028 -> sb.append("\\u2028");
-                case 0x2029 -> sb.append("\\u2029");
-                default -> {
-                    if (c < 0x20) {
-                        sb.append(String.format("\\u%04X", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
-                }
-            }
+    public static String quoted(String s) {
+        try {
+            return MAPPER.writeValueAsString(s);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("String 序列化不应失败", e);
         }
-        sb.append('"');
+    }
+
+    /** 工具参数编码：递归键排序（确定性）+ 标准 Jackson 紧凑输出。 */
+    public static String write(JsonNode node) {
+        return compactJson(sorted(node));
+    }
+
+    /** 递归按键字母序重建（数组保序、标量原样）；入参不被修改。 */
+    private static JsonNode sorted(JsonNode node) {
+        if (node instanceof ObjectNode obj) {
+            List<Map.Entry<String, JsonNode>> entries = new ArrayList<>();
+            obj.fields().forEachRemaining(entries::add);
+            entries.sort(Map.Entry.comparingByKey());
+            ObjectNode out = JsonNodeFactory.instance.objectNode();
+            for (Map.Entry<String, JsonNode> e : entries) {
+                out.set(e.getKey(), sorted(e.getValue()));
+            }
+            return out;
+        }
+        if (node instanceof ArrayNode arr) {
+            ArrayNode out = JsonNodeFactory.instance.arrayNode();
+            for (JsonNode item : arr) {
+                out.add(sorted(item));
+            }
+            return out;
+        }
+        return node;
     }
 }
