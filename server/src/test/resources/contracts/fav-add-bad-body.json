@@ -1,1 +1,1 @@
-{"error":{"code":1000,"message":"invalid request body","details":"invalid character 'o' in literal null (expecting 'u')"}}
+{"error":{"code":1000,"message":"invalid request body","details":"Unrecognized token 'not': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')\n at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 4]"}}

@@ -220,12 +220,12 @@ public class TenantAPIKeyController {
     }
 
     /**
-     * 空 body → details {@code "EOF"}；非法 JSON → 解析器消息
+     * 空 body → details {@code "No content to map due to end-of-input"}；非法 JSON → 解析器消息
      * （与登录端点用的同一套处理，见 {@code AuthController.parseBody}）。
      */
     private static TenantAPIKeyRequest parseBody(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
-            throw invalidRequestData("EOF");
+            throw invalidRequestData("No content to map due to end-of-input");
         }
         try {
             TenantAPIKeyRequest req = MAPPER.readValue(rawBody, TenantAPIKeyRequest.class);

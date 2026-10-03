@@ -32,7 +32,6 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.GuardForbiddenException;
-import com.ragagent.common.web.GoJsonBindError;
 
 /**
  * agents CRUD 家族路由。
@@ -209,18 +208,18 @@ public class AgentController {
 
     /**
      * 请求体绑定：name 必填（Create）→ 固定校验文案；
-     * JSON 语法错误 → {@link GoJsonBindError} 的钉死消息。两个请求体都把它拼进
+     * JSON 语法错误 → 标准 Jackson 消息 的钉死消息。两个请求体都把它拼进
      * "Invalid request parameters" 的 details。
      */
     private static AgentRequest bindAgentRequest(String rawBody, String structName) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw invalidParams("EOF");
+            throw invalidParams("No content to map due to end-of-input");
         }
         JsonNode node;
         try {
             node = MAPPER.readTree(rawBody);
         } catch (Exception e) {
-            throw invalidParams(GoJsonBindError.message(rawBody, e.getMessage()));
+            throw invalidParams(e.getMessage());
         }
         String name = node == null || node.get("name") == null || node.get("name").isNull()
                 ? "" : node.get("name").asText("");

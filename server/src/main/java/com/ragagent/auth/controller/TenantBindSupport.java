@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoJsonBindError;
 
 /**
  * 租户目录的绑定错误形态助手（全静态）：
@@ -42,18 +41,18 @@ final class TenantBindSupport {
     // ── 绑定与错误形态（对照 AuthController 的既有模式） ─────────────────────
 
     /**
-     * 请求体绑定：空 body → details "EOF"；语法/类型错误 →
-     * legacy 文案（{@link GoJsonBindError}）。body 是 JSON null 字面量时
+     * 请求体绑定：空 body → details "No content to map due to end-of-input"；语法/类型错误 →
+     * legacy 文案（标准 Jackson 消息）。body 是 JSON null 字面量时
      * 不报错——Jackson readValue 返回 null，调用方按零值处理。
      */
     static <T> T bindBody(String rawBody, Class<T> type, String message) {
         if (rawBody == null || rawBody.isBlank()) {
-            throw invalidParams(message, "EOF");
+            throw invalidParams(message, "No content to map due to end-of-input");
         }
         try {
             return MAPPER.readValue(rawBody, type);
         } catch (Exception e) {
-            throw invalidParams(message, GoJsonBindError.message(rawBody, e.getMessage()));
+            throw invalidParams(message, e.getMessage());
         }
     }
 

@@ -125,29 +125,27 @@ class QaRequestBindingTest {
                 .hasMessageContaining("Key: 'SearchKnowledgeRequest.Query'");
     }
 
-    /** 字段级类型错误里的 json 名随之变成 camelCase（值类型在文案里仍是 uint64）。 */
+    /** 字段级类型错误用 Jackson 原生消息，json 名仍是 camelCase（B51：GoJsonBindError 退役）。 */
     @Test
     void fieldTypeErrorUsesCamelCaseJsonName() {
         assertThatThrownBy(() -> QaRequestBinder.bindQaRequest(
                 "{\"query\":\"q\",\"agentSourceTenantId\":\"not-a-number\"}"))
                 .isInstanceOf(BizException.class)
-                .hasMessageContaining("json: cannot unmarshal string into Go struct field"
-                        + " CreateKnowledgeQARequest.agentSourceTenantId of type uint64");
+                .hasMessageContaining("Cannot deserialize value of type `long` from String \"not-a-number\"")
+                .hasMessageContaining("agentSourceTenantId");
     }
 
     /**
-     * 畸形 body 的措辞沿用 {@code GoJsonBindError}（报文层文案未动）：
-     * 空体 → {@code EOF}；深层结构坏掉 → 回落 Jackson 措辞
-     * （已知差异，见 GoJsonBindError 类注释）。
+     * 畸形 body 的措辞（B51：GoJsonBindError 退役——空体与字面量错误都用 Jackson 原生消息）。
      */
     @Test
-    void malformedBodyKeepsGoJsonWording() {
+    void malformedBodyUsesJacksonWording() {
         assertThatThrownBy(() -> QaRequestBinder.bindQaRequest(""))
                 .isInstanceOf(BizException.class)
-                .hasMessageContaining("EOF");
+                .hasMessageContaining("No content to map due to end-of-input");
         assertThatThrownBy(() -> QaRequestBinder.bindQaRequest("not-json"))
                 .isInstanceOf(BizException.class)
-                .hasMessageContaining("invalid character 'o' in literal null (expecting 'u')");
+                .hasMessageContaining("Unrecognized token 'not'");
         assertThatThrownBy(() -> QaRequestBinder.bindQaRequest("{\"query\":"))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("Unexpected end-of-input");

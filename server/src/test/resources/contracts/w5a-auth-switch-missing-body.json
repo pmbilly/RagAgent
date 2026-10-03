@@ -1,1 +1,1 @@
-{"error":{"code":1010,"message":"Invalid workspace switch request","details":"EOF"}}
+{"error":{"code":1010,"message":"Invalid workspace switch request","details":"No content to map due to end-of-input"}}

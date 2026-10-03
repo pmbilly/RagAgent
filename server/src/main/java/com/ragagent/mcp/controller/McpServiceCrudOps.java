@@ -49,8 +49,8 @@ final class McpServiceCrudOps {
     public ResponseEntity<?> createMCPService(
             @RequestBody(required = false) McpServiceCreateRequest req) {
         if (req == null) {
-            // 对照 gin ShouldBindJSON 空 body → "EOF"
-            throw BizException.badRequest("EOF");
+            // 对照 gin ShouldBindJSON 空 body → "No content to map due to end-of-input"
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         long tenantId = McpServiceController.requireTenant();
         McpService service = req.toService();
@@ -124,7 +124,7 @@ final class McpServiceCrudOps {
     public ResponseEntity<?> updateMCPService(@PathVariable("id") String id,
                                               @RequestBody(required = false) JsonNode updateData) {
         if (updateData == null) {
-            throw BizException.badRequest("EOF");
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         if (!updateData.isObject() && !updateData.isNull()) {
             // 非 JSON 对象 → 400；错误文案是契约的一部分，保持原样

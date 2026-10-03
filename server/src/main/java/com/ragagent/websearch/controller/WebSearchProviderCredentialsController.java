@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.websearch.domain.WebSearchProvider;
 import com.ragagent.websearch.service.WebSearchProviderService;
 import org.springframework.http.HttpStatus;
@@ -103,13 +102,13 @@ public class WebSearchProviderCredentialsController {
     /** 解析 api_key：键缺失/null → null（查询语义）；空 body → 400 EOF；坏 JSON → 400 解析器原文 */
     private static String parseApiKey(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw BizException.badRequest("EOF");
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         JsonNode body;
         try {
             body = MAPPER.readTree(rawBody);
         } catch (Exception e) {
-            throw BizException.badRequest(GoJsonBindError.message(rawBody, e.getMessage()));
+            throw BizException.badRequest(e.getMessage());
         }
         JsonNode key = body.get("apiKey");
         return key == null || key.isNull() ? null : key.asText();

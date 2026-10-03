@@ -16,7 +16,6 @@ import com.ragagent.auth.dto.APIPrincipalDtos.APIPrincipalTestTokenResponse;
 import com.ragagent.auth.service.TenantService;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoJsonBindError;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import jakarta.servlet.http.HttpServletRequest;
@@ -241,28 +240,28 @@ public class TenantAPIPrincipalController {
     private static APIPrincipalConfigRequest bindRequest(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
             throw new BizException(AppError.validation("Invalid request data")
-                    .withDetails(GoJsonBindError.message(null, null)));
+                    .withDetails("No content to map due to end-of-input"));
         }
         try {
             JsonNode node = MAPPER.readTree(rawBody);
             return MAPPER.treeToValue(node, APIPrincipalConfigRequest.class);
         } catch (Exception e) {
             throw new BizException(AppError.validation("Invalid request data")
-                    .withDetails(GoJsonBindError.message(rawBody, e.getMessage())));
+                    .withDetails(e.getMessage()));
         }
     }
 
     private static APIPrincipalTestTokenRequest bindTestTokenRequest(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
             throw new BizException(AppError.validation("Invalid request data")
-                    .withDetails(GoJsonBindError.message(null, null)));
+                    .withDetails("No content to map due to end-of-input"));
         }
         try {
             JsonNode node = MAPPER.readTree(rawBody);
             return MAPPER.treeToValue(node, APIPrincipalTestTokenRequest.class);
         } catch (Exception e) {
             throw new BizException(AppError.validation("Invalid request data")
-                    .withDetails(GoJsonBindError.message(rawBody, e.getMessage())));
+                    .withDetails(e.getMessage()));
         }
     }
 }

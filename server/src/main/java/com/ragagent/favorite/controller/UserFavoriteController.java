@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.favorite.domain.UserResourceFavorite;
 import com.ragagent.favorite.service.UserResourceFavoriteService;
 import org.springframework.http.ResponseEntity;
@@ -84,12 +83,12 @@ public class UserFavoriteController {
 
     private AddFavoriteRequest bindBody(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
-            throw invalidBody("EOF");
+            throw invalidBody("No content to map due to end-of-input");
         }
         try {
             return MAPPER.readValue(rawBody, AddFavoriteRequest.class);
         } catch (Exception e) {
-            throw invalidBody(GoJsonBindError.message(rawBody, e.getMessage()));
+            throw invalidBody(e.getMessage());
         }
     }
 

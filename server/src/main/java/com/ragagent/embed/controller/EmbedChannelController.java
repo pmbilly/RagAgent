@@ -11,7 +11,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.PlainErrorException;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.embed.EmbedError;
 import com.ragagent.embed.EmbedTokens;
 import com.ragagent.embed.domain.EmbedChannelEntity;
@@ -490,17 +489,17 @@ void ensureSession(String sessionId) {
     }
 
     /**
-     * 请求体绑定：空 body → 400 "EOF"，坏 JSON → 解析器原文措辞（{@link GoJsonBindError}）。
+     * 请求体绑定：空 body → 400 "No content to map due to end-of-input"，坏 JSON → 解析器原文措辞（标准 Jackson 消息）。
      */
     static EmbedChannelRequest bind(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw new PlainErrorException(400, "EOF");
+            throw new PlainErrorException(400, "No content to map due to end-of-input");
         }
         try {
             return MAPPER.readValue(rawBody, EmbedChannelRequest.class);
         } catch (Exception e) {
             throw new PlainErrorException(400,
-                    GoJsonBindError.message(rawBody, e.getMessage() == null ? "" : e.getMessage()));
+                    (e.getMessage() == null ? "" : e.getMessage()));
         }
     }
 

@@ -11,7 +11,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.vectorstore.domain.ConnectionConfig;
 import com.ragagent.vectorstore.domain.EnvVectorStores;
 import com.ragagent.vectorstore.domain.IndexConfig;
@@ -251,7 +250,7 @@ public class VectorStoreController {
         try {
             return MAPPER.treeToValue(n, ConnectionConfig.class);
         } catch (Exception e) {
-            throw BizException.badRequest(GoJsonBindError.message(null, e.getMessage()));
+            throw BizException.badRequest(e.getMessage());
         }
     }
 
@@ -263,7 +262,7 @@ public class VectorStoreController {
         try {
             return MAPPER.treeToValue(n, IndexConfig.class);
         } catch (Exception e) {
-            throw BizException.badRequest(GoJsonBindError.message(null, e.getMessage()));
+            throw BizException.badRequest(e.getMessage());
         }
     }
 
@@ -274,12 +273,12 @@ public class VectorStoreController {
 
     private static JsonNode parseOrValidator(String rawBody, String structName) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw BizException.badRequest("EOF");
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         try {
             return MAPPER.readTree(rawBody);
         } catch (Exception e) {
-            throw BizException.badRequest(GoJsonBindError.message(rawBody, e.getMessage()));
+            throw BizException.badRequest(e.getMessage());
         }
     }
 
@@ -306,12 +305,12 @@ public class VectorStoreController {
 
     private static <T> T bind(String rawBody, Class<T> type) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw BizException.badRequest("EOF");
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         try {
             return MAPPER.readValue(rawBody, type);
         } catch (Exception e) {
-            throw BizException.badRequest(GoJsonBindError.message(rawBody, e.getMessage()));
+            throw BizException.badRequest(e.getMessage());
         }
     }
 

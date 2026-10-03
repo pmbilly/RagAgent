@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.security.LogSanitizer;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.session.domain.MentionedItem;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.SessionNotFoundException;
@@ -467,13 +466,13 @@ public class SteerController {
 
     private SteerMessageRequest bindBody(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
-            throw new BizException(AppError.badRequest("EOF"));
+            throw new BizException(AppError.badRequest("No content to map due to end-of-input"));
         }
         try {
             return MAPPER.readValue(rawBody, SteerMessageRequest.class);
         } catch (Exception e) {
             throw new BizException(AppError.badRequest(
-                    GoJsonBindError.message(rawBody, e.getMessage())));
+                    e.getMessage()));
         }
     }
 

@@ -101,8 +101,8 @@ public class McpOAuthController {
             throw BizException.unauthorized("authentication required");
         }
         if (req == null) {
-            // 空 body → 400，文案固定为 "EOF"（有契约测试钉死；直连路由同 handler 同文案）
-            throw BizException.badRequest("EOF");
+            // 空 body → 400，文案固定为 "No content to map due to end-of-input"（有契约测试钉死；直连路由同 handler 同文案）
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         String redirectUri = trim(req.redirectUri());
         if (redirectUri.isEmpty()) {
@@ -273,8 +273,8 @@ public class McpOAuthController {
             throw BizException.internal("OAuth gate is not configured");
         }
         if (body == null) {
-            // 空 body → 400 "EOF"（同 authorize-url）
-            throw BizException.badRequest("EOF");
+            // 空 body → 400 "No content to map due to end-of-input"（同 authorize-url）
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         String serviceId = trim(body.serviceId());
         if (serviceId.isEmpty()) {

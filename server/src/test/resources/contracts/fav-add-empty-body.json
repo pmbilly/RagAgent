@@ -1,1 +1,1 @@
-{"error":{"code":1000,"message":"invalid request body","details":"EOF"}}
+{"error":{"code":1000,"message":"invalid request body","details":"No content to map due to end-of-input"}}

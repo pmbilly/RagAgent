@@ -1,1 +1,1 @@
-{"error":{"code":1010,"message":"Invalid request parameters","details":"EOF"}}
+{"error":{"code":1010,"message":"Invalid request parameters","details":"No content to map due to end-of-input"}}

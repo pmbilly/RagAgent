@@ -602,6 +602,17 @@
 - **Go\* 类计数：10 → 9**。
 - **验证**：event / agent / datasource / initialization / tracing 五域探针绿；全量 **4678** 绿（−28 = 删除的 Go 语料用例）+ `spotlessCheck` 绿。
 
+**✅ B51（2026-10-03，档 3 第十三刀：GoJsonBindError 退役——绑定错误换 Jackson 标准消息）🎉 档 3 收官**
+- **用户拍板**：换成 Java 标准（B48 评估待决项②；用户即产品方，直接拍）。
+- **退役动作**：删类（135 行 Go 措辞仿真：`EOF` / `invalid character 'x' in literal null (expecting 'u')` / `... looking for beginning of value` / 字面量尾随扫描）；33 处调用点改 Jackson 原生：
+  - `GoJsonBindError.message(rawBody, e.getMessage())` → `e.getMessage()`（20+ 处）；
+  - `"EOF"`（空 body 硬编码，10+ 处）→ **`No content to map due to end-of-input`**（Jackson 标准消息）；
+  - `QaRequestBinder` 的字段级类型错误仿真段（`valueKind` / `fieldTypeError`）整段删除 → 直接用 Jackson 消息。
+- **新文案（用户可见）**：空 body → `No content to map due to end-of-input`；坏 JSON → `Unrecognized token 'not': was expecting (...)`（含 `at [Source: REDACTED …]` 尾注）；字段类型错 → ``Cannot deserialize value of type `long` from String …``（**camelCase 字段名保留**）。
+- **收编**：18 个 golden 经 `-Dcontract.refresh=true` **重录**（本仓既定机制）；另 5 个（不走 `GoldenContract` 的）手工更新；`QaRequestBindingTest` / `TenantAPIKeyControllerTest` / `SteerContractTest` / `KnowledgeQaContractTest` 断言与方法名改（`…KeepsGoJsonWording` → `…UsesJacksonWording` 等）。
+- **验证**：全量 **4678** 绿 + `spotlessCheck` 绿。
+- **🎉 档 3 收官**：仓库里 `Go*` 类名**只剩 `GoogleProvider`（误报——那是 "Google"，非 "Go 复刻"）**。25 个 `Go*` 类的最终去向：**12+ 真退役**（去 escapes / 换 Jackson / 收敛副本 / 删类）、**5 个误标改名**（HtmlEntities / JsonValues / GitLabUrl / GitLabPath + PosixPath / PlainTextErrorReportValve）、**4 个契约保留并改名**（ZeroTimeSerializer / SortedMapSerializer / NaiveOffsetDateTimeTypeHandler / 码点序等语义资产）、**2 个拍板退役**（GoDoubleSerializer / GoJsonBindError）。
+
 **✅ B49（2026-10-03，档 3 第十一刀：保留类去 Go 名——第二批）**
 - **用户拍板**：① `GoDoubleSerializer` 退役；② `GoJsonBindError` 换成 Java 标准；③ 其余保留类名称去掉 Go。
 - **本批（③ 的类名部分）**：`GoTimeSerializer` → **`ZeroTimeSerializer`**、`GoMapSerializer` → **`SortedMapSerializer`**、`GoNaiveOffsetDateTimeTypeHandler` → **`NaiveOffsetDateTimeTypeHandler`**（含 `"typeHandler=<FQN>"` 字符串形态）；顺带方法/常量名去 Go：`isGoZero` → `isZeroValue`、`GO_ZERO_DATE_TIME` → `ZERO_DATE_TIME`、`isGoZeroTime`（rss/datasource 的零值判断）→ `isZeroTime`。70 文件替换，**行为零变更**。

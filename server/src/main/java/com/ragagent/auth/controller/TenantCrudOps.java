@@ -11,7 +11,6 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.tenant.TenantRole;
-import com.ragagent.common.web.GoJsonBindError;
 
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -106,14 +105,14 @@ final class TenantCrudOps {
      */
     private UpdateTenantRequest bindUpdateTenantRequest(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
-            throw TenantBindSupport.invalidParams("Invalid request data", "EOF");
+            throw TenantBindSupport.invalidParams("Invalid request data", "No content to map due to end-of-input");
         }
         com.fasterxml.jackson.databind.JsonNode root;
         try {
             root = TenantBindSupport.MAPPER.readTree(rawBody);
         } catch (Exception e) {
             throw TenantBindSupport.invalidParams("Invalid request data",
-                    GoJsonBindError.message(rawBody, e.getMessage()));
+                    e.getMessage());
         }
         if (root == null || !root.isObject()) {
             if (root == null || root.isNull()) {

@@ -13,7 +13,6 @@ import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProvider;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
@@ -321,7 +320,7 @@ public class WebSearchProviderController {
         try {
             return MAPPER.treeToValue(node, WebSearchProviderParams.class);
         } catch (Exception e) {
-            throw BizException.badRequest(GoJsonBindError.message(null, e.getMessage()));
+            throw BizException.badRequest(e.getMessage());
         }
     }
 
@@ -357,12 +356,12 @@ public class WebSearchProviderController {
 
     static JsonNode parseBody(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw BizException.badRequest("EOF");
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         try {
             return MAPPER.readTree(rawBody);
         } catch (Exception e) {
-            throw BizException.badRequest(GoJsonBindError.message(rawBody, e.getMessage()));
+            throw BizException.badRequest(e.getMessage());
         }
     }
 
@@ -383,12 +382,12 @@ public class WebSearchProviderController {
     /** 绑定 JSON：EOF / 解析器原文 → 400 code 1000 */
     static <T> T bind(String rawBody, Class<T> type, String structName) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw BizException.badRequest("EOF");
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         try {
             return MAPPER.readValue(rawBody, type);
         } catch (Exception e) {
-            throw BizException.badRequest(GoJsonBindError.message(rawBody, e.getMessage()));
+            throw BizException.badRequest(e.getMessage());
         }
     }
 

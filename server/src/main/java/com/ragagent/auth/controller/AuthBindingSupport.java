@@ -38,7 +38,7 @@ final class AuthBindingSupport {
 
     <T> T parseBody(String rawBody, Class<T> type, String message) {
         if (rawBody == null || rawBody.isBlank()) {
-            throw invalidParams(message, "EOF");
+            throw invalidParams(message, "No content to map due to end-of-input");
         }
         try {
             // Jackson 默认忽略未知字段（与既定绑定语义一致）

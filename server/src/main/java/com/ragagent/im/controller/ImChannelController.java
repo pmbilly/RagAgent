@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.PlainErrorException;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.im.domain.ImChannelEntity;
 import com.ragagent.im.service.ImChannelService;
 
@@ -444,19 +443,19 @@ public class ImChannelController {
             return MAPPER.readValue(rawBody, CreateRequest.class);
         } catch (Exception e) {
             throw new PlainErrorException(400,
-                    GoJsonBindError.message(rawBody, e.getMessage() == null ? "" : e.getMessage()));
+                    (e.getMessage() == null ? "" : e.getMessage()));
         }
     }
 
     private static UpdateRequest bindUpdate(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw new PlainErrorException(400, "EOF");
+            throw new PlainErrorException(400, "No content to map due to end-of-input");
         }
         try {
             return MAPPER.readValue(rawBody, UpdateRequest.class);
         } catch (Exception e) {
             throw new PlainErrorException(400,
-                    GoJsonBindError.message(rawBody, e.getMessage() == null ? "" : e.getMessage()));
+                    (e.getMessage() == null ? "" : e.getMessage()));
         }
     }
 }

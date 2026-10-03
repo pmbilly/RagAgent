@@ -11,7 +11,6 @@ import com.ragagent.auth.service.UserService;
 import com.ragagent.common.tenant.TenantRole;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoJsonBindError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -71,14 +70,14 @@ final class AuthSessionOps {
 
     RefreshTokenRequest bindRefreshBody(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
-            throw service.invalidParams("Invalid refresh token request", "EOF");
+            throw service.invalidParams("Invalid refresh token request", "No content to map due to end-of-input");
         }
         com.fasterxml.jackson.databind.JsonNode root;
         try {
             root = AuthController.MAPPER.readTree(rawBody);
         } catch (Exception e) {
             throw service.invalidParams("Invalid refresh token request",
-                    GoJsonBindError.message(rawBody, e.getMessage()));
+                    e.getMessage());
         }
         RefreshTokenRequest req = new RefreshTokenRequest();
         if (root == null || root.isNull()) {
@@ -149,14 +148,14 @@ final class AuthSessionOps {
 
     long bindSwitchTenantRequest(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
-            throw service.invalidParams("Invalid workspace switch request", "EOF");
+            throw service.invalidParams("Invalid workspace switch request", "No content to map due to end-of-input");
         }
         com.fasterxml.jackson.databind.JsonNode root;
         try {
             root = AuthController.MAPPER.readTree(rawBody);
         } catch (Exception e) {
             throw service.invalidParams("Invalid workspace switch request",
-                    GoJsonBindError.message(rawBody, e.getMessage()));
+                    e.getMessage());
         }
         if (root == null || !root.isObject()) {
             if (root == null || root.isNull()) {

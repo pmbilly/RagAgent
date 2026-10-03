@@ -313,14 +313,14 @@ class TenantAPIKeyControllerTest {
     }
 
     @Test
-    void createWithEmptyBodyIs400WithEofDetails() throws Exception {
+    void createWithEmptyBodyIs400WithStandardDetails() throws Exception {
         mockMvc.perform(post("/api/v1/tenants/" + TENANT_ID + "/api-keys")
                         .header("Authorization", "Bearer " + token)
                         .contentType("application/json"))
                 .andExpect(status().isBadRequest())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().json(
                         "{\"error\":{\"code\":1010,\"message\":\"Invalid request data\","
-                                + "\"details\":\"EOF\"}}"));
+                                + "\"details\":\"No content to map due to end-of-input\"}}"));
     }
 
     // ── 列表 ──

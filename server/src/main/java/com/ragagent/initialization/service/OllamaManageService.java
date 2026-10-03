@@ -15,7 +15,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.llm.ollama.OllamaService;
 
 /**
@@ -264,13 +263,13 @@ public final class OllamaManageService {
     /** 绑定进匿名 struct 的公共段（EOF / 语法错 / 非对象）。 */
     static JsonNode bindJsonObject(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw new BizException(AppError.badRequest("EOF"));
+            throw new BizException(AppError.badRequest("No content to map due to end-of-input"));
         }
         JsonNode n;
         try {
             n = MAPPER.readTree(rawBody);
         } catch (Exception e) {
-            throw new BizException(AppError.badRequest(GoJsonBindError.message(rawBody, e.getMessage())));
+            throw new BizException(AppError.badRequest(e.getMessage()));
         }
         if (n == null) {
             // Go：body "null" → 零值绑定不报错，等价空对象

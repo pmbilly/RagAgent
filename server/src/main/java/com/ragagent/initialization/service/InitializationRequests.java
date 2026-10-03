@@ -26,17 +26,17 @@ public final class InitializationRequests {
             int questionGenerationCount, String questionGenerationInstructions) {}
     static KBModelConfigRequest bindKBModelConfigRequest(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw new BizException(AppError.badRequest("EOF"));
+            throw new BizException(AppError.badRequest("No content to map due to end-of-input"));
         }
         JsonNode n;
         try {
             n = MAPPER.readTree(rawBody);
         } catch (Exception e) {
             throw new BizException(AppError.badRequest(
-                    com.ragagent.common.web.GoJsonBindError.message(rawBody, e.getMessage())));
+                    e.getMessage()));
         }
         if (n == null || !n.isObject()) {
-            throw new BizException(AppError.badRequest("EOF"));
+            throw new BizException(AppError.badRequest("No content to map due to end-of-input"));
         }
         String llmModelId = ModelConnectivityTestService.text(n, "llmModelId");
         if (llmModelId.isEmpty()) {
@@ -100,17 +100,17 @@ public final class InitializationRequests {
             List<Object> nodeExtractNodes, List<Object> nodeExtractRelations) {}
     static InitializationRequest bindInitializationRequest(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw new BizException(AppError.badRequest("EOF"));
+            throw new BizException(AppError.badRequest("No content to map due to end-of-input"));
         }
         JsonNode n;
         try {
             n = MAPPER.readTree(rawBody);
         } catch (Exception e) {
             throw new BizException(AppError.badRequest(
-                    com.ragagent.common.web.GoJsonBindError.message(rawBody, e.getMessage())));
+                    e.getMessage()));
         }
         if (n == null || !n.isObject()) {
-            throw new BizException(AppError.badRequest("EOF"));
+            throw new BizException(AppError.badRequest("No content to map due to end-of-input"));
         }
         JsonNode llm = n.get("llm");
         JsonNode emb = n.get("embedding");

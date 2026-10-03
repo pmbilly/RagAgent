@@ -1,1 +1,1 @@
-{"error":{"code":1003,"message":"MCP service not found","details":null}}
+{"error":{"code":1003,"details":null,"message":"MCP service not found"}}

@@ -170,12 +170,12 @@ public class DataSourceCredentialsController {
     /**
      * 解析 PUT 的请求体。
      *
-     * <p>三态：空 body → {@code "EOF"}；JSON 语法错误 → 回解析器原文；
+     * <p>三态：空 body → {@code "No content to map due to end-of-input"}；JSON 语法错误 → 回解析器原文；
      * JSON 合法但字段缺失 → {@code null}，由调用方换成校验文案。</p>
      */
     private static PutRequest parsePutBody(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
-            throw new BizException(AppError.badRequest("EOF"));
+            throw new BizException(AppError.badRequest("No content to map due to end-of-input"));
         }
         try {
             return MAPPER.readValue(rawBody, PutRequest.class);

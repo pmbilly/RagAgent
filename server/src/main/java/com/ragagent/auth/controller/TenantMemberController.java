@@ -17,7 +17,6 @@ import com.ragagent.auth.service.UserService;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoJsonBindError;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -327,18 +326,18 @@ public class TenantMemberController {
 
     /**
      * 绑定 JSON body：解析失败 → 400 validation("invalid request body") +
-     * details=legacy 解析器原文（{@link GoJsonBindError}；EOF 与字面量扫描逐字节一致）。
+     * details=legacy 解析器原文（标准 Jackson 消息；EOF 与字面量扫描逐字节一致）。
      */
     static JsonNode bindJson(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
             throw new BizException(AppError.validation("invalid request body")
-                    .withDetails(GoJsonBindError.message(null, null)));
+                    .withDetails("No content to map due to end-of-input"));
         }
         try {
             return MAPPER.readTree(rawBody);
         } catch (Exception e) {
             throw new BizException(AppError.validation("invalid request body")
-                    .withDetails(GoJsonBindError.message(rawBody, e.getMessage())));
+                    .withDetails(e.getMessage()));
         }
     }
 

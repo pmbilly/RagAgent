@@ -178,7 +178,7 @@ class SteerContractTest {
     }
 
     @Test
-    void steerBadJsonMatchesGoMessage() throws Exception {
+    void steerBadJsonUsesJacksonMessage() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/steer"), "not-json")
                 .header("Authorization", bearer));
         assertEquals(400, r.getResponse().getStatus(), raw(r));

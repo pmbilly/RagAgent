@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.storage.domain.StorageBackend;
 import com.ragagent.common.storage.StorageAllowList;
 import com.ragagent.storage.dto.StorageBackendResponse;
@@ -219,13 +218,13 @@ public class StorageBackendController {
 
     private static StorageBackendRequest bind(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
-            throw BizException.badRequest("EOF");
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         StorageBackendRequest req;
         try {
             req = MAPPER.readValue(rawBody, StorageBackendRequest.class);
         } catch (Exception e) {
-            throw BizException.badRequest(GoJsonBindError.message(rawBody, e.getMessage()));
+            throw BizException.badRequest(e.getMessage());
         }
         List<String> missing = new ArrayList<>();
         if (req.name() == null || req.name().isEmpty()) {

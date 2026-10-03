@@ -59,7 +59,7 @@ public class AgentToolApprovalController {
             throw BizException.internal("Tool approval gate is not configured");
         }
         if (body == null) {
-            throw BizException.badRequest("EOF");
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
 
         Decision decision = decisionFrom(body);

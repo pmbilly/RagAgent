@@ -37,31 +37,17 @@ final class QaRequestBinder {
         return r;
     }
     static <T> T parseOrBindError(String rawBody, Class<T> type) {
-        String msg = com.ragagent.common.web.GoJsonBindError.message(rawBody, null);
-        if (msg != null) {
-            throw BizException.badRequest(msg);
+        // B51：GoJsonBindError 退役——空 body 用 Jackson 标准消息；其余错误留给下面的解析
+        // try/catch（Jackson 原生消息）。
+        if (rawBody == null || rawBody.isEmpty()) {
+            throw BizException.badRequest("No content to map due to end-of-input");
         }
         try {
             return BIND_JSON.readValue(rawBody, type);
         } catch (Exception e) {
-            // 字段级类型错误 → 登记过的固定 unmarshal 措辞
-            if (e instanceof com.fasterxml.jackson.databind.JsonMappingException jme
-                    && !jme.getPath().isEmpty() && jme.getPath().get(0).getFieldName() != null) {
-                String field = jme.getPath().get(0).getFieldName();
-                String kind = "?";
-                try {
-                    kind = com.ragagent.common.web.GoJsonBindError.valueKind(
-                            BIND_JSON.readTree(rawBody).get(field));
-                } catch (Exception ignore) {
-                    // rawBody 本身坏掉时回落 Jackson 措辞
-                }
-                String goMsg = com.ragagent.common.web.GoJsonBindError.fieldTypeError(
-                        type.getSimpleName(), field, kind);
-                if (goMsg != null) {
-                    throw BizException.badRequest(goMsg);
-                }
-            }
-            throw BizException.badRequest(com.ragagent.common.web.GoJsonBindError.message(rawBody, e.getMessage()));
+            // B51：GoJsonBindError 退役——字段级类型错误直接用 Jackson 原生消息
+            // （原实现仿真 Go 的 "json: cannot unmarshal ..." 措辞）。
+            throw BizException.badRequest(e.getMessage());
         }
     }
     static String bindingError(String structName, String field, String tag) {

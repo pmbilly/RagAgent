@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.error.BizException;
 import com.ragagent.common.error.PlainErrorException;
 import com.ragagent.common.security.LogSanitizer;
-import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.embed.domain.EmbedChannelEntity;
 import com.ragagent.mcp.controller.McpOAuthController;
 import com.ragagent.mcp.dto.ResolveToolApprovalRequest;
@@ -225,7 +224,7 @@ final class EmbedChannelDelegateOps {
                 req = EmbedChannelController.MAPPER.readValue(rawBody, McpOAuthController.AuthorizeRequest.class);
             } catch (Exception e) {
                 throw BizException.badRequest(
-                        GoJsonBindError.message(rawBody, e.getMessage() == null ? "" : e.getMessage()));
+                        (e.getMessage() == null ? "" : e.getMessage()));
             }
         }
         return ctrl.mcpOAuthController.authorizeUrl(serviceId, req);
@@ -251,7 +250,7 @@ final class EmbedChannelDelegateOps {
                 req = EmbedChannelController.MAPPER.readValue(rawBody, McpOAuthController.ResolveRequest.class);
             } catch (Exception e) {
                 throw BizException.badRequest(
-                        GoJsonBindError.message(rawBody, e.getMessage() == null ? "" : e.getMessage()));
+                        (e.getMessage() == null ? "" : e.getMessage()));
             }
         }
         return ctrl.mcpOAuthController.resolveMcpOAuth(pendingId, req);
@@ -276,7 +275,7 @@ final class EmbedChannelDelegateOps {
                 req = EmbedChannelController.MAPPER.readValue(rawBody, ResolveToolApprovalRequest.class);
             } catch (Exception e) {
                 throw BizException.badRequest(
-                        GoJsonBindError.message(rawBody, e.getMessage() == null ? "" : e.getMessage()));
+                        (e.getMessage() == null ? "" : e.getMessage()));
             }
         }
         return ctrl.toolApprovalController.resolveToolApproval(pendingId, req);
