@@ -20,15 +20,12 @@ import com.ragagent.common.llm.ToolResult;
  *
  * <p>Data map 的键序由序列化层排序，见
  * {@code TodoWriteToolTest} 的字节断言。</p>
+ *
+ * <p><b>2026-10-03（B39）</b>：Go 版已下线——不再复刻 Go 的 HTML 转义；键序仍固定。</p>
  */
 public class TodoWriteTool extends BaseTool {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    static {
-        // HTML 转义恒开（steps_json 是发给前端/模型的字符串，字节即契约）
-        MAPPER.getFactory().setCharacterEscapes(new com.ragagent.common.web.GoJsonEscapes());
-    }
 
     /** 单个计划步骤（json 键序固定：id/description/status）。 */
     @JsonPropertyOrder({"id", "description", "status"})

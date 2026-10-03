@@ -578,16 +578,12 @@ public final class McpCatalog {
     }
 
     /**
-     * struct 形态 JSON 编码器：**插入序**（字段声明序）+ HTML 转义——
+     * struct 形态 JSON 编码器：**插入序**（字段声明序）——
      * 不能用 {@link GoJsonCodec}.write（它按 map 语义排序键，struct 契约会乱序）。
+     * （2026-10-03 B39：不再复刻 Go 的 HTML 转义。）
      */
-    static final com.fasterxml.jackson.databind.ObjectMapper GO_ENCODER = goEncoder();
-
-    private static com.fasterxml.jackson.databind.ObjectMapper goEncoder() {
-        com.fasterxml.jackson.databind.ObjectMapper m = new com.fasterxml.jackson.databind.ObjectMapper();
-        m.getFactory().setCharacterEscapes(new com.ragagent.common.web.GoJsonEscapes());
-        return m;
-    }
+    static final com.fasterxml.jackson.databind.ObjectMapper GO_ENCODER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
 
     /** GO_ENCODER 的受检异常收口（测试与包内共用）。 */
     static String goEncoderJson(Object value) {

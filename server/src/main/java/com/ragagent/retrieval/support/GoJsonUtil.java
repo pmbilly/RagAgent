@@ -2,19 +2,15 @@ package com.ragagent.retrieval.support;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.ragagent.common.web.GoJsonEscapes;
 
 /**
- * searchutil 包内的 Go {@code encoding/json} 等价编解码：marshal 走 HTML/控制字符
- * 转义表（{@link GoJsonEscapes}，对照 json.Marshal 的 escapeHTML）；parse 容忍未知
- * 字段（json.Unmarshal 语义）。
+ * searchutil 包内的 JSON 编解码（marshal 标准转义；parse 容忍未知字段）。
+ *
+ * <p><b>2026-10-03（B39）</b>：Go 版已下线——不再复刻 Go 的 HTML 转义。</p>
  */
 public final class GoJsonUtil {
 
     private static final JsonMapper MARSHAL = JsonMapper.builder().build();
-    static {
-        MARSHAL.getFactory().setCharacterEscapes(new GoJsonEscapes());
-    }
 
     private static final JsonMapper UNMARSHAL = JsonMapper.builder().build();
 

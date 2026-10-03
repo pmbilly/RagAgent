@@ -50,7 +50,7 @@ import org.junit.jupiter.api.Test;
  */
 class MemoryEntityJsonTest {
 
-    /** 与运行时一致的映射器（JacksonConfig 会装 GoJsonEscapes；这里没有需要转义的字符）。 */
+    /** 与运行时一致的映射器（B39 起为标准 Jackson；这里没有需要特殊处理的字符）。 */
     private static final ObjectMapper MAPPER = JsonMappers.lenient();
 
     /** jsonb 读路径用的**裸**映射器——必须容忍未知属性（§9）。 */

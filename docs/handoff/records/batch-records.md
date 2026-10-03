@@ -496,3 +496,11 @@
 - **验证**：stream/tracing/llm.chat 三域绿；全量 **4713** 绿 + `spotlessCheck` 绿。
 - **残留（下一批候选）**：上述 4 处 escapes（流向 = **内部事件总线 + 工具输出**，属 ④ 类；MCP/待办工具进 LLM 提示词，需探针）。
 
+**✅ B39（2026-10-03，档 3 第三刀：工具面退役 + 发现「实录基线」硬约束）**
+- **本刀退役**：`McpCatalog.GO_ENCODER`（保留插入序=struct 契约）、`TodoWriteTool`（steps_json）、`retrieval/support/GoJsonUtil` 三处去 `GoJsonEscapes`；测试侧 `SessionStreamControllerTest` 去不再需要的 escapes 配置 + `MemoryEntityJsonTest` 修正过时注释（`JacksonConfig` 已不存在）。
+- **⚠️ 关键发现（档 3 的真正边界）**：`GoRecording45A/B/C`、`GoRecording46B/C` 等「Go 形态实录」文件**由录制脚本生成、头部明示禁止手改**，且录制源是 Go 服务（**已下线**）⇒ **无法重录**。凡被这些实录覆盖的输出路径，退役前必须先立起「基线重建机制」：
+  - 实测：`event/EventJson` 去 escapes → 8 例 `EngineRecordingTest` 红；测试侧 `RecordingSupport` 去 escapes → 3 例 `ToolRegistryRecordingTest` 红——**两处已回退**（回退后全量复绿），`EventPayloadJsonTest` 的断言改写与 `GoJsonEscapes` 类删除一并回退。
+  - **结论**：`GoJsonEscapes` 类本体**暂不能删**（`EventJson` 与 `RecordingSupport` 仍需引用）。
+- **档 3 现状总账**：① provider 请求面 ✅（B37）；② stream / langfuse / LLM 请求体 ✅（B38）；③ 工具面（MCP / 待办 / 检索）✅（本刀）；④ **待解锁**：event 总线与所有被实录覆盖的面（需先做「实录基线重建」）；`GoTimeSerializer.isGoZero`（业务语义）与 `GoMapSerializer`（被继承）仍待单独设计。
+- **验证**：全量 **4713** 绿 + `spotlessCheck` 绿（含回退后的复跑）。
+

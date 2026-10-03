@@ -32,7 +32,6 @@ import com.ragagent.session.service.MessageService;
 import com.ragagent.session.sse.SseFrameWriter;
 import com.ragagent.session.sse.StreamEventEmitter;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.common.web.GoJsonEscapes;
 import com.ragagent.session.service.SessionService;
 import com.ragagent.stream.StreamBatch;
 import com.ragagent.stream.StreamEvent;
@@ -64,7 +63,6 @@ class SessionStreamControllerTest {
      */
     private static ObjectMapper goEscapingMapper() {
         ObjectMapper mapper = new ObjectMapper();
-        mapper.getFactory().setCharacterEscapes(new GoJsonEscapes());
         return mapper;
     }
 
