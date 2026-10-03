@@ -34,7 +34,7 @@
   var DEFAULT_TITLE = 'AI Assistant';
   var DEFAULT_WIDTH = 420;
   var DEFAULT_HEIGHT = 720;
-  // 未配置渠道 launcher_icon 时的默认图标：内联 SVG（白色对话气泡，随按钮主色）
+  // 未配置渠道 launcherIcon 时的默认图标：内联 SVG（白色对话气泡，随按钮主色）
   // —— 取代原先的 emoji，避免"先 emoji 再用户图片"的闪烁与平台字体差异。
   var DEFAULT_LAUNCHER_SVG =
     '<svg viewBox="0 0 1024 1024" width="26" height="26" aria-hidden="true" ' +
@@ -447,17 +447,21 @@
         if (!res || !res.ok) return null;
         return res.json();
       }).then(function (payload) {
-        var cfg = payload && payload.data;
+        // 公开 config 契约（§14.9m E1）：裸对象 + camelCase（无 {data} 信封、无 snake 键）。
+        // 此处曾按旧契约（信封 + snake 键）读 ⇒ 渠道配置的浮标图标永远读不到
+        //（2026-10-03 点检实锤：按钮回落默认气泡）。源码扫描守卫见
+        // src/views/embed/widgetPublicConfigContract.test.ts。
+        var cfg = payload;
         if (!cfg) {
           revealLauncher();
           return;
         }
-        if (typeof cfg.primary_color === 'string' && cfg.primary_color) {
-          primaryColor = cfg.primary_color;
+        if (typeof cfg.primaryColor === 'string' && cfg.primaryColor) {
+          primaryColor = cfg.primaryColor;
           launcher.style.background = primaryColor;
         }
-        if (typeof cfg.launcher_icon === 'string' && cfg.launcher_icon) {
-          launcherIconUrl = cfg.launcher_icon;
+        if (typeof cfg.launcherIcon === 'string' && cfg.launcherIcon) {
+          launcherIconUrl = cfg.launcherIcon;
           launcherImg = null;
           renderLauncherContent(); // img.onload/onerror 里露出
           return;
