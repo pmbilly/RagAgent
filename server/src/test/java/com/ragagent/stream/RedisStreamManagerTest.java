@@ -212,19 +212,19 @@ class RedisStreamManagerTest {
     // ── 事件流 ──────────────────────────────────────────────────────────────
 
     @Test
-    void eventsRoundTripThroughRedisByteForByte() {
+    void eventsRoundTripThroughRedisWithStableBytes() {
         RedisStreamManager m = manager(Duration.ofHours(1));
         m.appendEvent("s", "m", new StreamEvent("e1", ResponseType.ANSWER, "hi <b>&</b>", false));
 
-        // 直接读原文，整条字节串与 Go 实测的 json.Marshal 输出比对（只掩掉随本机时区变的
-        // timestamp）。这条断言就是"跨语言互操作"的全部依据：Go 读自己写出的字节是天经地义，
-        // 而 Java 写出的字节与它逐字节相同。
+        // 直接读原文断言字节形态（只掩掉随本机时区变的 timestamp）。
+        // B38：Go 版已下线——不再与 Go 逐字节对齐；本断言钉住「稳定字节 + 键序」，
+        // 它们是内部 CAS（读原文比对槽位）的前提。
         String raw = template.opsForList().index(m.buildKey("s", "m"), 0);
         String expected = "{\"id\":\"e1\",\"type\":\"answer\","
-                + "\"content\":\"hi \\u003cb\\u003e\\u0026\\u003c/b\\u003e\","
+                + "\"content\":\"hi <b>&</b>\","
                 + "\"done\":false,\"timestamp\":\"<TS>\"}";
         assertEquals(expected, raw.replaceFirst("\"timestamp\":\"[^\"]*\"", "\"timestamp\":\"<TS>\""),
-                "落到 Redis 的字节必须与 Go 逐字节一致");
+                "落到 Redis 的字节形态稳定（内部 CAS 子串匹配依赖）");
 
         StreamBatch batch = m.getEvents("s", "m", 0);
         assertEquals(1, batch.events().size());

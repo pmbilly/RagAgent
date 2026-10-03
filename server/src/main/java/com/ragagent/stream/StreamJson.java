@@ -15,17 +15,15 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.ragagent.common.web.GoJsonEscapes;
 
 /**
  * 流事件进出 Redis 用的 ObjectMapper（**不是** HTTP 响应那个）。
  *
- * <p>三处刻意配置，每处都对应一条 Go 侧行为：</p>
+ * <p><b>2026-10-03（B38）</b>：Go 版已下线、不再双跑——不再复刻 Go 的
+ * {@code encoding/json} 转义（{@code < > &} 形态）。以下两处保留：</p>
  * <ol>
- *   <li><b>map 按键字母序</b>：Go 的 {@code json.Marshal} 对 map 恒按 key 排序输出。
- *       不配这条，Java 写出的 {@code data} 与 Go 写出的字节不同——而
- *       {@code UpdateSteerEventData} 的 CAS 是拿**读到的原文**与 LSET 前的槽位比对，
- *       跨语言并发时会因字节差异一路重试到放弃。</li>
+ *   <li><b>map 按键字母序</b>：{@code UpdateSteerEventData} 的 CAS 把**读到的原文**
+ *       与 LSET 前的槽位比对——同一 data 必须序列化出<b>稳定字节</b>，键序不能随机。</li>
  *   <li><b>timestamp 用本地时区 + ISO_OFFSET_DATE_TIME</b>：与
  *       {@code config.JacksonConfig} 对 OffsetDateTime 的处置一致（RFC3339Nano，
  *       纳秒尾部零裁剪），见约定 §9「Go 时间序列化」。该覆盖在 JavaTimeModule
@@ -46,9 +44,6 @@ public final class StreamJson {
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .build();
-        // 转义规则对齐 Go 的 encoding/json（`< > &` + 小写十六进制）。
-        // 必须在工厂被使用**之前**设置——静态初始化里做一次即可。
-        mapper.getFactory().setCharacterEscapes(new GoJsonEscapes());
         return mapper;
     }
 

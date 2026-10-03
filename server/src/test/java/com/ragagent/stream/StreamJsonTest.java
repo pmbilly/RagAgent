@@ -30,8 +30,8 @@ class StreamJsonTest {
     }
 
     @Test
-    void eventMatchesGoByteForByte() {
-        // Go: {"id":"e-1","type":"answer","content":"hi <b>&</b>","done":true,"timestamp":"...",
+    void eventBytesStableWithSortedKeys() {
+        // B38：Go 版已下线——不再复刻 Go 转义；本用例钉住「键序 + 结构 + 字节稳定」
         //      "data":{"alpha":"a","consumed":true,"zebra":1},
         //      "usage":{"prompt_tokens":3,"completion_tokens":4,"total_tokens":7,"cache_reported":false}}
         StreamEvent event = new StreamEvent("e-1", ResponseType.ANSWER, "hi <b>&</b>", true);
@@ -49,7 +49,7 @@ class StreamJsonTest {
         event.setUsage(usage);
 
         String expected = "{\"id\":\"e-1\",\"type\":\"answer\","
-                + "\"content\":\"hi \\u003cb\\u003e\\u0026\\u003c/b\\u003e\","
+                + "\"content\":\"hi <b>&</b>\","
                 + "\"done\":true,\"timestamp\":\"<TS>\","
                 + "\"data\":{\"alpha\":\"a\",\"consumed\":true,\"zebra\":1},"
                 + "\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":4,\"total_tokens\":7,"
@@ -71,19 +71,19 @@ class StreamJsonTest {
     }
 
     @Test
-    void stringEscapingMatchesGo() {
-        // 实测 Go 对 [hi <b>&</b>] + 换行 + 制表 + 引号 + 反斜杠 + 0x00 + 0x08 + 0x1F 的输出：
-        //   · < > &       → < > &（Jackson 默认**不**转义）
-        //   · 0x08        → \b（Go 与 Jackson 的短转义一致）
-        //   · 0x00 / 0x1F → U+00xx 形态但十六进制**小写**（Jackson 默认大写，是差异点）
+    void stringEscapingIsStandardJackson() {
+        // 标准 Jackson 输出（B38 起不再对齐 Go）：
+        //   · < > &       → 原样输出
+        //   · 0x08 / 0x0C → \b / \f 短转义
+        //   · 0x00 / 0x1F → \\u0000 / \\u001F（大写十六进制）
         String raw = "hi <b>&</b>\n\t\"\\" + (char) 0x00 + '\b' + (char) 0x1F;
-        String expected = "\"hi \\u003cb\\u003e\\u0026\\u003c/b\\u003e\\n\\t\\\"\\\\"
-                + "\\u0000\\b\\u001f\"";
+        String expected = "\"hi <b>&</b>\\n\\t\\\"\\\\"
+                + "\\u0000\\b\\u001F\"";
 
         assertEquals(expected, StreamJson.write(raw));
 
-        // 实测 Go 对 0x0B/0x0C/0x07 的输出：0x0C 走 \f 短转义，另两个走小写十六进制
-        assertEquals("\"\\u000b\\f\\u0007\"",
+        // 标准 Jackson：0x0C 走 \f 短转义，其余控制字符大写十六进制
+        assertEquals("\"\\u000B\\f\\u0007\"",
                 StreamJson.write("" + (char) 0x0B + (char) 0x0C + (char) 0x07));
     }
 
@@ -102,10 +102,10 @@ class StreamJsonTest {
     }
 
     @Test
-    void writeStringMatchesGoMarshalOfAString() {
+    void writeStringProducesQuotedJson() {
         // ClearLiveRun 的 CAS needle 靠它拼出来，必须带引号且转义一致
         assertEquals("\"msg-1\"", StreamJson.writeString("msg-1"));
-        assertEquals("\"a\\u003cb\\u0026c\\u003ed\"", StreamJson.writeString("a<b&c>d"));
+        assertEquals("\"a<b&c>d\"", StreamJson.writeString("a<b&c>d"));
     }
 
     @Test

@@ -488,3 +488,11 @@
 - **验证**：三域测试绿；全量 **4713** 绿 + `spotlessCheck` 绿。
 - **待决/待设计**：stream 面（Redis 跨语言 CAS）需确认「Go 版是否还在跑」；`GoTimeSerializer.isGoZero`（业务语义）与 `GoMapSerializer`（被 datasource 继承、`GoDoubleSerializer.format` 被当静态工具调）需单独设计退役方案，不能直删。
 
+**✅ B38（2026-10-03，档 3 第二刀：stream 事件 / langfuse / LLM 请求体退役 Go 转义）**
+- **关键决策登记（用户 2026-10-03 确认）**：**Go 版已下线、不再双跑** —— Go 字节对齐从此不再是活跃约束（stream 的 Redis 跨语言 CAS 前提解除；§15.3「Go 工具面 5 类」的冻结理由只剩"已实现行为不宜无理由变化"）。
+- **本刀动作**：① `stream/StreamJson` 去 `GoJsonEscapes`（**保留** map 键排序与时间/容错配置——内部 CAS 用「读到的原文比对槽位」，需要稳定字节）；② `llm/chat/RemoteApiBodyCodec` 的 `GO_MARSHAL` 改标准 JsonMapper（保留两条键序归一：prompt-cache 与结构体声明序）；③ `tracing/langfuse/LangfuseAttributes` 去 escapes（上报面）。
+- **测试改写（4 处「与 Go 字节对齐」断言 → 「字节稳定 + 标准 Jackson 形态」）**：`StreamJsonTest` 三例（改名 `eventBytesStableWithSortedKeys` / `stringEscapingIsStandardJackson` / `writeStringProducesQuotedJson`）+ `RedisStreamManagerTest`（`eventsRoundTripThroughRedisWithStableBytes`）；内部 CAS 依赖的「稳定字节 + 键序」性质全部保留。实测标准 Jackson 形态：`< > &` 原样、控制字符大写十六进制（`\u001F`）。
+- **全局面核实（重要）**：`main` 侧 `setCharacterEscapes` 调用点收窄到 **4 处**（`event/EventJson`、`agent/tools/McpCatalog`、`agent/tools/TodoWriteTool`、`retrieval/support/GoJsonUtil`）；**HTTP 响应面的全局 mapper 本就是标准 Jackson**（从未装 escapes）；`MemoryEntityJsonTest` 注释提到的「JacksonConfig 会装 GoJsonEscapes」是过时表述（`JacksonConfig` 类已不存在）。
+- **验证**：stream/tracing/llm.chat 三域绿；全量 **4713** 绿 + `spotlessCheck` 绿。
+- **残留（下一批候选）**：上述 4 处 escapes（流向 = **内部事件总线 + 工具输出**，属 ④ 类；MCP/待办工具进 LLM 提示词，需探针）。
+

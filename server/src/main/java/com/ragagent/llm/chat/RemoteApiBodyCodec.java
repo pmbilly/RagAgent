@@ -12,23 +12,19 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * 出站请求体键序/序列化协作者（自 {@link RemoteApiChat} 拆出，全静态）：
- * 与既有 Go 服务线格式字节兼容的序列化器（{@code GO_MARSHAL}）与两条键序归一路线——
+ * 请求体序列化器（{@code GO_MARSHAL}）与两条键序归一路线——
  * map 字节序（{@code goSorted}，prompt-cache 改写路径）与 openai-go 结构体声明序
  * （{@code structSorted}，SDK 直出/thinking 包装路径）。门面 {@code Outbound.bodyBytes()}
  * 与测试直调的 {@code RemoteApiChat.goSorted} 委托至此。
+ *
+ * <p><b>2026-10-03（B38）</b>：Go 版已下线——序列化器不再复刻 Go 的 HTML 转义；
+ * 键序归一保留（prompt-cache 与结构体声明序是请求体自身的形态约束）。</p>
  */
 final class RemoteApiBodyCodec {
 
-    /** 出站请求体序列化器（HTML 转义 &lt; &gt; &amp;）。 */
+    /** 出站请求体序列化器（标准 JSON 转义）。 */
     static final com.fasterxml.jackson.databind.json.JsonMapper GO_MARSHAL =
-            goMarshal();
-
-    private static com.fasterxml.jackson.databind.json.JsonMapper goMarshal() {
-        com.fasterxml.jackson.databind.json.JsonMapper mapper =
-                com.fasterxml.jackson.databind.json.JsonMapper.builder().build();
-        mapper.getFactory().setCharacterEscapes(new com.ragagent.common.web.GoJsonEscapes());
-        return mapper;
-    }
+            com.fasterxml.jackson.databind.json.JsonMapper.builder().build();
 
     /**
      * 按键的 UTF-8 字节序重排请求体：<b>每一层对象</b>都按字母序输出。

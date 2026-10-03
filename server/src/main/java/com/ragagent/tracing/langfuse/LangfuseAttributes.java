@@ -15,7 +15,6 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.ragagent.common.web.GoDoubleSerializer;
-import com.ragagent.common.web.GoJsonEscapes;
 
 /**
  * Langfuse / OpenTelemetry 语义约定属性键与序列化辅助。
@@ -71,7 +70,7 @@ public final class LangfuseAttributes {
     private static final DateTimeFormatter ISO_MILLIS =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
 
-    /** 紧凑 JSON 编码器（map 键序 + HTML 转义 + 整数型 double 直写）。 */
+    /** 紧凑 JSON 编码器（map 键序 + 整数型 double 直写；2026-10-03 B38 起不再复刻 Go 转义）。 */
     private static final ObjectMapper JSON = buildJson();
 
     private static ObjectMapper buildJson() {
@@ -81,7 +80,6 @@ public final class LangfuseAttributes {
         SimpleModule module = new SimpleModule();
         module.addSerializer(Double.class, new GoDoubleSerializer());
         mapper.registerModule(module);
-        mapper.getFactory().setCharacterEscapes(new GoJsonEscapes());
         return mapper;
     }
 
