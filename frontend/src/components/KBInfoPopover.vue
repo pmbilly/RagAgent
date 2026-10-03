@@ -27,9 +27,9 @@
               <span class="kb-info-card-label">{{ t('knowledgeBase.description') }}</span>
               <span class="kb-info-card-value kb-info-card-value-block">{{ kbInfo.description }}</span>
             </div>
-            <div v-if="kbInfo.created_at" class="kb-info-card-row">
+            <div v-if="kbInfo.createdAt" class="kb-info-card-row">
               <span class="kb-info-card-label">{{ t('knowledgeBase.infoCard.createdAt') }}</span>
-              <span class="kb-info-card-value">{{ formatStringDate(new Date(kbInfo.created_at)) }}</span>
+              <span class="kb-info-card-value">{{ formatStringDate(new Date(kbInfo.createdAt)) }}</span>
             </div>
             <div v-if="hasDistinctUpdate" class="kb-info-card-row">
               <span class="kb-info-card-label">{{ t('knowledgeBase.accessInfo.lastUpdated') }}</span>

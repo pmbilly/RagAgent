@@ -25,14 +25,14 @@ interface KnowledgeCard {
   display_name?: string;
   title?: string;
   type?: string;
-  updated_at?: string;
+  updatedAt?: string;
   fileType?: string;
   isMore?: boolean;
   metadata?: any;
   error_message?: string;
   tags?: Array<{ id: string; name: string; color?: string }>;
   source?: string;
-  created_at?: string;
+  createdAt?: string;
   fileSize?: number | string;
   channel?: string;
 }
@@ -543,7 +543,7 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
           <t-icon name="folder" />
           <span>{{ item.folderPath }}</span>
         </button>
-        <span v-else class="card-time">{{ formatDocTime(item.updated_at) }}</span>
+        <span v-else class="card-time">{{ formatDocTime(item.updatedAt) }}</span>
         <div class="card-bottom-right">
           <div v-if="tagList.length" class="card-tag-selector" @click.stop>
             <!-- Editable mode -->
@@ -652,8 +652,8 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
             <t-icon name="link" size="12px" /> {{ (hoveredCardItem as any).source }}
           </div>
           <div class="card-popover-extra">
-            <span v-if="(hoveredCardItem as any).created_at" class="card-popover-created">
-              {{ $t('knowledgeBase.createdAt') }}：{{ formatDocTime((hoveredCardItem as any).created_at) }}
+            <span v-if="hoveredCardItem.createdAt" class="card-popover-created">
+              {{ $t('knowledgeBase.createdAt') }}：{{ formatDocTime(hoveredCardItem.createdAt) }}
             </span>
             <span v-if="formatFileSize((hoveredCardItem as any).fileSize)" class="card-popover-size">
               {{ formatFileSize((hoveredCardItem as any).fileSize) }}
@@ -661,7 +661,7 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
           </div>
         </template>
         <div class="card-popover-meta">
-          <span class="card-popover-time">{{ $t('knowledgeBase.updatedAt') }}：{{ formatDocTime(hoveredCardItem.updated_at) }}</span>
+          <span class="card-popover-time">{{ $t('knowledgeBase.updatedAt') }}：{{ formatDocTime(hoveredCardItem.updatedAt) }}</span>
           <span
             v-if="(hoveredCardItem as any).channel && (hoveredCardItem as any).channel !== 'web'"
             class="card-popover-channel"

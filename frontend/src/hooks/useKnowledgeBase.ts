@@ -80,7 +80,9 @@ export default function (knowledgeBaseId?: string) {
         display_name: displayName,
         fileName: displayName,
         folderPath: item.folderPath || '',
-        updated_at: formatStringDate(new Date(item.updated_at)),
+        // 时间不在此预格式化：接口给的是 camel（updatedAt/createdAt，ISO UTC），
+        // 卡片/列表各自按本地时区格式化。曾按旧的 snake 键读（恒 undefined）
+        // → new Date(undefined) 产出 "NaN-NaN-NaN …"（2026-10-03 点检修复）。
         isMore: false,
         fileType: fileTypeSource ? String(fileTypeSource).toLocaleUpperCase() : '',
       }

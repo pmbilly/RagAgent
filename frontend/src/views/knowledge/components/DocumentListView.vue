@@ -22,7 +22,7 @@ interface KnowledgeItem {
   tags?: Tag[];
   parseStatus?: string;
   summaryStatus?: string;
-  updated_at?: string;
+  updatedAt?: string;
   source?: string;
   description?: string;
   channel?: string;
@@ -375,7 +375,7 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
         </div>
 
         <div class="cell cell-time">
-          <span class="row-mono">{{ formatTime(item.updated_at) }}</span>
+          <span class="row-mono">{{ formatTime(item.updatedAt) }}</span>
         </div>
 
         <div class="cell cell-actions" v-if="canEdit" @click.stop>
@@ -518,7 +518,7 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
     minmax(96px, 0.8fr) // source
     96px // size
     minmax(96px, 0.7fr) // status
-    140px // updated_at
+    140px // updatedAt
     48px; // actions
   align-items: center;
   column-gap: 0;

@@ -93,6 +93,22 @@ test('侧栏乐观会话行：写入侧必须提供读取侧要读的时间键�
   }
 })
 
+test('知识库文件面：时间读侧必须用接口的 camel 键', () => {
+  // 2026-10-03 点检实锤：这几处读 created_at/updated_at（接口给的是 createdAt/updatedAt，
+  // 见 api/knowledge 的文件列表与 KB 详情接口）→ 时间恒为空/NaN、信息卡"创建时间"行永不显示。
+  const targets = [
+    'hooks/useKnowledgeBase.ts',
+    'views/knowledge/components/DocumentCardView.vue',
+    'views/knowledge/components/DocumentListView.vue',
+    'components/KBInfoPopover.vue',
+  ]
+  for (const rel of targets) {
+    const source = readFileSync(join(SRC, rel), 'utf8')
+    assert.doesNotMatch(source, /\.(created_at|updated_at)\b/,
+      `${rel}: 读接口时间请用 createdAt/updatedAt（camel）`)
+  }
+})
+
 test('表格插槽名必须等于同文件某个 colKey（防死插槽）', () => {
   for (const file of files.filter((f) => f.endsWith('.vue'))) {
     const source = readFileSync(file, 'utf8')
