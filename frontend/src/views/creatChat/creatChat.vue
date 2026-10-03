@@ -223,14 +223,17 @@ async function createNewSession(value: string, modelId: string, mentionedItems: 
 
 const navigateToSession = async (sessionId: string, value: string, modelId: string, mentionedItems: any[], imageFiles: any[] = [], attachmentFiles: any[] = []) => {
     const now = new Date().toISOString();
+    // 侧栏读者（menu.vue 的 menuChildToSessionRow）按 camel 键取时间戳：
+    // 这里若写 created_at/updated_at（snake），时间戳读成 undefined，
+    // 新会话会被分到「更早」（classifyDateBucket 的兜底分支）。2026-10-03 点检实录。
     let obj = {
         title: t('createChat.newSessionTitle'),
         path: `chat/${sessionId}`,
         id: sessionId,
         isMore: false,
         isNoTitle: true,
-        created_at: now,
-        updated_at: now
+        createdAt: now,
+        updatedAt: now
     };
     usemenuStore.updataMenuChildren(obj);
     usemenuStore.changeIsFirstSession(true);

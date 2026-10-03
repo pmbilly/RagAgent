@@ -424,7 +424,7 @@
                 :expanded-row-keys="auditExpandedRowKeys"
                 @expand-change="onAuditExpandChange"
               >
-                <template #created_at="{ row }">
+                <template #createdAt="{ row }">
                   <div class="audit-time">
                     <span class="audit-time-date">{{ formatAuditDatePart(row.createdAt) }}</span>
                     <span class="audit-time-clock">{{ formatAuditTimePart(row.createdAt) }}</span>

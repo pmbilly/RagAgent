@@ -142,7 +142,7 @@
                   <t-empty :description="emptyDescription" />
                 </div>
               </template>
-              <template #created_at="{ row }">
+              <template #createdAt="{ row }">
                 <div class="audit-time">
                   <span class="audit-time-date">{{ formatDatePart(row.createdAt) }}</span>
                   <span class="audit-time-clock">{{ formatTimePart(row.createdAt) }}</span>

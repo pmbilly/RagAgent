@@ -456,8 +456,10 @@ export interface SystemSettingItem {
    * UUID prefix.
    */
    lastModifiedByName?: string
-  created_at: string
-  updated_at: string
+  // Wire keys are camel (接口实测：createdAt / updatedAt，ISO-8601 UTC）。
+  // 曾写成 created_at/updatedAt 之外的 snake → 「上次修改」行永远取不到时间（2026-10-03 修复）。
+  createdAt: string
+  updatedAt: string
   /**
    * Allowed values for `value` when this setting is constrained. Populated by
    * the service from the in-code registry; absent/empty means "free-form".

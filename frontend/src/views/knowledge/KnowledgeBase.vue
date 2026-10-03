@@ -8,7 +8,6 @@ import EmptyKnowledge from '@/components/empty-knowledge.vue';
 import ContextualGuide from '@/components/ContextualGuide.vue';
 import KBInfoPopover from '@/components/KBInfoPopover.vue';
 import KBSwitcherDropdown from '@/components/KBSwitcherDropdown.vue';
-import { getSessionsList, createSessions, generateSessionsTitle } from "@/api/chat/index";
 import { useMenuStore } from '@/stores/menu';
 import { useUIStore } from '@/stores/ui';
 import { useAuthStore } from '@/stores/auth';
@@ -2240,36 +2239,6 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
   }
 };
 
-const getTitle = (session_id: string, value: string) => {
-  const now = new Date().toISOString();
-  let obj = {
-    title: t('knowledgeBase.newSession'),
-    path: `chat/${session_id}`,
-    id: session_id,
-    isMore: false,
-    isNoTitle: true,
-    createdAt: now,
-    updatedAt: now
-  };
-  usemenuStore.updataMenuChildren(obj);
-  usemenuStore.changeIsFirstSession(true);
-  usemenuStore.changeFirstQuery(value);
-  router.push(`/platform/chat/${session_id}`);
-};
-
-async function createNewSession(value: string): Promise<void> {
-  // Session 不再和知识库绑定，直接创建 Session
-  createSessions({}).then(res => {
-    if (res.data && res.data.id) {
-      getTitle(res.data.id, value);
-    } else {
-      // 错误处理
-      console.error(t('knowledgeBase.createSessionFailed'));
-    }
-  }).catch(error => {
-    console.error(t('knowledgeBase.createSessionError'), error);
-  });
-}
 </script>
 
 <template>

@@ -582,12 +582,12 @@ function hasOverride(item: SystemSettingItem): boolean {
 }
 
 // modifiedMeta returns a humane "上次修改" line for rows that have been
-// persisted (lastModifiedBy non-empty AND updated_at not the Go zero
+// persisted (lastModifiedBy non-empty AND updatedAt not the Go zero
 // value). Returns '' for virtual rows so the meta line collapses
 // entirely instead of rendering "1/1/1 08:05:43" garbage.
 function modifiedMeta(item: SystemSettingItem): string {
   if (!hasOverride(item)) return ''
-  const ts = item.updated_at
+  const ts = item.updatedAt
   if (!ts || ts.startsWith('0001-')) return ''
   const formatted = formatDate(ts)
   // Prefer the resolved username/email the server enriches via
