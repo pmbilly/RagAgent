@@ -121,7 +121,7 @@ public final class GitLabClient {
 
     public String commitSha(String id, String ref) {
         CommitRef commit = get("/projects/" + projectPath(id) + "/repository/commits/"
-                + GoUrl.pathEscape(ref), CommitRef.class);
+                + GitLabUrl.pathEscape(ref), CommitRef.class);
         return commit.id() == null ? "" : commit.id();
     }
 
@@ -167,7 +167,7 @@ public final class GitLabClient {
         q.put("ref", ref);
         String encodedFile = filePathEscape(file);
         String filesPath = "/projects/" + projectPath(id) + "/repository/files/" + encodedFile;
-        String rawEndpoint = filesPath + "/raw?" + GoUrl.valuesEncode(q);
+        String rawEndpoint = filesPath + "/raw?" + GitLabUrl.valuesEncode(q);
 
         try {
             return getRaw(rawEndpoint);
@@ -178,7 +178,7 @@ public final class GitLabClient {
         }
 
         FileDetail detail;
-        String detailEndpoint = filesPath + "?" + GoUrl.valuesEncode(q);
+        String detailEndpoint = filesPath + "?" + GitLabUrl.valuesEncode(q);
         try {
             detail = get(detailEndpoint, FileDetail.class);
         } catch (ConnectorException err) {
@@ -218,7 +218,7 @@ public final class GitLabClient {
         Map<String, String> q = new LinkedHashMap<>();
         q.put("from", from);
         q.put("to", to);
-        return get("/projects/" + projectPath(id) + "/repository/compare?" + GoUrl.valuesEncode(q),
+        return get("/projects/" + projectPath(id) + "/repository/compare?" + GitLabUrl.valuesEncode(q),
                 Comparison.class);
     }
 
@@ -252,8 +252,8 @@ public final class GitLabClient {
         String decoded = trimmed;
         if (trimmed.contains("%")) {
             try {
-                decoded = GoUrl.pathUnescape(trimmed);
-            } catch (GoUrl.InvalidEscapeException ignored) {
+                decoded = GitLabUrl.pathUnescape(trimmed);
+            } catch (GitLabUrl.InvalidEscapeException ignored) {
                 // 解码失败时保留原串
             }
         }
@@ -264,11 +264,11 @@ public final class GitLabClient {
                 if (i > 0) {
                     b.append("%2F");
                 }
-                b.append(GoUrl.pathEscape(parts[i]));
+                b.append(GitLabUrl.pathEscape(parts[i]));
             }
             return b.toString();
         }
-        return GoUrl.pathEscape(decoded);
+        return GitLabUrl.pathEscape(decoded);
     }
 
     /**
@@ -321,7 +321,7 @@ public final class GitLabClient {
     }
 
     private Page<TreeEntry> getTreePage(String endpoint, Map<String, String> query) {
-        ConnectorHttp.Response resp = http.get(baseUrl + endpoint + "?" + GoUrl.valuesEncode(query),
+        ConnectorHttp.Response resp = http.get(baseUrl + endpoint + "?" + GitLabUrl.valuesEncode(query),
                 authHeaders());
         if (!resp.ok()) {
             throw new ApiException(endpoint, resp.status());

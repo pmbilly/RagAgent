@@ -493,14 +493,14 @@ public class GitLabConnector implements StreamingConnector {
      * 把仓库文件映射成 KB 的目录约定
      * {@code <项目名>-<分支>/<仓库内相对路径>}（分支里的 {@code /} 换成 {@code -}）。
      *
-     * <p>最后一步经 {@link GoPath#join}（会做 clean），所以 {@code ref} 或
+     * <p>最后一步经 {@link GitLabPath#join}（会做 clean），所以 {@code ref} 或
      * {@code projectName} 为空时根名会退化成 {@code "docs-"} / {@code "-main"}，
      * 而 {@code "/a.md"} 这种绝对形态会被 clean 掉前导斜杠挂到根名下面。</p>
      */
     static String knowledgeRelativePath(String projectName, String ref, String file) {
         String root = Whitespace.trimSpace(projectName) + "-"
                 + Whitespace.trimSpace(ref).replace("/", "-");
-        return GoPath.join(root, file);
+        return GitLabPath.join(root, file);
     }
 
     /**

@@ -570,3 +570,15 @@
 - **档 3 收口口径（本批确立）**：剩余类的处理标准从"Go\* 计数归零"改为 **"逐类裁决"**（退役 / 误标 / 契约保留，每类都要有数据或既有论证支撑）；无证据可证的类**不因名字带 Go 而强删**。
 - **验证**：探针删除后编译绿；datasource 域复跑绿。
 
+**✅ B47（2026-10-03，保留类改名——契约保留类的标签修正，行为零变更）**
+- **前置**：用户拍板——B46 裁决"保留"的类，名字里的 `Go*` 在误导后人（暗示"Go 复刻、别动"），应修标签。**行为一字未动**（B46 已裁决保留）。
+- **改名（~85 处引用替换 + 4 处类头 javadoc 补命名说明）**：
+  - `GoUrl` → **`GitLabUrl`**（GitLab 出站 URL 转义原语）；
+  - `GoPath`（gitlab）→ **`GitLabPath`**（项目/文件路径 POSIX 清洗与连接）；
+  - `GoPath`（agent/tools）→ **`PosixPath`**——顺带**归位 `common/text`**（与 `Whitespace` / `CodePointOrder` 同族；服务 sandbox 路径校验）；
+  - `GoStyleErrorReportValve` → **`PlainTextErrorReportValve`**（协议层拒绝的纯文本报文）；
+  - 测试类 `GoCompatTest` → `GitLabCompatTest`。
+- **口径**：**误标修正，不计退役进度**（与 B42 的教训区分：那次是拿改名冒充退役；本次是已裁决保留类的标签修正，用户主动要求）。
+- **验证**：datasource / agent / embed 三域探针绿；全量 **4706** 绿 + `spotlessCheck` 绿。
+- **现状**：`Go*` 名字只剩 C 类 5 个（`GoDoubleSerializer` / `GoTimeSerializer` / `GoMapSerializer` / `GoJsonBindError` / `GoNaiveOffsetDateTimeTypeHandler`）+ `GoogleProvider`（误报，是 "Google"）。
+

@@ -242,29 +242,29 @@ class GitLabConfigTest {
         assertThat(cfg.projects().get(0).paths()).isNull();
     }
 
-    // ── GoPath ──────────────────────────────────────────────────────────
+    // ── GitLabPath ──────────────────────────────────────────────────────────
 
     /**
-     * {@link GoPath#clean} 与 {@code java.nio.file.Path.normalize()} 的分叉点（逐字钉住）。
+     * {@link GitLabPath#clean} 与 {@code java.nio.file.Path.normalize()} 的分叉点（逐字钉住）。
      *
-     * <p>这些用例的作用是：如果有人把 {@link GoPath#clean} 换成 JDK 的实现，
+     * <p>这些用例的作用是：如果有人把 {@link GitLabPath#clean} 换成 JDK 的实现，
      * 这里会立刻红——而不是等到某个用户的 {@code paths} 被悄悄放行。</p>
      */
     @Test
     void goPathCleanMatchesGo() {
-        assertThat(GoPath.clean("")).isEqualTo(".");
-        assertThat(GoPath.clean(".")).isEqualTo(".");
-        assertThat(GoPath.clean("a/..")).isEqualTo(".");
-        assertThat(GoPath.clean("..")).isEqualTo("..");
-        assertThat(GoPath.clean("a/../..")).isEqualTo("..");
-        assertThat(GoPath.clean("docs//guide")).isEqualTo("docs/guide");
-        assertThat(GoPath.clean("docs/")).isEqualTo("docs");
-        assertThat(GoPath.clean("docs/./a")).isEqualTo("docs/a");
-        assertThat(GoPath.clean("/a/../b")).isEqualTo("/b");
-        assertThat(GoPath.clean("\\a\\b")).isEqualTo("\\a\\b");
-        assertThat(GoPath.clean("中文/路径")).isEqualTo("中文/路径");
-        assertThat(GoPath.clean("/")).isEqualTo("/");
-        assertThat(GoPath.clean("//")).isEqualTo("/");
+        assertThat(GitLabPath.clean("")).isEqualTo(".");
+        assertThat(GitLabPath.clean(".")).isEqualTo(".");
+        assertThat(GitLabPath.clean("a/..")).isEqualTo(".");
+        assertThat(GitLabPath.clean("..")).isEqualTo("..");
+        assertThat(GitLabPath.clean("a/../..")).isEqualTo("..");
+        assertThat(GitLabPath.clean("docs//guide")).isEqualTo("docs/guide");
+        assertThat(GitLabPath.clean("docs/")).isEqualTo("docs");
+        assertThat(GitLabPath.clean("docs/./a")).isEqualTo("docs/a");
+        assertThat(GitLabPath.clean("/a/../b")).isEqualTo("/b");
+        assertThat(GitLabPath.clean("\\a\\b")).isEqualTo("\\a\\b");
+        assertThat(GitLabPath.clean("中文/路径")).isEqualTo("中文/路径");
+        assertThat(GitLabPath.clean("/")).isEqualTo("/");
+        assertThat(GitLabPath.clean("//")).isEqualTo("/");
     }
 
     /**
@@ -274,27 +274,27 @@ class GitLabConfigTest {
      */
     @Test
     void goPathCleanBacktrackingMatchesGo() {
-        assertThat(GoPath.clean("docs-main/a/../b.md")).isEqualTo("docs-main/b.md");
-        assertThat(GoPath.clean("a/b/../../c")).isEqualTo("c");
-        assertThat(GoPath.clean("/a/b/../c")).isEqualTo("/a/c");
-        assertThat(GoPath.clean("../../a")).isEqualTo("../../a");
-        assertThat(GoPath.clean("a/../../../b")).isEqualTo("../../b");
-        assertThat(GoPath.clean("../..")).isEqualTo("../..");
-        assertThat(GoPath.clean("a//b//../c")).isEqualTo("a/c");
-        assertThat(GoPath.clean("a/b/..")).isEqualTo("a");
-        assertThat(GoPath.clean("x/./y/")).isEqualTo("x/y");
-        assertThat(GoPath.clean("//a//b//")).isEqualTo("/a/b");
-        assertThat(GoPath.clean("./")).isEqualTo(".");
-        assertThat(GoPath.clean("中/../a")).isEqualTo("a");
+        assertThat(GitLabPath.clean("docs-main/a/../b.md")).isEqualTo("docs-main/b.md");
+        assertThat(GitLabPath.clean("a/b/../../c")).isEqualTo("c");
+        assertThat(GitLabPath.clean("/a/b/../c")).isEqualTo("/a/c");
+        assertThat(GitLabPath.clean("../../a")).isEqualTo("../../a");
+        assertThat(GitLabPath.clean("a/../../../b")).isEqualTo("../../b");
+        assertThat(GitLabPath.clean("../..")).isEqualTo("../..");
+        assertThat(GitLabPath.clean("a//b//../c")).isEqualTo("a/c");
+        assertThat(GitLabPath.clean("a/b/..")).isEqualTo("a");
+        assertThat(GitLabPath.clean("x/./y/")).isEqualTo("x/y");
+        assertThat(GitLabPath.clean("//a//b//")).isEqualTo("/a/b");
+        assertThat(GitLabPath.clean("./")).isEqualTo(".");
+        assertThat(GitLabPath.clean("中/../a")).isEqualTo("a");
     }
 
     @Test
     void goPathJoinMatchesGo() {
-        assertThat(GoPath.join("docs-main", "README.md")).isEqualTo("docs-main/README.md");
-        assertThat(GoPath.join("docs-main")).isEqualTo("docs-main");
-        assertThat(GoPath.join("", "")).isEmpty();
-        assertThat(GoPath.join("docs-main", "")).isEqualTo("docs-main");
-        assertThat(GoPath.join("docs-main", "/a.md")).isEqualTo("docs-main/a.md");
+        assertThat(GitLabPath.join("docs-main", "README.md")).isEqualTo("docs-main/README.md");
+        assertThat(GitLabPath.join("docs-main")).isEqualTo("docs-main");
+        assertThat(GitLabPath.join("", "")).isEmpty();
+        assertThat(GitLabPath.join("docs-main", "")).isEqualTo("docs-main");
+        assertThat(GitLabPath.join("docs-main", "/a.md")).isEqualTo("docs-main/a.md");
     }
 
     // ── 辅助 ────────────────────────────────────────────────────────────

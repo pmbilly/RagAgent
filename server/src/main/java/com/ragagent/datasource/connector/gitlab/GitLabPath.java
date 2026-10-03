@@ -1,7 +1,11 @@
 package com.ragagent.datasource.connector.gitlab;
 
 /**
- * 按 Go 标准库 {@code path.Clean} / {@code path.Join} 语义实现的路径工具。
+ * GitLab 项目/文件路径的 POSIX 清洗与连接（{@code clean} / {@code join}）。
+ *
+ * <p><b>2026-10-03（B47）</b>：原 {@code GoPath} 改名（B46 已裁决保留：{@code clean}
+ * 对 {@code Path.normalize} 实测 21/24 一致，3 处差异全在"空结果"——含 {@code ""}
+ * 输入，替换会让路径校验放行空串）。</p>
  *
  * <h2>为什么不能用 {@code java.nio.file.Path.normalize()}</h2>
  * <p>两者在<b>很多</b>输入上给出不同答案，而 {@code normalizePath} 的接受/拒绝判定
@@ -35,9 +39,9 @@ package com.ragagent.datasource.connector.gitlab;
  *
  * <p><b>内部工具，不是契约</b>：服务的是配置解析与 KB 相对路径生成，不落 jsonb、不进响应体。</p>
  */
-final class GoPath {
+final class GitLabPath {
 
-    private GoPath() {
+    private GitLabPath() {
     }
 
     /** 路径清洗（含 {@code "" → "."} 与 {@code "a/.." → "."}）。 */

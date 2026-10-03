@@ -1,13 +1,18 @@
-package com.ragagent.agent.tools;
+package com.ragagent.common.text;
 
 /**
- * POSIX 斜杠语义的路径清洗（纯字符串实现；不能用 java.nio.file.Path——
- * 那是平台相关的）。sandbox 路径处理（输出目录前缀、
- * 会话工作目录校验）都依赖它的归一化行为。
+ * POSIX 斜杠语义的路径清洗（纯字符串实现）。
+ *
+ * <p><b>为何不能用 {@link java.nio.file.Path}</b>：那是平台相关的（Windows 分隔符为
+ * {@code \}）；本类服务于 sandbox 路径处理（输出目录前缀、会话工作目录校验）——
+ * 一律按 POSIX {@code /} 语义。</p>
+ *
+ * <p><b>2026-10-03（B47）</b>：自 {@code agent.tools.GoPath} 改名归位（原先名字暗示
+ * "Go 复刻"，实为 POSIX 语义契约；B46 已裁决保留行为）。</p>
  */
-public final class GoPath {
+public final class PosixPath {
 
-    private GoPath() {
+    private PosixPath() {
     }
 
     /** 消除 .、..、多余斜杠；结果化简为最短路径名。 */

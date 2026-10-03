@@ -32,7 +32,7 @@ public class EmbedWiring {
 
     /**
      * 容器级错误报文用纯文本（对照协议层拒绝的输出惯例；
-     * 见 {@link GoStyleErrorReportValve} 类注释）。只接管"应用没写过响应体"的
+     * 见 {@link PlainTextErrorReportValve} 类注释）。只接管"应用没写过响应体"的
      * 容器错误，Spring 的 JSON 错误契约不受影响。
      */
     @org.springframework.context.annotation.Bean
@@ -41,7 +41,7 @@ public class EmbedWiring {
         return factory -> factory.addContextCustomizers(sc -> {
             if (sc.getParent() instanceof org.apache.catalina.core.StandardHost host) {
                 // 换掉 Tomcat 默认的 HTML 错误页阀（协议层错误用纯文本）
-                host.setErrorReportValveClass(GoStyleErrorReportValve.class.getName());
+                host.setErrorReportValveClass(PlainTextErrorReportValve.class.getName());
             }
         });
     }

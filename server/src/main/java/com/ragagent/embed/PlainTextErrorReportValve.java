@@ -8,7 +8,14 @@ import org.apache.catalina.connector.Response;
 import org.apache.catalina.valves.ErrorReportValve;
 
 /**
- * 容器级错误报文（**协议层拒绝**输出纯文本
+ * 容器级错误报文（**协议层拒绝**输出纯文本——Java 生态无原生等价：
+ * Tomcat 默认是 HTML 错误页，纯文本报文是本仓的 HTTP 契约）。
+ *
+ * <p><b>2026-10-03（B47）</b>：原 {@code GoStyleErrorReportValve} 改名——"GoStyle"
+ * 指历史来源（Go 服务的错误报文形态），而纯文本状态行本就是 HTTP 标准做法；
+ * 现名如实描述行为（B46 已裁决保留）。</p>
+ *
+ * <p>原始说明：
  * {@code "<status> <message>"}：例如畸形请求头行 → body 恰为
  * {@code "400 Bad Request"}，见 golden emb-pub-load-badvisitor）。
  *
@@ -18,7 +25,7 @@ import org.apache.catalina.valves.ErrorReportValve;
  * 响应体的错误（GlobalExceptionHandler / Boot /error 的 JSON），本阀一律不碰，
  * 不影响任何既有契约。</p>
  */
-public class GoStyleErrorReportValve extends ErrorReportValve {
+public class PlainTextErrorReportValve extends ErrorReportValve {
 
     @Override
     protected void report(Request request, Response response, Throwable throwable) {

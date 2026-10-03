@@ -5,8 +5,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 按 Go 标准库 {@code net/url} 的三个转义原语语义实现：{@code PathEscape} /
- * {@code PathUnescape} / {@code Values.Encode}。
+ * GitLab 出站 URL 的转义原语：{@code PathEscape} / {@code PathUnescape} /
+ * {@code Values.Encode}。
+ *
+ * <p><b>2026-10-03（B47）</b>：原 {@code GoUrl} 改名——转义集合源自 Go {@code net/url}
+ * 的历史对齐；B46 已用 95 位可打印 ASCII 全表实测裁决<b>保留行为</b>（与 JDK/Spring
+ * 原生编码器有 7+2 处语义差异，替换会改出站 URL 字节）。</p>
  *
  * <h2>为什么不直接用 {@code java.net.URLEncoder} / {@code URI}</h2>
  * <p>连接器的请求 URL 是<b>发往 GitLab 的线上字节</b>，而 GitLab 侧对
@@ -33,14 +37,14 @@ import java.util.Map;
  * </ul>
  *
  * <p><b>内部工具，不是契约</b>：它不落 jsonb、也不进任何 HTTP 响应体，
- * 只决定出站请求的 URL 字节。转义表由 {@code GoUrlTest}
+ * 只决定出站请求的 URL 字节。转义表由 {@code GitLabCompatTest}
  * 用对 0x20-0x7E 全量打印的 95 位标记串逐字符钉住。</p>
  */
-final class GoUrl {
+final class GitLabUrl {
 
     private static final char[] UPPER_HEX = "0123456789ABCDEF".toCharArray();
 
-    private GoUrl() {
+    private GitLabUrl() {
     }
 
     /** 路径段转义。 */

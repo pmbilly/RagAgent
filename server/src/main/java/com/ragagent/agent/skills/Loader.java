@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
-import com.ragagent.agent.tools.GoPath;
+import com.ragagent.common.text.PosixPath;
 
 /**
  * 从文件系统做 skill 发现与加载。
@@ -160,7 +160,7 @@ public final class Loader implements SkillSource {
         if (skill == null) {
             skill = loadSkillInstructions(skillName);
         }
-        String cleanPath = GoPath.clean(relativePath);
+        String cleanPath = PosixPath.clean(relativePath);
         // 安全：防路径穿越
         if (cleanPath.startsWith("..") || cleanPath.startsWith("/")) {
             throw new Skill.SkillValidationException("invalid file path: " + relativePath);

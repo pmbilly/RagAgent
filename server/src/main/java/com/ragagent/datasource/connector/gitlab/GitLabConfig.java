@@ -26,7 +26,7 @@ import com.ragagent.common.text.Whitespace;
  *   <li><b>{@code paths} 的"缺键"与"空数组"等价</b>：两条路径都走到
  *       {@link #collapsePaths} 返回 {@code null} → "整个项目"。</li>
  *   <li><b>{@code normalizePath} 会拒绝 {@code ".."} 之外的一切相对回退</b>，
- *       但<b>放行裸 {@code ".."}</b>——{@code GoPath.clean("..") == ".."} 让
+ *       但<b>放行裸 {@code ".."}</b>——{@code GitLabPath.clean("..") == ".."} 让
  *       {@code clean(v) != v} 这个判据不成立，而 {@code ".."} 既不以
  *       {@code "../"} 开头也不含 {@code "/../"}。这是刻意保留的既有行为。</li>
  * </ol>
@@ -124,7 +124,7 @@ public final class GitLabConfig {
         if (v.contains("\\")) {
             throw new ConnectorException.InvalidConfig("path must use forward slashes");
         }
-        if (!GoPath.clean(v).equals(v) || ".".equals(v)
+        if (!GitLabPath.clean(v).equals(v) || ".".equals(v)
                 || v.startsWith("../") || v.contains("/../")) {
             throw new ConnectorException.InvalidConfig("invalid repository path");
         }
