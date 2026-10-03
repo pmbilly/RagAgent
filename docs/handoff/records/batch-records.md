@@ -556,3 +556,17 @@
 - **顺带发现（登记）**：Unicode 空白判断全仓原共 **5 处**——除已收敛的 2 份外，还有 `rss/RssUtil.isGoSpace`（少 U+0085）、`MemoryScopes.isGoSpace`、`MemoryText.isGoSpace`（后两者为 `isSpaceChar`+6 写法，与新 `Whitespace` 同源）；下一批委托收敛（约 20 处调用）。
 - **验证**：wiki / datasource / memory 三域探针绿；全量 **4706** 绿 + `spotlessCheck` 绿（`spotlessApply` 修正 import 序）。
 
+**✅ B46（2026-10-03，档 3 第九刀：GoUrl / GoPath 验证驱动裁决——保留）**
+- **方法**：写临时探针（跑完即删）对高风险面做**逐字符/逐样例对照**，用数据决定退役或保留。
+- **`GoUrl`（219 行）→ 保留**。证据（95 位可打印 ASCII 全表）：
+  - `pathEscape` vs Spring `UriUtils.encodePathSegment`：**7 处差异**（`! ' ( ) * , ;`——Go 转义、Spring 保留；`/`→`%2F` 两边一致）；
+  - `queryEscape` vs `URLEncoder`：**2 处差异**（`*` 被转义、`~` 被编码）；
+  - `pathUnescape` vs `UriUtils.decode`：**完全一致**。
+  - 裁决理由：差异字符都是 RFC 3986 的 sub-delims（路径段内合法），**大概率安全但无真实 GitLab 环境可验证**（契约测试是 stub）；替换会改变出站 URL 字节（该类的存在意义即"GitLab 对 `files/<path>` 段的解码规则"），收益（删类）小于风险。**保留，待有真实环境时重评**。
+- **`GoPath`×2 → 保留**：
+  - `agent/tools/GoPath`：javadoc 已登记理由——"POSIX 斜杠语义的纯字符串实现；**不能用 `java.nio.file.Path`（平台相关）**"，服务 sandbox 路径校验（安全面）。
+  - `gitlab/GoPath`（204 行）：`clean` 与 `Path.normalize()` 对照 **21/24 一致**，3 处差异全是"空结果"（Go `.` vs Java `""`，含 `""` 输入——**替换会让 GitLabConfig 的路径校验放行空串**，安全退步）；`join` 的空元素语义服务落库 key 构造（`docs-` / `-main` 退化形态）。**保留**。
+- **`GoStyleErrorReportValve` → 误标（非退役对象）**：它是"容器级协议拒绝的纯文本报文"契约（golden `emb-pub-load-badvisitor`），Tomcat 默认是 HTML 错误页——**Java 无原生等价**，名字里的 Go 指历史来源。**保留**，与 `HtmlEntities` / `JsonValues` 同列"误标待统一修正"。
+- **档 3 收口口径（本批确立）**：剩余类的处理标准从"Go\* 计数归零"改为 **"逐类裁决"**（退役 / 误标 / 契约保留，每类都要有数据或既有论证支撑）；无证据可证的类**不因名字带 Go 而强删**。
+- **验证**：探针删除后编译绿；datasource 域复跑绿。
+
