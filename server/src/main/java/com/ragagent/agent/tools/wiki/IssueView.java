@@ -3,7 +3,7 @@ package com.ragagent.agent.tools.wiki;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 
 /** agent wiki 工具的 issue seam 视图。 */
 
@@ -89,7 +89,7 @@ import com.ragagent.common.web.GoJsonCodec;
 
         private static String goJsonString(String s) {
             StringBuilder sb = new StringBuilder();
-            GoJsonCodec.writeString(s == null ? "" : s, sb);
+            ToolJson.writeString(s == null ? "" : s, sb);
             return sb.toString();
         }
     }

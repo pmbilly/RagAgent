@@ -13,22 +13,22 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * 紧凑 JSON 编码器（参数转型后重新序列化整棵 args 用），输出遵循四条规则：
  * <ol>
  *   <li><b>map 键按字节序排序</b>（所有层级）；</li>
- *   <li><b>HTML 转义恒开</b>：{@code < > &} → {@code \u003c \u003e \u0026}
- *       （例：{@code {"s":"<b>&"}} → {"s":"\u003cb\u003e\u0026"}）；</li>
+ *   <li><b>标准 JSON 转义</b>（2026-10-03 B42：Go 版下线后不再复刻 {@code < > &} 的
+ *       {@code \u003c} 形态，控制字符用大写十六进制）；</li>
  *   <li><b>数字按浮点形态编码</b>（{@link GoDoubleSerializer}；例：{@code 1e21}）；</li>
  *   <li><b>紧凑输出</b>（无空格无换行）。</li>
  * </ol>
  *
  * <p>整型（cast 出的 int64）按十进制直写；U+2028/29 转义为 \u2028/\u2029
- * （本 writer 是手写的，不受 Jackson CharacterEscapes 够不到非 ASCII 的限制）。</p>
+ * （本 writer 是手写的，不受 Jackson 对非 ASCII 的默认处理限制）。</p>
  *
  * <p>与同包的 {@link GoJsonMarshal} 同源：后者是宽松版（可读缩进/转义开关），
  * 本类是紧凑版（键序 + 浮点形态 + HTML 转义恒开），被工具参数重编码与
  * modelcontext 复用——原先落在 {@code agent.tools} 时被 modelcontext 反向依赖。</p>
  */
-public final class GoJsonCodec {
+public final class ToolJson {
 
-    private GoJsonCodec() {
+    private ToolJson() {
     }
 
     /** 按类注释的四条规则把 args 树编码为紧凑 JSON。 */
@@ -98,10 +98,9 @@ public final class GoJsonCodec {
     }
 
     /**
-     * 字符串字面量编码（连引号一起写）：HTML 转义（{@code < > &}）+ 小写十六进制控制字符
-     * + U+2028/29。
+     * 字符串字面量编码（连引号一起写）：标准 JSON 转义（大写十六进制控制字符）+ U+2028/29。
      *
-     * <p>公开给"自行拼装 JSON 但要求逐字节同形态"的调用方（如 agent 的 issue 视图）；
+     * <p>公开给"自行拼装 JSON"的调用方（如 agent 的 issue 视图）；
      * 整棵树编码请直接用 {@link #write(JsonNode)}。</p>
      */
     public static void writeString(String s, StringBuilder sb) {
@@ -116,14 +115,11 @@ public final class GoJsonCodec {
                 case '\n' -> sb.append("\\n");
                 case '\f' -> sb.append("\\f");
                 case '\r' -> sb.append("\\r");
-                case '<' -> sb.append("\\u003c");
-                case '>' -> sb.append("\\u003e");
-                case '&' -> sb.append("\\u0026");
                 case 0x2028 -> sb.append("\\u2028");
                 case 0x2029 -> sb.append("\\u2029");
                 default -> {
                     if (c < 0x20) {
-                        sb.append(String.format("\\u%04x", (int) c));
+                        sb.append(String.format("\\u%04X", (int) c));
                     } else {
                         sb.append(c);
                     }

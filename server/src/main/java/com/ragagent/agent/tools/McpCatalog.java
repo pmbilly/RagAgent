@@ -15,7 +15,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.approval.EnabledChecker;
 import com.ragagent.common.approval.McpApproval;
 import com.ragagent.common.approval.ToolPolicy;
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 import com.ragagent.common.llm.ToolResult;
 import com.ragagent.mcp.domain.McpService;
 
@@ -579,7 +579,7 @@ public final class McpCatalog {
 
     /**
      * struct 形态 JSON 编码器：**插入序**（字段声明序）——
-     * 不能用 {@link GoJsonCodec}.write（它按 map 语义排序键，struct 契约会乱序）。
+     * 不能用 {@link ToolJson}.write（它按 map 语义排序键，struct 契约会乱序）。
      * （2026-10-03 B39：不再复刻 Go 的 HTML 转义。）
      */
     static final com.fasterxml.jackson.databind.ObjectMapper GO_ENCODER =
@@ -611,7 +611,7 @@ public final class McpCatalog {
         return r;
     }
 
-    /** 把 enum 注入 schema 的 properties[key]（map 键序经 GoJsonCodec 排序）。 */
+    /** 把 enum 注入 schema 的 properties[key]（map 键序经 ToolJson 排序）。 */
     static String mcpSchemaWithEnum(String raw, String key, List<String> values) {
         if (values == null || values.isEmpty()) {
             return raw;
@@ -621,7 +621,7 @@ public final class McpCatalog {
             JsonNode schema = plain.readTree(raw);
             ((com.fasterxml.jackson.databind.node.ObjectNode) schema.path("properties").path(key))
                     .set("enum", plain.valueToTree(values));
-            return GoJsonCodec.write(schema);
+            return ToolJson.write(schema);
         } catch (Exception e) {
             return raw;
         }
@@ -713,7 +713,7 @@ public final class McpCatalog {
     }
 
     static String quoteGo(String s) {
-        return GoQuoting.quoteGo(s);
+        return JsonQuoting.quoteGo(s);
     }
 
     /** cursor 的 base64url 编码（无 padding）。 */

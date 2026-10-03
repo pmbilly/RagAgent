@@ -9,7 +9,7 @@ final class GoJsonBridge {
     }
 
     static JsonNode parseTree(String json) {
-        return GoJsonValues.parse(json);
+        return JsonValues.parse(json);
     }
 
     /** Go encoding/json 的字符串体转义（HTML 恒开 + 控制字符小写十六进制 + U+2028/29）。 */

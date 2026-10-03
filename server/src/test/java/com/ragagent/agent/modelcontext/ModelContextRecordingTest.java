@@ -14,7 +14,7 @@ import static com.ragagent.agent.modelcontext.GoRecording46A.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.llm.ToolResult;
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatTool;
 import com.ragagent.llm.domain.FunctionCall;
@@ -661,7 +661,7 @@ class ModelContextRecordingTest {
             }
             ChatTool t = tools.get(i);
             String params = t.getFunction().getParameters() == null ? "null"
-                    : GoJsonCodec.write(t.getFunction().getParameters());
+                    : ToolJson.write(t.getFunction().getParameters());
             sb.append("{\"type\":\"").append(GoJsonBridge.goString(t.getType()))
                     .append("\",\"function\":{\"name\":\"").append(GoJsonBridge.goString(t.getFunction().getName()))
                     .append("\",\"description\":\"").append(GoJsonBridge.goString(t.getFunction().getDescription()))

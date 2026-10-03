@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
@@ -283,13 +283,13 @@ final class ToolPolicy {
     // ---- JSON 字符串值遍历（rewriteJSONStringValues / walkJSONStringValues）----
 
     static String rewriteJSONStringValues(String raw, java.util.function.BinaryOperator<String> rewrite) {
-        JsonNode value = GoJsonValues.parse(raw);
+        JsonNode value = JsonValues.parse(raw);
         if (value == null) {
             return raw;
         }
-        value = GoJsonValues.goFloatTree(value);
+        value = JsonValues.goFloatTree(value);
         value = walkJSONValue("", value, rewrite);
-        return GoJsonCodec.write(value);
+        return ToolJson.write(value);
     }
 
     private static JsonNode walkJSONValue(String key, JsonNode value, java.util.function.BinaryOperator<String> rewrite) {
@@ -314,7 +314,7 @@ final class ToolPolicy {
 
     /** 仅供收集（不改写）的遍历；解析失败静默。 */
     static void walkJSONStringValues(String raw, java.util.function.BinaryOperator<String> rewrite) {
-        JsonNode value = GoJsonValues.parse(raw);
+        JsonNode value = JsonValues.parse(raw);
         if (value == null) {
             return;
         }
@@ -334,12 +334,12 @@ final class ToolPolicy {
             }
             String rewritten = RawJson.rewriteRawObject(call.getFunction().getArguments(), "items", rawValue -> {
                 // rawValue 是 JSON 字符串字面量；解码出内层字符串
-                JsonNode inner = GoJsonValues.parse(rawValue);
+                JsonNode inner = JsonValues.parse(rawValue);
                 if (inner == null || !inner.isTextual()) {
                     return null;
                 }
                 String wrapped = inner.asText();
-                JsonNode items = GoJsonValues.parse(wrapped);
+                JsonNode items = JsonValues.parse(wrapped);
                 if (items == null || !items.isArray() || items.isEmpty()) {
                     return null;
                 }
@@ -363,12 +363,12 @@ final class ToolPolicy {
                 continue;
             }
             String rewritten = RawJson.rewriteRawObject(call.getFunction().getArguments(), "arguments", rawValue -> {
-                JsonNode inner = GoJsonValues.parse(rawValue);
+                JsonNode inner = JsonValues.parse(rawValue);
                 if (inner == null || !inner.isTextual()) {
                     return null;
                 }
                 String wrapped = inner.asText();
-                JsonNode object = GoJsonValues.parse(wrapped);
+                JsonNode object = JsonValues.parse(wrapped);
                 if (object == null || !object.isObject() || object.isEmpty()) {
                     return null;
                 }
@@ -426,7 +426,7 @@ final class ToolPolicy {
                     sb.append(',');
                 }
                 first = false;
-                sb.append(GoJsonCodec.write(TextNode.valueOf(key)));
+                sb.append(ToolJson.write(TextNode.valueOf(key)));
                 sb.append(':');
                 sb.append(key.equals(childKey) ? replacement : object.get(key));
             }
@@ -446,7 +446,7 @@ final class ToolPolicy {
                     sb.append(',');
                 }
                 first = false;
-                sb.append(GoJsonCodec.write(TextNode.valueOf(key)));
+                sb.append(ToolJson.write(TextNode.valueOf(key)));
                 sb.append(':');
                 sb.append(object.get(key));
             }
@@ -484,7 +484,7 @@ final class ToolPolicy {
                     return null;
                 }
                 String keyLiteral = raw.substring(keyStart, pos[0]);
-                JsonNode keyNode = GoJsonValues.parse(keyLiteral);
+                JsonNode keyNode = JsonValues.parse(keyLiteral);
                 if (keyNode == null || !keyNode.isTextual()) {
                     return null;
                 }

@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
@@ -25,7 +25,7 @@ import com.ragagent.common.web.GoDoubleSerializer;
  * </ul>
  *
  * <p>schema 缺失/不可解析/args 不可解析时原样返回。<b>发生任一转型后整棵 args 按
- * {@link GoJsonCodec}（键序重排 + HTML 转义）重新序列化</b>——序列化形态按既有
+ * {@link ToolJson}（键序重排 + HTML 转义）重新序列化</b>——序列化形态按既有
  * 行为钉死，不是本类的选择。</p>
  */
 public final class ParamCaster {
@@ -77,9 +77,9 @@ public final class ParamCaster {
         if (!changed) {
             return args;
         }
-        // 重新序列化走 GoJsonCodec（键序重排 + HTML 转义），解析失败原样返回。
+        // 重新序列化走 ToolJson（键序重排 + HTML 转义），解析失败原样返回。
         try {
-            String encoded = GoJsonCodec.write(argsMap);
+            String encoded = ToolJson.write(argsMap);
             return ObjectMapperHolder.MAPPER.readTree(encoded);
         } catch (Exception e) {
             return args;

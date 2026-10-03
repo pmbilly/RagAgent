@@ -18,7 +18,7 @@ public final class Tools45cFakes {
 
     /** 任意对象 → Go json.Marshal 字节形态（对 Map<String,String> 等的便捷入口）。 */
     public static String goJson(Object o) {
-        return com.ragagent.common.web.GoJsonCodec.write(RecordingSupport.PLAIN.valueToTree(o));
+        return com.ragagent.common.web.ToolJson.write(RecordingSupport.PLAIN.valueToTree(o));
     }
 
     /** 按 group+id 取 Go 实录常量（R_<GROUP>_<ID>，id 大写化）。 */

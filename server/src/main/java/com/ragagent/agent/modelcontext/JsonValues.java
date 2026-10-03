@@ -8,14 +8,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * modelcontext 包内的 JSON 语义小工具：解析容错与 double 归一。
- * 编码统一走 agent.tools 的 GoJsonCodec（map 键排序 + HTML 转义 + 64 位浮点）。
+ * 编码统一走 agent.tools 的 ToolJson（map 键排序 + HTML 转义 + 64 位浮点）。
  */
-final class GoJsonValues {
+final class JsonValues {
 
     static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS, true);
 
-    private GoJsonValues() {
+    private JsonValues() {
     }
 
     /** 解析失败返回 null。 */

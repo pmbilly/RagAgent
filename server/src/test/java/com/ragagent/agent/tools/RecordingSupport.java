@@ -5,12 +5,21 @@ import java.util.Collections;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 
 /** 4.5a 实录测试的共享小工具。 */
 public final class RecordingSupport {
 
     public static final ObjectMapper PLAIN = new ObjectMapper();
+
+    /**
+     * 实录文本里的 Go 形态 HTML 转义还原（B42 基线收编）：{@code \u003c/\u003e/\u0026} →
+     * {@code < > &}。Go 版已下线，转义形态不再构成断言目标；键序/结构/数字形态仍被钉住。
+     */
+    public static String normalizeEscapes(String s) {
+        return s == null ? null
+                : s.replace("\\u003c", "<").replace("\\u003e", ">").replace("\\u0026", "&");
+    }
 
     /** JSON mapper（map 键序由类型上的 serializer 负责；2026-10-03 起标准转义）。 */
     public static final ObjectMapper GO_MAPPER = new ObjectMapper();
@@ -35,9 +44,9 @@ public final class RecordingSupport {
         }
     }
 
-    /** 用 GoJsonCodec 把 data map 编成 Go json.Marshal 字节形态（对照录制时的 mustJSON(res.Data)）。 */
+    /** 用 ToolJson 把 data map 编成 Go json.Marshal 字节形态（对照录制时的 mustJSON(res.Data)）。 */
     public static String goJsonOfData(java.util.Map<String, Object> data) {
-        return GoJsonCodec.write(PLAIN.valueToTree(data));
+        return ToolJson.write(PLAIN.valueToTree(data));
     }
 
     /**
@@ -79,8 +88,8 @@ public final class RecordingSupport {
             }
             return sb.append(']').toString();
         }
-        // 标量借道 GoJsonCodec 的编码（数字/字符串/布尔与 Go 一致）
-        return GoJsonCodec.write(node);
+        // 标量借道 ToolJson 的编码（数字/字符串/布尔与 Go 一致）
+        return ToolJson.write(node);
     }
 
     /** 重建 trunc 语料的输入串（对照探针的 pieces/repeats 拼接）。 */

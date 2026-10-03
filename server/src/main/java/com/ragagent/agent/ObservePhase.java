@@ -378,12 +378,12 @@ final class ObservePhase {
         return messages;
     }
 
-    /** map 序列化的字节形态：键序 + HTML 转义 + float 语义（经 GoJsonCodec，与既有事件 payload 逐字节一致）。 */
+    /** map 序列化的字节形态：键序 + HTML 转义 + float 语义（经 ToolJson，与既有事件 payload 逐字节一致）。 */
     private static String goMarshal(Map<String, Object> args) {
         if (args == null) {
             return "null";
         }
-        return com.ragagent.common.web.GoJsonCodec.write(JSON.valueToTree(ActPhase.deepSortedGoMap(args)));
+        return com.ragagent.common.web.ToolJson.write(JSON.valueToTree(ActPhase.deepSortedGoMap(args)));
     }
 
     /** 工具图片随结果消息走（工具结果图片的 VLM 描述内联在图片富化回调里）。 */

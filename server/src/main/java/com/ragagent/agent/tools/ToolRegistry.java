@@ -604,9 +604,9 @@ public class ToolRegistry {
         return discovery.catalog().servers.containsKey(id);
     }
 
-    /** 双引号字符串形态（registry 侧 MCP 文案需要，经 {@link GoQuoting}）。 */
+    /** 双引号字符串形态（registry 侧 MCP 文案需要，经 {@link JsonQuoting}）。 */
     static String quotedGo(String s) {
-        return GoQuoting.quoteGo(s);
+        return JsonQuoting.quoteGo(s);
     }
 
     private static void logExecution(String stage, ToolExecContext meta, Map<String, String> fields) {

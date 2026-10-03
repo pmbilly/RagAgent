@@ -260,8 +260,8 @@ public final class McpOAuthSupport {
         return t.getMessage() != null ? t.getMessage() : t.toString();
     }
 
-    /** 双引号字符串形态（经 {@link GoQuoting}）。 */
+    /** 双引号字符串形态（经 {@link JsonQuoting}）。 */
     static String quoteGo(String s) {
-        return GoQuoting.quoteGo(s);
+        return JsonQuoting.quoteGo(s);
     }
 }

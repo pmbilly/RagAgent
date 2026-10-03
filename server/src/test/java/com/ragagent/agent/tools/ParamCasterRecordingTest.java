@@ -5,13 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 
 /**
  * ParamCaster 的 Go 实录判定表（29 条，探针原样调用 Go {@code CastParams}）。
  * 期望值是 Go 输出的原始字节——发生转型的 case 按 Go 的 map 重编码（键序 +
  * HTML 转义 + float64 语义），不转型的 case 原样返回 args 字节；
- * Java 侧统一用 {@link GoJsonCodec#write(JsonNode)} 编码后逐字节比对。
+ * Java 侧统一用 {@link ToolJson#write(JsonNode)} 编码后逐字节比对。
  */
 class ParamCasterRecordingTest {
 
@@ -58,7 +58,7 @@ class ParamCasterRecordingTest {
             JsonNode argsNode = RecordingSupport.readTree(args);
             JsonNode schemaNode = schemaJson.isEmpty() ? null : RecordingSupport.readTree(schemaJson);
             JsonNode got = ParamCaster.castParams(argsNode, schemaNode);
-            assertThat(GoJsonCodec.write(got))
+            assertThat(ToolJson.write(got))
                     .as("castParams %s", r.get("id").asText())
                     .isEqualTo(want);
         }

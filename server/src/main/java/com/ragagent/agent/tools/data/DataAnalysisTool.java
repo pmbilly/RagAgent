@@ -14,7 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 import com.ragagent.common.llm.ToolResult;
 import com.ragagent.agent.tools.BaseTool;
 import com.ragagent.agent.tools.Cleanable;
@@ -455,7 +455,7 @@ public class DataAnalysisTool extends BaseTool implements Cleanable {
         for (int i = 0; i < results.size(); i++) {
             Map<String, String> record = results.get(i);
             // record 行内键按字节序排序 + HTML 转义（<>& → \u003c…）。
-            String recordStr = GoJsonCodec.write(
+            String recordStr = ToolJson.write(
                     KnowledgeSearchTool.RecordingSupportHolder.MAPPER.valueToTree(new TreeMap<>(record)));
             output.append(String.format("record %d: %s\n", i + 1, recordStr));
         }

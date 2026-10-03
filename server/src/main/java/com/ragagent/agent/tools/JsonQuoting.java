@@ -4,9 +4,9 @@ package com.ragagent.agent.tools;
  * 双引号字符串形态（registry/MCP 侧文案需要）：仅转义 {@code " \ \n \r \t}，
  * 其余控制字符作 U+00XX 形态的转义，非 ASCII 原样保留。
  */
-public final class GoQuoting {
+public final class JsonQuoting {
 
-    private GoQuoting() {
+    private JsonQuoting() {
     }
 
     public static String quoteGo(String s) {

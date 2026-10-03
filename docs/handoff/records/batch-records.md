@@ -519,3 +519,11 @@
 - **Go\* 类计数：26 → 21**。
 - 验证：编译绿；全量 **4709** 绿 + `spotlessCheck` 绿。
 
+**✅ B42（2026-10-03，档 3 第五刀：工具协议面——转义退役 + 四类去 Go 名）**
+- **分类先行的发现**：A 类 6 个「工具协议面」实分两族——① **真·字节复刻**（`GoJsonCodec` / `GoValueStr` / `GoJsonMarshal` / `GoQuoting`）；② **只是名字带 Go**（`GoHtml` = HTML 实体处理、`GoJsonValues` = JSON 语义小工具，功能通用）。
+- **改名（22 文件改写）**：`GoHtml` → `HtmlEntities`、`GoJsonValues` → `JsonValues`、`GoJsonCodec` → `ToolJson`、`GoQuoting` → `JsonQuoting`（后者是「JSON 双引号字符串」最小实现，非 Go 特有）。**行为未退役的类不改名**（`GoValueStr` / `GoJsonMarshal` 留原名——名字如实反映仍是 Go 语义）。
+- **转义退役**：`ToolJson.writeString` 去掉 HTML 转义（`< > &` 原样输出）+ 控制字符大写十六进制；**保留**键排序（LLM 载荷确定性）与浮点形态（属高风险 C 类，另议）。
+- **测试收编**：`RecordingSupport.normalizeEscapes`（共享辅助：实录文本的 Go 转义形态还原）；`DataAnalysisRecordingTest` output 断言两侧归一（`<nil>` 的 `\u003cnil\u003e` 字形）；`GoJsonCodecRecordingTest` → `ToolJsonRecordingTest`（对比升级为 `ContractJson.deep` 语义比较 + **键序单独钉住** `keysAreSortedAlphabetically`）。
+- **Go\* 类计数：21 → 17**。
+- **验证**：agent + wiki 探针绿；全量 **4710** 绿（+1 = 新增键序用例）+ `spotlessCheck` 绿。
+

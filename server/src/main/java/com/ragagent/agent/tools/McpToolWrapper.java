@@ -127,7 +127,7 @@ public class McpToolWrapper implements AgentTool {
     /**
      * 供校验与 ref 计算的 schema 原文（有就用原字节）。
      * String 原样返回；JsonNode 用<b>插入序</b>紧凑序列化（保服务器发来的键序）——
-     * 不能用 GoJsonCodec（map 排序会改写服务器原文的键序）。
+     * 不能用 ToolJson（map 排序会改写服务器原文的键序）。
      */
     String parametersJson() {
         if (mcpTool.getInputSchema() != null) {
@@ -481,7 +481,7 @@ public class McpToolWrapper implements AgentTool {
     }
 
     static String quoteGo(String s) {
-        return GoQuoting.quoteGo(s);
+        return JsonQuoting.quoteGo(s);
     }
 
     private static final com.fasterxml.jackson.databind.ObjectMapper MCP_JSON = new com.fasterxml.jackson.databind.ObjectMapper();

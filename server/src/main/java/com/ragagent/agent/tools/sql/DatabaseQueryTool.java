@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 import com.ragagent.common.llm.ToolResult;
 import com.ragagent.agent.tools.BaseTool;
 import com.ragagent.agent.tools.knowledge.KnowledgeSearchTool;
@@ -249,7 +249,7 @@ public class DatabaseQueryTool extends BaseTool {
         return scopes;
     }
 
-    /** 结果渲染；非 string/byte[] 值走 JSON 编码形态（经 GoJsonCodec）。 */
+    /** 结果渲染；非 string/byte[] 值走 JSON 编码形态（经 ToolJson）。 */
     String formatQueryResults(List<String> columns, List<Map<String, Object>> results) {
         StringBuilder output = new StringBuilder("=== Query Results ===\n\n");
         output.append(String.format("Returned %d rows\n\n", results.size()));
@@ -277,8 +277,8 @@ public class DatabaseQueryTool extends BaseTool {
                     // numeric 值即 PG 数值文本。
                     formattedValue = bd.toPlainString();
                 } else {
-                    // JSON 编码形态（经 GoJsonCodec）。
-                    formattedValue = GoJsonCodec.write(
+                    // JSON 编码形态（经 ToolJson）。
+                    formattedValue = ToolJson.write(
                             KnowledgeSearchTool.RecordingSupportHolder.MAPPER.valueToTree(value));
                 }
                 output.append(String.format("  %s: %s\n", col, formattedValue));

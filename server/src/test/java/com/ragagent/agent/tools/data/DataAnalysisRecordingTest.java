@@ -347,7 +347,10 @@ class DataAnalysisRecordingTest {
 
     private static void assertToolResult(String label, ToolResult result, JsonNode r) {
         assertThat(result.isSuccess()).as("%s success", label).isEqualTo(r.get("success").asBoolean());
-        assertThat(result.getOutput()).as("%s output", label).isEqualTo(r.get("output").asText());
+        // B42：实录里的 Go 转义形态（\u003c>&，如 <nil> 被 Go 写成 \u003cnil\u003e）
+        // 不再构成断言目标——两侧归一后比较（其余逐字）。
+        assertThat(RecordingSupport.normalizeEscapes(result.getOutput())).as("%s output", label)
+                .isEqualTo(RecordingSupport.normalizeEscapes(r.get("output").asText()));
         String wantError = r.hasNonNull("error") ? r.get("error").asText() : "";
         if (!wantError.isEmpty()) {
             assertThat(result.getError()).as("%s error", label).isEqualTo(wantError);

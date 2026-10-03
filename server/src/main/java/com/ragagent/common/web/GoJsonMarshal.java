@@ -17,7 +17,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * 缩进：空对象 {@code {}} / 空数组 {@code []}，非空容器每个元素独立一行按深度缩进，
  * {@code "key": value} 冒号后带一个空格；HTML 转义（&lt; &gt; &amp; →
  * \\u003c \\u003e \\u0026）与小写十六进制控制字符都按既定形态输出。
- * 写法与 {@link GoJsonCodec} 同源（那里是紧凑版，键序与浮点形态规则不同）。</p>
+ * 写法与 {@link ToolJson} 同源（那里是紧凑版，键序与浮点形态规则不同）。</p>
  */
 public final class GoJsonMarshal {
 

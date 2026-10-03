@@ -14,7 +14,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ToolCall;
 
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 
 /**
  * source 句柄的<b>工具参数编解码</b>（自 {@code SourceRegistry} 的同名段外提）。
@@ -325,9 +325,9 @@ final class SourceToolCodec {
         if (value == null) {
             return raw;
         }
-        value = GoJsonValues.goFloatTree(value);
+        value = JsonValues.goFloatTree(value);
         value = walkJSON("", value, encode, allowed);
-        return GoJsonCodec.write(value);
+        return ToolJson.write(value);
     }
 
     private JsonNode walkJSON(String key, JsonNode value, boolean encode, java.util.function.Predicate<String> allowed) {

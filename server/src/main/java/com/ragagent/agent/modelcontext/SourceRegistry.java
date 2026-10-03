@@ -419,7 +419,7 @@ final class SourceRegistry {
         if (!m.find()) {
             return "";
         }
-        return GoHtml.unescape(m.group(1));
+        return HtmlEntities.unescape(m.group(1));
     }
 
     /**
@@ -464,7 +464,7 @@ final class SourceRegistry {
     }
 
     static String escapeAttr(String value) {
-        return GoHtml.escape(value);
+        return HtmlEntities.escape(value);
     }
 
     /** refTagRE.MatchString 的等价（流式展开器判完整 <ref> 标签用）。 */
@@ -487,7 +487,7 @@ final class SourceRegistry {
     }
 
     static JsonNode parseJson(String raw) {
-        return GoJsonValues.parse(raw);
+        return JsonValues.parse(raw);
     }
 
     /** 正则替换（回调返回值按字面拼回）。 */

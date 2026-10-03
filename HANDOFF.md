@@ -714,6 +714,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B39 档 3 第三刀（工具面）+ 实录约束发现** | MCP/待办/检索三处退役；发现「Go 形态实录」为档 3 硬边界 | P2 | 小 | ✅ **完成（2026-10-03）**——三处退役；⚠️ **关键发现**：`GoRecording*` 实录由录制脚本生成、禁止手改、录制源（Go 服务）已下线 ⇒ 无法重录；被实录覆盖的面（`EventJson`/`RecordingSupport`）退役必须**先立「基线重建机制」**，本刀已回退这两处（复绿）。档 3 现状：①②③ 面已退役；④（event/实录覆盖面）待解锁。详见 15.1.1 |
 | **B40 实录基线重建（GoJsonEscapes 全量退役）** | 实录比对「逐字节」→「ContractJson.deep 语义比较」；删 GoJsonEscapes 类 | P2 | 中 | ✅ **完成（2026-10-03）**——解法＝不改实录（禁止手改）而改比对方式（收编漏网的字节级对比）；`EventJson` 退役 + 62 处 `assertRecording` 改写 + 类删除（零残留）。全量 4709 绿（−4=删除的契约测试）+ spotlessCheck 绿。**escapes 面全清**（①②③④）。详见 15.1.1 |
 | **B41 provider JSON 四副本收敛** | 4 份 GoJson/GoJsonUtil → `common/web/ProviderJson`；删零引用 GoFloatSerializer | P2 | 小 | ✅ **完成（2026-10-03）**——embedding 版为超集；42 文件引用改写 + 20 文件补 import；**Go\* 类 26 → 21**；全量 4709 + spotlessCheck 绿。详见 15.1.1 |
+| **B42 档 3 第五刀（工具协议面）** | 转义退役 + 四类去 Go 名（HtmlEntities/JsonValues/ToolJson/JsonQuoting） | P2 | 小 | ✅ **完成（2026-10-03）**——先分类后落刀（真复刻 vs 只是名字带 Go）；`ToolJson.writeString` 去 HTML 转义（保留键序）；测试收编（`normalizeEscapes` 共享辅助 + `ToolJsonRecordingTest` 语义比较 + 键序单独钉住）；**Go\* 21 → 17**；全量 4710 + spotlessCheck 绿。详见 15.1.1 |
 
 ### 15.1.1 执行记录（索引：正文已移出，按批号 Ctrl-F）
 
@@ -775,6 +776,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | ✅ B39（2026-10-03，档 3 第三刀：工具面 + 实录约束发现） | **✅ B39（2026-10-03，档 3 第三刀）**——`McpCatalog`/`TodoWriteTool`/`GoJsonUtil` 去 escapes + 两处测试侧清理；⚠️ 发现档 3 硬边界：**Go 形态实录（GoRecording*）无法重录**（录制源已下线 + 禁止手改）⇒ `EventJson`/`RecordingSupport` 的退役已回退（先立基线重建机制）；`GoJsonEscapes` 类暂不能删。全量 4713 + spotlessCheck 绿。 |
 | ✅ B40（2026-10-03，实录基线重建：GoJsonEscapes 全量退役） | **✅ B40（2026-10-03，实录基线重建）**——不改实录、改比对方式（`ContractJson.deep` 语义比较，B2 方针的收编）；`EventJson` 退役 + `EngineRecordingTest` 62 处 `assertRecording` + `ToolRegistryRecordingTest` 辅助归一 + **删 `GoJsonEscapes` 类**（零残留）；全量 4709 绿 + spotlessCheck 绿。剩余：`GoTimeSerializer.isGoZero`/`GoMapSerializer`/`GoJsonCodec` 等非 escapes 面。 |
 | ✅ B41（2026-10-03，provider JSON 四副本收敛 + 删零引用） | **✅ B41（2026-10-03，四副本收敛）**——`embedding/rerank/websearch/retrieval` 四份副本 → `common/web/ProviderJson`（超集）；删零引用 `GoFloatSerializer`；42 文件改写 + 20 补 import；**Go\* 26 → 21**；全量 4709 + spotlessCheck 绿。 |
+| ✅ B42（2026-10-03，档 3 第五刀：工具协议面） | **✅ B42（2026-10-03，工具协议面）**——`GoHtml`/`GoJsonValues` 改名（非 Go 语义）+ `GoJsonCodec`→`ToolJson`（去 HTML 转义、保键序）+ `GoQuoting`→`JsonQuoting`；`RecordingSupport.normalizeEscapes` + `ToolJsonRecordingTest`（语义比较 + 键序钉子）；**Go\* 21 → 17**；全量 4710 + spotlessCheck 绿。 |
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 

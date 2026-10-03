@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.ragagent.common.llm.ToolResult;
-import com.ragagent.common.web.GoJsonCodec;
+import com.ragagent.common.web.ToolJson;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.llm.domain.ChatTool;
@@ -34,7 +34,7 @@ import com.ragagent.common.retrieval.SearchResult;
  *
  * <p>JSON 字节语义：需要保原始字节的路径（MCP envelope、
  * 路由 enum、目录行）用 RawJson 扫描器保原始字节、按键序重组；走值级处理的
- * 路径（值级处理），数字按 double 语义经 GoJsonCodec 重编。</p>
+ * 路径（值级处理），数字按 double 语义经 ToolJson 重编。</p>
  */
 public final class Registry {
 
@@ -134,7 +134,7 @@ public final class Registry {
             addAll(unresolved, ToolPolicy.unresolvedPrivateToolHandles(this, call.getFunction().getName(), resolved));
             addAll(unresolved, decodedMCP.unresolved());
             call.setUnresolvedHandles(uniqueSorted(unresolved));
-            boolean changed = !GoJsonValues.jsonEquivalent(call.getModelArguments(), resolved);
+            boolean changed = !JsonValues.jsonEquivalent(call.getModelArguments(), resolved);
             if (changed && !call.getUnresolvedHandles().isEmpty()) {
                 call.setArgumentResolution(ARGUMENT_RESOLUTION_PARTIALLY_RESOLVED);
             } else if (!call.getUnresolvedHandles().isEmpty()) {
@@ -320,7 +320,7 @@ public final class Registry {
     /** 顶层对象的单字段改写；其余值原字节保留。 */
     static String rewriteMCPField(String raw, String key, java.util.function.UnaryOperator<String> rewrite) {
         String result = ToolPolicy.RawJson.rewriteRawObject(raw, key, rawValue -> {
-            JsonNode value = GoJsonValues.parse(rawValue);
+            JsonNode value = JsonValues.parse(rawValue);
             if (value == null || !value.isTextual()) {
                 return null;
             }
@@ -328,7 +328,7 @@ public final class Registry {
             if (rewritten.equals(value.asText())) {
                 return null;
             }
-            return new ToolPolicy.RawJson.Raw(GoJsonCodec.write(TextNode.valueOf(rewritten)));
+            return new ToolPolicy.RawJson.Raw(ToolJson.write(TextNode.valueOf(rewritten)));
         });
         return result != null ? result : raw;
     }
@@ -441,7 +441,7 @@ public final class Registry {
             if (entry == null) {
                 continue;
             }
-            String parametersText = def.getParameters() == null ? null : GoJsonCodec.write(def.getParameters());
+            String parametersText = def.getParameters() == null ? null : ToolJson.write(def.getParameters());
             Map<String, String> schema = ToolPolicy.RawJson.scanTopLevelObject(parametersText);
             if (schema == null || !schema.containsKey("properties")) {
                 continue;
@@ -463,7 +463,7 @@ public final class Registry {
             }
             // 替换 enum 后逐层按键序重组
             Map<String, String> fieldRewritten = new java.util.LinkedHashMap<>(field);
-            fieldRewritten.put("enum", GoJsonCodec.write(GoJsonValues.MAPPER.valueToTree(ids)));
+            fieldRewritten.put("enum", ToolJson.write(JsonValues.MAPPER.valueToTree(ids)));
             Map<String, String> propertiesRewritten = new java.util.LinkedHashMap<>(properties);
             propertiesRewritten.put(entry.key(), ToolPolicy.RawJson.marshalObject(fieldRewritten));
             Map<String, String> schemaRewritten = new java.util.LinkedHashMap<>(schema);
@@ -471,7 +471,7 @@ public final class Registry {
             String marshaled = ToolPolicy.RawJson.marshalObject(schemaRewritten);
             // FunctionDef.parameters 是 JsonNode：把编出文本保序解析回树，
             // 后续序列化保持同样的键序与数字形态
-            def.setParameters(GoJsonValues.parse(marshaled));
+            def.setParameters(JsonValues.parse(marshaled));
         }
         for (ChatTool tool : encoded) {
             FunctionDef def = tool.getFunction();
@@ -497,7 +497,7 @@ public final class Registry {
 
     /** 解码一个 JSON 字符串数组的原始文本；任何元素非字符串返回 null。 */
     static List<String> decodeStringArray(String raw) {
-        JsonNode node = GoJsonValues.parse(raw);
+        JsonNode node = JsonValues.parse(raw);
         if (node == null || !node.isArray()) {
             return null;
         }
@@ -564,7 +564,7 @@ public final class Registry {
         }
         // 只在用于找链接的草稿副本里解 JSON 字符串转义；外部正文与持久 ToolResult 不动
         String scanned = SourceRegistry.replaceAllFunc(MCP_JSON_STRING, output, token -> {
-            JsonNode value = GoJsonValues.parse(token);
+            JsonNode value = JsonValues.parse(token);
             if (value != null && value.isTextual()) {
                 return "\"" + value.asText() + "\"";
             }
@@ -575,7 +575,7 @@ public final class Registry {
         java.util.regex.Matcher m = MCP_URL.matcher(scanned);
         while (m.find()) {
             String match = m.group();
-            String rawURL = GoHtml.unescape(match);
+            String rawURL = HtmlEntities.unescape(match);
             rawURL = trimRight(rawURL, ".,;!?");
             // 剥 Markdown/prose 收尾定界符，保留平衡的 URL 括号（如 /wiki/Function_(mathematics)）
             for (String[] pair : new String[][] {{"(", ")"}, {"[", "]"}, {"{", "}"}}) {
