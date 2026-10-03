@@ -12,48 +12,46 @@ import javax.crypto.spec.SecretKeySpec;
 import com.ragagent.common.storage.StorageRuntimeEnv;
 
 /**
- * 存储 provider:// 路径的解析与校验工具（收尾批 W5c，对照 Go 三个源文件）：
+ * 存储 provider:// 路径的解析与校验工具：
  *
  * <ul>
- *   <li>{@code types/knowledgebase.go} 的 {@code ParseStorageBackendPath} /
- *       {@code ParseProviderScheme}；</li>
- *   <li>{@code types/resource.go} 的 {@code ParseResourcePath} / {@code BuildResourcePath}；</li>
- *   <li>{@code utils/presign.go} 的路径租户段校验族 + {@code VerifyFileURLSig}；</li>
- *   <li>{@code types/file_reference.go} 的 {@code ContainsStorageReference}。</li>
+ *   <li>{@code storage://} backend 包装路径与 provider scheme 解析；</li>
+ *   <li>{@code resource://} 手柄解析/构造；</li>
+ *   <li>路径租户段校验族 + 预签名 URL 签名（{@code verifyFileUrlSig}）；</li>
+ *   <li>存储引用识别（{@code containsStorageReference}）。</li>
  * </ul>
  *
- * <p>Go 侧 {@code router/files.go} 的 {@code parseStorageTarget} = 前两者：
- * {@code "backend://3/local://7/x.png" → ("3","local")}、{@code "cos://7/x.png" → ("","cos")}。</p>
+ * <p>{@code parseStorageTarget} = 前两者的组合：
+ * {@code "storage://3/local://7/x.png" → ("3","local")}、{@code "cos://7/x.png" → ("","cos")}。</p>
  */
 public final class StoragePaths {
 
     private StoragePaths() {
     }
 
-    /** 对照 Go {@code storageBackendScheme}（knowledgebase.go L11）。 */
+    /** {@code storage://} 前缀。 */
     public static final String STORAGE_BACKEND_SCHEME = "storage://";
-    /** 对照 Go {@code ResourceScheme} / {@code ResourceHandleLength}（resource.go L12-13）。 */
+    /** {@code resource://} 前缀与手柄长度。 */
     public static final String RESOURCE_SCHEME = "resource://";
     public static final int RESOURCE_HANDLE_LENGTH = 22;
 
-    /** 对照 Go ParseProviderScheme 的 provider 列表——<b>顺序有语义</b>（逐个前缀匹配）。 */
+    /** provider 列表——<b>顺序有语义</b>（逐个前缀匹配）。 */
     private static final String[] PROVIDERS = {"local", "minio", "cos", "tos", "s3", "oss", "ks3", "obs", "dummy"};
 
-    /** 对照 Go {@code kbScopedExportsSegment}（presign.go L109）。 */
+    /** KB 作用域 exports 段名。 */
     private static final String KB_SCOPED_EXPORTS_SEGMENT = "exports";
 
-    /** 对照 Go {@code presignPath}。 */
+    /** 预签名路由路径。 */
     public static final String PRESIGN_PATH = "/api/v1/files/presigned";
 
-    // ── provider / backend 解析（types/knowledgebase.go）────────────────────
+    // ── provider / backend 解析 ─────────────────────────────────────────────
 
-    /** 对照 Go {@code ParseStorageBackendPath}。 */
     public static boolean hasStorageBackendPrefix(String path) {
         return path != null && path.startsWith(STORAGE_BACKEND_SCHEME);
     }
 
     /**
-     * 对照 Go {@code ParseStorageBackendPath}：{@code storage://<id>/<providerPath>}。
+     * {@code storage://<id>/<providerPath>}。
      * 返回 (backendID, providerPath, ok) 三元组。
      */
     public static record ParsedBackendPath(String backendId, String providerPath, boolean ok) {
@@ -76,7 +74,7 @@ public final class StoragePaths {
         return new ParsedBackendPath(backendId, providerPath, true);
     }
 
-    /** 对照 Go {@code ParseProviderScheme}：先剥 backend 包装，再按固定顺序前缀匹配。 */
+    /** 先剥 backend 包装，再按固定顺序前缀匹配。 */
     public static String parseProviderScheme(String filePath) {
         String candidate = filePath == null ? "" : filePath;
         ParsedBackendPath parsed = parseStorageBackendPath(candidate);
@@ -91,7 +89,7 @@ public final class StoragePaths {
         return "";
     }
 
-    /** 对照 Go {@code router/files.go parseStorageTarget}：(backendID, provider) 二元组。 */
+    /** (backendID, provider) 二元组。 */
     public static record StorageTarget(String backendId, String provider) {
     }
 
@@ -104,13 +102,13 @@ public final class StoragePaths {
         return new StorageTarget(parsed.ok() ? parsed.backendId() : "", parseProviderScheme(providerPath));
     }
 
-    // ── resource:// 手柄（types/resource.go）────────────────────────────────
+    // ── resource:// 手柄 ────────────────────────────────────────────────────
 
     public static boolean isResourceHandleChar(char c) {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-';
     }
 
-    /** 对照 Go {@code ParseResourcePath}：合法时返回 handle，否则 null。 */
+    /** {@code resource://} 路径合法时返回 handle，否则 null。 */
     public static String parseResourcePath(String value) {
         if (value == null) {
             return null;
@@ -139,9 +137,9 @@ public final class StoragePaths {
         return RESOURCE_SCHEME + (handle == null ? "" : handle.trim());
     }
 
-    // ── 路径租户段校验（utils/presign.go）───────────────────────────────────
+    // ── 路径租户段校验 ──────────────────────────────────────────────────────
 
-    /** 对照 Go {@code unwrapStorageBackendPath}（presign.go L151-161）。 */
+    /** 剥掉 {@code storage://<id>/} 包装。 */
     static String unwrapStorageBackendPath(String filePath) {
         if (!hasStorageBackendPrefix(filePath)) {
             return filePath;
@@ -162,7 +160,7 @@ public final class StoragePaths {
         return new String[] {s.substring(0, idx), s.substring(idx + 1)};
     }
 
-    /** 对照 Go {@code ParseTenantIDFromStoragePath}：第一个可解析为无符号整数的段。 */
+    /** 取路径中第一个可解析为非负整数的段。 */
     public static long parseTenantIdFromStoragePath(String filePath) {
         String unwrapped = unwrapStorageBackendPath(filePath);
         int schemeEnd = unwrapped.indexOf("://");
@@ -177,13 +175,13 @@ public final class StoragePaths {
                     return id;
                 }
             } catch (NumberFormatException ignored) {
-                // Go 的 ParseUint 继续尝试下一段
+                // 解析失败继续尝试下一段
             }
         }
         return 0;
     }
 
-    /** 对照 Go {@code ValidateStoragePathTenant}：路径租户段缺失或不匹配 → 错误文案。 */
+    /** 路径租户段缺失或不匹配 → 错误文案。 */
     public static String validateStoragePathTenantError(String filePath, long tenantId) {
         long pathTenant = parseTenantIdFromStoragePath(filePath);
         if (pathTenant == 0) {
@@ -195,7 +193,7 @@ public final class StoragePaths {
         return null;
     }
 
-    /** 对照 Go {@code storagePathHasExportsScope}（presign.go L167-186）。 */
+    /** 路径是否落在该租户的 exports 命名空间内。 */
     static boolean storagePathHasExportsScope(String filePath, long tenantId) {
         String unwrapped = unwrapStorageBackendPath(filePath);
         int schemeEnd = unwrapped.indexOf("://");
@@ -219,7 +217,7 @@ public final class StoragePaths {
         return false;
     }
 
-    /** 对照 Go {@code ValidateKBScopedStoragePath}：错误文案或 null。 */
+    /** KB 作用域校验：错误文案或 null。 */
     public static String validateKbScopedStoragePathError(String filePath, long tenantId) {
         String base = validateStoragePathTenantError(filePath, tenantId);
         if (base != null) {
@@ -231,10 +229,10 @@ public final class StoragePaths {
         return null;
     }
 
-    // ── presign 签名（utils/presign.go）─────────────────────────────────────
+    // ── presign 签名 ────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code SystemHMACKey}：env {@code SYSTEM_AES_KEY} 少于 16 字节视为
+     * env {@code SYSTEM_AES_KEY} 少于 16 字节视为
      * "本部署不能签名"（返回 null，不是空 key）。
      */
     public static byte[] systemHmacKey() {
@@ -245,7 +243,7 @@ public final class StoragePaths {
         return key.getBytes(StandardCharsets.UTF_8);
     }
 
-    /** 对照 Go {@code signPayload}：HMAC-SHA256(canonical payload) 的 hex。 */
+    /** HMAC-SHA256(canonical payload) 的 hex。 */
     public static String signPayload(byte[] key, String filePath, long tenantId, long expires) {
         String payload = "file_path=" + filePath + "&tenant_id=" + tenantId + "&expires=" + expires;
         try {
@@ -264,7 +262,7 @@ public final class StoragePaths {
     }
 
     /**
-     * 对照 Go {@code VerifyFileURLSig}：签名有效且未过期 → true。key 未配置 /
+     * 签名有效且未过期 → true。key 未配置 /
      * expires 非整数 / 已过期 / 签名不等（常数时间比较）→ false。
      */
     public static boolean verifyFileUrlSig(String filePath, long tenantId, String expiresStr, String sig) {
@@ -287,21 +285,21 @@ public final class StoragePaths {
                 (sig == null ? "" : sig).getBytes(StandardCharsets.UTF_8));
     }
 
-    // ── 存储引用识别（types/file_reference.go）──────────────────────────────
+    // ── 存储引用识别 ────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code StorageReferencePattern}。Go 的 RE2 写法原样搬：
+     * 存储引用形态：
      * {@code \b(?:resource://[0-9A-Za-z_-]+|(?:storage://[0-9A-Za-z_-]+/)?(?:local|minio|s3|cos|tos|oss|obs|ks3)://[^\s)\]>"]+)}
      *
-     * <p>已知保留差异（同 storageurl 包的 §9 备案）：Java 的 {@code \s} 含
-     * {@code \x0B}、RE2 不含——URL 里出现垂直制表符不可能，不为此偏离 Go 写法。</p>
+     * <p>已知保留差异：Java 的 {@code \s} 多含 {@code \x0B}——URL 里出现垂直制表符
+     * 不可能，不为此收窄写法。</p>
      */
     private static final Pattern STORAGE_REFERENCE_PATTERN = Pattern.compile(
             "\\b(?:resource://[0-9A-Za-z_-]+|(?:storage://[0-9A-Za-z_-]+/)?"
                     + "(?:local|minio|s3|cos|tos|oss|obs|ks3)://[^\\s)\\]>\"]+)");
 
     /**
-     * 对照 Go {@code ContainsStorageReference}：整 token 相等才算命中；text 以
+     * 整 token 相等才算命中；text 以
      * {@code [ {"} 开头时先按 JSON 解码再递归（防嵌套 JSON 字符串的转义掩护）。
      */
     public static boolean containsStorageReference(String text, String reference) {
@@ -352,7 +350,7 @@ public final class StoragePaths {
 
     // ── 部署环境 ────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code files.go localStorageBaseDir}：启动期快照缺省 /data/files。 */
+    /** 启动期快照，缺省 /data/files。 */
     public static String localStorageBaseDir() {
         String baseDir = StorageRuntimeEnv.localStorageBaseDir();
         if (baseDir == null || baseDir.trim().isEmpty()) {
@@ -361,12 +359,12 @@ public final class StoragePaths {
         return baseDir.trim();
     }
 
-    /** 对照 Go {@code localStorageAbsDir}。 */
+    /** 本地存储根的绝对路径形态。 */
     public static String localStorageAbsDir() {
         return Path.of(localStorageBaseDir()).toAbsolutePath().normalize().toString();
     }
 
-    /** 对照 Go {@code resolve_tenant.go} 的全局 STORAGE_TYPE 读取（缺省 local，小写化）。 */
+    /** 全局 STORAGE_TYPE 读取（缺省 local，小写化）。 */
     public static String globalStorageType() {
         String t = StorageRuntimeEnv.storageType();
         if (t == null || t.trim().isEmpty()) {

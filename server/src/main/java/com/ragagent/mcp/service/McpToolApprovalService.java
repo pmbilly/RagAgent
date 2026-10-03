@@ -11,8 +11,7 @@ import com.ragagent.mcp.mapper.McpToolApprovalRepository;
 import org.springframework.stereotype.Service;
 
 /**
- * 逐工具审批/启用策略的业务层（对照 Go internal/application/service/
- * mcp_tool_approval_service.go）。
+ * 逐工具审批/启用策略的业务层。
  *
  * <p>三条不能被"优化"掉的语义：</p>
  * <ol>

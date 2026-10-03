@@ -19,8 +19,7 @@ import com.ragagent.session.domain.TemporaryDocument;
 import com.ragagent.session.mapper.TemporaryDocumentRepository;
 
 /**
- * ResolveForPrompt + 图片落地（对照 Go temporary_document.go L597-705 与
- * image_resolver.go 的 docreader 分支）的行为验收。
+ * ResolveForPrompt + 图片落地（含 docreader 图片分支）的行为验收。
  *
  * <p>用真 {@link AttachmentFileStore}（临时目录）验图片落盘与 URL 形态，
  * 仓库/docreader 用 Mockito stub（无 DB 依赖）。</p>
@@ -28,7 +27,7 @@ import com.ragagent.session.mapper.TemporaryDocumentRepository;
 class TemporaryDocumentResolveForPromptTest {
 
     // 入口 resolveForPrompt 与 PromptResult/AttachmentResolveException 在门面；
-    // 选块/图片/词元等纯函数已随切片移到 TemporaryDocumentPromptResolver（§14 步骤 2）。
+    // 选块/图片/词元等纯函数在 TemporaryDocumentPromptResolver。
 
 
     private static final long TENANT = 1L;
@@ -53,7 +52,7 @@ class TemporaryDocumentResolveForPromptTest {
         return service;
     }
 
-    /** 图片落盘路径的探针：切片后由协作者承载（同 §14 步骤 2 的切片口径）。 */
+    /** 图片落盘路径的探针：逻辑在协作者 {@code TemporaryDocumentProcessor}。 */
     private TemporaryDocumentProcessor processor() {
         service(); // 确保 fileStore（真实落盘目录）已建
         return new TemporaryDocumentProcessor(repo, fileStore, docReader,
@@ -309,7 +308,7 @@ class TemporaryDocumentResolveForPromptTest {
 
     @Test
     void tileImageIsFilteredForNonImageDocument() {
-        // 非图片来源文档 + 48x48 小图 → 图标过滤（对照 Go isIconImage）
+        // 非图片来源文档 + 48x48 小图 → 图标过滤
         byte[] icon = pngBytes(48, 48);
         TemporaryDocument doc = document("d1", "report.pdf", ".pdf", TemporaryDocument.STATUS_READY,
                 "", "[]", 0, "[]");
@@ -325,7 +324,7 @@ class TemporaryDocumentResolveForPromptTest {
 
     @Test
     void smallImageOfImageDocumentIsKept() {
-        // 图片型附件不过滤（对照 Go SimpleFormatReader 的 IsOriginal 语义）
+        // 图片型附件不过滤（保留原图）
         byte[] small = pngBytes(32, 32);
         TemporaryDocument doc = document("d1", "tiny.png", ".png", TemporaryDocument.STATUS_READY,
                 "", "[]", 0, "[]");
@@ -341,7 +340,7 @@ class TemporaryDocumentResolveForPromptTest {
     @Test
     void localUrlResolvesToDataUriForVisionModels() {
         // 最后一公里：LLM 发送前把 local:// 手柄读成字节并转 base64 data URI
-        // （对照 Go resolveImageURLForLLM；装配路径见 ChatLocalImageResolverWiring）
+        // （装配路径见 ChatLocalImageResolverWiring）
         service();
         byte[] png = pngBytes(64, 64);
         String url = fileStore.saveBytes(png, TENANT, "probe.png");
@@ -388,7 +387,7 @@ class TemporaryDocumentResolveForPromptTest {
 
     @Test
     void queryTermsSplitWordsAndHanBigrams() {
-        // 空白/标点切出的整段（连续汉字不切）+ 相邻汉字二元组（对照 Go temporaryDocumentQueryTerms）
+        // 空白/标点切出的整段（连续汉字不切）+ 相邻汉字二元组
         assertThat(TemporaryDocumentPromptResolver.queryTerms("deployment 图表的说明"))
                 .containsExactly("deployment", "图表的说明", "图表", "表的", "的说", "说明");
         assertThat(TemporaryDocumentPromptResolver.queryTerms("a 图")).isEmpty(); // 单字词与单字汉字不成词

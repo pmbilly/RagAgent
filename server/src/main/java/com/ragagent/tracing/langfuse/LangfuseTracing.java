@@ -4,9 +4,7 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.common.context.TracingContext;
 
 /**
- * 观测上下文的注入/续接门面（对照 Go internal/tracing/langfuse 的
- * {@code InjectTracing} / {@code TraceparentFromContext} / {@code AttachTraceparent}
- * 三函数，asynq.go L28-48 + context.go L49-85）。
+ * 观测上下文的注入/续接门面。
  *
  * <p>用途一（入队侧）：{@link #inject()} 把当前 span 的 traceparent 打进
  * {@link TracingContext}，随任务负载落库/进队列。</p>
@@ -14,16 +12,16 @@ import com.ragagent.common.context.TracingContext;
  * 或 {@link #attachTraceparent(String)} 在本进程内续接（如后续 HTTP 请求处理
  * 早先请求派生的活）。</p>
  *
- * <p><b>已知差异（备案）</b>：Go 的 traceparent 由 OTel propagator 从 ctx 注入，
- * 采样位反映实际采样决策（{@code LANGFUSE_SAMPLE_RATE}）；Java 侧渲染器未实现
- * 采样决策（恒采样），故 flag 恒为 {@code 01}。默认 sampleRate=1.0 时与 Go 一致。</p>
+ * <p><b>已知差异（备案）</b>：采样位未反映实际采样决策
+ * （{@code LANGFUSE_SAMPLE_RATE}）；渲染器恒采样，故 flag 恒为 {@code 01}。
+ * 默认 sampleRate=1.0 时与真实采样语义一致。</p>
  */
 public final class LangfuseTracing {
 
     private LangfuseTracing() {
     }
 
-    /** 对照 InjectTracing：未启用/无活跃 span → 全空载体（照 Go 的零值语义，零成本）。 */
+    /** 未启用/无活跃 span → 全空载体（零成本）。 */
     public static TracingContext inject() {
         if (!LangfuseManager.get().enabled()) {
             return TracingContext.EMPTY;
@@ -37,7 +35,7 @@ public final class LangfuseTracing {
                 sessionLabel());
     }
 
-    /** 对照 TraceparentFromContext：当前 span 的 W3C traceparent（无 → ""）。 */
+    /** 当前 span 的 W3C traceparent（无 → 空串）。 */
     public static String traceparentFromContext() {
         if (!LangfuseManager.get().enabled()) {
             return "";
@@ -55,7 +53,7 @@ public final class LangfuseTracing {
     }
 
     /**
-     * 对照 AttachTraceparent：本进程内续接（已有活跃 trace 时**不动**，
+     * 本进程内续接（已有活跃 trace 时**不动**，
      * 不把本地活的父节点换成远端父）；traceparent 非法 → 静默忽略。
      */
     public static void attachTraceparent(String traceparent) {
@@ -69,7 +67,7 @@ public final class LangfuseTracing {
     }
 
     /**
-     * worker 侧续接（对照 AsynqMiddleware 的 extract 路径）。
+     * worker 侧续接（从任务载荷提取 traceparent 还原上下文）。
      *
      * @return 是否成功续接（false = 无上游/非法/未启用 → 调用方开独立根）
      */
@@ -80,7 +78,7 @@ public final class LangfuseTracing {
         return resumeFromTraceparent(tracing.traceparent());
     }
 
-    /** 对照 userIDFromCtx：显式用户 id → {@code tenant:<id>} → ""。 */
+    /** 用户标识：显式用户 id → {@code tenant:<id>} → ""。 */
     public static String userLabel() {
         String userId = TenantContext.currentUserId();
         if (userId != null && !userId.isEmpty()) {
@@ -93,13 +91,13 @@ public final class LangfuseTracing {
         return "";
     }
 
-    /** 对照 sessionIDFromCtx：request id 兜底（同一逻辑任务的重试归到一组）。 */
+    /** session 标识：request id 兜底（同一逻辑任务的重试归到一组）。 */
     public static String sessionLabel() {
         String requestId = TenantContext.currentRequestId();
         return requestId == null ? "" : requestId;
     }
 
-    /** 拼 W3C traceparent（缺 id → ""，对照 OTel 的 IsValid 语义）。 */
+    /** 拼 W3C traceparent（缺 id → ""，非法 id 不拼接）。 */
     static String traceparentOf(LangfuseContext.Frame frame) {
         if (frame == null || frame.traceIdHex().isEmpty() || frame.spanIdHex().isEmpty()) {
             return "";
@@ -117,7 +115,7 @@ public final class LangfuseTracing {
         return true;
     }
 
-    /** 首个非空（对照 Go 的 firstNonEmptyString）。 */
+    /** 首个非空。 */
     static String firstNonEmpty(String... values) {
         for (String v : values) {
             if (v != null && !v.isEmpty()) {

@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.LiteLLMProvider（litellm.go）。
+ * LiteLLM 网关。
  *
  * LiteLLM（https://github.com/BerriAI/litellm）暴露单一 OpenAI 兼容端点，背后路由到 100+
  * 厂商（OpenAI/Anthropic/Gemini/Bedrock/Vertex/Azure/...），故与其它网关型 provider 一样接

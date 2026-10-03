@@ -3,7 +3,7 @@ package com.ragagent.common.deployment;
 import java.util.function.Function;
 
 /**
- * 应用级 env 查找面（B6 批 10，收尾兜底）。
+ * 应用级 env 查找面。
  *
  * <p>此前各域已就位：存储（{@code StorageEnvLookup}）、检索（{@code RetrievalEnvLookup}）、
  * 以及启动期快照（{@code RuntimeSnapshotWiring} 装的语言/上传限额/AES/SSRF）。本类收编**剩余

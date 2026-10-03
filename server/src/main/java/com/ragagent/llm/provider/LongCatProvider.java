@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.LongCatProvider（longcat.go）：美团 LongCat AI。
+ * 美团 LongCat AI。
  */
 public class LongCatProvider implements Provider {
 

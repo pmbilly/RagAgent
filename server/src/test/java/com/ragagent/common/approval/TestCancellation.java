@@ -5,7 +5,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 测试用取消信号（Go 侧对应 {@code context.WithCancel} 的 ctx）。
+ * 测试用取消信号（{@link Cancellation} 的可手动触发实现）。
  */
 class TestCancellation implements Cancellation {
 
@@ -20,7 +20,7 @@ class TestCancellation implements Cancellation {
     @Override
     public AutoCloseable onCancel(Runnable action) {
         if (cancelled.get()) {
-            // 对照 Go：已取消的 ctx，select 会立刻走 ctx.Done() 分支
+            // 已取消时注册的回调立即执行
             action.run();
             return () -> {
             };
@@ -29,7 +29,7 @@ class TestCancellation implements Cancellation {
         return () -> actions.remove(action);
     }
 
-    /** 对照 Go {@code cancel()}：触发一次（重复调用无副作用） */
+    /** 触发一次（重复调用无副作用） */
     void cancel() {
         if (cancelled.compareAndSet(false, true)) {
             for (Runnable action : actions) {

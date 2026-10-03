@@ -28,7 +28,7 @@ final class MergeParentOps {
     }
 
     // ------------------------------------------------------------------
-    // merge.go：resolveParentChunks（text→parent / image→text→grandparent）
+    // 父块解析（text→parent / image→text→grandparent）
     // ------------------------------------------------------------------
 
     List<SearchResult> resolveParentChunks(ChatManage chatManage, List<SearchResult> results) {
@@ -202,7 +202,6 @@ final class MergeParentOps {
     }
 
 
-    /** 对照 collectScopedTextChildIDs。 */
     static List<String> collectScopedTextChildIds(List<SearchResult> results, Map<String, Chunk> parentMap) {
         Map<String, Boolean> seen = new LinkedHashMap<>();
         List<String> ids = new ArrayList<>();
@@ -236,7 +235,7 @@ final class MergeParentOps {
     }
 
 
-    /** 对照 assignScopedImageInfo：per-child image_info 优先，回落按内容 URL 过滤。 */
+    /** per-child image_info 优先，回落按内容 URL 过滤。 */
     static void assignScopedImageInfo(SearchResult r, Map<String, String> scoped, String textChildId) {
         if (scoped != null) {
             String info = scoped.get(textChildId);
@@ -251,14 +250,14 @@ final class MergeParentOps {
     }
 
 
-    /** 对照 searchutil.CollectImageInfoByChunkIDs（聚合器在本包 ImageInfoCollector）。 */
+    /** 聚合器在 {@link ImageInfoCollector}。 */
     Map<String, String> collectImageInfoByChunkIds(long tenantId, List<String> chunkIds) {
         return ImageInfoCollector.collect(service.chunkRepo, tenantId, chunkIds);
     }
 
 
     // ------------------------------------------------------------------
-    // merge_expand.go：短上下文邻居扩展
+    // 短上下文邻居扩展
     // ------------------------------------------------------------------
 
     List<SearchResult> expandShortContextWithNeighbors(ChatManage chatManage, List<SearchResult> results) {
@@ -412,7 +411,7 @@ final class MergeParentOps {
                     fetchChunksIfMissing(tenantId, chunkMap, prevCursor);
                     Chunk prevChunk = chunkMap.get(prevCursor);
                     if (prevChunk != null && prevChunk.getKnowledgeId().equals(baseChunk.getKnowledgeId())) {
-                        // Go: prevContent = JoinChunkContent(prevChunk.Content, prevContent, "\n\n")
+                        // 前块内容前接（带重叠折叠，\n\n 连接）
                     prevContent = new StringBuilder(
                             ChunkSearchUtil.joinChunkContent(prevChunk.getContent(), prevContent.toString(), "\n\n"));
                         prevIDs.add(0, prevChunk.getId());
@@ -433,7 +432,7 @@ final class MergeParentOps {
                     fetchChunksIfMissing(tenantId, chunkMap, nextCursor);
                     Chunk nextChunk = chunkMap.get(nextCursor);
                     if (nextChunk != null && nextChunk.getKnowledgeId().equals(baseChunk.getKnowledgeId())) {
-                        // Go: nextContent = JoinChunkContent(nextContent, nextChunk.Content, "\n\n")
+                        // 后块内容后接（带重叠折叠，\n\n 连接）
                         nextContent = new StringBuilder(
                                 ChunkSearchUtil.joinChunkContent(nextContent.toString(), nextChunk.getContent(), "\n\n"));
                         nextIDs.add(nextChunk.getId());

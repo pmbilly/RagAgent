@@ -10,7 +10,7 @@ import java.util.List;
  *
  * <p><b>纯进程内参数对象</b>：字段在 {@link WikiIngestEnqueueOps#enqueueWikiRetract}
  * 里被摊平进 {@link WikiPendingOp} 落库、追踪载体进 {@link WikiIngestPayload} 进队列，
- * 本对象自身从不序列化（原 Go 时代的 json 注解已摘除）。</p>
+ * 本对象自身从不序列化。</p>
  */
 public record WikiRetractPayload(
         long tenantId,

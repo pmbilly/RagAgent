@@ -5,8 +5,7 @@ import java.util.Map;
 
 
 /**
- * PUT {@code /{resource}/{id}/credentials} 的共享响应（对照 Go dto.CredentialsResponse，
- * internal/handler/dto/mcp.go:176-182）。
+ * PUT {@code /{resource}/{id}/credentials} 的共享响应。
  *
  * <p>按字段名（{@code apiKey} / {@code token}）索引；前端据此在不重新拉取整个资源的前提下
  * 更新内存中的元数据。{@code fields} 无 omitempty → 恒输出；
@@ -14,7 +13,7 @@ import java.util.Map;
  */
 public record CredentialsResponse( Map<String, CredentialFieldMetadata> fields) {
 
-    /** 键名＝凭据字段名（{@code apiKey} / {@code token}，§14.9n M1 后 camelCase）。 */
+    /** 键名＝凭据字段名（{@code apiKey} / {@code token}）。 */
     public static CredentialsResponse of(boolean apiKeyConfigured, boolean tokenConfigured) {
         Map<String, CredentialFieldMetadata> fields = new LinkedHashMap<>();
         fields.put("apiKey", new CredentialFieldMetadata(apiKeyConfigured));

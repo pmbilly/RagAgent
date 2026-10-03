@@ -6,8 +6,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 抽取游标：用消息主键**打破时间戳平局**
- * （对照 Go {@code types.MemoryMessageCursor}，internal/types/memory_extraction.go L15-22）。
+ * 抽取游标：用消息主键**打破时间戳平局**。
  *
  * <p>纯值对象，不落表。它出现在
  * {@link MemoryExtractionSession#getCursor()} 的嵌套 JSON 里，
@@ -30,7 +29,7 @@ public class MemoryMessageCursor {
     }
 
     /**
-     * 对照 Go {@code After}：{@code c.At.After(other.At) || (c.At.Equal(other.At) && c.ID > other.ID)}。
+     * 排序比较：先比 {@code at}，相等时用 {@code id} 打破平局。
      *
      * <p>方法名刻意不带 {@code is}/{@code get} 前缀——Jackson 不会把它当属性（§7.5 第 2 条）。</p>
      */
@@ -42,7 +41,7 @@ public class MemoryMessageCursor {
     }
 
     /**
-     * 对照 Go 的 {@code progress.FailedFrom.At.Equal(progress.Cursor.At)}。
+     * {@code at} 与给定时刻是否同一瞬间（按 instant 相等比较）。
      *
      * <p>名字**刻意**不用 {@code isXxx} 形式：那正是 §7.5 第 2 条的坑
      * （Jackson 会把零参 {@code isXxx()} 当属性名 {@code xxx} 写出去）。

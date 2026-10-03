@@ -14,9 +14,8 @@ import com.ragagent.storage.service.ResourceCatalogService;
 /**
  * AgentWebPages（agent 抓取页 web:// 快照）的生产装配。
  *
- * <p>沙箱产物排水器（ArtifactCollector）随沙箱裁剪退役；本类只剩进程级字节落盘
- * 面与 web_page 绑定面——对照 Go {@code initFileService}（全局
- * {@code resourceCatalogFileService}）。</p>
+ * <p>沙箱产物排水器随沙箱裁剪退役；本类只剩进程级字节落盘
+ * 面与 web_page 绑定面。</p>
  */
 @Component
 public class ArtifactCollectorWiring {
@@ -38,7 +37,7 @@ public class ArtifactCollectorWiring {
 
     private WritableFileContentService globalStorage;
 
-    /** 进程级装饰服务（对照 Go initFileService；lazy：避免装配期碰文件系统）。 */
+    /** 进程级装饰服务（lazy：避免装配期碰文件系统）。 */
     public synchronized WritableFileContentService globalStorage() {
         if (globalStorage == null) {
             globalStorage = resolver.globalFileService(localBaseDir);
@@ -59,8 +58,8 @@ public class ArtifactCollectorWiring {
 
             @Override
             public byte[] readFile(String reference) throws Exception {
-                // 装饰服务内置 resource:// 解析 + local:// 归一（Go 的 inner.GetFile 链）；
-                // 三形态通吃（流形态读完即关）——Go 侧此处也是 io.ReadAll
+                // 装饰服务内置 resource:// 解析 + local:// 归一；
+                // 三形态通吃（流形态读完即关），整读为字节
                 return globalStorage().getFile(reference).readAllBytes();
             }
 

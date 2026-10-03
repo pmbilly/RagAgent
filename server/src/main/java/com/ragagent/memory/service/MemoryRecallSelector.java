@@ -16,9 +16,7 @@ import com.ragagent.memory.domain.MemoryVectorHit;
 import org.springframework.stereotype.Component;
 
 /**
- * 一轮召回的排序与选取（对照 Go
- * {@code internal/application/service/memory/recall_trace.go} 全文 +
- * {@code search.go} 的 {@code lexicalPoolSize}）。
+ * 一轮召回的排序与选取。
  *
  * <h2>两个排序，刻意不对称</h2>
  * <p>字面那个给传进来的候选池打分；语义那个是对这个主体**每一个**向量做的查找，
@@ -43,7 +41,7 @@ public class MemoryRecallSelector {
     // ── 候选池上限 ─────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code lexicalPoolSize}：字面排序扫多少条已存记忆。
+     * 字面排序扫多少条已存记忆。
      *
      * <p>它就是工作区的容量上限，也就是一个主体最多能持有的活跃记忆数——
      * 于是这个池子不再是压在容量上限下面的第二道隐形上限。它以前是固定的 400，
@@ -59,10 +57,9 @@ public class MemoryRecallSelector {
     // ── 追踪 ───────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code recallRankingTrace}：一轮的情境条目是怎么排出来的。
+     * 一轮的情境条目是怎么排出来的。
      *
-     * <p>可变类而不是 record：Go 是一路填字段，Java 照抄能让
-     * {@code selectRecallWithTrace} 的分支结构与 Go 逐行对应。</p>
+     * <p>可变类而不是 record：排序过程一路填字段，最后整体读出。</p>
      */
     public static final class RankingTrace {
         public int lexicalHits;
@@ -79,7 +76,7 @@ public class MemoryRecallSelector {
     }
 
     /**
-     * 对照 Go {@code recallSelection}：一次排序请求。
+     * 一次排序请求。
      *
      * <p>用结构体而不是参数表，是因为两个调用方差的远不止预算：按需查找可以返回任何种类、
      * 也没有要排除的东西；而一轮召回限定在情境种类上，并且不能重复打印常驻块已经印过的。
@@ -89,12 +86,12 @@ public class MemoryRecallSelector {
                             Set<String> excludeIds, int maxItems, int runeBudget) {
     }
 
-    /** {@link #selectRecallWithTrace} 的结果（对照 Go 的双返回值）。 */
+    /** {@link #selectRecallWithTrace} 的结果。 */
     public record Outcome(List<MemoryItem> matched, RankingTrace trace) {
     }
 
     /**
-     * 对照 Go {@code vectorFanout}：向存储要多少条语义命中，相对于能返回多少条。
+     * 向存储要多少条语义命中，相对于能返回多少条。
      *
      * <p>比输出宽，是因为融合需要有东西可融：只有向量一侧喜欢的条目必须能跟字面排序竞争，
      * 而 rune 预算也可能跳过好几条长条目才找到放得下的。四倍输出加一个下限，
@@ -105,12 +102,12 @@ public class MemoryRecallSelector {
         return Math.max(limit, 20);
     }
 
-    /** {@link #mergeVectorHits} 的结果（对照 Go 的三返回值）。 */
+    /** {@link #mergeVectorHits} 的结果。 */
     public record MergedHits(List<Integer> ranking, List<MemoryItem> pool, int added) {
     }
 
     /**
-     * 对照 Go {@code mergeVectorHits}：把语义命中变成候选池上的一次排序，
+     * 把语义命中变成候选池上的一次排序，
      * 并把池子**撑大**到装下它原先没有的那些匹配。
      *
      * <p>池子必须能长大，否则整个"查存储"的意义就丢了：融合要合成的两个排序必须
@@ -162,7 +159,7 @@ public class MemoryRecallSelector {
     }
 
     /**
-     * 对照 Go {@code selectRecallWithTrace}：把记忆对着查询排序，返回符合预算的最好的那些。
+     * 把记忆对着查询排序，返回符合预算的最好的那些。
      */
     public Outcome selectRecallWithTrace(MemoryScope scope, MemoryConfig cfg, Selection req) {
         RankingTrace trace = new RankingTrace();
@@ -213,19 +210,19 @@ public class MemoryRecallSelector {
         return new Outcome(matched, trace);
     }
 
-    /** 对照 Go {@code recallQueryPreviewRunes}。 */
+    /** 查询预览的 rune 上限。 */
     static int recallQueryPreviewRunes() {
         return 500;
     }
 
     // ── 常驻兴趣的拆分与选取 ───────────────────────────────────────────────
 
-    /** {@link #splitResidentInterests} 的结果（对照 Go 的双返回值）。 */
+    /** {@link #splitResidentInterests} 的结果。 */
     public record Split(List<MemoryItem> others, List<MemoryItem> interests) {
     }
 
     /**
-     * 对照 Go {@code splitResidentInterests}：把兴趣从常驻集合里分出来，
+     * 把兴趣从常驻集合里分出来，
      * 两者处置不同——其它是无条件注入的，兴趣有上限。
      */
     public static Split splitResidentInterests(List<MemoryItem> items) {
@@ -246,12 +243,12 @@ public class MemoryRecallSelector {
         return new Split(others, interests);
     }
 
-    /** {@link #selectResidentInterests} 的结果（对照 Go 的双返回值）。 */
+    /** {@link #selectResidentInterests} 的结果。 */
     public record Selected(List<MemoryItem> selected, List<MemoryItem> relevant) {
     }
 
     /**
-     * 对照 Go {@code selectResidentInterests}：挑选哪些兴趣进常驻块。
+     * 挑选哪些兴趣进常驻块。
      *
      * <p>匹配只走字面。语义那趟需要一次查询嵌入，而为了这么短的一个列表
      * （条目还是话题标签，相关的问题通常直接点名）付一次模型往返，不值得加到每一轮的前面。</p>

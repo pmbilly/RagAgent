@@ -32,16 +32,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * OpenAI 兼容 API 的聊天客户端（对照 Go internal/models/chat/remote_api.go 的
- * {@code RemoteAPIChat}，以及 openai_request.go / openai_stream.go 的请求构造与流式状态机）。
+ * OpenAI 兼容 API 的聊天客户端。
  *
- * <p>职责分界与 Go 一致：本类只做通用的请求/响应/流式处理，所有厂商特有行为交给
+ * <p>职责分界：本类只做通用的请求/响应/流式处理，所有厂商特有行为交给
  * {@link ProviderAdapter}（见 {@link ProviderAdapters}），thinking 编码交给
  * {@link ThinkingStrategy}。</p>
  *
- * <p><b>Java 侧简化（已决策，见 ProviderAdapter 类注释）</b>：Go 的「go-openai SDK 路径 vs 裸 HTTP 路径」
- * 双实现合并为一条——请求体统一由 Jackson {@link ObjectNode} 组装后直接 POST。因此
- * {@code useRawHTTP}/{@code ForceRawHTTP} 的判定消失，出站流水线固定为：</p>
+ * <p><b>单一出站路径（见 ProviderAdapter 类注释）</b>：请求体统一由 Jackson
+ * {@link ObjectNode} 组装后直接 POST。出站流水线固定为：</p>
  * <ol>
  *   <li>{@link #convertMessages} 转消息 → {@code adapter.transformMessages} 改写；</li>
  *   <li>{@link #buildChatCompletionRequest} 组装标准 OpenAI 请求体（含采样参数与完成预算）；</li>
@@ -52,20 +50,20 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code adapter.auth} 设鉴权头，追加自定义头与缓存亲和头；发请求，流式走 {@link SseReader}。</li>
  * </ol>
  *
- * <p><b>与 Go 的两处已知差异（需主会话知悉，见报告）</b>：</p>
+ * <p><b>两点实现说明</b>：</p>
  * <ol>
- *   <li>Azure OpenAI 在 Go 里走 SDK，URL 由 go-openai 的 {@code fullURL} 拼成
- *       {@code <base>/openai/deployments/<model>/chat/completions?api-version=...}；
- *       Java 单路径必须自己拼（见 {@link #resolveEndpoint}），api-version 取
+ *   <li>Azure OpenAI 的 URL 拼成
+ *       {@code <base>/openai/deployments/<model>/chat/completions?api-version=...}
+ *       （见 {@link #resolveEndpoint}），api-version 取
  *       {@code extra_config.api_version}，缺省 {@value #DEFAULT_AZURE_API_VERSION}
- *       （= go-openai DefaultAzureConfig 的默认值）。</li>
+ *       （与 openai-go DefaultAzureConfig 的默认值一致）。</li>
  *   <li>流结束（EOF / {@code data: [DONE]}）的终态 answer 带上 {@code finish_reason}
- *       （Go 裸 HTTP 路径不带、SDK 路径带；按主会话指定的合并语义取后者）。</li>
+ *       （取 SDK 路径的语义）。</li>
  * </ol>
  *
  * <p>超时：{@link LlmTransport#withLlmTimeout} 只在调用方未给 deadline 时套兜底值。
  * Java 侧把超时施加在请求头阶段（JDK 的 {@code HttpRequest.timeout}），流式响应体读取过程中
- * 不像 Go 的 ctx 那样会被 deadline 掐断——长流依赖上游自行收尾。</p>
+ * 不会因 deadline 中断——长流依赖上游自行收尾。</p>
  */
 public class RemoteApiChat implements LlmChatClient {
 
@@ -73,14 +71,14 @@ public class RemoteApiChat implements LlmChatClient {
 
     static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 Go remote_api.go 的 remote_model_name / api_version 两个 extra_config 键。 */
+    /** extra_config 键：remote_model_name / api_version。 */
     private static final String EXTRA_REMOTE_MODEL_NAME = "remote_model_name";
     private static final String EXTRA_API_VERSION = "api_version";
 
-    /** go-openai DefaultAzureConfig 的默认 api-version（Go 走 SDK 时由它兜底）。 */
+    /** Azure 缺省 api-version（与 openai-go DefaultAzureConfig 一致）。 */
     static final String DEFAULT_AZURE_API_VERSION = "2023-05-15";
 
-    /** 日志里 data URL 的预览长度与整行上限（对照 log_sanitize.go）。 */
+    /** 日志里 data URL 的预览长度与整行上限。 */
     private static final int MAX_DATA_URL_PREVIEW = 128;
     private static final int MAX_LOG_CHARS = 2000;
     private static final Pattern DATA_URL_PATTERN =
@@ -90,36 +88,36 @@ public class RemoteApiChat implements LlmChatClient {
     private final String modelId;
     private final String baseUrl;
     final String apiKey;
-    /** provider 名；未知厂商（Go 允许任意字符串，Java 枚举表达不了）为 null = Go 的 default 分支。 */
+    /** provider 名；未知厂商为 null，调用方需判空。 */
     final ProviderName provider;
     final String appId;
     final String appSecret;
     /** 用户在模型配置里指定的自定义 HTTP 头（类 OpenAI Python SDK 的 extra_headers）。 */
     final Map<String, String> customHeaders;
-    /** 仅 Azure 使用：URL 上的 api-version（对照 go-openai config.APIVersion）。 */
+    /** 仅 Azure 使用：URL 上的 api-version。 */
     private final String azureApiVersion;
 
-    /** 承载全部厂商特有行为；非 final 以便测试注入（对照 Go 测试直接改 c.adapter）。 */
+    /** 承载全部厂商特有行为；非 final 以便测试注入。 */
     private ProviderAdapter adapter;
     /** 来自 extra_config.thinking_control，非 null 时覆盖 adapter.thinking()。 */
     private final ThinkingStrategy thinkingOverride;
 
-    /** 响应解析协作者（对照 openai_stream.go 前半）。 */
+    /** 响应解析协作者。 */
     final RemoteApiResponseOps responseOps;
 
-    /** 流式解析协作者（对照 openai_stream.go 流式段）。 */
+    /** 流式解析协作者。 */
     final RemoteApiStreamOps streamOps;
 
-    /** HTTP 传输协作者（对照 Go 裸 HTTP 段）。 */
+    /** HTTP 传输协作者。 */
     final RemoteHttpOps httpOps;
 
-    /** 出站组装协作者（对照 openai_request.go 段）。 */
+    /** 出站组装协作者。 */
     final RemoteApiRequestOps requestOps;
 
     /**
-     * 对照 Go NewRemoteAPIChat：校验 baseURL（SSRF）、解析 provider、确定 baseURL 与模型名。
+     * 校验 baseURL（SSRF）、解析 provider、确定 baseURL 与模型名。
      *
-     * <p>错误映射：Go 的构造期 error → {@link BizException#badRequest}（配置类问题，返回 400）。</p>
+     * <p>配置类问题抛 {@link BizException#badRequest}（返回 400）。</p>
      */
     public RemoteApiChat(ChatConfig chatConfig) {
         if (chatConfig == null) {
@@ -137,7 +135,7 @@ public class RemoteApiChat implements LlmChatClient {
         String rawProvider = chatConfig.getProvider() == null ? "" : chatConfig.getProvider();
         ProviderName providerName = ProviderName.fromValue(rawProvider);
         if (rawProvider.isEmpty()) {
-            // 对照 Go：providerName == "" 时才从 baseURL 探测；非空但未知的名字保持"未知"（Java 为 null）
+            // provider 名为空串时才从 baseURL 探测；非空但未知的名字保持"未知"（null）
             providerName = ProviderRegistry.detectProvider(rawBaseUrl);
         }
 
@@ -146,7 +144,7 @@ public class RemoteApiChat implements LlmChatClient {
             if (providerName == ProviderName.DEEPSEEK) {
                 resolvedBaseUrl = ProviderBaseURLs.DEEPSEEK_BASE_URL;
             } else if (providerName != ProviderName.AZURE_OPEN_AI) {
-                // 对照 go-openai DefaultConfig 的默认 BaseURL
+                // openai-go DefaultConfig 的默认 BaseURL
                 resolvedBaseUrl = ProviderBaseURLs.OPENAI_BASE_URL;
             }
         }
@@ -206,12 +204,12 @@ public class RemoteApiChat implements LlmChatClient {
     }
 
     // ------------------------------------------------------------------
-    // 出站流水线（对照 go buildOutbound + chatWithRawHTTP 的请求头部分）
+    // 出站流水线
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go buildOutbound：组装最终出站请求（body + endpoint + 缓存策略）。
-     * 这是适配器与 thinking 的唯一交汇点（取代 Go 的 buildRequestCustomizer 管线）。
+     * 组装最终出站请求（body + endpoint + 缓存策略）。
+     * 这是适配器与 thinking 的唯一交汇点。
      */
     Outbound buildOutbound(List<ChatMessage> messages, ChatOptions opts, boolean isStream, String sessionId) {
         ObjectNode body = shapedRequest(messages, opts, isStream);
@@ -224,9 +222,8 @@ public class RemoteApiChat implements LlmChatClient {
         boolean cacheRewritten = PromptCache.applyPromptCacheToJSONBody(
                 body, policy, PromptCache.promptCacheSessionID(sessionId, opts), retention);
 
-        // 对照 Go useRawHTTP = useRaw || ForceRawHTTP() || endpoint != "" || forceRaw：
-        // Java 传输层不分流，但 Go 裸 HTTP 路径的流终态事件不带 finish_reason（SDK 路径带），
-        // 该标记原样保留这一可观察差异（ForceRawHTTP 已删除，等价于恒 false）。
+        // rawPath=true 时流终态事件不带 finish_reason（沿用既有裸 HTTP 路径口径），
+        // false 时带上最近一次观察到的 finish_reason。
         String adapterEndpoint = adapter.endpoint(baseUrl, modelId, isStream);
         boolean rawPath = thinkingEmitted || cacheRewritten
                 || (adapterEndpoint != null && !adapterEndpoint.isEmpty());
@@ -237,9 +234,9 @@ public class RemoteApiChat implements LlmChatClient {
     /**
      * 最终 URL：适配器覆写优先，否则 {@code <baseUrl>/chat/completions}。
      *
-     * <p>Azure 特例（Java 单路径新增）：go-openai 的 {@code fullURL} 会为 Azure 拼成
-     * {@code <base>/openai/deployments/<deployment>/chat/completions?api-version=...}，
-     * 这里按同一公式复刻（deployment 名 = modelId，AzureModelMapperFunc 在 Go 里是恒等函数）。</p>
+     * <p>Azure 特例：URL 拼成
+     * {@code <base>/openai/deployments/<deployment>/chat/completions?api-version=...}
+     * （deployment 名 = modelId）。</p>
      */
     private String resolveEndpoint(String adapterEndpoint) {
         if (adapterEndpoint != null && !adapterEndpoint.isEmpty()) {
@@ -252,18 +249,18 @@ public class RemoteApiChat implements LlmChatClient {
         return baseUrl + "/chat/completions";
     }
 
-    /** 出站请求（对照 Go buildOutbound 的三个返回值 + 发送时需要的策略/会话 + 路径标记）。 */
+    /** 出站请求（body + endpoint + 缓存策略 + 会话 + 路径标记）。 */
     record Outbound(ObjectNode body, String endpoint, PromptCache.Policy policy, String sessionId,
                     boolean rawPath, boolean cacheRewritten) {
 
         byte[] bodyBytes() {
             try {
-                // Go json.Marshal 等价（分路径，2026-09-24 排查批坐实）：
-                // ① prompt-cache 改写路径：Go 把 body 转 map → 每层对象按 map 键字节序
+                // 序列化分路径：
+                // ① prompt-cache 改写路径：每层对象按键字节序
                 //    （goSorted）；
                 // ② 其余（SDK 结构体直出 / thinking 包装结构体）：openai-go 结构体字段序
                 //    （structSorted），未知键（包装字段如 enable_thinking）尾随。
-                // ③ HTML 转义两路径一致（< > & 转小写十六进制反斜杠 u 形式，§9 差分排查）。
+                // ③ 两路径同样做 HTML 转义（< > & 转小写十六进制反斜杠 u 形式）。
                 return RemoteApiBodyCodec.GO_MARSHAL.writeValueAsBytes(
                         cacheRewritten ? RemoteApiBodyCodec.goSorted(body) : RemoteApiBodyCodec.structSorted(body));
             } catch (IOException e) {
@@ -292,7 +289,7 @@ public class RemoteApiChat implements LlmChatClient {
         return RemoteHttpOps.statusError(resp, body);
     }
     // ------------------------------------------------------------------
-    // 非流式（对照 remote_api.go Chat / chatWithRawHTTP）
+    // 非流式
     // ------------------------------------------------------------------
 
     @Override
@@ -305,7 +302,7 @@ public class RemoteApiChat implements LlmChatClient {
      *
      * @param callerDeadline 调用方下发的截止时刻；null = 未设置，套用
      *                       {@link LlmTransport#DEFAULT_CHAT_TIMEOUT}
-     * @param sessionId      上下文里的 session ID（对照 Go types.SessionIDFromContext(ctx)）；
+     * @param sessionId      上下文里的 session ID；
      *                       仅在 opts.promptCacheKey 为空时用于 prompt_cache_key
      */
     public ChatResponse chat(List<ChatMessage> messages, ChatOptions opts,
@@ -318,7 +315,7 @@ public class RemoteApiChat implements LlmChatClient {
         String raw = readAll(resp.body());
         if (status != 200) {
             String message = statusError(resp, raw);
-            // 对照 Go 的 isMultimodalNotSupportedError 重试：剥掉图片再发一次
+            // 模型不支持多模态时重试：剥掉图片再发一次
             if (ImageResolver.isMultimodalNotSupportedMessage(message)) {
                 log.warn("[LLM Request] Model {} does not support multimodal, retrying without images",
                         modelName);
@@ -348,7 +345,7 @@ public class RemoteApiChat implements LlmChatClient {
     }
 
     // ------------------------------------------------------------------
-    // 流式（对照 remote_api.go ChatStream / chatStreamWithRawHTTP）
+    // 流式
     // ------------------------------------------------------------------
 
     @Override
@@ -428,7 +425,7 @@ public class RemoteApiChat implements LlmChatClient {
     // 日志与访问器
     // ------------------------------------------------------------------
 
-    /** 对照 Go logUsage：nil 安全的标准用量日志行（无 ctx，purpose/前缀指纹取不到）。 */
+    /** nil 安全的标准用量日志行。 */
     void logUsage(TokenUsage usage) {
         if (usage == null) {
             return;
@@ -442,7 +439,7 @@ public class RemoteApiChat implements LlmChatClient {
                 usage.isCacheReported(), usage.getCacheStatus() == null ? "" : usage.getCacheStatus().value());
     }
 
-    /** 对照 Go secutils.CompactImageDataURLForLog：截断 data URL 与整行长度后再落日志。 */
+    /** 截断 data URL 与整行长度后再落日志。 */
     static String compactForLog(String raw) {
         if (raw == null) {
             return "";
@@ -462,39 +459,35 @@ public class RemoteApiChat implements LlmChatClient {
                 + "... (truncated, total " + masked.length() + " chars)";
     }
 
-    /** 对照 Go GetModelName。 */
     @Override
     public String getModelName() {
         return modelName;
     }
 
-    /** 对照 Go GetModelID。 */
     @Override
     public String getModelId() {
         return modelId;
     }
 
-    /** 对照 Go GetProvider（未知厂商为 null，= Go 的 default 分支）。 */
+    /** 未知厂商为 null。 */
     public ProviderName getProvider() {
         return provider;
     }
 
-    /** 对照 Go GetBaseURL。 */
     public String getBaseUrl() {
         return baseUrl;
     }
 
-    /** 对照 Go GetAPIKey。 */
     public String getApiKey() {
         return apiKey;
     }
 
-    /** 当前适配器（测试用，对照 Go 测试直接访问 c.adapter）。 */
+    /** 当前适配器（测试用）。 */
     ProviderAdapter adapter() {
         return adapter;
     }
 
-    /** 测试用：替换适配器（对照 Go 测试的 {@code c.adapter = geminiProvider{}}）。 */
+    /** 测试用：替换适配器。 */
     void setAdapter(ProviderAdapter adapter) {
         this.adapter = adapter;
     }

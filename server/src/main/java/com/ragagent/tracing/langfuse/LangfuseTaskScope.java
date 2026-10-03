@@ -7,8 +7,7 @@ import java.util.Map;
 import com.ragagent.common.context.TracingContext;
 
 /**
- * 异步任务侧的观测作用域（对照 Go internal/tracing/langfuse 的 {@code AsynqMiddleware}，
- * asynq.go L82-156）：
+ * 异步任务侧的观测作用域：
  *
  * <ol>
  *   <li>有上游 traceparent → 续接（worker span 成为 HTTP trace 的子节点），
@@ -19,7 +18,7 @@ import com.ragagent.common.context.TracingContext;
  * </ol>
  *
  * <p>用法（worker 线程，try-with-resources）：{@code close()} = 成功收尾 + 清理
- * 本线程观测上下文（§5：线程池复用前必须清）。失败路径显式
+ * 本线程观测上下文（线程池复用前必须清）。失败路径显式
  * {@link #finish(String, String)} 后再抛出，避免被 close 记成 success。</p>
  */
 public final class LangfuseTaskScope implements AutoCloseable {
@@ -79,7 +78,7 @@ public final class LangfuseTaskScope implements AutoCloseable {
         return NOOP;
     }
 
-    /** 对照 spanInputFromPayload：≤1KB 原文；超长 → {@code {preview(1KB)+"...", bytes}}。 */
+    /** 任务载荷预览：≤1KB 原文；超长 → {@code {preview(1KB)+"...", bytes}}。 */
     public static Object previewPayload(String payload) {
         if (payload == null || payload.isEmpty()) {
             return null;
@@ -93,7 +92,7 @@ public final class LangfuseTaskScope implements AutoCloseable {
         return preview;
     }
 
-    /** 对照 AsynqMiddleware 收尾段：span 先收，自开的根随后收（outcome 进两者）。 */
+    /** 收尾：span 先收，自开的根随后收（outcome 进两者）。 */
     public void finish(String outcome, String err) {
         if (finished) {
             return;
@@ -113,7 +112,7 @@ public final class LangfuseTaskScope implements AutoCloseable {
         }
     }
 
-    /** try-with-resources 成功路径：outcome=success + 清本线程上下文（§5）。 */
+    /** try-with-resources 成功路径：outcome=success + 清本线程上下文。 */
     @Override
     public void close() {
         finish("success", null);

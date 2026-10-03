@@ -3,10 +3,9 @@ package com.ragagent.auth.dto;
 import java.time.OffsetDateTime;
 
 /**
- * 邀请投影（对照 Go types/tenant_invitation.go {@code TenantInvitationResponse}，
- * 字段序 = Go struct 声明序；hydrate 逻辑在 controller，与本 DTO 无关）。
+ * 邀请投影（字段序 = JSON 键序；hydrate 逻辑在 controller，与本 DTO 无关）。
  *
- * <p>omitempty 全表：tenant_name / invitee_email / invitee_name / invited_by /
+ * <p>空值省略全表：tenant_name / invitee_email / invitee_name / invited_by /
  * inviter_email / inviter_name / message / responded_at / invite_url /
  * is_share_link（false 省略）/ accepted_count（0 省略）。
  * id / tenant_id / invitee_user_id / role / status / expires_at / created_at 恒输出。</p>
@@ -32,7 +31,7 @@ public record TenantInvitationResponse(
         int acceptedCount) {
 
     public TenantInvitationResponse {
-        // Go omitempty 的空串语义
+        // 空串归一为 null：这些键空值时整个省略
         tenantName = emptyToNull(tenantName);
         inviteeEmail = emptyToNull(inviteeEmail);
         inviteeName = emptyToNull(inviteeName);

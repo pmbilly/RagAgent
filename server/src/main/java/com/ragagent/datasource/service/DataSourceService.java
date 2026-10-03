@@ -35,8 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 数据源的应用服务（对照 Go {@code internal/application/service/datasource_service.go}
- * 全文，1488 行）。
+ * 数据源的应用服务。
  *
  * <h2>职责边界</h2>
  * <ol>
@@ -46,57 +45,44 @@ import org.springframework.stereotype.Service;
  *       {@code datasource:sync} 任务真正跑起来（抓取 → 灌入 → 检查点 → 落结果）。</li>
  * </ol>
  *
- * <h2>ctx 去哪了（约定 §5）</h2>
- * <p>Go 的这些方法第一个参数都是 {@code context.Context}，它同时承载租户、主体与取消。
- * Java 侧：租户/主体走 {@code TenantContext}（ThreadLocal），取消走<b>线程中断</b>
+ * <h2>上下文与取消</h2>
+ * <p>租户/主体走 {@code TenantContext}（ThreadLocal），取消走<b>线程中断</b>
  * （{@link #handle} 跑在队列的虚拟线程上，超时由 {@code Future.cancel(true)} 打断）。
- * 因此凡是 Go "把 ctx 往下传"的地方，Java 都换成了显式参数——尤其
+ * 因此跨层调用一律显式传参——尤其
  * {@link KnowledgeBridge}：它把租户当参数，因为同步线程上没有请求上下文。</p>
  *
- * <h2>与 Go 的逐条对应（方法级）</h2>
+ * <h2>公开端点与方法的对应</h2>
  * <table>
- *   <tr><td>CreateDataSource</td><td>{@link #createDataSource}</td></tr>
- *   <tr><td>GetDataSource</td><td>{@link #getDataSource}</td></tr>
- *   <tr><td>ListDataSources</td><td>{@link #listDataSources}</td></tr>
- *   <tr><td>UpdateDataSource</td><td>{@link #updateDataSource}</td></tr>
- *   <tr><td>UpdateDataSourceCredentials</td><td>{@link #updateDataSourceCredentials}</td></tr>
- *   <tr><td>ClearDataSourceCredentials</td><td>{@link #clearDataSourceCredentials}</td></tr>
- *   <tr><td>DeleteDataSource</td><td>{@link #deleteDataSource}</td></tr>
- *   <tr><td>ValidateConnection</td><td>{@link #validateConnection}</td></tr>
- *   <tr><td>ValidateCredentials</td><td>{@link #validateCredentials}</td></tr>
- *   <tr><td>ListAvailableResources</td><td>{@link #listAvailableResources}</td></tr>
- *   <tr><td>ResolveResourceAncestors</td><td>{@link #resolveResourceAncestors}</td></tr>
- *   <tr><td>ManualSync</td><td>{@link #manualSync}</td></tr>
- *   <tr><td>PauseDataSource</td><td>{@link #pauseDataSource}</td></tr>
- *   <tr><td>ResumeDataSource</td><td>{@link #resumeDataSource}</td></tr>
- *   <tr><td>GetSyncLogs</td><td>{@link #getSyncLogs}</td></tr>
- *   <tr><td>GetSyncLog</td><td>{@link #getSyncLog}</td></tr>
- *   <tr><td>ProcessSync</td><td>{@link #handle}</td></tr>
+ *   <tr><td>新建 / 查 / 列表 / 更新 / 删</td><td>{@link #createDataSource} / {@link #getDataSource} /
+ *       {@link #listDataSources} / {@link #updateDataSource} / {@link #deleteDataSource}</td></tr>
+ *   <tr><td>凭据子资源</td><td>{@link #updateDataSourceCredentials} / {@link #clearDataSourceCredentials}</td></tr>
+ *   <tr><td>连接校验 / 试连</td><td>{@link #validateConnection} / {@link #validateCredentials}</td></tr>
+ *   <tr><td>资源枚举 / 祖先解析</td><td>{@link #listAvailableResources} / {@link #resolveResourceAncestors}</td></tr>
+ *   <tr><td>同步控制 / 日志</td><td>{@link #manualSync} / {@link #pauseDataSource} / {@link #resumeDataSource} /
+ *       {@link #getSyncLogs} / {@link #getSyncLog}</td></tr>
+ *   <tr><td>队列任务的执行入口</td><td>{@link #handle}</td></tr>
  * </table>
  *
- * <h2>错误语义：Go 的哨兵错误 → Java 的异常类型</h2>
+ * <h2>错误语义：哨兵 message → 异常类型</h2>
  * <ul>
- *   <li>{@code datasource.ErrDataSourceInvalid} → {@link DataSourceException}
- *       且 message 逐字为 {@value #ERR_DATA_SOURCE_INVALID}（handler 直接把
- *       {@code err.Error()} 当响应体输出）；</li>
- *   <li>{@code datasource.ErrKnowledgeBaseNotFound} → {@value #ERR_KNOWLEDGE_BASE_NOT_FOUND}；</li>
- *   <li>{@code datasource.ErrDataSourceNotActive} → {@value #ERR_DATA_SOURCE_NOT_ACTIVE}；</li>
- *   <li>{@code datasource.ErrInvalidConfig} → {@link ConnectorException.InvalidConfig}
- *       （{@value #ERR_INVALID_CONFIG}）；</li>
+ *   <li>{@value #ERR_DATA_SOURCE_INVALID} → {@link DataSourceException}
+ *       （handler 直接把 message 当响应体输出）；</li>
+ *   <li>{@value #ERR_KNOWLEDGE_BASE_NOT_FOUND} 与
+ *       {@value #ERR_DATA_SOURCE_NOT_ACTIVE} → {@link DataSourceException}；</li>
+ *   <li>{@link ConnectorException.InvalidConfig}（{@value #ERR_INVALID_CONFIG}）；</li>
  *   <li>注册表未命中 → {@link ConnectorException.NotFound}
  *       （{@code "connector type not found in registry"}）。</li>
  * </ul>
- * <p>仓储的 {@code FindByID} 未命中抛 {@link DataSourceException.NotFoundException}
- * ——service 原样上抛，由 handler 映射成 404（Go 里也是 handler 无条件映射）。</p>
+ * <p>仓储的 {@code findById} 未命中抛 {@link DataSourceException.NotFoundException}
+ * ——service 原样上抛，由 handler 映射成 404。</p>
  *
  * <h2>已知差异（逐条都有理由，见各方法注释）</h2>
  * <ol>
- *   <li><b>asynq → 进程内队列</b>：拿不到 {@code asynq.GetRetryCount}，
+ *   <li><b>进程内队列</b>：拿不到重试计数，
  *       所以 {@code streamStartCursor} 的 attempt 恒为 0（首次尝试）；
- *       拿不到 {@code asynq.GetTaskID}，所以同步审计的 details 少
+ *       拿不到任务 ID，所以同步审计的 details 少
  *       {@code task_id} 一个键（{@code trigger} 与 {@code processing_status} 照常）。</li>
- *   <li><b>langfuse 追踪未接线</b>：{@code langfuse.InjectTracing} 是 no-op
- *       （§9 阶段 4.0 已知差异 1）。</li>
+ *   <li><b>langfuse 追踪注入是 no-op</b>。</li>
  *   <li><b>知识库写入是"最小闭环"</b>，见 {@link KnowledgeBridge} 的类注释。</li>
  * </ol>
  */
@@ -107,21 +93,21 @@ public class DataSourceService implements DataSourceSyncHandler {
 
     static final ObjectMapper MAPPER = JsonMappers.lenient();
 
-    /** 对照 Go {@code datasource.ErrDataSourceInvalid}。 */
+    /** 配置不合法的哨兵 message。 */
     public static final String ERR_DATA_SOURCE_INVALID = "data source configuration is invalid";
-    /** 对照 Go {@code datasource.ErrKnowledgeBaseNotFound}。 */
+    /** 知识库不存在的哨兵 message。 */
     public static final String ERR_KNOWLEDGE_BASE_NOT_FOUND = "knowledge base not found";
-    /** 对照 Go {@code datasource.ErrDataSourceNotActive}。 */
+    /** 数据源未激活的哨兵 message。 */
     public static final String ERR_DATA_SOURCE_NOT_ACTIVE = "data source is not active";
-    /** 对照 Go {@code datasource.ErrInvalidConfig}。 */
+    /** 配置不合法（连接器侧）的哨兵 message。 */
     public static final String ERR_INVALID_CONFIG = "invalid configuration";
-    /** 对照 Go 的 {@code fmt.Errorf("changing knowledge base is not allowed")}。 */
+    /** 禁止更换知识库的哨兵 message。 */
     public static final String ERR_KB_CHANGE_FORBIDDEN = "changing knowledge base is not allowed";
 
-    /** 对照 Go {@code maxSyncResultErrors}：per-item 错误样本的上限。 */
+    /** per-item 错误样本的上限。 */
     static final int MAX_SYNC_RESULT_ERRORS = 100;
 
-    /** 对照 Go {@code datasource.Scheduler.MAX_RETRY} / {@code TASK_TIMEOUT}。 */
+    /** RFC3339（UTC）时间戳格式，审计 details 用。 */
     static final DateTimeFormatter RFC3339 =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
@@ -174,7 +160,7 @@ public class DataSourceService implements DataSourceSyncHandler {
     // ══════════════════════════ 管理面 ══════════════════════════
 
     /**
-     * 对照 Go {@code CreateDataSource}（L68-117）。
+     * 新建数据源。
      *
      * <p>顺序有语义：<b>先</b>查知识库（不存在 → {@code knowledge base not found}）、
      * <b>再</b>检查连接器类型（未登记 → {@code connector type not found in registry}）、
@@ -217,17 +203,17 @@ public class DataSourceService implements DataSourceSyncHandler {
         return ds;
     }
 
-    /** 对照 Go {@code GetDataSource}（L120-126）：仓储未命中抛 NotFound，原样上抛。 */
+    /** 查询单个数据源：仓储未命中抛 NotFound，原样上抛。 */
     public DataSource getDataSource(String id) {
         return dsRepo.findById(id);
     }
 
     /**
-     * 对照 Go {@code ListDataSources}（L129-145）：给每个数据源补上"最近一次同步日志"。
+     * 列出某知识库下的数据源，给每个补上"最近一次同步日志"。
      *
-     * <p>{@code FindLatest} 失败被忽略（Go 的 {@code log, _ := …}）；它查不到时回
-     * {@code nil} 而不是错误，所以 {@code latest_sync_log} 的缺省形态是不输出该键。
-     * 注意 Go 这一路<b>不</b>回填 {@code total_items_synced}（那个字段恒为 0）。</p>
+     * <p>{@code findLatest} 失败被忽略；它查不到时回
+     * {@code null} 而不是错误，所以 {@code latest_sync_log} 的缺省形态是不输出该键。
+     * 注意这一路<b>不</b>回填 {@code total_items_synced}（那个字段恒为 0）。</p>
      */
     public List<DataSource> listDataSources(String kbId) {
         List<DataSource> dataSources;
@@ -242,7 +228,7 @@ public class DataSourceService implements DataSourceSyncHandler {
             try {
                 latest = syncLogRepo.findLatest(ds.getId());
             } catch (RuntimeException ignored) {
-                // 对照 Go 的 `log, _ := s.syncLogRepo.FindLatest(...)`
+                // "最近一次日志查不到"不算错误
             }
             if (latest != null) {
                 ds.setLatestSyncLog(latest);
@@ -252,21 +238,21 @@ public class DataSourceService implements DataSourceSyncHandler {
     }
 
     /**
-     * 对照 Go {@code UpdateDataSource}（L148-233）。
+     * 更新数据源。
      *
      * <h2>凭据永不从这条端点流入</h2>
-     * <p>Go 的注释把话写死了：凭据住在 {@code /credentials} 子资源后面，PUT 主体里
+     * <p>凭据住在 {@code /credentials} 子资源后面，PUT 主体里
      * 就算带了也要被<b>整块换回库里的旧值</b>。Config 的其余部分
      * （Type / ResourceIDs / Settings）照常流过去。带了凭据只记一条 warn——
      * 那是"还有老客户端在用"的信号，不是错误。</p>
      *
      * <h2>什么时候才跑连接校验</h2>
      * <p>只有"库里有可用凭据"<b>且</b>（类型变了<b>或</b>解析后的配置真的变了）才校验。
-     * 理由（Go 注释）：还没存过凭据时校验必然失败（没 token 可调），
+     * 理由：还没存过凭据时校验必然失败（没 token 可调），
      * 而结构完全相同的重复提交没必要再打一次外部 API。</p>
      *
-     * <p>⚠️ {@code configActuallyChanged} 用 {@code reflect.DeepEqual} 判"整块配置是否
-     * 逐字段相同"。Java 侧用<b>规范化 JSON 树相等</b>表达（字段集与 Go 结构体一致：
+     * <p>⚠️ {@code configActuallyChanged} 判"整块配置是否
+     * 逐字段相同"：用<b>规范化 JSON 树相等</b>表达（字段集为
      * type / credentials / resource_ids / settings），见 {@link #configDeepEquals}。</p>
      */
     public DataSource updateDataSource(DataSource ds) {
@@ -345,7 +331,7 @@ public class DataSourceService implements DataSourceSyncHandler {
     }
 
     /**
-     * 对照 Go {@code UpdateDataSourceCredentials}（L240-279）：整张 map 原子替换。
+     * 整张 map 原子替换凭据。
      *
      * <p>不能按 key 打补丁——"配了一半的凭据"根本认证不了，所以旧的一律丢弃。
      * 写库<b>之后</b>立刻跑一次真实连接校验，让用户当场知道新 token 对不对，
@@ -378,10 +364,10 @@ public class DataSourceService implements DataSourceSyncHandler {
     }
 
     /**
-     * 对照 Go {@code ClearDataSourceCredentials}（L283-321）：清空凭据、幂等。
+     * 清空凭据、幂等。
      *
      * <p>已经是空的时候走的是另一条分支：只把"剥掉非密钥项之后"的配置写回去，
-     * <b>不</b>记审计（Go 在那条分支上直接 return）——因为这次调用什么都没改。</p>
+     * <b>不</b>记审计——因为这次调用什么都没改。</p>
      */
     public void clearDataSourceCredentials(String id) {
         if (id == null || id.isEmpty()) {
@@ -411,9 +397,9 @@ public class DataSourceService implements DataSourceSyncHandler {
     }
 
     /**
-     * 对照 Go {@code DeleteDataSource}（L324-349）：软删 + 摘定时任务 + 作废在途同步日志。
+     * 删除数据源：软删 + 摘定时任务 + 作废在途同步日志。
      *
-     * <p>第三步让"已经排队但还没跑的 asynq 任务"不再重试——它们醒来时会发现数据源
+     * <p>第三步让"已经排队但还没跑的同步任务"不再重试——它们醒来时会发现数据源
      * 已删（{@link #handle} 的第一段），把同步日志置成 canceled 后安静返回。</p>
      */
     public void deleteDataSource(String id) {
@@ -443,12 +429,12 @@ public class DataSourceService implements DataSourceSyncHandler {
     }
 
     /**
-     * 对照 Go {@code ValidateConnection}（L352-387）。
+     * 校验已存连接。
      *
      * <p>校验失败<b>不是</b>只回个错误就完事：它把数据源置为 {@code error} 并落库，
      * 好让列表页立刻显示"这个源连不上"。反向也对称——原本是 error 的源校验通过后
      * 会回到 active 并清掉错误消息（这个清空必须走 {@code update}，
-     * Go 那边也一样）。</p>
+     * 因为普通更新跳过零值）。</p>
      */
     public void validateConnection(String dsId) {
         DataSource ds = getDataSource(dsId);
@@ -470,7 +456,7 @@ public class DataSourceService implements DataSourceSyncHandler {
     }
 
     /**
-     * 对照 Go {@code ValidateCredentials}（L1203-1217）：用裸凭据试连，<b>什么都不落库</b>
+     * 用裸凭据试连，<b>什么都不落库</b>
      * ——前端"测试连接"按钮走的就是这条，用户还没保存就该能试。
      */
     public void validateCredentials(String connectorType, Map<String, Object> credentials) {
@@ -481,7 +467,7 @@ public class DataSourceService implements DataSourceSyncHandler {
         connector.validate(config);
     }
 
-    /** 对照 Go {@code ListAvailableResources}（L392-420）。 */
+    /** 列出某数据源的可同步资源。 */
     public List<Resource> listAvailableResources(String dsId, String parentId) {
         DataSource ds = getDataSource(dsId);
         Connector connector = connectorRegistry.get(ds.getType());
@@ -497,9 +483,9 @@ public class DataSourceService implements DataSourceSyncHandler {
     }
 
     /**
-     * 对照 Go {@code ResolveResourceAncestors}（L424-453）。
+     * 解析资源祖先。
      *
-     * <p>⚠️ <b>空入参直接短路</b>：Go 在 {@code len(resourceIDs) == 0} 时就 return 空切片，
+     * <p>⚠️ <b>空入参直接短路</b>：{@code resourceIds} 为空时直接回空列表，
      * 连数据源都不查——所以"给一个不存在的数据源 + 空 resource_ids"回的是
      * <b>200 + {"ancestors":[]}</b>，不是 404。这条实测行为很容易在重构时被"顺手修正"。</p>
      */
@@ -523,7 +509,7 @@ public class DataSourceService implements DataSourceSyncHandler {
     // ══════════════════════════ 同步控制 ══════════════════════════
 
     /**
-     * 对照 Go {@code ManualSync}（L456-522）。
+     * 手动触发同步。
      *
      * <p>三态才允许手动同步：active / error / paused（paused 也允许——"暂停"停的是
      * 定时排期，不是手动触发）。</p>
@@ -532,10 +518,9 @@ public class DataSourceService implements DataSourceSyncHandler {
      * data_source 落 error + {@code "Failed to enqueue sync: <原因>"}（paused 的源不改
      * 状态——它本来就是因为在暂停才没排期）。</p>
      *
-     * <h2>已知差异：TaskID</h2>
-     * <p>Go 的 {@code asynq.NewTask} 没给 TaskID，由 asynq 生成一个随机 ID；
-     * Java 侧显式生成 UUID 当 TaskID（同语义：不与任何东西去重）。
-     * 审计里的 {@code task_id} 因此两边格式不同——它是不透明串，前端只回显。</p>
+     * <h2>TaskID</h2>
+     * <p>这里显式生成 UUID 当 TaskID（语义：不与任何东西去重）。
+     * 审计里的 {@code task_id} 是不透明串，前端只回显。</p>
      */
     public SyncLog manualSync(String dsId) {
         DataSource ds = getDataSource(dsId);
@@ -560,8 +545,8 @@ public class DataSourceService implements DataSourceSyncHandler {
         }
 
         String taskId = UUID.randomUUID().toString();
-        // 入队侧注入（对照 Go 的 langfuse.InjectTracing(ctx, payload)）：把请求的
-        // traceparent 打进载荷（平铺 lf_* 键），worker 侧续接同一棵树
+        // 入队侧注入追踪上下文：把请求的
+        // traceparent 打进载荷（嵌套 tracing 键），worker 侧续接同一棵树
         DataSourceSyncPayload payload = DataSourceSyncPayload.withTracing(
                 DataSourceSupport.taskInitiatorFromContext(), "manual", dsId, ds.getTenantId(),
                 syncLog.getId(), false, 0,
@@ -601,7 +586,7 @@ public class DataSourceService implements DataSourceSyncHandler {
         return syncLog;
     }
 
-    /** 对照 Go {@code PauseDataSource}（L525-544）：置 paused + 摘掉 cron 排期。 */
+    /** 暂停数据源：置 paused + 摘掉 cron 排期。 */
     public void pauseDataSource(String id) {
         DataSource ds = getDataSource(id);
         ds.setStatus(DataSourceConstants.DATA_SOURCE_STATUS_PAUSED);
@@ -619,7 +604,7 @@ public class DataSourceService implements DataSourceSyncHandler {
                 DataSourceSupport.mapOf("name", ds.getName(), "type", ds.getType()), null, false);
     }
 
-    /** 对照 Go {@code ResumeDataSource}（L547-568）：置 active 并重新注册 cron。 */
+    /** 恢复数据源：置 active 并重新注册 cron。 */
     public void resumeDataSource(String id) {
         DataSource ds = getDataSource(id);
         ds.setStatus(DataSourceConstants.DATA_SOURCE_STATUS_ACTIVE);
@@ -641,7 +626,7 @@ public class DataSourceService implements DataSourceSyncHandler {
                 DataSourceSupport.mapOf("name", ds.getName(), "type", ds.getType()), null, false);
     }
 
-    /** 对照 Go {@code GetSyncLogs}（L571-578）。 */
+    /** 查询某数据源的同步日志列表。 */
     public List<SyncLog> getSyncLogs(String dsId, int limit, int offset) {
         try {
             return syncLogRepo.findByDataSource(dsId, limit, offset);
@@ -651,7 +636,7 @@ public class DataSourceService implements DataSourceSyncHandler {
         }
     }
 
-    /** 对照 Go {@code GetSyncLog}（L581-587）：未命中抛 NotFound（handler 映射成 404）。 */
+    /** 查询单条同步日志：未命中抛 NotFound（handler 映射成 404）。 */
     public SyncLog getSyncLog(String syncLogId) {
         return syncLogRepo.findById(syncLogId);
     }

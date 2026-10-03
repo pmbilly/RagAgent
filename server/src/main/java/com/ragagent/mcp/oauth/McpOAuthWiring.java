@@ -11,15 +11,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
- * MCP OAuth 装配（对照 Go internal/container/container.go:188 的
- * {@code container.Provide(mcp.NewOAuthManager)} 及其连锁依赖）。
+ * MCP OAuth 装配。
  *
  * <p>本类是<b>新文件</b>，不触碰 {@code config/WebConfig.java}（路由注册由主会话统一做）。</p>
  *
- * <h3>Redis 状态存储的开关（Go 的 Lite 模式等价物）</h3>
- * <p>Go 靠 DI 里 {@code *redis.Client} 是否为 nil 决定 state 存 Redis 还是内存。Java 侧
- * Spring Data Redis 的 {@code StringRedisTemplate} <b>只要依赖在 classpath 上就存在</b>，
- * 无法用它表达"没配 Redis"。故显式用属性开关，默认<b>内存</b>（单实例/Lite 语义）：</p>
+ * <h3>Redis 状态存储的开关</h3>
+ * <p>state 存 Redis 还是内存由属性开关决定。Spring Data Redis 的
+ * {@code StringRedisTemplate} <b>只要依赖在 classpath 上就存在</b>，
+ * 无法用它表达"没配 Redis"。故显式用属性开关，默认<b>内存</b>（单实例语义）：</p>
  * <pre>{@code
  * weknora:
  *   mcp-oauth:
@@ -34,7 +33,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 @Configuration
 public class McpOAuthWiring {
 
-    /** 对照 Go 的 {@code *redis.Client} 非 nil 分支：state 落 Redis（跨副本可见）。 */
+    /** 配置开启时 state 落 Redis（跨副本可见）。 */
     @Bean
     @ConditionalOnProperty(prefix = "weknora.mcp-oauth", name = "redis-state-store",
             havingValue = "true")
@@ -43,7 +42,7 @@ public class McpOAuthWiring {
     }
 
     /**
-     * 对照 Go {@code newOAuthStateStore(rdb)}：有 {@link OAuthStateRedis} 就用它，
+     * 有 {@link OAuthStateRedis} 就用它，
      * 否则退化为带 TTL 的内存 map（单实例 / Lite）。
      */
     @Bean
@@ -51,14 +50,14 @@ public class McpOAuthWiring {
         return new OAuthStateStore(redis.getIfAvailable());
     }
 
-    /** 对照 Go {@code interfaces.MCPOAuthRepository} 到具体仓储的绑定。 */
+    /** 仓储端口到具体实现的绑定。 */
     @Bean
     @ConditionalOnMissingBean(OAuthRepository.class)
     public OAuthRepository oauthRepository(McpOAuthRepository delegate) {
         return new McpOAuthRepositoryAdapter(delegate);
     }
 
-    /** 对照 Go {@code NewOAuthManager}。 */
+    /** OAuth 管理器 bean。 */
     @Bean
     public OAuthManager oauthManager(OAuthRepository repository, McpServiceMapper serviceMapper,
                                      OAuthStateStore stateStore) {

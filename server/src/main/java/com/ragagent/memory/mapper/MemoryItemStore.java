@@ -36,7 +36,7 @@ final class MemoryItemStore {
      * 对照 {@code CreateItem}：id 为空则生成、{@code valid_from} 为零值则补 {@code now}、
      * {@code status} 为空则 active，然后插入。
      *
-     * <p>注意顺序：Go 先补 {@code status} 再交给 GORM，
+     * <p>注意顺序：先补 {@code status}，
      * 所以"零值 → 默认值"的替换在这里是显式写出来的。</p>
      */
     public void createItem(MemoryItem item) {
@@ -60,7 +60,7 @@ final class MemoryItemStore {
         repo.tx.withSubject(scope, subject -> {
             MemoryItem current = repo.itemMapper.selectScoped(scope.tenantId(), scope.subjectId(), id);
             if (current == null) {
-                // 对照 Go 的 First 未命中 → gorm.ErrRecordNotFound 上抛
+                // 未命中 → 上抛"记录不存在"
                 throw new MemorySubjectMissingException();
             }
             if (!current.getContent().equals(content)) {
@@ -104,10 +104,10 @@ final class MemoryItemStore {
     /**
      * 对照 {@code DeleteAll}：物理删本 scope 的全部条目，返回删了几行。
      *
-     * <p>⚠️ Go 的 {@code Delete} 只对 {@code memory_items} 生效——**不动**
+     * <p>⚠️ 这条 DELETE 只对 {@code memory_items} 生效——**不动**
      * {@code memory_item_embeddings}。清空路径由 service 层另外调
-     * {@code deleteAllTopics} / {@code deleteAllDocAffinity} 补齐（Go 也是这样）。
-     * 没有外键，所以清空之后向量行确实会留下来——这是 Go 的既有行为，照抄。</p>
+     * {@code deleteAllTopics} / {@code deleteAllDocAffinity} 补齐。
+     * 没有外键，所以清空之后向量行确实会留下来——这是既有行为，别"顺手补齐"。</p>
      */
     public long deleteAll(MemoryScope scope) {
         return repo.itemMapper.deleteAllInScope(scope.tenantId(), scope.subjectId());
@@ -151,7 +151,7 @@ final class MemoryItemStore {
         return repo.itemMapper.selectScoped(scope.tenantId(), scope.subjectId(), id);
     }
 
-    /** 对照 {@code ListActiveByKinds}：{@code kinds} 为空时 Go 直接回 {@code nil}。 */
+    /** 对照 {@code ListActiveByKinds}：{@code kinds} 为空时直接回 {@code null}。 */
     public List<MemoryItem> listActiveByKinds(MemoryScope scope, List<String> kinds, int limit) {
         if (kinds == null || kinds.isEmpty()) {
             return null;
@@ -176,7 +176,7 @@ final class MemoryItemStore {
     /**
      * 对照 {@code ListItems}：记忆管理器的分页列表。
      *
-     * <p>{@code limit <= 0} 时取 50（Go 的硬编码）；返回值同时带总数与这一页。</p>
+     * <p>{@code limit <= 0} 时取 50（硬编码）；返回值同时带总数与这一页。</p>
      */
     public MemoryPage<MemoryItem> listItems(MemoryScope scope, String status, int limit, int offset) {
         long total = repo.itemMapper.countListItems(scope.tenantId(), scope.subjectId(), status);
@@ -231,11 +231,10 @@ final class MemoryItemStore {
     // ── 生命周期：SaveItem / ConfirmPendingItem ────────────────────────────
 
     /**
-     * 对照 {@code SaveItem}（memory_lifecycle.go L15-90）：
-     * 把"替换"与"确认 / 人工编辑"串行化。一条提议可以替换另一条提议，
+     * 保存一条记忆，把"替换"与"确认 / 人工编辑"串行化。一条提议可以替换另一条提议，
      * 但**不能**让一条已生效的事实退休。
      *
-     * <p>三处必须照抄的细节：</p>
+     * <p>三处必须保留的细节：</p>
      * <ol>
      *   <li><b>重放分支</b>：目标已经不在 active/pending 时，若它的
      *       {@code superseded_by} 指向的那条与本次要写的 status+content 完全一致，
@@ -247,7 +246,7 @@ final class MemoryItemStore {
      *       目标 pending → 继承目标的 replaces_id；仍为空 → 取 live 里第一条 active。</li>
      * </ol>
      *
-     * <p>{@code item} 是**被就地改写**的（Go 的 {@code *item = …}），
+     * <p>{@code item} 是**被就地改写**的，
      * 调用方拿到的才是最终落库的那一行。</p>
      */
     public void saveItem(MemoryScope scope, MemoryItem item, String replacesId) {
@@ -342,7 +341,7 @@ final class MemoryItemStore {
     }
 
     /**
-     * 对照 {@code ConfirmPendingItem}（memory_lifecycle.go L92-125）：
+     * 确认一条提议：
      * 原子地把一条提议置为生效、并让它要替换的目标退休。
      *
      * <p>四条分支都要保留：已经是 active → **直接成功返回**（幂等）；
@@ -387,7 +386,7 @@ final class MemoryItemStore {
     /**
      * 对照 {@code AddTombstone}：记一条"刻意忘掉"，然后做一次修剪。
      *
-     * <p>{@code fingerprint} 为空时 Go 直接返回——空指纹是全表冲突，不能插。</p>
+     * <p>{@code fingerprint} 为空时直接返回——空指纹是全表冲突，不能插。</p>
      */
     public void addTombstone(MemoryScope scope, String topic, String fingerprint, String sourceMessageId) {
         if (fingerprint == null || fingerprint.isEmpty()) {
@@ -442,7 +441,7 @@ final class MemoryItemStore {
     /**
      * 对照 {@code HasTombstoneForMessage}。
      *
-     * <p>{@code within <= 0} 时不加时间窗（Go 的 {@code if within > 0}）。
+     * <p>{@code within} 非正时不加时间窗。
      * 窗口是有意义的：这条规则拦的是一个 debounce 之后的重推，不是永久封禁一条消息。</p>
      */
     public boolean hasTombstoneForMessage(MemoryScope scope, String sourceMessageId, Duration within) {

@@ -11,18 +11,16 @@ import com.ragagent.tracing.langfuse.LangfuseVlm;
 import org.springframework.stereotype.Component;
 
 /**
- * 工具结果图片 VLM 描述器的装配（对照 Go agent_service.go L246-256 的
- * SetImageDescriber 段）：{@code GetVLMModel} → {@code vlmModel.Predict}。
- * Java 侧的同一调用面是 {@code VlmClient.predict(config, transport, images, prompt)}
- * （逐张图片调用，照 describeImages 的 {@code [][]byte{imgBytes}}）。
+ * 工具结果图片 VLM 描述器的装配：取 VLM 模型并组装 predict 回调。
+ * 调用面是 {@code VlmClient.predict(config, transport, images, prompt)}
+ * （逐张图片调用，载荷形如 {@code [][]byte{imgBytes}}）。
  *
- * <p>装饰顺序照 Go 的 {@code vlm.NewVLM}：并发闸门在最外层（先取槽，再 langfuse
+ * <p>装饰顺序：并发闸门在最外层（先取槽，再 langfuse
  * 计时，最后真实 provider 往返）——wrapVLMConcurrency 的注释明确"等待不计入
  * debug/langfuse 计时"。</p>
  *
- * <p><b>已知差异（备案）</b>：Go 的 tool_images.go 给整批描述包 60s ctx 超时
- * （{@code context.WithTimeout}）；Java 侧调用是阻塞的、没有协作取消通道，
- * 未复刻该批级超时——实际超时由 {@code VLM_HTTP_TIMEOUT_SECONDS}（缺省 180s）
+ * <p><b>已知差异（备案）</b>：没有批级 60s 超时——Java 侧调用是阻塞的、没有协作取消通道，
+ * 实际超时由 {@code VLM_HTTP_TIMEOUT_SECONDS}（缺省 180s）
  * 在 HTTP 层兜底。</p>
  */
 @Component
@@ -51,7 +49,7 @@ public class VlmDescriberWiring {
     }
 
     /**
-     * 组装描述器；任一步失败抛异常——调用方照 Go 的失败分支只记警告、不设置
+     * 组装描述器；任一步失败抛异常——调用方只记警告、不设置
      * 描述器（引擎随后对无描述能力走 "cannot view" 提示词）。
      */
     public AgentEngine.ImageDescriberFunc create(String vlmModelId) {

@@ -160,11 +160,11 @@ final class AuthSessionOps {
         }
         if (root == null || !root.isObject()) {
             if (root == null || root.isNull()) {
-                // body=null → Go 零值绑定 → validator required（TenantID 零值）
+                // body=null → 绑定为缺省对象 → TenantID 为 0 触发 required
                 throw service.invalidParams("Invalid workspace switch request",
                         service.bindingError(null, "TenantID", "required"));
             }
-            // 顶层非对象：Go 的 "json: cannot unmarshal <kind> into Go value of type <匿名 struct 类型串>"
+            // 顶层非对象：报 legacy 绑定错误原文（含类型串，见 SWITCH_ANON_STRUCT_TYPE）
             throw service.invalidParams("Invalid workspace switch request",
                     "json: cannot unmarshal " + goJsonKind(root) + " into Go value of type "
                             + AuthController.SWITCH_ANON_STRUCT_TYPE);

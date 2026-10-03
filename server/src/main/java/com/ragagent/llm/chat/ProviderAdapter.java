@@ -11,22 +11,20 @@ import com.ragagent.llm.domain.ChatOptions;
 import org.springframework.http.HttpHeaders;
 
 /**
- * OpenAI 兼容后端中**厂商特有**的全部行为（对照 Go chat.providerAdapter，
- * internal/models/chat/provider.go:28-57）。
+ * OpenAI 兼容后端中**厂商特有**的全部行为。
  *
  * 每个方法在 {@link BaseProvider} 都有合理默认值，新增厂商只需继承 BaseProvider
  * 并覆写真正不同的那一两个方法。
  *
- * **Java 侧简化**：Go 的 `ForceRawHTTP()` 与 `ShapeRequest(req *openai.ChatCompletionRequest)`
- * 是针对 go-openai SDK struct 的限制设计的（某些字段 SDK 带不了 → 转裸 HTTP 发原始 body）。
- * Java 侧统一用 {@link ObjectNode} 构造并发送请求体，SDK 限制不存在，因此：
- * - `ForceRawHTTP()` 无对应物（已删除）
- * - `ShapeRequest` 直接改 {@link ObjectNode}（等价于 Go 中"改 req 后走裸 HTTP"的净效果）
- * 只有 `Endpoint` 覆写与 `Auth` 分叉仍需保留。
+ * **实现说明**：本接口统一用 {@link ObjectNode} 构造并发送请求体，
+ * 不存在"强类型 SDK struct 带不了某些字段 → 转裸 HTTP 发原始 body"的问题，因此：
+ * - 没有"强制裸 HTTP"开关
+ * - `shapeRequest` 直接改 {@link ObjectNode}
+ * 只有 `endpoint` 覆写与 `auth` 分叉仍需保留。
  */
 public interface ProviderAdapter {
 
-    /** 本适配器负责的 provider 名（对照 Go provider.ProviderName）。 */
+    /** 本适配器负责的 provider 名。 */
     String name();
 
     /**
@@ -80,7 +78,7 @@ public interface ProviderAdapter {
     }
 
     /**
-     * 原始 HTTP 请求鉴权所需的凭据（对照 Go authCreds）。
+     * 原始 HTTP 请求鉴权所需的凭据。
      * apiKey 覆盖常见的 Bearer / api-key 场景；appId/appSecret 仅签名类厂商
      * （WeKnoraCloud）使用。
      */

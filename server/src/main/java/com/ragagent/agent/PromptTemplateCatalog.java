@@ -171,7 +171,7 @@ public final class PromptTemplateCatalog {
     /**
      * localized 副本 + JSON 输出：
      * 只搬 9 个字段（graph_extraction/generate_questions 恒缺席），
-     * 键序固定，空值省略规则逐字段复刻。
+     * 键序固定，空值省略逐字段显式控制。
      */
     public static ObjectNode toJson(Config cfg, String locale) {
         ObjectNode data = MAPPER.createObjectNode();

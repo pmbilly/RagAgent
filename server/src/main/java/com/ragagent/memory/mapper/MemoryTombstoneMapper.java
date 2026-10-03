@@ -12,9 +12,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 /**
- * {@code memory_tombstones} 的仓储（对照 Go internal/application/repository/memory.go
- * 的 {@code AddTombstone} / {@code trimTombstones} / {@code ListTombstones} /
- * {@code HasTombstone} / {@code HasTombstoneForMessage}）。
+ * {@code memory_tombstones} 的仓储。
  *
  * <p>唯一约束 {@code idx_mem_tomb_fp (tenant_id, subject_id, fingerprint)} 是
  * {@code AddTombstone} 的 ON CONFLICT 靶子——它保证"同一句话被忘两次"不会插出两行。</p>
@@ -25,7 +23,7 @@ public interface MemoryTombstoneMapper extends BaseMapper<MemoryTombstone> {
     /**
      * 对照 {@code AddTombstone}：冲突时什么都不做。
      *
-     * <p>注意 Go 的 gorm tag 里 {@code CreatedAt} 是自动时间戳，所以插入时会写入 {@code now}；
+     * <p>{@code created_at} 语义上是自动时间戳（插入时写 {@code now}）；
      * 而这里**必须显式给 {@code created_at}**，否则 H2 会落到 DDL 的
      * {@code DEFAULT CURRENT_TIMESTAMP}（values 一致，但 Java 侧不依赖 DB 默认值，
      * 免得 PG/H2 出现毫秒差）。</p>

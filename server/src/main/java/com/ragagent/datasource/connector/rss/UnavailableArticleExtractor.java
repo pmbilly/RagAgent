@@ -5,13 +5,13 @@ package com.ragagent.datasource.connector.rss;
  *
  * <p>它存在的理由是：让 {@code resolveItem} 在抽取层不可用时以 feed 内容定型——
  * 并且（2026-09-28 起）<b>连文章页请求一起跳过</b>（抓回的字节必被丢弃，省一次
- * 无效外网调用；这是本模块唯一有意偏离 Go 控制流之处）。
+ * 无效外网调用）。
  * 详细后果见 {@link ArticleExtractor} 的类注释。</p>
  *
  * <h2>为什么不返回整页 HTML 冒充"正文"</h2>
- * <p>那样看起来"更有内容"，但会把导航栏、页脚、广告一起灌进知识库，
- * 且与 Go 的输出<b>既不等价也不更差得可预期</b>——一个确定的失败比一个
- * 看起来成功的错误结果更容易被诊断。这也是任务书要求的处置。</p>
+ * <p>那样看起来"更有内容"，但会把导航栏、页脚、广告一起灌进知识库——
+ * 一个确定的失败比一个
+ * 看起来成功的错误结果更容易被诊断。</p>
  */
 public final class UnavailableArticleExtractor implements ArticleExtractor {
 

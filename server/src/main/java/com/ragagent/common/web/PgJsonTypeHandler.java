@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import org.apache.ibatis.type.JdbcType;
 
 /**
- * PostgreSQL jsonb 写入适配（对照 Go GORM jsonb 列的透明存取）。
+ * PostgreSQL jsonb 写入适配（jsonb 列的透明存取）。
  *
  * MyBatis-Plus 原生 JacksonTypeHandler 用 setString 写 json 串，PG 服务端会拒
  * （"column is of type jsonb but expression is of type character varying"）。

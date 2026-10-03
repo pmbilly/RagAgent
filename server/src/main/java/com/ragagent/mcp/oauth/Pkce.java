@@ -7,10 +7,9 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * PKCE（RFC 7636）与 state 的生成（对照 mcp-go
- * {@code client/transport/oauth_utils.go} 全文）。
+ * PKCE（RFC 7636）与 state 的生成。
  *
- * <p>逐条对照：
+ * <p>逐条规则：
  * <ul>
  *   <li>{@code GenerateRandomString(n)}：{@code n} 字节 CSPRNG →
  *       base64url（无填充）→ 截断到前 {@code n} 个字符；</li>

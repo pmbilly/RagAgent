@@ -16,15 +16,13 @@ import com.ragagent.llm.domain.StreamResponse;
 /**
  * SSE 帧的**逐字节**契约测试——这是整套 A/B 的落点，字节错了前面全白做。
  *
- * <h2>期望值的来源</h2>
- * <p>把 {@code gin-contrib/sse} 的 {@code Encode}/{@code writeEvent}/{@code writeData}
- * 原样抄进一个独立 Go 程序，喂同样的 {@code StreamResponse}，打印帧字节，再抄进来。
- * 它一次钉住四件事：</p>
+ * <h2>期望值钉住的线格式</h2>
+ * <p>帧字节一次钉住四件事：</p>
  * <ol>
  *   <li>帧骨架是 {@code event:message\ndata:<json>\n\n}——<b>冒号后没有空格</b>；</li>
- *   <li>JSON 走 Go 的转义（{@code < > &} → {@code < > &}，<b>小写十六进制</b>）；</li>
+ *   <li>JSON 转义 HTML 敏感字符（{@code < > &} → {@code \u003c \u003e \u0026}，<b>小写十六进制</b>）；</li>
  *   <li>map 键按键排序（{@code data} 与嵌套 map）；</li>
- *   <li>字段序是 Go 的 struct 声明序，且 {@code id}/{@code response_type}/{@code content}/{@code done}
+ *   <li>字段序是 {@code StreamResponse} 的声明序，且 {@code id}/{@code response_type}/{@code content}/{@code done}
  *       恒输出。</li>
  * </ol>
  *
@@ -50,7 +48,7 @@ class SseFrameWriterTest {
 
 
     /**
-     * 帧内 {@code data:} 段按 JSON 语义归一：Go 序列化层退役后，转义写法与键序不再是对比目标；
+     * 帧内 {@code data:} 段按 JSON 语义归一：转义写法与键序不再是断言目标；
      * 帧骨架（{@code event:message\ndata:<json>\n\n}）仍逐字节断言。
      */
     private static String canonFrame(String frame) {
@@ -67,7 +65,7 @@ class SseFrameWriterTest {
     }
 
     private static String body(MockHttpServletResponse response) throws Exception {
-        // 帧里全是 ASCII 的骨架 + UTF-8 的正文，按 UTF-8 解码才与 Go 的字节一致
+        // 帧里全是 ASCII 的骨架 + UTF-8 的正文，必须按 UTF-8 解码
         return new String(response.getContentAsByteArray(), java.nio.charset.StandardCharsets.UTF_8);
     }
 
@@ -82,7 +80,7 @@ class SseFrameWriterTest {
                         + "\"content\":\"hi there\",\"done\":false}\n\n"));
     }
 
-    /** HTML 敏感字符必须按 Go 的规则转义——Spring 默认不转。 */
+    /** HTML 敏感字符必须按线格式规则转义——Spring 默认不转。 */
     @Test
     void htmlSensitiveCharactersAreEscapedLikeGo() throws Exception {
         StreamResponse r = StreamResponse.of(ResponseType.ANSWER, "a < b & c > d", false);
@@ -162,7 +160,7 @@ class SseFrameWriterTest {
         r.setId("req-1");
 
         byte[] bytes = write(r).getContentAsByteArray();
-        // 骨架里的 "content":"你好" 部分必须与 Go 写出的字节一致
+        // 骨架里的 "content":"你好" 部分必须逐字节一致
         assertThat(new String(bytes, java.nio.charset.StandardCharsets.UTF_8))
                 .contains("\"content\":\"你好\"");
     }

@@ -3,15 +3,15 @@ package com.ragagent.retrieval.engine.milvus;
 import java.math.BigDecimal;
 
 /**
- * 数值字面量格式化（照 Go 的 {@code %v} / {@code strconv.FormatFloat('g', -1, 64)} 形态）。
- * 仅用于过滤表达式里的浮点值（本驱动的过滤面以字符串/布尔为主）。
+ * 数值字面量格式化：整数不带小数（{@code 1}）、极小/极大值走 {@code 1e-07}/{@code 1e+07}
+ * 计数形态。仅用于过滤表达式里的浮点值（本驱动的过滤面以字符串/布尔为主）。
  */
 final class MilvusNumbers {
 
     private MilvusNumbers() {
     }
 
-    /** Go {@code %v} 形态：整数不带小数（{@code 1}）、极小/极大走 {@code 1e-07} 形态。 */
+    /** 整数不带小数（{@code 1}）、极小/极大走 {@code 1e-07} 形态。 */
     static String floatGo(double v) {
         if (Double.isNaN(v)) {
             return "NaN";

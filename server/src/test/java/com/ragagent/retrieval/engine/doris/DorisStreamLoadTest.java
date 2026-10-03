@@ -24,13 +24,13 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * Doris Stream Load 面（legacy 模式的 partial update）——对照 Go {@code streamload.go}：
+ * Doris Stream Load 面（legacy 模式的 partial update）：
  * 端点与请求头（Authorization/format/strip_outer_array/partial_columns/columns/merge_type）、
- * JSON 体（Go json.Marshal 的 map 字母序）、"Publish Timeout" 视为成功、
+ * JSON 体（键按字母序）、"Publish Timeout" 视为成功、
  * 非 2xx 与失败状态的报文、307 到可信主机的跟随与跨主机拒收、1 MiB 拆批。
  *
- * <p>桩是本地假 FE/BE：断言"发出去的 HTTP 长什么样"（该批无 golden 面，逐请求断言即
- * 本批的字节契约）。</p>
+ * <p>桩是本地假 FE/BE：断言"发出去的 HTTP 长什么样"（该面无 golden fixture，逐请求断言即
+ * 字节契约）。</p>
  */
 class DorisStreamLoadTest {
 

@@ -16,15 +16,14 @@ import com.ragagent.datasource.connector.feishu.core.DocxMarkdown.MarkdownResult
 import com.ragagent.datasource.connector.feishu.core.DocxMarkdown.PendingAttachment;
 
 /**
- * 对照 Go {@code core/markdown_test.go} 全文。
+ * {@code blocksToMarkdown} 的逐字节输出契约。
  *
- * <p>期望值全部是 <b>Go 实录</b>：把 {@code blocksToMarkdown} 及其全部依赖逐字抄进
- * {@code /tmp/gochk-md} 独立程序跑出来的输出（含整篇富文档的完整 Markdown），
+ * <p>期望值钉死完整输出（含整篇富文档的完整 Markdown），
  * 因此任何一处换行/空行/空格差异都会被抓住。</p>
  */
 class DocxMarkdownTest {
 
-    /** 对照 Go 测试里的 {@code fakeReader}。 */
+    /** 测试用的 {@code SheetReader} 替身。 */
     static final class FakeReader implements DocxMarkdown.SheetReader {
 
         List<List<String>> sheet;
@@ -253,7 +252,7 @@ class DocxMarkdownTest {
 
         MarkdownResult md = DocxMarkdown.blocksToMarkdown(null, blocks);
         assertThat(md.attachments()).containsExactly(new PendingAttachment("tok-in-cell", "内嵌.pdf"));
-        // Go 实录：单元格文本为空 → 仍渲染出单列表格体
+        // 单元格文本为空 → 仍渲染出单列表格体
         assertThat(md.text()).isEqualTo("|  |\n| --- |\n\n📎 附件：内嵌.pdf\n");
     }
 
@@ -356,7 +355,7 @@ class DocxMarkdownTest {
         assertThat(md.text()).isEmpty();
     }
 
-    // ── 构造助手（对照 Go 测试里的 blk 工厂） ──────────────────────────────
+    // ── 构造助手 ──────────────────────────────────────────────────────────
 
     static DocxBlock sheetBlock(String id, String token) {
         DocxBlock b = DocxBlock.of(id, DocxBlocks.BLOCK_TYPE_SHEET);
@@ -382,7 +381,7 @@ class DocxMarkdownTest {
         return b;
     }
 
-    /** 对照 Go 的 {@code txt(s)}。 */
+    /** 单个文本块的快捷工厂。 */
     static BlockText txt(String s) {
         return BlockText.of(s);
     }

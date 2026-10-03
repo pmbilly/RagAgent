@@ -6,14 +6,13 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * 微信 iLink 机器人的媒体加解密（对照 Go {@code internal/im/wechat/crypto.go} L12-72 与
- * {@code adapter.go} 的 {@code parseAESKey}/{@code isHex}/{@code hexDecode}，L217-280）。
+ * 微信 iLink 机器人的媒体加解密。
  *
  * <p>算法是 <b>AES-128-ECB</b>（无 IV、无链式）。解密后的 PKCS#7 填充<b>只在校验通过时才去</b>
- * ——照 Go：末字节 padLen ∈ (0,16] 且尾部 padLen 个字节都等于 padLen 才裁掉，
+ * ：末字节 padLen ∈ (0,16] 且尾部 padLen 个字节都等于 padLen 才裁掉，
  * 否则原样返回（iLink 有些媒体其实是免填充的）。</p>
  *
- * <p>{@link #parseAesKey} 覆盖 iLink 出现的三种密钥形态（照 Go 的注释）：
+ * <p>{@link #parseAesKey} 覆盖 iLink 出现的三种密钥形态：
  * ① base64(16 字节裸密钥)——{@code CDNMedia.aes_key}；
  * ② base64(32 字符 hex 串)——{@code CDNMedia.aes_key} 的另一种；
  * ③ 裸 32 字符 hex 串——{@code ImageItem.aeskey}（<b>不</b> base64 编码）；
@@ -24,7 +23,7 @@ public final class WechatCrypto {
     private WechatCrypto() {
     }
 
-    /** 对照 {@code decryptAES128ECB}：ECB 解密 + 条件去填充。 */
+    /** ECB 解密 + 条件去填充。 */
     public static byte[] decryptAes128Ecb(byte[] ciphertext, byte[] key) throws Exception {
         if (key == null || (key.length != 16 && key.length != 24 && key.length != 32)) {
             throw new IllegalArgumentException("invalid aes key length: "
@@ -40,7 +39,7 @@ public final class WechatCrypto {
         cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"));
         byte[] plain = cipher.doFinal(ciphertext);
 
-        // 条件去 PKCS#7（照 Go：校验通过才裁）
+        // 条件去 PKCS#7（校验通过才裁）
         if (plain.length > 0) {
             int padLen = plain[plain.length - 1] & 0xFF;
             if (padLen > 0 && padLen <= blockSize && padLen <= plain.length) {
@@ -61,7 +60,7 @@ public final class WechatCrypto {
         return plain;
     }
 
-    /** 对照 {@code encryptAES128ECB}：PKCS#7 补齐后 ECB 加密（上传媒体用）。 */
+    /** PKCS#7 补齐后 ECB 加密（上传媒体用）。 */
     public static byte[] encryptAes128Ecb(byte[] plaintext, byte[] key) throws Exception {
         int blockSize = 16;
         byte[] data = plaintext == null ? new byte[0] : plaintext;
@@ -76,7 +75,7 @@ public final class WechatCrypto {
         return cipher.doFinal(padded);
     }
 
-    /** 对照 {@code parseAESKey}：三形态 + 兜底，一律 16 字节。 */
+    /** 三形态 + 兜底，一律 16 字节。 */
     public static byte[] parseAesKey(String aesKeyStr) {
         if (aesKeyStr == null || aesKeyStr.isEmpty()) {
             throw new IllegalArgumentException("empty aes key");
@@ -110,7 +109,7 @@ public final class WechatCrypto {
                 + " bytes (expected 16 raw or 32 hex), input len=" + aesKeyStr.length());
     }
 
-    /** Go 的 {@code base64.RawStdEncoding}（无填充）对应 Java 的解码补齐。 */
+    /** base64 无填充形态的解码补齐（补 "=" 到 4 的倍数）。 */
     private static String padBase64(String value) {
         int mod = value.length() % 4;
         if (mod == 0) {
@@ -119,7 +118,7 @@ public final class WechatCrypto {
         return value + "=".repeat(4 - mod);
     }
 
-    /** 对照 {@code isHex}：非空且全是 hex 字符。 */
+    /** 非空且全是 hex 字符。 */
     public static boolean isHex(String value) {
         if (value == null || value.isEmpty()) {
             return false;
@@ -135,7 +134,7 @@ public final class WechatCrypto {
         return true;
     }
 
-    /** 对照 {@code hexDecode}：奇数长度报错。 */
+    /** hex 解码；奇数长度报错。 */
     public static byte[] hexDecode(String value) {
         if (value == null || value.length() % 2 != 0) {
             throw new IllegalArgumentException("odd-length hex string: "

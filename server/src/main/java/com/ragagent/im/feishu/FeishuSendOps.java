@@ -17,8 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 飞书发送协作者（对照 Go adapter.go 的 sendWithFallback/postFeishuMessage 段，
- * 自 {@link FeishuAdapter} 机械搬出）：reply API 优先、可回落错误码时改走
+ * 飞书发送协作者：reply API 优先、可回落错误码时改走
  * send-message（带 receive_id_type）；message_id 不安全字符直接拒。
  * 持门面回引取 region/http/token；{@code MAPPER}/{@code readTree}/{@code FALLBACK_ELIGIBLE}
  * 经门面类名访问。
@@ -53,7 +52,7 @@ final class FeishuSendOps {
         sendWithFallback(accessToken, incoming, replyPayload, fallbackPayload, receive[0]);
     }
 
-    /** 对照 {@code resolveReceiveID}：群聊 chat_id，私聊 open_id。 */
+    /** 群聊 chat_id，私聊 open_id。 */
     static String[] resolveReceiveId(IncomingMessage incoming) {
         String receiveIdType = "open_id";
         String receiveId = incoming.userId == null ? "" : incoming.userId;
@@ -65,7 +64,7 @@ final class FeishuSendOps {
         return new String[] {receiveIdType, receiveId};
     }
 
-    /** 对照 {@code sendWithFallback}：reply API 优先，可回落码 → send-message。 */
+    /** reply API 优先，可回落码 → send-message。 */
     void sendWithFallback(String accessToken, IncomingMessage incoming,
                                   Map<String, Object> replyPayload,
                                   Map<String, Object> fallbackPayload, String receiveIdType)
@@ -106,7 +105,7 @@ final class FeishuSendOps {
         }
     }
 
-    /** 对照 {@code postFeishuMessage}：POST JSON，解 (code, msg)（传输错误单列）。 */
+    /** POST JSON，解 (code, msg)（传输错误单列）。 */
     private ApiResult postFeishuMessage(String accessToken, String url, Map<String, Object> payload)
             throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
@@ -129,7 +128,7 @@ final class FeishuSendOps {
     private record ApiResult(int code, String msg, Throwable transportError) {
     }
 
-    /** 对照 {@code feishuSafePathParam}：只允许字母数字与 {@code -_}，且非空。 */
+    /** 只允许字母数字与 {@code -_}，且非空。 */
     static boolean safePathParam(String value) {
         if (value == null || value.isEmpty()) {
             return false;

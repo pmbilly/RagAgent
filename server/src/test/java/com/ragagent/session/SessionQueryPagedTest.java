@@ -18,7 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 会话列表查询（{@code QueryPaged}）——对照 Go internal/application/repository/session.go L142-279。
+ * 会话列表查询（{@code queryPaged}）。
  *
  * <p>这是本模块分支最多的一条 SQL（六种来源桶 + 关键字 + agent + 分页 + pin 排序），
  * 所以每一条分支都单独钉一个用例。H2 走的是非 postgres 分支
@@ -67,7 +67,7 @@ class SessionQueryPagedTest {
     /**
      * @param owner 所有者范围。**admin-only 的来源要把范围清空**——服务层就是这样做的
      *              （{@code ListSessions} 里 {@code SessionListSourceRequiresAdmin} 为真时
-     *              {@code query.UserID = ""}）。仓储本身不管这事，测试要复刻服务层这一步。
+     *              {@code query.UserID = ""}）。仓储本身不管这事，测试要自行补上服务层这一步。
      */
     private List<SessionListItem> queryAs(String source, String keyword, String agentId, String owner) {
         return repo.queryPaged(SessionListQuery.of(keyword, source, agentId, 1, 50).withScope(TENANT, owner))
@@ -101,7 +101,7 @@ class SessionQueryPagedTest {
 
     @Test
     void skillMaintenanceSessionsAreHiddenFromEverySource() {
-        // Go 的注释：这条排除刻意放在 applyBase 而不是 applySource——
+        // 这条排除放在所有来源桶共享的基础过滤里，而不是单个来源桶的过滤——
         // 维护会话必须从**所有**桶里消失，包括不带筛选的那次列表
         create("normal", "", "u1");
         create("hidden", Session.SKILL_MAINTENANCE_SESSION_MARKER + "install", "u1");
@@ -166,7 +166,7 @@ class SessionQueryPagedTest {
 
     @Test
     void sessionDeletedImMappingStillCountsAsImOrigin() {
-        // Go 的注释：/clear 会软删映射并另起会话，所以**软删的映射也要算数**——
+        // /clear 会软删映射并另起会话，所以**软删的映射也要算数**——
         // 否则那些历史 IM 会话会掉进用户的 web 桶
         Session im = create("im", "", "u1");
         bindIm(im.getId(), "feishu", "agent-1");

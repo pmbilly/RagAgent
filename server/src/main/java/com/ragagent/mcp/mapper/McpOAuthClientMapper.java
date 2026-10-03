@@ -12,13 +12,11 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * mcp_oauth_clients 仓储（对照 Go mcpOAuthRepository 的 client 部分，
- * internal/application/repository/mcp_oauth.go:25-55）。
+ * mcp_oauth_clients 仓储。
  *
  * <p>唯一键 (tenant_id, service_id)，故 SaveClient 用 upsert 语义：
  * UPDATE 命中即更新，未命中再 INSERT（并用唯一键冲突兜住并发）。
- * Go 用 {@code clause.OnConflict + AssignmentColumns}，
- * DO UPDATE 列恰为 client_id / client_secret / redirect_uri / updated_at
+ * 更新列恰为 client_id / client_secret / redirect_uri / updated_at
  * ——<b>不含 created_at</b>。</p>
  */
 @Mapper

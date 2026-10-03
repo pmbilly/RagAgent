@@ -22,20 +22,19 @@ import com.ragagent.llm.provider.ProviderName;
 import org.junit.jupiter.api.Test;
 
 /**
- * 对照 Go internal/models/chat/provider_test.go（4 个测试）的语义对等翻译：
- * 注册表路由表、thinking 合并路径（buildOutbound）、参数整形、Gemini 工具元数据往返。
+ * 厂商适配注册表的契约：注册表路由表、thinking 合并路径（buildOutbound）、
+ * 参数整形、Gemini 工具元数据往返。
  *
- * <p>差异说明：Go 断言 {@code useRawHTTP}（SDK 路径 vs 裸 HTTP 路径）与 SDK 结构体字段；
- * Java 单路径没有该判定，故断言落在**出站 JSON** 上——那才是真正决定线上行为的东西。
- * 原先 {@code useRaw == true} 的用例在 Java 侧等价于"body 里出现了厂商特有的 thinking 字段"，
- * {@code useRaw == false} 的用例等价于"body 是干净的（没有任何 thinking 扩展字段）"。</p>
+ * <p>断言落在**出站 JSON** 上——那才是真正决定线上行为的东西。
+ * "启用 thinking" 的用例等价于"body 里出现了厂商特有的 thinking 字段"，
+ * "禁用 thinking" 的用例等价于"body 是干净的（没有任何 thinking 扩展字段）"。</p>
  */
 class ProviderAdapterRegistryTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     // ------------------------------------------------------------------
-    // 对照 Go TestResolveProvider
+    // 注册表路由（resolve）
     // ------------------------------------------------------------------
 
     @Test
@@ -96,7 +95,7 @@ class ProviderAdapterRegistryTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go newOutboundChat + TestBuildOutbound_Thinking
+    // 出站构建（buildOutbound）与 thinking 合并
     // ------------------------------------------------------------------
 
     private static RemoteApiChat newOutboundChat(String providerName, String model, Map<String, String> extra) {
@@ -108,7 +107,7 @@ class ProviderAdapterRegistryTest {
         config.setProvider(providerName);
         config.setExtraConfig(extra);
         if (ProviderName.WEKNORA_CLOUD.value().equals(providerName)) {
-            // 该厂商的构造期硬校验：AppID/AppSecret 必填（对照 Go NewRemoteAPIChat）
+            // 该厂商的构造期硬校验：AppID/AppSecret 必填
             config.setAppId("app-id");
             config.setAppSecret("app-secret");
         }
@@ -147,7 +146,7 @@ class ProviderAdapterRegistryTest {
         assertTrue(legacyBody.has("chat_template_kwargs"));
         assertFalse(legacyBody.path("chat_template_kwargs").path("enable_thinking").asBoolean());
 
-        // thinking_control = none → 干净的请求体（Go 里对应 useRaw == false）
+        // thinking_control = none → 干净的请求体（没有任何 thinking 扩展字段）
         RemoteApiChat none = newOutboundChat("generic", "x", Map.of("thinking_control", "none"));
         JsonNode noneBody = outbound(none, thinking(false), true);
         assertFalse(noneBody.has("chat_template_kwargs"));
@@ -186,7 +185,7 @@ class ProviderAdapterRegistryTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestBuildOutbound_ShapeRequest
+    // 出站参数整形
     // ------------------------------------------------------------------
 
     @Test
@@ -209,7 +208,7 @@ class ProviderAdapterRegistryTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestBuildOutbound_GeminiProviderMetadata
+    // Gemini 工具元数据往返
     // ------------------------------------------------------------------
 
     @Test
@@ -263,7 +262,7 @@ class ProviderAdapterRegistryTest {
         assertEquals("sig", gemini.extractToolCallMetadata(
                         MAPPER.readTree("{\"extra_content\":{\"google\":{\"thought_signature\":\"sig\"}}}"))
                 .get("google").path("thought_signature").asText());
-        // 显式 null 在 Go 里是 RawMessage("null")（非空）→ 仍然往返
+        // 显式 null 的 google 键视为存在 → 仍然往返
         Map<String, JsonNode> nullGoogle = gemini.extractToolCallMetadata(
                 MAPPER.readTree("{\"extra_content\":{\"google\":null}}"));
         assertTrue(nullGoogle.get("google").isNull());
@@ -318,7 +317,7 @@ class ProviderAdapterRegistryTest {
         return opts;
     }
 
-    /** 补测：WeKnoraCloud 的签名头齐全且签名可复算（对照 signer.go 的 X-Signature）。 */
+    /** 补测：WeKnoraCloud 的签名头齐全且签名可复算（X-Signature）。 */
     @Test
     void weKnoraCloudSignsRequest() {
         Map<String, String> headers = ProviderAdapters.WeKnoraCloud.sign(
@@ -330,7 +329,7 @@ class ProviderAdapterRegistryTest {
         assertEquals(16, headers.get("X-Nonce").length());
         assertEquals(32, headers.get("X-Signature").length(), "MD5 十六进制");
 
-        // 签名 = md5(排序后的 k=v 的 & 拼接)；用同一算法复算一遍（与 Go 的 signer.go 一致）
+        // 签名 = md5(排序后的 k=v 的 & 拼接)；用同一算法复算一遍
         java.security.MessageDigest digest;
         try {
             digest = java.security.MessageDigest.getInstance("MD5");

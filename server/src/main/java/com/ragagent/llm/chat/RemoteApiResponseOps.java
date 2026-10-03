@@ -9,8 +9,7 @@ import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * 响应解析协作者（对照 Go openai_stream.go 前半的非流式解析，自 {@link RemoteApiChat}
- * 机械搬出）：choices[0] 解析、<think> 标签剥离与厂商工具调用元数据回填。
+ * 响应解析协作者（自 {@link RemoteApiChat} 拆出）：choices[0] 解析、<think> 标签剥离与厂商工具调用元数据回填。
  * 持门面回引用 adapter（可变，测试可替换）与 provider，共享 static {@code textOrEmpty}
  * 经门面类名访问。
  */
@@ -23,10 +22,10 @@ final class RemoteApiResponseOps {
     }
 
     // ------------------------------------------------------------------
-    // 非流式响应解析（对照 openai_stream.go 前半）
+    // 非流式响应解析
     // ------------------------------------------------------------------
 
-    /** 对照 Go parseCompletionResponse：取 choices[0]，剥 thinking 标签，带出 tool_calls 与 usage。 */
+    /** 取 choices[0]，剥 thinking 标签，带出 tool_calls 与 usage。 */
     ChatResponse parseCompletionResponse(JsonNode resp) {
         JsonNode choices = resp == null ? null : resp.get("choices");
         if (choices == null || !choices.isArray() || choices.isEmpty()) {
@@ -58,7 +57,7 @@ final class RemoteApiResponseOps {
     }
 
     /**
-     * 对照 Go applyCompletionToolCallMetadata：用**原始响应体**里的 tool_call 对象抽取
+     * 用**原始响应体**里的 tool_call 对象抽取
      * 厂商特有状态（Gemini 的 extra_content），按 index 回填。
      */
     void applyCompletionToolCallMetadata(JsonNode body, ChatResponse result) {
@@ -85,7 +84,7 @@ final class RemoteApiResponseOps {
     }
 
     /**
-     * 对照 Go removeThinkingContent：移除思考模型输出里的 {@code <think>...</think>}。
+     * 移除思考模型输出里的 {@code <think>...</think>}。
      * 仅当内容以 {@code <think>} 开头才处理；取**最后一个** {@code </think>}（容忍嵌套）；
      * 找不到闭标签（思考被截断）返回空串。
      */

@@ -22,29 +22,26 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * Doris Stream Load 客户端——对照 Go {@code repository/retriever/doris/streamload.go}
- * 全文（{@code partialUpdateRows / streamLoadOnce / chunkRows / streamLoadResponse}）
- * 与 {@code newDorisStreamLoadHTTPClient} 的 SSRF/重定向纪律。
+ * Doris Stream Load 客户端——partial update 行写入与 Stream Load 的 SSRF/重定向纪律。
  *
- * <p>语义要点（照 Go）：FE 收 PUT 后可能 307 重定向到 BE，基本认证头要跟着走；
- * Go 只在"同主机或显式在白名单里的目标"上转发凭据，本类同规则。</p>
+ * <p>语义要点：FE 收 PUT 后可能 307 重定向到 BE，基本认证头要跟着走；
+ * 只在"同主机或显式在白名单里的目标"上转发凭据。</p>
  *
- * <p><b>与 Go 的差异（备案）</b>：① Go 发 {@code Expect: 100-continue} 头；JDK
- * {@link HttpClient} 把该头列为禁设头，无法等价——Doris 不依赖它（仅是提前拒收的优化）；
- * ② Go 的 {@code http.Client} 跟随 301/302/303（改写为 GET）；本类只跟随 307/308
+ * <p><b>实现说明</b>：① 不发 {@code Expect: 100-continue} 头（JDK
+ * {@link HttpClient} 把该头列为禁设头；Doris 不依赖它，仅是提前拒收的优化）；
+ * ② 只跟随 307/308 重定向
  * （保留方法与 body）——Stream Load 的实际路径就是 307，其余 3xx 由上层按非 2xx 报错；
- * ③ 重定向上限 10 次（Go 共享客户端的 CheckRedirect 上限同量级）；④ Go 用
- * {@code json.Marshal}（map 键字母序）——本类要求调用方传 {@code TreeMap} 或有序 map，
+ * ③ 重定向上限 10 次；④ 请求体按键字母序序列化——要求调用方传 {@code TreeMap} 或有序 map，
  * 由 {@code Legacy} 路径显式保证。</p>
  */
 public final class DorisStreamLoadClient {
 
     private static final Logger log = LoggerFactory.getLogger(DorisStreamLoadClient.class);
 
-    /** 单批 Stream Load 的 JSON body 上限（照 Go 的 1 MiB 保守值）。 */
+    /** 单批 Stream Load 的 JSON body 上限（1 MiB 保守值）。 */
     static final int MAX_BATCH_BYTES = 1 << 20;
 
-    /** 重定向上限（照 Go 共享 HTTP 客户端的 CheckRedirect 上限）。 */
+    /** 重定向上限。 */
     static final int MAX_REDIRECTS = 10;
 
     private final HttpClient http;
@@ -62,20 +59,20 @@ public final class DorisStreamLoadClient {
         this.username = username == null ? "" : username;
         this.password = password == null ? "" : password;
         this.guard = guard;
-        // 对照 Go 的 cfg.Timeout = 0：Stream Load 自带调用方上下文期限，不额外设整体超时。
+        // 不设整体请求超时：Stream Load 自带调用方上下文期限。
         this.http = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
     }
 
-    /** 拼装某张表的 Stream Load HTTP 端点（照 Go streamLoadURL）。 */
+    /** 拼装某张表的 Stream Load HTTP 端点。 */
     String streamLoadUrl(String table) {
         return feHttpBase + "/api/" + pathEscape(database) + "/" + pathEscape(table)
                 + "/_stream_load";
     }
 
     /**
-     * 对照 {@code partialUpdateRows}：把若干行通过 Stream Load 的 partial update 模式写回
+     * 把若干行通过 Stream Load 的 partial update 模式写回
      * 目标表。{@code columns} 必须包含 UNIQUE KEY 列（即 "id"）。
      */
     public void partialUpdateRows(String table, List<String> columns,
@@ -89,8 +86,8 @@ public final class DorisStreamLoadClient {
     }
 
     /**
-     * 对照 {@code chunkRows}：按累积 JSON 体大小切分，每段不超过 maxBytes
-     * （粗略估计：单行 marshal 字节 + 逗号位，header = "[" + "]" 两个字节）。
+     * 按累积 JSON 体大小切分，每段不超过 maxBytes
+     * （粗略估计：单行序列化字节 + 逗号位，header = "[" + "]" 两个字节）。
      */
     static List<List<Map<String, Object>>> chunkRows(List<Map<String, Object>> rows, int maxBytes) {
         List<List<Map<String, Object>>> out = new ArrayList<>();
@@ -134,10 +131,10 @@ public final class DorisStreamLoadClient {
         return out;
     }
 
-    /** 复用一份静态 ObjectMapper（chunkRows 是静态方法，Go 的 json.Marshal 无状态）。 */
+    /** 复用一份静态 ObjectMapper（chunkRows 是静态方法）。 */
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    /** 对照 {@code streamLoadOnce}：发出一次 Stream Load HTTP 请求。 */
+    /** 发出一次 Stream Load HTTP 请求。 */
     private void streamLoadOnce(String table, List<String> columns,
                                List<Map<String, Object>> rows) {
         if (rows.isEmpty()) {
@@ -163,7 +160,7 @@ public final class DorisStreamLoadClient {
     }
 
     /**
-     * 发送并在"可信目标"上跟随 307/308（对照 Go 的 CheckRedirect 包装：同主机或白名单
+     * 发送并在"可信目标"上跟随 307/308（同主机或白名单
      * 目标才继续转发 Basic 凭据，其余目标的跨主机跳转直接拒绝）。
      */
     private HttpResponse<byte[]> sendFollowingTrustedRedirects(String url, byte[] body,
@@ -246,7 +243,7 @@ public final class DorisStreamLoadClient {
                 + " msg=" + result.message() + " err_url=" + result.errorUrl());
     }
 
-    /** 对照 {@code streamLoadResponse}（只保留上游消费得到的字段，未知键容忍）。 */
+    /** Stream Load 响应体（只保留上游消费得到的字段，未知键容忍）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record StreamLoadResponse(
             @JsonProperty("Label") String label,
@@ -269,7 +266,7 @@ public final class DorisStreamLoadClient {
         return out;
     }
 
-    /** 路径段转义（表名/库名受标识符校验约束，这里只做保守转义对齐 Go 的 url.PathEscape）。 */
+    /** 路径段转义（表名/库名受标识符校验约束，这里只做保守转义）。 */
     static String pathEscape(String segment) {
         return URLEncoder.encode(segment == null ? "" : segment, StandardCharsets.UTF_8)
                 .replace("+", "%20");

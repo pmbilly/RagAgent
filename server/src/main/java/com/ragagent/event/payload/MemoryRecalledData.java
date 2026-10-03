@@ -4,15 +4,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 本轮注入的长期记忆（对照 Go {@code event.MemoryRecalledData}，internal/event/event_data.go:191-193）。
+ * 本轮注入的长期记忆。
  *
- * <p>实录锚点：零值输出 {@code {"memories":null}}（无 omitempty）。
- * Go 的 {@code []types.UsedMemory} 同样为解耦作 interface{}。</p>
+ * <p>零值输出 {@code {"memories":null}}（恒输出）。
+ * 为与本包外领域类型解耦，元素以 Object 承载。</p>
  */
 @JsonPropertyOrder({"memories"})
 public class MemoryRecalledData {
 
-    /** 无 omitempty：null 恒输出 */
+    /** null 也输出 null */
     @JsonProperty("memories")
     private Object memories;
 

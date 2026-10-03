@@ -14,17 +14,14 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 /**
- * 目录快照仓储（对照 Go internal/application/repository/mcp_metadata.go 中挂在
- * mcpServiceRepository 上的三个方法）。
+ * 目录快照仓储。
  *
- * <p>方言分叉对应 Go 的 {@code metadataToolCountExpr(db)}：只有 PG 才有
+ * <p>方言分叉：只有 PG 才有
  * {@code jsonb_array_length}，其它库用 {@code json_array_length}。
- * 方言在启动时从 DataSource 探测一次（等价 Go 每次调用 {@code db.Name()} 的结果，
- * 同一进程内不会变）。</p>
+ * 方言在启动时从 DataSource 探测一次，同一进程内不会变。</p>
  *
- * <p>保存语义（对照 SaveMetadata）：<b>陈旧快照不得覆盖新快照</b>。
- * Go 用 {@code ON CONFLICT ... WHERE synced_at <= excluded.synced_at}，
- * Java 用 UPDATE-带版本护栏 → 未命中再 INSERT → 唯一键冲突回落 UPDATE。</p>
+ * <p>保存语义：<b>陈旧快照不得覆盖新快照</b>。
+ * 实现：UPDATE-带版本护栏 → 未命中再 INSERT → 唯一键冲突回落 UPDATE。</p>
  */
 @Component
 public class McpMetadataRepository {
@@ -39,7 +36,7 @@ public class McpMetadataRepository {
         this.postgres = detectPostgres(dataSource);
     }
 
-    /** 供测试断言方言探测；对照 Go db.Name() == "postgres" */
+    /** 供测试断言方言探测 */
     public boolean isPostgres() {
         return postgres;
     }
@@ -63,8 +60,7 @@ public class McpMetadataRepository {
     }
 
     /**
-     * 对照 ListMetadataSummaries：principals 为空返回空列表
-     * （Go 返回 (nil, nil)，上层按空处理）。
+     * principals 为空时返回空列表（上层按空处理）。
      */
     public List<McpMetadataSummary> listMetadataSummaries(long tenant, List<String> principals) {
         if (principals == null || principals.isEmpty()) {

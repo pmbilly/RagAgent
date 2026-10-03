@@ -40,18 +40,17 @@ import com.ragagent.session.service.SessionKnowledgeQaService;
 import com.ragagent.session.service.SessionService;
 
 /**
- * IM 执行体核心（对照 Go internal/im/service.go，波 5 W5γ2 翻译；方法注释按
- * Go 行号锚定）。
+ * IM 执行体核心。
  *
- * <h2>Redis 分支的落地声明（波 5 纪律：内存形态先行）</h2>
- * Go 的 redis 可 nil，nil 分支全部有本地回落。Java 侧先落这些本地分支：
+ * <h2>Redis 面（内存形态先行）</h2>
+ * 以下能力当前为进程内实现，多实例部署换成 Redis 实现即可
+ * （键名常量届时随 Redis 实现一并引入）：
  * <ul>
- *   <li>去重（L1650-1667 redis==nil：进程内 map + TTL 清理）；</li>
- *   <li>WS leader 选举（L1235+）：单实例恒 leader——不做 Redis SETNX 竞选；</li>
- *   <li>跨实例 /stop 标记与 inflight 映射（L1454-1553）：进程内 map；</li>
- *   <li>渠道配置 pub/sub（L1021-1101）：本进程内直接失效。</li>
+ *   <li>去重：进程内 map + TTL 清理；</li>
+ *   <li>WS leader 选举：单实例恒 leader——不做 Redis SETNX 竞选；</li>
+ *   <li>跨实例 /stop 标记与 inflight 映射：进程内 map；</li>
+ *   <li>渠道配置 pub/sub：本进程内直接失效。</li>
  * </ul>
- * 多实例部署把这些换成 Redis 实现即可（键名常量届时随 Redis 实现一并引入）。
  */
 @Service
 public class ImService {
@@ -70,7 +69,7 @@ public class ImService {
     final com.ragagent.storage.support.Resolver storageResolver;
     private final com.ragagent.storage.support.FileService defaultFileSvc;
 
-    // ── 调谐参数（对照 resolveIMConfig，service.go L805-840 + L40-60 常量） ──
+    // ── 调谐参数 ─────────────────────────────────────────────────────────
     private final int workers;
     private final int maxQueue;
     private final int maxPerUser;
@@ -88,14 +87,14 @@ public class ImService {
 
     /** 运行中的渠道（channelID → 状态）。 */
     private final Map<String, ChannelState> channelStates = new ConcurrentHashMap<>();
-    /** 去重（redis==nil 分支）：messageID → epoch 秒。 */
+    /** 去重（进程内分支）：messageID → epoch 秒。 */
     private final Map<String, Long> processedMsgs = new ConcurrentHashMap<>();
     /** 在途请求（/stop 的本地取消面）。 */
     final Map<String, InflightEntry> inflight = new ConcurrentHashMap<>();
     /** 跨实例 /stop 标记的本地等价物。 */
     private final Map<String, Long> stopMarkers = new ConcurrentHashMap<>();
 
-    /** 运行中的渠道状态（对照 Go {@code im.channelState}，service.go L261-267）。 */
+    /** 运行中的渠道状态。 */
     record ChannelState(ImChannelEntity channel, Adapter adapter,
             AtomicReference<Runnable> adapterStop) {
     }
@@ -169,9 +168,9 @@ public class ImService {
         return (kbIds, knowledgeIds, documentIds, query) -> List.of();
     }
 
-    // ── 渠道生命周期（service.go L921-1250 精简面：adapter 注册表） ────────
+    // ── 渠道生命周期（adapter 注册表） ─────────────────────────────────────
 
-    /** 渠道启动时必须注册的平台工厂（对照 AdapterFactory / RegisterAdapterFactory）。 */
+    /** 渠道启动时必须注册的平台工厂。 */
     public interface AdapterFactory {
         /** 返回适配器与停止函数（长连接的拆除柄）。webhook 型适配器 stop 可为 null。 */
         AdapterRegistration create(ImChannelEntity channel,
@@ -183,12 +182,12 @@ public class ImService {
 
     private final Map<String, AdapterFactory> adapterFactories = new ConcurrentHashMap<>();
 
-    /** 对照 RegisterAdapterFactory（service.go L921-927）。 */
+    /** 注册平台工厂。 */
     public void registerAdapterFactory(String platform, AdapterFactory factory) {
         adapterFactories.put(platform, factory);
     }
 
-    /** 渠道行 → 适配器是否就绪且配置未变（对照 GetChannelAdapter/EnsureChannelAdapter 精简）。 */
+    /** 渠道行 → 就绪的适配器；运行态缺失则先尝试启动。 */
     public Adapter adapterFor(ImChannelEntity channel) {
         if (channel == null || !channel.isEnabled()) {
             return null;
@@ -205,7 +204,7 @@ public class ImService {
         return state == null ? null : state.adapter();
     }
 
-    /** 对照 StartChannel/startChannelInternal（L1102-1190）：注册适配器 + 起 worker。 */
+    /** 启动渠道：经工厂建适配器并进入运行态。 */
     public synchronized void startChannel(ImChannelEntity channel) {
         AdapterFactory factory = adapterFactories.get(channel.getPlatform());
         if (factory == null) {
@@ -218,10 +217,9 @@ public class ImService {
         try {
             reg = factory.create(channel, (msg, chId) -> handleMessage(msg, chId));
         } catch (RuntimeException e) {
-            // 照 Go：工厂失败（凭据不全 / 出站校验不过 / 平台未实现该模式）时渠道起不来，
-            // 适配器不入运行态——回调路径因此走 "adapter not active"（503 "channel not
-            // available"），而不是把异常冒成 500。Go 的对应事实：golden
-            // w5a-im-callback-enabled-get.json 即"mattermost 工厂建适配器失败 → 503"。
+            // 工厂失败（凭据不全 / 出站校验不过 / 平台未实现该模式）时渠道起不来，
+            // 适配器不入运行态——回调路径因此走 "adapter not active"
+            // （503 "channel not available"），而不是把异常冒成 500。
             log.warn("[IM] Channel start failed: id={} platform={} mode={} err={}",
                     channel.getId(), channel.getPlatform(), channel.getMode(), e.toString());
             return;
@@ -232,7 +230,7 @@ public class ImService {
                 channel.getPlatform(), channel.getMode());
     }
 
-    /** 对照 StopChannel（L1191-1234）。 */
+    /** 停止渠道并拆除适配器。 */
     public synchronized void stopChannel(String channelId) {
         ChannelState cs = channelStates.remove(channelId);
         if (cs != null && cs.adapterStop() != null && cs.adapterStop().get() != null) {
@@ -241,12 +239,11 @@ public class ImService {
     }
 
     /**
-     * 对照 Go {@code DeleteChannelsByAgent}（service.go L3243-3261）：软删该 agent
+     * 软删该 agent
      * 的全部 IM 渠道并停止运行中的适配器——概览列表与运行中的适配器不得比 agent
      * 活得更久（自定义 agent 删除时调用）。
      *
-     * <p>Go 的 {@code publishChannelConfigChange}（跨实例配置广播）在 Java 单实例
-     * 装配下无对应面，与 Go 单实例行为等价。</p>
+     * <p>跨实例配置广播（{@code publishChannelConfigChange}）在单实例装配下无对应面。</p>
      */
     public void deleteChannelsByAgent(String agentId, long tenantId) {
         java.util.List<ImChannelEntity> found = channels.listByAgent(agentId, tenantId);
@@ -260,7 +257,7 @@ public class ImService {
         }
     }
 
-    /** 对照 LoadAndStartChannels（L985-1020）：启动时拉起全部 enabled 渠道。 */
+    /** 启动时拉起全部 enabled 渠道。 */
     public void loadAndStartChannels() {
         for (ImChannelEntity ch : channels.listEnabled()) {
             startChannel(ch);
@@ -268,8 +265,7 @@ public class ImService {
     }
 
     /**
-     * 对照 container.go L1664-1667：应用就绪后从库拉起全部 enabled 渠道（2026-09-25
-     * 评审批接线——此前全工程无调用点，重启后渠道全部沉默）。失败只 WARN，不阻塞启动。
+     * 应用就绪后从库拉起全部 enabled 渠道（否则重启后渠道全部沉默）。失败只 WARN，不阻塞启动。
      */
     @org.springframework.context.event.EventListener(
             org.springframework.boot.context.event.ApplicationReadyEvent.class)
@@ -282,9 +278,7 @@ public class ImService {
     }
 
     /**
-     * 对照 Go {@code Service.Stop()}（service.go L928-945）+ container 的
-     * {@code cleaner.RegisterWithName("IMService", imService.Stop)}：停机时停
-     * QA 队列与全部运行中的渠道适配器。
+     * 停机时停 QA 队列与全部运行中的渠道适配器。
      */
     @jakarta.annotation.PreDestroy
     public void stop() {
@@ -314,9 +308,9 @@ public class ImService {
         return ch.getTenantId();
     }
 
-    // ── 消息入口（HandleMessage，service.go L1670-1890） ─────────────────
+    // ── 消息入口 ─────────────────────────────────────────────────────────
 
-    /** 对照 isDuplicate（L1650-1667）的 redis==nil 分支。 */
+    /** 同一 messageID 只处理一次（进程内 map）。 */
     boolean isDuplicate(String messageId) {
         long now = System.currentTimeMillis();
         Long prev = processedMsgs.putIfAbsent(messageId, now);
@@ -331,8 +325,8 @@ public class ImService {
 
     /**
      * IM 消息总入口：去重 → 限长 → 适配器解析 → 限流 → 空消息提示 → 会话解析 →
-     * 命令分派 → QA 排队。全程绑定渠道租户的合成身份（对照 Go withIMIdentity，
-     * service.go L425-443："system-<tenantID>" 合成用户 + viewer 最小权限——
+     * 命令分派 → QA 排队。全程绑定渠道租户的合成身份
+     * （"system-<tenantID>" 合成用户 + viewer 最小权限——
      * 组织共享 KB 的解析要求非空 UserID）。
      */
     public void handleMessage(IncomingMessage msg, String channelId) {
@@ -358,7 +352,7 @@ public class ImService {
             log.info("[IM] Skipping duplicate message: {}", msg.messageId);
             return;
         }
-        // 限长（runes；service.go L1674-1679）
+        // 限长（按 code point 计）
         if (msg.content.codePointCount(0, msg.content.length()) > ImFormat.MAX_CONTENT_LENGTH) {
             log.warn("[IM] Message too long, truncating to {}", ImFormat.MAX_CONTENT_LENGTH);
             msg.content = msg.content.substring(0,
@@ -432,7 +426,7 @@ public class ImService {
 
         Session session = sessionService.getSession(channelSession.getSessionId());
         if (session == null) {
-            // 会话被删：回收陈旧映射并重解析（service.go L1826-1845）
+            // 会话被删：回收陈旧映射并重解析
             channelSessions.softDelete(channelSession.getId(), OffsetDateTime.now());
             channelSession = resolveSession(msg, tenantId, agentId, channelId,
                     channel.getSessionMode());
@@ -457,7 +451,7 @@ public class ImService {
         }
     }
 
-    /** 限流的本地滑动窗口（对照 ratelimit.Limiter.Allow 的本地分支）。 */
+    /** 限流的本地滑动窗口。 */
     private final Map<String, List<Long>> rateWindows = new ConcurrentHashMap<>();
 
     private boolean rateLimitAllow(String key) {
@@ -478,7 +472,7 @@ public class ImService {
         return "rl:" + ImFormat.makeUserKey(channelId, userId, chatId, threadId);
     }
 
-    /** 对照 emptyIncomingMessageReply（service.go L1891-1917）。 */
+    /** 空消息的提示语（按原始消息类型给出指引）。 */
     record EmptyHint(String hint, boolean present) {
     }
 
@@ -507,7 +501,7 @@ public class ImService {
     }
 
 
-    // ── 命令执行（handleCommand，service.go L2080-2193） ──────────────────
+    // ── 命令执行 ─────────────────────────────────────────────────────────
 
     void handleCommand(Commands.ImCommand cmd, List<String> args, IncomingMessage msg,
             Adapter adapter, ImChannelEntity channel, ChannelSessionEntity channelSession,
@@ -570,11 +564,11 @@ public class ImService {
         String sessionId = entry == null ? "" : entry.sessionId;
         String messageId = entry == null ? "" : entry.assistantMessageId;
         // 2. 命中在途映射：本地 cancel 已生效（qaCtx 取消）——跨实例的 StreamManager
-        //    stop 事件属 Redis 分支（内存形态下唯一实例就是本地）。备案于类注释。
+        //    stop 事件属 Redis 分支（内存形态下唯一实例就是本地）。见类注释的 Redis 面声明。
         if (!sessionId.isEmpty() && !messageId.isEmpty()) {
             log.info("[IM] Cancelled in-flight QA: session={} message={}", sessionId, messageId);
         }
-        // 3. 标记（redis==nil 的本地等价物）。
+        // 3. 标记（未接 Redis 时的本地等价物）。
         if (!localStopped && sessionId.isEmpty()) {
             stopMarkers.put(inflightKey, System.currentTimeMillis());
             log.info("[IM] Set local stop marker (no inflight found): key={}", inflightKey);
@@ -597,7 +591,7 @@ public class ImService {
         outboundFormatter.sendStreamReply(msg, streamer, content);
     }
 
-    /** 排队任务：QaRequest（队列面）+ 业务束（对照 Go 的 qaRequest 整体）。 */
+    /** 排队任务：QaRequest（队列面）+ 业务束。 */
     static final class QaTask {
         private QaQueue.QaRequest queueReq;
 
@@ -637,7 +631,7 @@ public class ImService {
         }
     }
 
-    /** QA 输入束（对照 Go qaRequest 的业务字段）。 */
+    /** QA 输入束（qaRequest 的业务字段）。 */
 
     void runFallbackNonStream(QaAttach attach) {
         qaRunner.runFallbackNonStream(attach);

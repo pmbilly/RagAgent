@@ -16,11 +16,10 @@ import org.springframework.stereotype.Repository;
 import com.ragagent.storage.domain.StoredResource;
 
 /**
- * 资源注册表仓储（对照 Go {@code repository/resource.go resourceRepository} +
- * {@code resource_references.go}，收尾批 W5c 只翻文件代理面用到的读方法子集）。
+ * 资源注册表仓储。
  *
  * <p>H2/PG 双跑：列序以迁移 {@code 000069_resource_registry.up.sql} 为准
- * （TestSchema 同源）。查询语义逐条对照 Go——GetByID/GetByHandle/GetByTenantLocation
+ * （TestSchema 同源）。GetByID/GetByHandle/GetByTenantLocation
  * 都带 {@code state = 'active'}；GetValidGrant 是
  * {@code token_hash = ? AND revoked_at IS NULL AND expires_at > now}。</p>
  */
@@ -64,7 +63,7 @@ public class ResourceRepository {
         }
     }
 
-    /** 对照 Go GetByID：NotFound → empty（Go 是 (nil, nil)，不是错误）。 */
+    /** NotFound → empty（不是错误）。 */
     public Optional<StoredResource> getByID(String id) {
         return jdbc.sql("SELECT " + COLS + " FROM resources WHERE id = ? AND state = ?")
                 .params(id, StoredResource.STATE_ACTIVE)
@@ -72,7 +71,7 @@ public class ResourceRepository {
                 .optional();
     }
 
-    /** 对照 Go GetByHandle：同上。 */
+    /** NotFound → empty，同 {@link #getByID}。 */
     public Optional<StoredResource> getByHandle(String handle) {
         return jdbc.sql("SELECT " + COLS + " FROM resources WHERE handle = ? AND state = ?")
                 .params(handle, StoredResource.STATE_ACTIVE)
@@ -80,7 +79,7 @@ public class ResourceRepository {
                 .optional();
     }
 
-    /** 对照 Go GetByTenantLocation（partial unique index：deleted_at IS NULL 由 state 承担）。 */
+    /** 按租户 + 位置哈希取行（唯一性由 state='active' 承担）。 */
     public Optional<StoredResource> getByTenantLocation(long tenantId, String locationHash) {
         return jdbc.sql("SELECT " + COLS + " FROM resources "
                         + "WHERE tenant_id = ? AND location_hash = ? AND state = ?")
@@ -90,9 +89,8 @@ public class ResourceRepository {
     }
 
     /**
-     * 对照 Go Create（resource.go repo 段）：注册表行插入。Go 依赖 PG 列默认生成
-     * id（uuid_generate_v4）+ GORM 自动填 created_at/updated_at；H2 测试库无默认，
-     * id/时间戳在代码侧生成（PG 同样接受显式值）。
+     * 注册表行插入。id/时间戳在代码侧显式生成
+     * （H2 测试库无列默认；PG 同样接受显式值）。
      */
     public void createResource(StoredResource r) {
         OffsetDateTime now = OffsetDateTime.now();
@@ -110,8 +108,7 @@ public class ResourceRepository {
     }
 
     /**
-     * 对照 Go CreateBinding（OnConflict DoNothing：重复绑定幂等成功）。H2 测试库
-     * 无 PG 的唯一索引/ON CONFLICT 语法——按"插入失败即视为已绑定"吞掉冲突
+     * 绑定插入：重复绑定幂等成功——按"插入失败即视为已绑定"吞掉冲突
      * （PG 的 unique violation 与 H2 的主键冲突文案都归入此分支）。
      */
     public void createBinding(String resourceId, long tenantId, String ownerType,
@@ -132,14 +129,14 @@ public class ResourceRepository {
         }
     }
 
-    /** 对照 Go MarkDeleted：state=deleted + deleted_at（软删）。 */
+    /** state=deleted + deleted_at（软删）。 */
     public void markDeleted(String resourceId) {
         jdbc.sql("UPDATE resources SET state = ?, deleted_at = ? WHERE id = ?")
                 .params(StoredResource.STATE_DELETED, OffsetDateTime.now(), resourceId)
                 .update();
     }
 
-    /** 对照 Go CreateGrant。 */
+    /** 写入 access grant 行。 */
     public void createGrant(String id, String tokenHash, String resourceId, String accessScope,
             OffsetDateTime expiresAt) {
         jdbc.sql("INSERT INTO resource_access_grants (id, token_hash, resource_id, access_scope, "
@@ -148,7 +145,7 @@ public class ResourceRepository {
                 .update();
     }
 
-    /** 对照 Go GetValidGrant：行存在但 revoked → empty（NotFound 语义）。 */
+    /** 行存在但 revoked → empty（NotFound 语义）。 */
     public Optional<String> getValidGrantResourceId(String tokenHash, OffsetDateTime now) {
         return jdbc.sql("SELECT resource_id FROM resource_access_grants "
                         + "WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?")
@@ -158,8 +155,8 @@ public class ResourceRepository {
     }
 
     /**
-     * 对照 Go DeleteExpiredGrants：过期行整体删除；<b>被撤销的行保留到过期为止</b>
-     * （它是"同窗口派生 token 不能复活访问"的墓碑，Go 注释原文）。
+     * 过期行整体删除；<b>被撤销的行保留到过期为止</b>
+     * （它是"同窗口派生 token 不能复活访问"的墓碑）。
      */
     public void deleteExpiredGrants(OffsetDateTime before) {
         jdbc.sql("DELETE FROM resource_access_grants WHERE expires_at <= ?")
@@ -168,8 +165,7 @@ public class ResourceRepository {
     }
 
     /**
-     * 对照 Go {@code IsReferencedByKnowledgeBase}（resource_references.go）：只认
-     * 指向<b>存活文档</b>的显式绑定——文本里出现 handle 不算所有权证据。
+     * 只认指向<b>存活文档</b>的显式绑定——文本里出现 handle 不算所有权证据。
      */
     public boolean isReferencedByKnowledgeBase(long tenantId, String kbId, String resourceId) {
         if (tenantId == 0 || kbId == null || kbId.isEmpty() || resourceId == null || resourceId.isEmpty()) {
@@ -189,8 +185,7 @@ public class ResourceRepository {
     }
 
     /**
-     * 对照 Go {@code GetMessageFileBindings} 的 KnowledgeBaseIDs 段（跨租户消息分支用，
-     * W5c 的同租户主路径不可达，但按 Go 原样补齐）。
+     * 资源绑定的 KnowledgeBaseIDs 集合（消息文件绑定的事实来源之一）。
      */
     public List<String> knowledgeBaseIdsForBinding(long tenantId, String resourceId) {
         if (tenantId == 0 || resourceId == null || resourceId.isEmpty()) {
@@ -207,7 +202,7 @@ public class ResourceRepository {
                 .list();
     }
 
-    /** 对照 Go GetMessageFileBindings 的 MessageArtifact 段。 */
+    /** 消息 artifact 绑定存在性。 */
     public boolean hasMessageArtifactBinding(long tenantId, String resourceId, String messageId) {
         if (messageId == null || messageId.isEmpty()) {
             return false;

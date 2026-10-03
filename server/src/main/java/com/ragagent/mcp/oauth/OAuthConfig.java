@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * OAuth handler 的配置（对照 mcp-go {@code transport.OAuthConfig}，oauth.go:25-58）。
+ * OAuth handler 的配置。
  *
  * <p>只保留 WeKnora 实际设置的字段：{@code AuthServerMetadataURL} 来自
  * {@code service.AuthConfig.AuthServerMetadataURL}（可空 → 走自动发现），
@@ -23,7 +23,7 @@ public final class OAuthConfig {
     /** RFC 9728 的 protected-resource metadata URL；WeKnora 不预置，恒为空（走 well-known 推导）。 */
     private String protectedResourceMetadataUrl = "";
     private boolean pkceEnabled = true;
-    /** 对照 Go {@code HTTPClient.Timeout}（OAuth 流程统一 30s）。 */
+    /** 出站 HTTP 超时（OAuth 流程统一 30s）。 */
     private Duration httpTimeout = Duration.ofSeconds(30);
 
     public String clientId() {

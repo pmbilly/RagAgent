@@ -7,12 +7,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 工具执行结果数据（对照 Go {@code event.AgentToolResultData}，internal/event/event_data.go:171-180）。
- * emit 点：act.go:343（{@code <toolCallID>-tool-result}），见包注释 emit 表 #17。
+ * 工具执行结果数据。
+ * emit 点：ActPhase（{@code <toolCallID>-tool-result}），见包注释 emit 表 #17。
  *
- * <p>实录锚点：零值输出
+ * <p>零值输出
  * {@code {"tool_call_id":"","tool_name":"","output":"","success":false,"iteration":0}}；
- * {@code error}/{@code duration_ms}/{@code data} 带 omitempty。</p>
+ * {@code error}/{@code duration_ms}/{@code data} 空则省略。</p>
  */
 @JsonPropertyOrder({"tool_call_id", "tool_name", "output", "error", "success",
         "duration_ms", "iteration", "data"})
@@ -28,16 +28,16 @@ public class AgentToolResultData {
     @JsonProperty("output")
     private String output = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("error")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String error = "";
 
-    /** 无 omitempty：false 恒输出 */
+    /** false 恒输出 */
     @JsonProperty("success")
     private boolean success;
 
-    /** Go omitempty */
+    /** 0 省略 */
     @JsonProperty("duration_ms")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private long durationMs;
@@ -45,7 +45,7 @@ public class AgentToolResultData {
     @JsonProperty("iteration")
     private int iteration;
 
-    /** 工具结果的结构化数据（display_type、格式化结果等）；Go omitempty */
+    /** 工具结果的结构化数据（display_type、格式化结果等）；null 或空省略 */
     @JsonProperty("data")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Object> data;

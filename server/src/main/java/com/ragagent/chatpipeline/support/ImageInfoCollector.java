@@ -10,8 +10,7 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.knowledge.support.ImageInfoEnricher;
 
 /**
- * 按命中 chunk 批量聚合子块 image_info（对照 Go searchutil/imageinfo.go 的
- * CollectImageInfoByChunkIDs + EnrichSearchResultsImageInfo，search_entity/merge 消费）。
+ * 按命中 chunk 批量聚合子块 image_info（search_entity/merge 消费）。
  *
  * <p>聚合规则本体在 {@link ImageInfoEnricher#collectImageInfoByChunkIds}（knowledge 摘要
  * 管线共用同一实现）；本类只做端口 → 回调的适配。</p>
@@ -20,14 +19,14 @@ public final class ImageInfoCollector {
 
     private ImageInfoCollector() {}
 
-    /** 对照 CollectImageInfoByChunkIDs（无命中返回 null）。 */
+    /** 无命中返回 null。 */
     public static Map<String, String> collect(PipelinePorts.ChunkRepository chunkRepo,
                                               long tenantId, List<String> chunkIds) {
         return ImageInfoEnricher.collectImageInfoByChunkIds(
                 chunkRepo::listChunksByParentIds, tenantId, chunkIds);
     }
 
-    /** 对照 EnrichSearchResultsImageInfo：给无 image_info 的结果补齐。 */
+    /** 给无 image_info 的结果补齐。 */
     public static void enrichSearchResultsImageInfo(PipelinePorts.ChunkRepository chunkRepo,
                                                     long tenantId, List<SearchResult> results) {
         if (results == null || results.isEmpty()) {

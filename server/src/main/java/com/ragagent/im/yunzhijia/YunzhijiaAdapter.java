@@ -24,9 +24,9 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.runtime.ReplyMessage;
 
 /**
- * 云之家（Yunzhijia）适配器——对照 Go {@code internal/im/yunzhijia/adapter.go} L27-610。
+ * 云之家（Yunzhijia）适配器。
  *
- * <h2>照抄点</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>验签：{@code sign} 头（三形态大小写都试）+ {@code Base64(HMAC-SHA1(secret, 七字段逗号串))}，
  *       定长比较；未配 secret 跳过；</li>
@@ -42,7 +42,7 @@ import com.ragagent.im.runtime.ReplyMessage;
  *   <li>发送：{@code POST send_msg_url}，体 {@code {msgtype:2, content, notifyParams, paramType,
  *       param{formatType:"markdown", replyMsgId, isReference, replySummary, replyPersonName}}}
  *       ——有 {@code incoming.MessageID} 时带引用（paramType=3）并把 content 当引用摘要；
- *       <b>无引用且 formatType 被显式置空时整体不出 param</b>（照 Go 的 opt-out 语义）；
+ *       <b>无引用且 formatType 被显式置空时整体不出 param</b>（opt-out 语义）；
  *       {@code group_type == "3"} 不设 notifyParams；</li>
  *   <li>下载：fileId 校验（≤256、不含 {@code /\?#&}、无空白/控制字符）→ app access token
  *       （缓存留 60s 余量、{@code expireIn} 缺省 3600）→ {@code downloadfileOpen?fileId=}
@@ -53,12 +53,11 @@ import com.ragagent.im.runtime.ReplyMessage;
  *       localhost 一律拒），另有公网 IP 判定（{@link YunzhijiaUrl#resolvePublicAddress}）。</li>
  * </ul>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现差异（备案）</h2>
  * <ul>
- *   <li>Go 用自定义拨号器（{@code safeDialContext}）在<b>建连时</b>校验解析出的 IP；
- *       Java 的 HttpClient 无拨号口，改为请求前解析校验（{@link #allowPrivateHosts} 为
- *       测试口——Go 侧靠包级 var 覆写达到同样效果）；</li>
- *   <li>认证/下载基址在 Java 侧是构造器参数（默认同 Go 的包级 var）。</li>
+ *   <li>SSRF 防护在<b>请求前</b>解析并校验目标 IP（HttpClient 无自定义拨号口，
+ *       做不到建连时校验）；{@link #allowPrivateHosts} 为测试口；</li>
+ *   <li>认证/下载基址是构造器参数（缺省为官方 yunzhijia.com 地址）。</li>
  * </ul>
  */
 public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
@@ -67,9 +66,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
     private static final Logger log = LoggerFactory.getLogger(YunzhijiaAdapter.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 {@code textMessageType}。 */
     public static final int TEXT_MESSAGE_TYPE = 2;
-    /** 对照 {@code markdownFormatType}。 */
     public static final String MARKDOWN_FORMAT_TYPE = "markdown";
     public static final String DEFAULT_AUTH_URL =
             "https://yunzhijia.com/api/oauth2_v12/auth/getAppAccessToken";
@@ -86,7 +83,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
     private final String allowedWebhookHostSuffix;
     private final String authUrl;
     private final String downloadBaseUrl;
-    /** 测试口：允许私网/回环（Go 侧是覆写包级 var 达到同样效果）。 */
+    /** 测试口：允许私网/回环目标。 */
     private final boolean allowPrivateHosts;
     private final SsrfGuard ssrfGuard;
     private final HttpClient http;
@@ -130,13 +127,13 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         return ImTypes.PLATFORM_YUNZHIJIA;
     }
 
-    /** 对照 Go：不走 URL 挑战。 */
+    /** 不走 URL 挑战。 */
     @Override
     public boolean handleURLVerification(CallbackExchange exchange) {
         return false;
     }
 
-    /** 对照 {@code VerifyCallback}：sign 头 + HMAC-SHA1（未配 secret 跳过）。 */
+    /** 验签：sign 头 + HMAC-SHA1（未配 secret 跳过）。 */
     @Override
     public Exception verifyCallback(CallbackExchange exchange) {
         if (secret.isEmpty()) {
@@ -184,7 +181,6 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         return toIncomingMessage(msg);
     }
 
-    /** 对照 {@code toIncomingMessage}。 */
     static IncomingMessage toIncomingMessage(YunzhijiaTypes.CallbackMessage msg) {
         if (msg.type != TEXT_MESSAGE_TYPE) {
             log.info("[Yunzhijia] Skip non-text message: type={} msgId={}", msg.type, msg.msgId);
@@ -264,7 +260,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
                 YunzhijiaTypes.CallbackMessage.class));
     }
 
-    /** 对照 {@code parseMessageParam}：空串 → null；坏 JSON 上抛。 */
+    /** 空串 → null；坏 JSON 上抛。 */
     static YunzhijiaTypes.MessageParam parseMessageParam(String raw) throws Exception {
         if (raw == null || raw.isEmpty()) {
             return null;
@@ -272,7 +268,6 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         return MAPPER.readValue(raw, YunzhijiaTypes.MessageParam.class);
     }
 
-    /** 对照 {@code threadIDForMessage}。 */
     static String threadIdForMessage(String messageId, YunzhijiaTypes.MessageParam param) {
         if (param != null && param.replyRootMsgId != null && !param.replyRootMsgId.isEmpty()) {
             return param.replyRootMsgId;
@@ -280,7 +275,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         return messageId;
     }
 
-    /** 对照 {@code firstNonEmpty}：逐个 trim 取首个非空。 */
+    /** 逐个 trim 取首个非空。 */
     static String firstNonEmpty(String... values) {
         for (String value : values) {
             String trimmed = trim(value);
@@ -291,7 +286,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         return "";
     }
 
-    /** 对照 {@code messageParamMentionsRobot}：notifyTo 命中或 desc 里有 at=robotId。 */
+    /** notifyTo 命中或 desc 里有 at=robotId 即判为 @机器人。 */
     static boolean messageParamMentionsRobot(YunzhijiaTypes.MessageParam param, String robotId) {
         if (param == null || robotId == null || robotId.isEmpty()) {
             return false;
@@ -313,7 +308,6 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         return false;
     }
 
-    /** 对照 {@code defaultImageFileName}。 */
     static String defaultImageFileName(String msgId) {
         if (msgId == null || msgId.isEmpty()) {
             return "yunzhijia-image.png";
@@ -321,11 +315,11 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         return msgId + ".png";
     }
 
-    /** 清理结果（对照 Go 的双返回值）。 */
+    /** 清理结果。 */
     record MentionResult(String content, boolean mentioned) {
     }
 
-    /** 对照 {@code cleanAtMention}：剥掉开头的 @机器人名（其后必须是空白或中英标点）。 */
+    /** 剥掉开头的 @机器人名（其后必须是空白或中英标点）。 */
     static MentionResult cleanAtMention(String content, String robotName) {
         String value = content == null ? "" : content;
         if (robotName == null || robotName.isEmpty()) {
@@ -379,7 +373,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
             payload.param.replySummary = incoming.content;
             payload.param.replyPersonName = incoming.userName;
         } else if (payload.param.formatType == null || payload.param.formatType.isEmpty()) {
-            // 无引用且被显式关掉 markdown → 整体不出 param（照 Go 的 opt-out 语义）
+            // 无引用且被显式关掉 markdown → 整体不出 param（opt-out 语义）
             payload.param = null;
         }
 
@@ -404,7 +398,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 {@code validateSendURL}：https + 允许后缀。 */
+    /** https + 允许后缀。 */
     void validateSendUrl() {
         try {
             YunzhijiaUrl.validateEndpointUrl(sendMsgUrl, "https", allowedWebhookHostSuffix);
@@ -413,7 +407,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 Go 的拨号期公网校验（Java 改在请求前，见类注释）。 */
+    /** 出站前校验解析出的目标 IP（见类注释的实现差异）。 */
     private void validateOutboundHost(String rawUrl) {
         if (allowPrivateHosts) {
             return;
@@ -472,7 +466,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         return new DownloadedFile(fetched.body, fileName);
     }
 
-    /** 对照 {@code fetchDownload}：手动 ≤1 次重定向（token 只带首发，逐次重校验宿主）。 */
+    /** 手动跟随 ≤1 次重定向（token 只带首发，逐次重校验宿主）。 */
     Fetched fetchDownload(String downloadUrl, String token) throws Exception {
         String currentUrl = downloadUrl;
         for (int redirects = 0; ; redirects++) {
@@ -518,12 +512,11 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
     record Fetched(int status, byte[] body, String contentDisposition, String contentType) {
     }
 
-    /** 对照 {@code validateDownloadFileURL}：https + {@code yunzhijia.com} 后缀。 */
+    /** https + {@code yunzhijia.com} 后缀。 */
     void validateDownloadFileUrl(String rawUrl) {
         YunzhijiaUrl.validateEndpointUrl(rawUrl, "https", DOWNLOAD_ALLOWED_SUFFIX);
     }
 
-    /** 对照 {@code buildDownloadFileURL}。 */
     static String buildDownloadFileUrl(String fileId) {
         return DEFAULT_DOWNLOAD_BASE_URL + "?fileId="
                 + java.net.URLEncoder.encode(fileId, StandardCharsets.UTF_8);
@@ -535,7 +528,6 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
                 + java.net.URLEncoder.encode(fileId, StandardCharsets.UTF_8);
     }
 
-    /** 对照 {@code validateFileID}。 */
     static void validateFileId(String fileId) {
         if (fileId == null || fileId.isEmpty()) {
             throw new IllegalArgumentException("empty");
@@ -554,7 +546,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 {@code resolveDownloadFileName}：CD 文件名优先；无扩展名时按 CT 补。 */
+    /** Content-Disposition 文件名优先；无扩展名时按 Content-Type 补。 */
     static String resolveDownloadFileName(String fallback, String contentDisposition,
                                           String contentType) {
         String fileName = fallback == null ? "" : fallback;
@@ -582,7 +574,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
                 case "image/png" -> fileName += ".png";
                 case "image/gif" -> fileName += ".gif";
                 default -> {
-                    // 其它类型不加扩展名（照 Go 只认这三种）
+                    // 其它类型不加扩展名（只认上面三种）
                 }
             }
         }
@@ -595,7 +587,7 @@ public class YunzhijiaAdapter implements AdapterInterfaces.Adapter,
         return dot > slash && dot >= 0 && dot < fileName.length() - 1;
     }
 
-    /** 对照 {@code getAppAccessToken}：缓存留 60s 余量（expireIn 缺省 3600）。 */
+    /** 缓存留 60 秒余量（expireIn 缺省 3600）。 */
     String getAppAccessToken() throws Exception {
         if (appId.isEmpty() || appSecret.isEmpty()) {
             throw new IllegalStateException(

@@ -27,7 +27,6 @@ import com.ragagent.im.service.ImService.QaAttach;
 
 /**
  * IM 流式回复管线：事件订阅组、流缓冲袋、300ms 冲刷循环与 finalize/收尾落库。
- * 对照 Go handleMessageStream（service.go L2482-2907）。
  */
 final class ImStreamPipeline {
 
@@ -157,7 +156,7 @@ final class ImStreamPipeline {
                 msg.platform, msg.userId, answer.length());
     }
 
-    /** 流缓冲袋（对照 handleMessageStream 的局部变量组，service.go L2501-2542）。 */
+    /** 流缓冲袋（管线内共享的可变状态）。 */
     static final class StreamBuffers {
         final StreamSection reasoningInner = new StreamSection();
         final StreamSection agentInner = new StreamSection();
@@ -217,7 +216,7 @@ final class ImStreamPipeline {
         }
     }
 
-    /** 事件订阅组（对照 service.go L2557-2740 的一串 On）。 */
+    /** 事件订阅组。 */
     private void subscribeStreamEvents(EventBus eventBus, StreamBuffers buf,
             java.util.concurrent.CountDownLatch done,
             java.util.concurrent.CountDownLatch complete, boolean useAgent) {
@@ -374,7 +373,7 @@ final class ImStreamPipeline {
     }
 
     @SuppressWarnings("unchecked")
-    /** 对照 upsertIMToolStep（tool_display.go L763-772）。 */
+    /** 工具步骤 upsert（有则更新、无则插入）。 */
     private static void upsert(List<ToolDisplay.IMToolStep> steps, Map<String, Integer> index,
             String id, java.util.function.Consumer<ToolDisplay.IMToolStep> update) {
         Integer i = index.get(id);
@@ -388,7 +387,7 @@ final class ImStreamPipeline {
         steps.add(step);
     }
 
-    /** 冲刷一次中间帧（对照 flush 闭包，service.go L2786-2806）。 */
+    /** 冲刷一次中间帧。 */
     private void flushStream(IncomingMessage msg, StreamSender streamer, String streamId,
             StreamBuffers buf, boolean useAgent) {
         ThinkDisplay.IMStreamParts parts;

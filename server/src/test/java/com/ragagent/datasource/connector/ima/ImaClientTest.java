@@ -26,9 +26,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * IMA 客户端的 HTTP 行为测试（对照 Go {@code ima/client.go} 的重试与错误映射；
- * Go 侧没有独立的 client_test，这部分语义散在 {@code connector_test.go} 与
- * {@code types_test.go} 里，此处集中钉住）。
+ * IMA 客户端的 HTTP 行为测试（重试与错误映射，此处集中钉住）。
  *
  * <p>全部打在 {@link Scripted} 这个可编排响应的 {@code 127.0.0.1} stub 上；
  * 退避注入 {@link ImaRetryPolicy#immediate()}，所以 429/5xx 的多轮重试是毫秒级的。</p>
@@ -186,7 +184,7 @@ class ImaClientTest {
         }
     }
 
-    /** 空 ids 不发请求（对照 Go 的 {@code if len(ids) == 0 { return empty } }）。 */
+    /** 空 ids 不发请求，直接回空列表。 */
     @Test
     void emptyIdsDoesNotCallTheApi() throws Exception {
         try (Scripted stub = new Scripted(Rs.of(200, envelope("{}")))) {
@@ -304,7 +302,7 @@ class ImaClientTest {
         }
     }
 
-    /** 其它非 2xx 不重试（对照 Go 的 {@code ima api http error} 分支）。 */
+    /** 其它非 2xx 不重试，错误文案形如 {@code ima api http error: status=<n>}。 */
     @Test
     void otherHttpErrorsAreNotRetried() throws Exception {
         try (Scripted stub = new Scripted(Rs.of(400, "{\"msg\":\"bad\"}"))) {

@@ -31,8 +31,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 会话附件（临时文档）的契约测试（波 1 G5）。
- * golden：scripts/record-attachment-golden.sh（Go 实录）。
+ * 会话附件（临时文档）的契约测试。
+ * golden：scripts/record-attachment-golden.sh 录制。
  * 钉住：上传 202 uploaded；expiresAt 本地偏移 vs createdAt Z（双形态）；
  * fileType 带点；text 终态 metadata {"parser":"plain_text"} + imageRefs null；
  * 非 multipart 的 FormFile 原文；删除幂等 204。键名＝Java 字段名（camelCase）。
@@ -173,7 +173,7 @@ class AttachmentContractTest {
     /**
      * 上传后轮询到 ready 终态（text 管线无 docreader，ms 级完成）。
      * 100×200ms=20s：全量重载下解析队列会被拖慢，4s 窗口实测假红一次
-     * （§5.9 等待类变体——窗口放宽不影响断言语义，命中即退）。
+     * （等待类变体：窗口放宽不影响断言语义，命中即退）。
      */
     private MvcResult awaitReady(String attId) throws Exception {
         for (int i = 0; i < 100; i++) {
@@ -305,7 +305,7 @@ class AttachmentContractTest {
         return builder.contentType("application/json").content(body);
     }
 
-    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake，§9）。 */
+    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake）。 */
     private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
 

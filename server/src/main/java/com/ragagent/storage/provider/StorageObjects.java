@@ -4,20 +4,20 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 对象存储的三个小助手（逐个对照 Go）：
+ * 对象存储共用的小助手：
  *
  * <ul>
- *   <li>{@link #safeObjectKey} ← {@code utils.SafeObjectKey}（security.go L168-176）：非空且不含 {@code ..}；</li>
- *   <li>{@link #isActiveBrowserContentExt} ← {@code utils.IsActiveBrowserContentExt}（fileutil.go L9-16）：
+ *   <li>{@link #safeObjectKey}：对象 key 非空且不含 {@code ..}；</li>
+ *   <li>{@link #isActiveBrowserContentExt}：
  *       SVG/HTML/JS/CSS 这类**可执行内容**的扩展名；</li>
- *   <li>{@link #contentTypeByExt} ← {@code utils.GetContentTypeByExt}（fileutil.go L19-84）：
+ *   <li>{@link #contentTypeByExt}：
  *       主动内容一律降级为 {@code application/octet-stream}（防存储型 XSS），其余按表；</li>
- *   <li>{@link #extensionOf} ← {@code filepath.Ext}（本地后端也用它，故提到这里共用）。</li>
+ *   <li>{@link #extensionOf}：扩展名提取（本地后端也用它，故提到这里共用）。</li>
  * </ul>
  */
 public final class StorageObjects {
 
-    /** 对照 Go 的主动内容表。 */
+    /** 主动内容（可执行）扩展名表。 */
     private static final Set<String> ACTIVE_EXTS =
             Set.of(".svg", ".svgz", ".html", ".htm", ".xhtml", ".xml", ".js", ".mjs", ".css");
 
@@ -25,10 +25,9 @@ public final class StorageObjects {
     }
 
     /**
-     * 对照 {@code utils.SafeFileName}（internal/utils/security.go L150-165）:
-     * {@code filepath.Base(filepath.Clean(name))}——<b>目录部分被丢弃，不是拒绝</b>
-     * （所以 {@code "tenant-skills/catalog/x.zip"} 合法，落成 {@code x.zip}，
-     * 这正是 Go 的 skill 归档与 FAQ 导出所依赖的行为），再拒
+     * 安全文件名：取 basename——<b>目录部分被丢弃，不是拒绝</b>
+     * （所以 {@code "tenant-skills/catalog/x.zip"} 合法，落成 {@code x.zip}——
+     * skill 归档与 FAQ 导出依赖这一行为），再拒
      * {@code .}/{@code ..}/含 {@code ..}/超 255。
      */
     public static String safeFileName(String fileName) {

@@ -5,15 +5,14 @@ import java.time.OffsetDateTime;
 import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
- * 搜索结果里的合并 Q&amp;A 对（对照 Go {@code types.MessageSearchGroupItem}，
- * types/message.go L531-550）。
+ * 搜索结果里的合并 Q&amp;A 对。
  *
  * <p><b>响应体形态</b>：{@code POST /messages/search} 的 data.items 元素就是本类型，
- * 换锚后键名＝Java 字段名、键序＝声明序（§14.9l S2）。</p>
+ * 键名＝Java 字段名、键序＝声明序。</p>
  *
- * <p><b>score 必须挂 {@link GoDoubleSerializer}</b>（逐字段，勿全局注册——§9.2）：
- * Go 的 float64 最短表示输出 {@code 1} 而不是 {@code 1.0}；关键词路径的分值是
- * {@code (n-i)/n}，单个结果时正好是 {@code 1}，Java 的裸 double 会写成 {@code 1.0}。</p>
+ * <p><b>score 必须挂 {@link GoDoubleSerializer}</b>（逐字段，勿全局注册）：
+ * 分值序列化用最短表示，输出 {@code 1} 而不是 {@code 1.0}；关键词路径的分值是
+ * {@code (n-i)/n}，单个结果时正好是 {@code 1}，裸 double 会写成 {@code 1.0}。</p>
  */
 public class MessageSearchGroupItem {
 

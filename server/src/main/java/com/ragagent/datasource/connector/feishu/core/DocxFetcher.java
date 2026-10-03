@@ -20,8 +20,8 @@ import com.ragagent.datasource.domain.FetchedItem;
 import com.ragagent.datasource.domain.SubtreeChildIds;
 
 /**
- * docx 抓取（对照 Go {@code core/shared.go} L287-508 的 {@code DocxFetchInput} /
- * {@code FetchDocxWithBlocks} / {@code exportDocxFallback}）。
+ * docx 抓取（{@code DocxFetchInput} / {@code FetchDocxWithBlocks} /
+ * {@code exportDocxFallback}）。
  *
  * <h2>两条解析路径与为什么要选</h2>
  * <p>{@code FEISHU_DOCX_PARSE_MODE} 选择 docx 的解析路径：</p>
@@ -31,26 +31,24 @@ import com.ragagent.datasource.domain.SubtreeChildIds;
  *   <li><b>export</b>（默认）：导出的 .docx 交给 docreader 内联解析，图片经
  *       parent_chunk_id 绑在父文档上（与普通 docx 上传一致）。</li>
  * </ul>
- * <p>Go 的注释明确写了这是<b>临时方案</b>：以后有更好的解析方案时这个环境变量会被移除。
+ * <p>这是<b>临时方案</b>：以后有更好的解析方案时这个环境变量会被移除。
  * 默认（未设 / {@code "export"}）走 export。</p>
  *
- * <h2>Java 侧对 env 的处置（任务书约束第 3 条）</h2>
+ * <h2>Java 侧对 env 的处置</h2>
  * <p>{@code System.getenv} 在进程内改不了，所以取值抽成可覆盖的
  * {@link #parseMode}（默认实现读 env）。测试把它换成 {@code () -> "blocks"} 就能覆盖
- * <b>两条</b>分支，不必依赖环境变量；与 §9「{@code Mode.defaultMode()} 读 System.getenv，
- * Java 侧没测」是同一处置、但这次留了缝。</p>
+ * <b>两条</b>分支，不必依赖环境变量。</p>
  *
  * <h2>为什么 {@link DocxFetchInput} 用 public 字段</h2>
- * <p>它是 Go 的<b>入参结构体</b>（{@code DocxFetchInput}）：9 个字段、只在同模块内部
- * 按名传参，从不序列化。Go 侧就是"结构体字面量 + 具名字段"，Java 侧用 public 字段
- * 是最贴近的翻译，也免去 9 对无意义 getter/setter。这是<b>刻意的例外</b>，
+ * <p>纯入参载体：9 个字段、只在同模块内部按名传参，从不序列化。
+ * 用 public 字段免去 9 对无意义 getter/setter。这是<b>刻意的例外</b>，
  * 仅限本纯入参类型（会落 jsonb / 作响应体的类型仍然必须 getter/setter + 契约治理）。</p>
  */
 public final class DocxFetcher {
 
     private static final Logger log = LoggerFactory.getLogger(DocxFetcher.class);
 
-    /** {@code FEISHU_DOCX_PARSE_MODE} 的默认值（对照 Go 的 {@code "export"}）。 */
+    /** {@code FEISHU_DOCX_PARSE_MODE} 的默认值。 */
     public static final String PARSE_MODE_EXPORT = "export";
 
     /** 另一条路径的取值。 */
@@ -59,7 +57,7 @@ public final class DocxFetcher {
     /**
      * {@code FEISHU_DOCX_PARSE_MODE} 的取值来源。
      *
-     * <p>默认实现读 {@code System.getenv}（对照 Go 的 {@code os.Getenv}）；
+     * <p>默认实现读 {@code System.getenv}；
      * 测试可替换为固定值以覆盖两条分支。**可变静态字段**是刻意留的注入缝。</p>
      */
     public static volatile Supplier<String> parseMode = () -> AppEnvLookup.get("FEISHU_DOCX_PARSE_MODE");
@@ -67,7 +65,7 @@ public final class DocxFetcher {
     private DocxFetcher() {
     }
 
-    /** 当前生效的解析模式：trim 后为空则回落 {@code "export"}（对照 Go）。 */
+    /** 当前生效的解析模式：trim 后为空则回落 {@code "export"}。 */
     public static String currentParseMode() {
         String mode = parseMode.get();
         mode = mode == null ? "" : mode.trim();
@@ -78,7 +76,7 @@ public final class DocxFetcher {
     }
 
     /**
-     * 对照 Go {@code DocxFetchInput}：一次 docx 抓取需要的全部输入
+     * 一次 docx 抓取需要的全部输入
      * （wiki 节点与云盘文件统一成这个形状）。
      */
     public static final class DocxFetchInput {
@@ -97,7 +95,7 @@ public final class DocxFetcher {
 
         public OffsetDateTime editTime = FeishuSupport.orGoZero(null);
 
-        /** 飞书侧的文档创建时间；未知时是 Go 零值。 */
+        /** 飞书侧的文档创建时间；未知时归一为零值时间。 */
         public OffsetDateTime createTime = FeishuSupport.orGoZero(null);
 
         /** 基础 metadata（各连接器自己拼，含 obj_token/obj_type/channel…）。 */
@@ -107,7 +105,7 @@ public final class DocxFetcher {
     }
 
     /**
-     * 对照 Go {@code FetchDocxWithBlocks}：经 blocks API 取一篇 docx、转成 Markdown，
+     * 经 blocks API 取一篇 docx、转成 Markdown，
      * 返回主条目 + 可解析的附件/图片子条目。
      *
      * <p>blocks API 报错或渲染为空时<b>回落</b>到导出 API。wiki 与 drive 共用。</p>
@@ -159,8 +157,7 @@ public final class DocxFetcher {
         List<FetchedItem> items = new ArrayList<>();
         items.add(main);
 
-        // keep 一开始就是非 nil 的空切片（对照 Go 的 make([]string, 0, len(atts))）：
-        // SubtreeKeep 的契约是"空 = 什么都不保留"，nil 与空等价，但这里保持空切片形态。
+        // keep 初始为空列表：SubtreeKeep 的契约是"空 = 什么都不保留"。
         List<String> keep = new ArrayList<>();
 
         for (PendingAttachment a : md.attachments()) {
@@ -280,7 +277,7 @@ public final class DocxFetcher {
     }
 
     /**
-     * 对照 Go {@code exportDocxFallback}：经异步导出 API 导出一篇 docx，
+     * 经异步导出 API 导出一篇 docx，
      * 返回<b>单个</b>承载导出 .docx 二进制的 FetchedItem。
      */
     static FetchedItem exportDocxFallback(FeishuClient client, DocxFetchInput in) {

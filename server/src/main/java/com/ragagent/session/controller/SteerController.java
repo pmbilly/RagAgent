@@ -33,12 +33,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 运行中轮次的中途消息（steer）HTTP 层（对照 Go internal/handler/session/steer.go
- * 的 4 个 HTTP 端点，routes_chat.go L74-77）。
+ * 运行中轮次的中途消息（steer）HTTP 层。
  *
  * steer 事件落在 StreamManager 的独立子列表上，永不出现在用户可见的 SSE 流里；
- * 本层只覆盖 HTTP 面（排队/列表/删除/提升）——引擎侧 PollSteer 与 follow-up
- * 交接随波 4/5 的 agent 执行链落地。
+ * 本层只覆盖 HTTP 面（排队/列表/删除/提升）——引擎侧轮询与 follow-up
+ * 交接在 SteerRunCoordinator / SteerSinkBridge。
  *
  * 关键契约：delivery 缺省 after（注入是显式 opt-in）；队列深度按未消费条数计
  * （max 10）；query 上限 10000 rune；live run 指向的消息已完成时清理并视为无 run；
@@ -70,7 +69,6 @@ public class SteerController {
         this.streamManager = streamManager;
     }
 
-    /** 对照 Go SteerMessage（L461-598）。 */
     @PostMapping("/api/v1/sessions/{session_id}/steer")
     public ResponseEntity<Map<String, Object>> steerMessage(
             @PathVariable("session_id") String sessionId,
@@ -80,7 +78,7 @@ public class SteerController {
             throw new BizException(AppError.badRequest("invalid session id"));
         }
         SteerMessageRequest req = bindBody(rawBody);
-        // ⚠️ 顺序对照 Go：binding 的 required 先于 trim——空串/缺失落 validator 原文，
+        // ⚠️ 顺序有语义：required 校验先于 trim——空串/缺失落绑定校验原文，
         // 只有纯空白才走到 handler 里的 "query must not be empty"
         if (req.query() == null || req.query().isEmpty()) {
             throw new BizException(AppError.badRequest(
@@ -176,7 +174,6 @@ public class SteerController {
         return ResponseEntity.ok(body);
     }
 
-    /** 对照 Go PromoteSteerMessage（L614-679）。 */
     @PostMapping("/api/v1/sessions/{session_id}/steer/{steer_id}/inject")
     public ResponseEntity<Map<String, Object>> promoteSteerMessage(
             @PathVariable("session_id") String sessionId,
@@ -221,7 +218,6 @@ public class SteerController {
         return ResponseEntity.ok(body);
     }
 
-    /** 对照 Go ListSteerMessages（L693-731）。 */
     @GetMapping({"/api/v1/sessions/{id}/steer", "/api/v1/sessions/{session_id}/steer"})
     public ResponseEntity<Map<String, Object>> listSteerMessages(
             @PathVariable(value = "id", required = false) String id,
@@ -250,7 +246,6 @@ public class SteerController {
         return ResponseEntity.ok(body);
     }
 
-    /** 对照 Go DeleteSteerMessage（L746-810）。 */
     @DeleteMapping({"/api/v1/sessions/{id}/steer/{steer_id}",
             "/api/v1/sessions/{session_id}/steer/{steer_id}"})
     public ResponseEntity<Map<String, Object>> deleteSteerMessage(
@@ -296,9 +291,9 @@ public class SteerController {
         return ResponseEntity.ok(body);
     }
 
-    // ── 内部辅助（对照 Go） ──────────────────────────────
+    // ── 内部辅助 ──────────────────────────────
 
-    /** 对照 Go liveAgentRun（L318-338）：stale live run 清理后视为无 run。 */
+    /** 活跃 run 指向的消息已完成时清理并视为无 run。 */
     private String liveAgentRun(String sessionId) {
         LiveRun live = streamManager.getLiveRun(sessionId);
         String assistantId = live == null ? "" : live.assistantMessageId();
@@ -317,7 +312,7 @@ public class SteerController {
         return assistantId;
     }
 
-    /** 对照 Go resolveLiveAgentRun：查询失败 → 503（可重试）。 */
+    /** 查询失败 → 503（可重试）。 */
     private String resolveLiveAgentRunOr503(String sessionId) {
         try {
             return liveAgentRun(sessionId);
@@ -345,7 +340,7 @@ public class SteerController {
         }
     }
 
-    /** 对照 Go rebindSteerIfLiveRunMoved（L1002-1023）。 */
+    /** 追加后活 run 已切换 → 把事件搬到新 run 上。 */
     private RebindResult rebindIfLiveRunMoved(String sessionId, String appendedOn, StreamEvent evt) {
         String current;
         try {
@@ -368,7 +363,7 @@ public class SteerController {
     private record RebindResult(String queuedOn, String status) {
     }
 
-    /** 对照 Go steerEvent（L356-369）：data 键与注入事件对齐。 */
+    /** 构造 steer 事件：data 键与注入事件对齐。 */
     static StreamEvent steerEvent(String id, String query, List<MentionedItem> mentionedItems,
                                   String channel) {
         StreamEvent evt = new StreamEvent(id,
@@ -382,7 +377,7 @@ public class SteerController {
         return evt;
     }
 
-    /** 对照 Go MentionedItemsToRaw（types/message.go L75-90）。 */
+    /** 提及项 → 事件 data 的原始 map 形态。 */
     static List<Object> mentionedItemsToRaw(List<MentionedItem> items) {
         List<Object> out = new ArrayList<>();
         if (items != null) {
@@ -402,7 +397,7 @@ public class SteerController {
         return out;
     }
 
-    /** 对照 Go parseSteerDelivery（L375-384）：缺省 after。 */
+    /** 解析 delivery：缺省 after。 */
     static String parseSteerDelivery(String raw) {
         String s = raw == null ? "" : raw.trim().toLowerCase();
         if (s.isEmpty() || s.equals(DELIVERY_AFTER)) {
@@ -415,19 +410,19 @@ public class SteerController {
                 "invalid delivery \"" + (raw == null ? "" : raw) + "\" (want inject or after)"));
     }
 
-    /** 对照 Go steerDeliveryOfEvent（L386-391）。 */
+    /** 读事件的 delivery：非 inject 一律按 after。 */
     static String deliveryOf(StreamEvent evt) {
         Object d = evt.getData() == null ? null : evt.getData().get("delivery");
         return DELIVERY_AFTER.equals(d) ? DELIVERY_AFTER : DELIVERY_INJECT;
     }
 
-    /** 对照 Go steerEventConsumed（L395-398）。 */
+    /** 事件是否已消费（data.consumed）。 */
     static boolean isConsumed(StreamEvent evt) {
         Object consumed = evt.getData() == null ? null : evt.getData().get(DATA_CONSUMED);
         return Boolean.TRUE.equals(consumed);
     }
 
-    /** 对照 Go selectSteerBacklog（L406-418）。 */
+    /** 选未消费的 backlog 事件（可排除已注入 id）。 */
     static List<StreamEvent> selectBacklog(List<StreamEvent> events, Set<String> injectedIds) {
         List<StreamEvent> out = new ArrayList<>();
         for (StreamEvent evt : events) {
@@ -442,8 +437,7 @@ public class SteerController {
         return out;
     }
 
-    /** 对照 Go pendingSteerQueueItems（L423-438）：overlay 恢复载荷。
-     *  事件 data 是冻结的线协议（下划线），响应体按契约输出 camelCase。 */
+    /** 队列项视图：事件 data 是冻结的线协议（下划线），响应体按契约输出 camelCase。 */
     static List<Map<String, Object>> pendingQueueItems(List<StreamEvent> events,
             Set<String> injectedIds) {
         List<Map<String, Object>> out = new ArrayList<>();
@@ -461,7 +455,7 @@ public class SteerController {
         return out;
     }
 
-    /** 对照 Go 的 uuid.Parse 校验（steer_id 必须是合法 UUID）。 */
+    /** steer_id 必须是合法 UUID。 */
     static boolean isValidUuid(String value) {
         try {
             UUID.fromString(value);
@@ -483,7 +477,7 @@ public class SteerController {
         }
     }
 
-    /** 对照 Go SteerMessageRequest（L41-51）。请求体键名＝Java 字段名（camelCase）。 */
+    /** 请求体键名＝Java 字段名（camelCase）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record SteerMessageRequest(
             String expectedAssistantMessageId,

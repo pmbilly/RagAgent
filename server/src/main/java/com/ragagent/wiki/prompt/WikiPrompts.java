@@ -5,15 +5,15 @@ import java.util.List;
 /**
  * Wiki 生成管线的全部 prompt 常量。
  *
- * <p><b>字节保真</b>：本文件的字符串内容与原实现的提示词字面量<b>逐字节一致</b>
+ * <p><b>字节保真</b>：本文件的字符串内容<b>逐字节稳定</b>
  * （含语言指令、粒度指引、模板变量名与空行）。这些文本直接影响生成质量，
- * 任何「顺手的措辞优化」都是回归——{@code WikiPromptsByteFidelityTest} 用 SHA-256
- * 把每个常量的字节内容钉死在原实现算出的哈希上。</p>
+ * 任何「顺手的措辞优化」都是回归——{@code WikiPromptsTest} 用 SHA-256
+ * 把每个常量的字节内容钉死在登记的哈希上。</p>
  *
  * <p><b>模板语法</b>：模板用 {@code {{.X}}} 取值、
  * {@code {{if .X}}...{{end}}} 条件块。Java 侧不引入模板引擎，改由
  * {@link WikiPromptTemplate#render} 支持这两个构造——本文件用到的全部语法
- * 就只有这两个（无 {@code range} / {@code else} / 管道）。<b>变量名与原实现逐一对齐</b>，
+ * 就只有这两个（无 {@code range} / {@code else} / 管道）。<b>模板变量名逐字固定</b>，
  * 调用方传的 map key 就是模板里的字段名。</p>
  */
 public final class WikiPrompts {

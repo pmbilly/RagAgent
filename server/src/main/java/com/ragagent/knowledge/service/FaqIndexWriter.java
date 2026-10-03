@@ -46,7 +46,7 @@ public class FaqIndexWriter {
     private final VectorStoreService vectorStore;
     private final EmbedderClient embedder;
     private final ModelRuntimeFactory modelRuntimeFactory;
-    /** 批量向量化批大小（B6 批 5：属性绑定）。 */
+    /** 批量向量化批大小（属性绑定）。 */
     private final BatchEmbedProperties batchEmbedProperties;
 
     public FaqIndexWriter(KnowledgeMapper knowledgeMapper,

@@ -14,9 +14,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import com.ragagent.TestSchema;
 
 /**
- * AgentWebPages 生产存储接缝（2026-09-24 存储写字节面批）。
+ * AgentWebPages 生产存储接缝。
  *
- * <p>对照 Go {@code agent_web_pages.go}：Save 检查 assistant 消息在位 → 落盘 →
+ * <p>Save 检查 assistant 消息在位 → 落盘 →
  * web_page 绑定 → web:// 地址；Read 按 web:// → resource:// 解析 + 租户与绑定
  * 双重授权。授权链 fail-closed：消息缺失 / 绑定缺失 / 租户不符全部拒绝。</p>
  */

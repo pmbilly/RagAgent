@@ -5,10 +5,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 停止生成请求数据（对照 Go {@code event.StopData}，internal/event/event_data.go:247-251）。
+ * 停止生成请求数据。
  * continue-stream 的 stop watcher 检测到该事件即取消生成
- * （handler/session/stream.go:375、helpers.go:394——不在 24 个 emit 表内，属 handler 层）。
- * 实录锚点：{@code reason} 带 omitempty。
+ * （handler/session 层发出，不在包注释 emit 表内）。
+ * {@code reason} 空串省略。
  */
 @JsonPropertyOrder({"session_id", "message_id", "reason"})
 public class StopData {
@@ -19,7 +19,7 @@ public class StopData {
     @JsonProperty("message_id")
     private String messageId = "";
 
-    /** 停止原因（可选）；Go omitempty */
+    /** 停止原因（可选）；空串省略 */
     @JsonProperty("reason")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String reason = "";

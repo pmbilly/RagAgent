@@ -10,13 +10,13 @@ import java.util.Map;
  * Target={@code wiki}/{@code kbID}、Outcome={@code success}、
  * Details={@code {"count":N,"actions":{...}}}（只在 count &gt; 0 时写）。</p>
  *
- * <p><b>为什么是接缝而不是直接调用</b>：定义端口是为了让埋点位置与原实现
- * <b>一一对应</b>、且不把 wiki 模块反向耦合到审计实现上。没有实现 bean 时
+ * <p><b>为什么是接缝而不是直接调用</b>：定义端口是为了固定埋点位置、
+ * 且不把 wiki 模块反向耦合到审计实现上。没有实现 bean 时
  * {@code ObjectProvider.getIfAvailable()} 返回 null，行为退化为一条 debug 日志——
  * 等价于审计服务缺位的情形（埋点本身尽力而为、绝不影响编辑本身）。</p>
  *
  * <p><b>实现已就位</b>：{@code com.ragagent.audit.service.WikiActivityAuditRecorder}
- * （随审计模块翻译一起交付）实现了本接口，@Component 自动装配，因此
+ * （审计模块提供）实现了本接口，@Component 自动装配，因此
  * WikiPageController 的 6 处人工埋点与 WikiIngestBatchHandler 的批量摘要
  * 现在都<b>真正落库</b>为 {@code wiki.content_changed} 审计行。</p>
  */

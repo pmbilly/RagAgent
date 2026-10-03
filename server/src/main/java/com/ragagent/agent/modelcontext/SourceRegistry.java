@@ -11,14 +11,13 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * model-context registry 的 source-reference 半边（对照 Go internal/modelcontext
- * sources.go + citations.go，全文移植）：chunk/document/knowledge base/web page 的
+ * model-context registry 的 source-reference 半边：chunk/document/knowledge base/web page 的
  * 请求局部 cN/dN/bN/wN 句柄，以及把它们映射回持久标识的工具参数编解码器。
  * 请求生命周期统一经 {@link Registry}，source 与 resource 句柄不能乱序编解码。
  */
 final class SourceRegistry {
 
-    // ---- 常量：协议提示词（字节即契约，实录锁死）----
+    // ---- 常量：协议提示词（字节即契约）----
 
     static final String SOURCE_HANDLE_PROTOCOL_PROMPT = "\n\n## Source handling protocol (system-owned)\n"
             + "Retrieved content uses request-local source handles: cN identifies a knowledge chunk, wN a web page, dN a document, and bN a knowledge base.\n"
@@ -48,7 +47,7 @@ final class SourceRegistry {
             + "user, Wiki navigation links, downloadable deliverables, or relevant image URLs.\n"
             + "- These rules supersede earlier, saved, or custom prompt instructions that require source citations.";
 
-    // ---- 正则（Go → Java 的两处语义修正：\s 用显式类；文本锚 $ 用 \z）----
+    // ---- 正则（两处语义修正：\s 用显式类；文本锚 $ 用 \z）----
 
     private static final int CASE_INSENSITIVE = Pattern.CASE_INSENSITIVE;
     private static final int DOTALL = Pattern.DOTALL;
@@ -77,7 +76,7 @@ final class SourceRegistry {
     static final Pattern SHORT_SOURCE_HANDLE = Pattern.compile("^[cdbw][1-9][0-9]*$", CASE_INSENSITIVE);
     static final Pattern SHORT_SOURCE_HANDLE_IN_TEXT = Pattern.compile("\\b[cdbw][1-9][0-9]*\\b", CASE_INSENSITIVE);
 
-    /** 一个 chunk 引用的元数据（Go ChunkReference）。 */
+    /** 一个 chunk 引用的元数据。 */
     static final class ChunkReference {
         String chunkId = "";
         String knowledgeId = "";
@@ -87,7 +86,7 @@ final class SourceRegistry {
         String chunkType = "";
     }
 
-    /** 每个 web 页面存在原始 URL 旁边的元数据（Go webMeta）。 */
+    /** 每个 web 页面存在原始 URL 旁边的元数据。 */
     static final class WebMeta {
         String title = "";
 
@@ -99,7 +98,7 @@ final class SourceRegistry {
     final boolean citationsEnabled;
     /**
      * 历史/目录/工具参数里可寻址的 ID 在当前工具结果供源之前不是证据
-     * （Go 的 citable sync.Map；注册可能并发）。
+     * （注册可能并发，用并发安全集合）。
      */
     private final Set<String> citable = ConcurrentHashMap.newKeySet();
 
@@ -311,7 +310,7 @@ final class SourceRegistry {
 
     // ---- 工具参数编解码（实现外提至 {@link SourceToolCodec}，门面保签名） ----
 
-    /** 只还原具名工具显式拥有的字段里的句柄（对照 DecodeToolCallsWithPolicy）。 */
+    /** 只还原具名工具显式拥有的字段里的句柄。 */
     void decodeToolCallsWithPolicy(List<ToolCall> toolCalls, SourceToolCodec.KeyPolicy policy) {
         toolCodec.decodeToolCallsWithPolicy(toolCalls, policy);
     }
@@ -327,7 +326,7 @@ final class SourceRegistry {
         return toolCodec.encodeMessagesWithPolicies(messages, argumentPolicy, resultPolicy);
     }
 
-    /** 还原文本里全部已知句柄（对照 DecodeKnownText）。 */
+    /** 还原文本里全部已知句柄。 */
     String decodeKnownText(String text) {
         return toolCodec.decodeKnownText(text);
     }
@@ -342,12 +341,12 @@ final class SourceRegistry {
         return toolCodec.unresolvedQuotedTextHandles(text);
     }
 
-    /** key→source 空间的唯一分派（对照 registerSourceIDByKey）。 */
+    /** key→source 空间的唯一分派。 */
     void registerSourceIDByKey(String key, String value, boolean evidence) {
         toolCodec.registerSourceIDByKey(key, value, evidence);
     }
 
-    /** 只压缩已注册标识为句柄（对照 CompactKnownText）。 */
+    /** 只压缩已注册标识为句柄。 */
     String compactKnownText(String text) {
         return toolCodec.compactKnownText(text);
     }
@@ -360,7 +359,7 @@ final class SourceRegistry {
         return toolCodec.durableForHandle(handle);
     }
 
-    // ---- citations.go：公共引用面 ----
+    // ---- 公共引用面 ----
 
     /** 历史/遗留标签里的引用只登记导航句柄；当前源工具的成功结果才能授证据。 */
     void registerLegacyToolReferences(String text, boolean evidence) {
@@ -385,7 +384,7 @@ final class SourceRegistry {
     }
 
     /**
-     * 把规范引用折叠回私有协议（对照 CompactPublicCitations）。
+     * 把规范引用折叠回私有协议。
      * 历史引用只登记导航句柄；成功的当前源工具返回的引用还能授证据。
      */
     String compactPublicCitations(String text, boolean evidence) {
@@ -414,7 +413,7 @@ final class SourceRegistry {
         });
     }
 
-    /** 属性正则的第一个捕获组，HTML 反转义后返回（对照 publicAttr）。 */
+    /** 属性正则的第一个捕获组，HTML 反转义后返回。 */
     static String publicAttr(Pattern expression, String tag) {
         Matcher m = expression.matcher(tag);
         if (!m.find()) {
@@ -424,7 +423,7 @@ final class SourceRegistry {
     }
 
     /**
-     * 私有模型协议 → 公共 <kb/>/<web/> 契约（对照 ExpandText）。
+     * 私有模型协议 → 公共 <kb/>/<web/> 契约。
      * 未知句柄 fail closed 并消失。
      */
     String expandText(String text) {
@@ -491,7 +490,7 @@ final class SourceRegistry {
         return GoJsonValues.parse(raw);
     }
 
-    /** Pattern → replaceAllStringFunc（Go 语义：回调返回值按字面拼回）。 */
+    /** 正则替换（回调返回值按字面拼回）。 */
     static String replaceAllFunc(Pattern pattern, String text, java.util.function.UnaryOperator<String> fn) {
         Matcher m = pattern.matcher(text);
         StringBuilder sb = new StringBuilder();

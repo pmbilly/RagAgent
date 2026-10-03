@@ -9,25 +9,21 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 /**
- * HTTP 响应用的 mapper 是否按 Go 的规则转义字符串——**全局**契约。
+ * {@link GoJsonEscapes} 转义表的语料测试——事件总线 / 流事件 / provider 载荷等
+ * 手搓载荷路径仍按这套规则转义字符串。
  *
  * <h2>为什么需要这条测试</h2>
- * <p>Go 的 {@code encoding/json} 默认把 {@code < > &} 转义成 {@code <} / {@code >} /
- * {@code &}，Jackson 默认原样输出。这个差异**早就存在**，但 golden 契约文件里
- * {@code < > &} 的出现次数一直是 <b>0</b>，所以从没被测到——直到 SSE 的聊天正文
+ * <p>这套线格式把 {@code < > &} 转义成 {@code \u003c} / {@code \u003e} /
+ * {@code \u0026}，Jackson 默认原样输出。golden 契约文件里 {@code < > &} 的出现次数
+ * 一直是 <b>0</b>，所以从没被测到——直到 SSE 的聊天正文
  * （散文，含 {@code &} 太正常）第一个踩上去。</p>
  *
- * <p>修法是在 {@code config.JacksonConfig} 里全局装上 {@link GoJsonEscapes}。
- * 本测试**注入容器里的那个 mapper**（不是自己 new 一个）：
- * 自己 new 的 mapper 测的是测试自己的配置，不是线上那条路。</p>
- *
- * <h2>期望值来源</h2>
- * <p>Go 实录——{@code json.Marshal(map[string]string{"v": …})} 的输出。</p>
+ * <p>本测试自建 mapper 并显式装上转义表，逐条钉住表的输出。</p>
  */
 @SpringBootTest
 class GoJsonEscapesContractTest {
 
-    /** 转义表仍在（事件总线 / 流事件 / provider 载荷等仍是 Go 字节契约的路径使用）。 */
+    /** 转义表仍在（事件总线 / 流事件 / provider 载荷等手搓载荷路径仍按这套字节格式）。 */
     private final ObjectMapper mapper = com.fasterxml.jackson.databind.json.JsonMapper.builder()
             .build();
 
@@ -49,7 +45,7 @@ class GoJsonEscapesContractTest {
     /**
      * ⚠️ {@code CharacterEscapes} 是**整表替换**而非叠加：装表时必须把
      * {@code \b \t \n \f \r \" \\} 这些"两边本来就一致"的短转义也显式声明，
-     * 漏掉会直接漏成原文。阶段 5 在 Redis 那条路径上踩过这个坑，这条用例是它的永久防线。
+     * 漏掉会直接漏成原文——这条用例就是它的永久防线。
      */
     @Test
     void shortEscapesAreStillEscaped() throws Exception {
@@ -58,7 +54,7 @@ class GoJsonEscapesContractTest {
                 .isEqualTo("{\"v\":\"tab\\tnl\\ncr\\rbs\\bff\\f\"}");
     }
 
-    /** 控制字符编码成 &#92;u00xx 形式，**小写十六进制**（Go 的写法）。 */
+    /** 控制字符编码成 &#92;u00xx 形式，**小写十六进制**。 */
     @Test
     void controlCharactersUseLowercaseHex() throws Exception {
         assertThat(jsonOf("ctrl\u0001\u001f")).isEqualTo("{\"v\":\"ctrl\\u0001\\u001f\"}");

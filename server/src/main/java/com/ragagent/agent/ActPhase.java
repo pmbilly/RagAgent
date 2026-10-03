@@ -324,7 +324,7 @@ final class ActPhase {
             // 顺序路径：直接用当前线程上下文（引擎线程）
             return runToolCallInner(tc, i, iteration, round, sessionId, assistantMessageID);
         }
-        // 借用快照执行：可并发批次的子线程传 null（子线程自行 replay/clear），
+        // 借用快照执行：并发执行的子线程传 null（子线程自行 replay/clear），
         // 突变屏障分支在**主线程**以非 null 快照调用——必须保存-恢复而非 clear，
         // 否则引擎线程的租户/身份会被清掉，后续轮次的模型/KB 解析全部失败。
         TenantContextSnapshot prev = TenantContextSnapshot.capture();
@@ -485,8 +485,8 @@ final class ActPhase {
 
         Duration execTimeout = AgentConsts.toolExecutionTimeout(tc.getFunction().getName(),
                 tc.getFunction().getArguments());
-        // ApprovalCtx 语义（不带每工具超时的父取消源）：Java 侧 approvalCancellation=null
-        // 回落外层取消源（同 Go nil 分支），等待人工审批的长等待由 4.6d 接线。
+        // 取消语义（不带每工具超时的父取消源）：approvalCancellation=null
+        // 时回落外层取消源；人工审批长等待经 ApprovalBridge 桥接，不受工具超时限制。
         ToolExecContext toolExecCtx = new ToolExecContext(sessionId, assistantMessageID, "",
                 tc.getId(), TenantContext.currentPrincipal() == null ? ""
                         : TenantContext.currentPrincipal().id(),

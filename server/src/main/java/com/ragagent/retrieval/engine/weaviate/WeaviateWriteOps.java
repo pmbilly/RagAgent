@@ -100,7 +100,7 @@ final class WeaviateWriteOps {
 
     /**
      * 对象体：{@code {class, id, properties, vector}}——id = chunkID（另见类注释）。
-     * 与 Go 的差异（备案）：Go 单对象路径用 {@code Vector} 字段；命名向量类下服务端把
+     * 单对象路径用 {@code vector} 字段；命名向量类下服务端把
      * 单向量映射到唯一命名向量 {@code embedding}（1.28.4 实测接受）。
      */
     static ObjectNode objectBody(String className, String chunkId,
@@ -116,7 +116,7 @@ final class WeaviateWriteOps {
         return object;
     }
 
-    /** 对照 {@code createPayload}：键序按写入序（服务端无键序约束）。 */
+    /** properties 构造：键序按写入序（服务端无键序约束）。 */
     static ObjectNode createPayload(WeaviateVectorEmbedding row) {
         ObjectNode payload = Json.object();
         payload.put(WeaviateRetrieveRepository.FIELD_CONTENT, row.content == null ? "" : row.content);
@@ -131,7 +131,7 @@ final class WeaviateWriteOps {
         return payload;
     }
 
-    /** 批量响应里的逐对象错误只记日志（照 Go 的批量语义：对象级错误不冒泡）。 */
+    /** 批量响应里的逐对象错误只记日志（对象级错误不冒泡）。 */
     static void logObjectErrors(JsonNode response, String op) {
         if (response == null || !response.isArray()) {
             return;
@@ -297,7 +297,7 @@ final class WeaviateWriteOps {
                 row.knowledgeId = targetKnowledgeId;
                 row.knowledgeBaseId = targetKnowledgeBaseId;
                 row.tagId = item.path(WeaviateRetrieveRepository.FIELD_TAG_ID).asText("");
-                row.isEnabled = true; // 照 Go：拷贝一律置 true（不沿用源值）
+                row.isEnabled = true; // 拷贝一律置 true（不沿用源值）
                 row.embedding = new float[vectors.size()];
                 for (int i = 0; i < vectors.size(); i++) {
                     row.embedding[i] = (float) vectors.get(i).asDouble();

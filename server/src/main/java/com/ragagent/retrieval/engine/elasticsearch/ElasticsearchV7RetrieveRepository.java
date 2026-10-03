@@ -25,36 +25,32 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 
 /**
- * Elasticsearch <b>v7</b> 检索引擎仓库——对照 Go
- * {@code internal/application/repository/retriever/elasticsearch/v7/repository.go}（1452 行）
- * + {@code v7/move.go}，文档结构与双向转换复用 {@code elasticsearch/structs.go}（同 v8）。
+ * Elasticsearch <b>v7</b> 检索引擎仓库（文档结构与双向转换与 v8 共用）。
  *
- * <h2>与 v8 的差异（逐条照抄）</h2>
+ * <h2>与 v8 的差异</h2>
  * <ul>
  *   <li>{@code Support()} 只报 <b>keywords</b>（v7 不带向量）；{@code Retrieve()} 也只分派
  *       keywords——传 vector 直接 {@code invalid retriever type}（{@code VectorRetrieve}
  *       仍实现且可直呼，但不在分派表里）</li>
- *   <li>命中一律标 <b>MatchTypeKeywords</b>（照 Go：{@code processHit} 恒传
- *       {@code MatchTypeKeywords}，向量结果也是 1——Go 的怪癖，照抄）；单条命中缺
+ *   <li>命中按实际检索路径标注：vector → <b>MatchTypeEmbedding</b>、keywords →
+ *       <b>MatchTypeKeywords</b>；单条命中缺
  *       {@code _id}/{@code _source}/{@code _score} 时<b>跳过该条继续</b>（v8 是整请求报错）</li>
  *   <li>基础条件是 <b>JSON 字符串</b>（{@code getBaseConds} 返回 string，供拼装）；关键词查询走
  *       模板 {@code {"query":{"bool":{"must":[{"match":{"content":<q>}}],"filter":[<cond>]}}}}</li>
  *   <li>建索引的 settings 是 <b>数字</b>（v8 是字符串）；建索引失败文案
  *       {@code failed to create index <index>}</li>
  *   <li>单条写入走 {@code PUT /{index}/_create/{uuid}}（显式 UUID 文档 ID，v8 是 POST /_doc 自增）；
- *       批量 NDJSON 的动作行是 {@code { "index" : { "_id" : "<uuid>" } }}（带空格，照 Go），
+ *       批量 NDJSON 的动作行是 {@code { "index" : { "_id" : "<uuid>" } }}（键与值之间带空格），
  *       响应里 {@code errors:true} 只<b>计数并告警</b>（不失败）、解析失败也放行</li>
  *   <li>删除/改状态/改标签的 body 是手拼/直构的 {@code {"query":{"terms":{...}}}}——改状态<b>不套
  *       bool</b>（v8 套 bool.must）；脚本带 {@code lang: painless}</li>
- *   <li>{@code MoveKnowledgeIndices}（v7/move.go）：filter 里用 <b>singular {@code term}</b> +
+ *   <li>{@code MoveKnowledgeIndices}：filter 里用 <b>singular {@code term}</b> +
  *       字符串值（v8 用 {@code terms} 数组）；脚本<b>带 lang</b>；{@code ?refresh=true}；
  *       完整性校验同 v8</li>
  * </ul>
  *
- * <h2>照抄的 Go 缺陷（备案）</h2>
- * <p>{@code CopyIndices} 的 {@code saveCopiedIndices} 里 {@code embeddingMap} 是<b>新建的空 map</b>
- * （{@code processSourceBatch} 里收集的向量被丢弃）→ 复制过去的文档<b>不带向量</b>。本类照抄该行为
- * （与 v8 的"同 chunk 后者覆盖"同理：先保真，不擅自修 Go）。</p>
+ * <h2>CopyIndices 的向量回填</h2>
+ * <p>复制时按<b>目标 SourceID</b> 为键回填源文档向量，复制出的文档带向量（与 v8 语义一致）。</p>
  */
 public class ElasticsearchV7RetrieveRepository
         implements RetrieveEngineRepository, RetrieveEngineRepository.KnowledgeIndexMover {
@@ -131,14 +127,14 @@ public class ElasticsearchV7RetrieveRepository
         return EngineTypes.ENGINE_ELASTICSEARCH;
     }
 
-    /** 对照 v7 {@code Support}：只有 keywords（无向量）。 */
+    /** 只支持 keywords（无向量）。 */
     public List<String> support() {
         return List.of(EngineTypes.RETRIEVER_KEYWORDS);
     }
 
     // ── 索引自举 ────────────────────────────────────────────────────────────
 
-    /** 对照 v7 {@code createIndexIfNotExists}：settings 为<b>数字</b>；失败文案固定。 */
+    /** 建索引 settings 为<b>数字</b>；失败文案固定。 */
     void createIndexIfNotExists() throws Exception {
         HttpResult exists = request("HEAD", "/" + index, null);
         if (exists.status() >= 200 && exists.status() < 300) {
@@ -164,7 +160,7 @@ public class ElasticsearchV7RetrieveRepository
         log.info("[ElasticsearchV7] Index created successfully: {}", index);
     }
 
-    /** 对照 v7 {@code detectFieldTypes}（与 v8 同判定，逐层判空）。 */
+    /** 字段类型探测（与 v8 同判定，逐层判空）。 */
     void detectFieldTypes() {
         try {
             HttpResult resp = request("GET", "/" + index + "/_mapping", null);
@@ -210,7 +206,7 @@ public class ElasticsearchV7RetrieveRepository
 
     // ── 存储估算 ────────────────────────────────────────────────────────────
 
-    /** 对照 v7 {@code calculateStorageSize}（与 v8 同式）。 */
+    /** 存储估算（与 v8 同式）。 */
     static long calculateStorageSize(ElasticsearchV8RetrieveRepository.VectorEmbedding embedding) {
         return ElasticsearchV8RetrieveRepository.calculateStorageSize(embedding);
     }
@@ -305,7 +301,7 @@ public class ElasticsearchV7RetrieveRepository
     // ── 迁移知识 ────────────────────────────────────────────────────────────
 
     /**
-     * 对照 {@code v7/move.go}：{@code bool.filter} 用 <b>singular {@code term}</b> + 字符串值
+     * {@code bool.filter} 用 <b>singular {@code term}</b> + 字符串值
      * （v8 是 {@code terms} 数组）；脚本<b>带 lang</b>；{@code ?refresh=true}；完整性校验同 v8。
      */
     @Override
@@ -353,7 +349,7 @@ public class ElasticsearchV7RetrieveRepository
                 MAPPER.createObjectNode().put(field, value));
     }
 
-    // ── 批量改状态 / 标签（不套 bool，照 v7） ───────────────────────────────
+    // ── 批量改状态 / 标签（不套 bool） ─────────────────────────────────────
 
     // ── HTTP ────────────────────────────────────────────────────────────────
 

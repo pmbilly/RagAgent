@@ -42,15 +42,11 @@ import com.ragagent.wiki.service.WikiModelResolver;
 import com.ragagent.wiki.service.page.WikiPageService;
 
 /**
- * {@link WikiIngestBatchHandler} 的对等测试（对照 Go
- * internal/application/service/wiki_folder_prune_finalize_test.go（122 行）与
- * wiki_deleted_kb_guard_test.go（175 行）），外加批次主干里几个可独立验证的纯函数
+ * {@link WikiIngestBatchHandler} 的行为测试，外加批次主干里几个可独立验证的纯函数
  * （{@code mergeChunkRefs}、粒度映射、速率限制错误分类、内联 chunk 引用剥离）。
  *
- * <p><b>范围说明</b>：Go 的 {@code TestEnqueueWikiWorkSkipsDeletedKnowledgeBase} 与
- * {@code TestEnqueueWikiFinalizeOnlySchedulesAcceptedRows} 针对的是
- * {@code EnqueueWikiIngest} / {@code EnqueueWikiRetract} / {@code enqueueFinalize}
- * ——那些函数在上一轮的 {@link WikiIngestService} 里，本轮的
+ * <p><b>范围说明</b>：{@code EnqueueWikiIngest} / {@code EnqueueWikiRetract} /
+ * {@code enqueueFinalize} 在 {@link WikiIngestService} 里，本类的
  * {@code finalize} 通道测试因此只覆盖<b>排空</b>侧（{@code ProcessWikiFinalize}）。</p>
  */
 class WikiIngestBatchHandlerTest {
@@ -74,7 +70,7 @@ class WikiIngestBatchHandlerTest {
     private final ObjectProvider<WikiActivityAudit> auditProvider = mock(ObjectProvider.class);
     @SuppressWarnings("unchecked")
     private final ObjectProvider<WikiIngestTaskQueue> queueProvider = mock(ObjectProvider.class);
-    /** 测试不接线追踪器 → 门面走 NOOP 语义（与 Go 的 nil tracker 同形）。 */
+    /** 测试不接线追踪器 → 门面走 NOOP 语义。 */
     @SuppressWarnings("unchecked")
     private final ObjectProvider<com.ragagent.knowledge.service.SpanTracker> spanTrackerProvider =
             mock(ObjectProvider.class);
@@ -111,7 +107,7 @@ class WikiIngestBatchHandlerTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 目录剪枝（Go wiki_folder_prune_finalize_test.go）
+    // 目录剪枝
     // ═══════════════════════════════════════════════════════════════
 
     @Nested
@@ -127,7 +123,6 @@ class WikiIngestBatchHandlerTest {
         }
 
         /**
-         * 对照 Go {@code TestProcessWikiFinalizeDefersFolderPruneWhileIngestIsPending}：
          * ingest 还有待办行时<b>绝不</b>剪目录（taxonomy 规划会在 reduce 写页之前建目录），
          * 持久化的 prune 行必须留着重试。
          */
@@ -148,7 +143,6 @@ class WikiIngestBatchHandlerTest {
 
             verify(wikiService, never()).pruneEmptyFolderChains(anyString(), anyList());
             // 剪枝行必须留在通道里：trim 集合不含被延迟的那一行
-            // （对照 Go 的 require.Empty(t, pendingRepo.deletedRowIDs)）
             ArgumentCaptor<List<Long>> trimmed = ArgumentCaptor.forClass(List.class);
             verify(ingestService).trimPendingListDetached(trimmed.capture());
             assertThat(trimmed.getValue()).isEmpty();
@@ -158,7 +152,6 @@ class WikiIngestBatchHandlerTest {
         }
 
         /**
-         * 对照 Go {@code TestProcessWikiFinalizePrunesFolderAfterIngestDrains}：
          * ingest 通道排空后，剪掉候选链上仍为空的目录并删除该行。
          */
         @Test
@@ -186,7 +179,7 @@ class WikiIngestBatchHandlerTest {
         }
 
         /**
-         * 对照 Go {@code PendingCount} 报错的路径：无法确认 ingest 是否排空时必须延迟，
+         * 待办计数查询报错、无法确认 ingest 是否排空时必须延迟，
          * 而不是冒险剪掉一个在途批次仍然拥有的目录。
          */
         @Test
@@ -209,7 +202,7 @@ class WikiIngestBatchHandlerTest {
             verify(ingestService, times(1)).scheduleFinalizeRetry(payload());
         }
 
-        /** 空通道是 no-op（对照 Go {@code len(rows) == 0 → return nil}） */
+        /** 空通道是 no-op */
         @Test
         @DisplayName("finalize 空通道是 no-op")
         void emptyLaneIsNoop() {
@@ -245,8 +238,7 @@ class WikiIngestBatchHandlerTest {
         }
 
         /**
-         * 按 KB 的 finalize 锁被别人持有时安全 no-op（对照 Go 的
-         * {@code else if !acquired { return nil }}）。
+         * 按 KB 的 finalize 锁被别人持有时安全 no-op。
          */
         @Test
         @DisplayName("finalize 锁被占用时 no-op")
@@ -261,7 +253,7 @@ class WikiIngestBatchHandlerTest {
             }
         }
 
-        /** 释放后该 KB 可以被再次取锁（对照 Go 的 {@code defer Del}） */
+        /** 释放后该 KB 可以被再次取锁 */
         @Test
         @DisplayName("finalize 锁可重入获取")
         void lockReleasedAfterRun() {
@@ -276,7 +268,7 @@ class WikiIngestBatchHandlerTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 已删除 KB 的守卫（Go wiki_deleted_kb_guard_test.go）
+    // 已删除 KB 的守卫
     // ═══════════════════════════════════════════════════════════════
 
     @Nested
@@ -310,7 +302,6 @@ class WikiIngestBatchHandlerTest {
         }
 
         /**
-         * 对照 Go {@code TestWikiDeletedKnowledgeBaseCleanupFailureRetries}：
          * 清理失败必须让任务失败（让队列按重试预算重排），而不是静默 ack。
          */
         @Test
@@ -326,7 +317,7 @@ class WikiIngestBatchHandlerTest {
                     .isSameAs(boom);
         }
 
-        /** KB 存在但未启用 wiki：报错让任务重试（对照 Go 的 "KB is not wiki type"） */
+        /** KB 存在但未启用 wiki：报错让任务重试（文案含 "is not wiki type"） */
         @Test
         @DisplayName("KB 未启用 wiki → 抛错重试")
         void kbNotWikiEnabled() {
@@ -341,7 +332,7 @@ class WikiIngestBatchHandlerTest {
                     .hasMessageContaining("is not wiki type");
         }
 
-        /** 没有合成模型：报错让任务重试（对照 Go 的 missing_synthesis_model） */
+        /** 没有合成模型：报错让任务重试 */
         @Test
         @DisplayName("缺合成模型 → 抛错重试")
         void missingSynthesisModel() {
@@ -358,7 +349,7 @@ class WikiIngestBatchHandlerTest {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code mergeChunkRefs}（batch L2134-2154）：当前 refs 与新增引用求并集，
+     * 当前 refs 与新增引用求并集，
      * 去重保序，空串被过滤；纯 retract（无 additions）时保持原样。
      */
     @Test
@@ -377,7 +368,7 @@ class WikiIngestBatchHandlerTest {
         assertThat(WikiIngestBatchHandler.mergeChunkRefs(null, null)).isEmpty();
     }
 
-    /** 对照 Go {@code (*WikiConfig).ExtractionGranularity.Normalize()} 的枚举回落 */
+    /** 粒度枚举的回落 */
     @Test
     @DisplayName("粒度映射：未知值回落 standard")
     void granularityMapping() {
@@ -392,7 +383,6 @@ class WikiIngestBatchHandlerTest {
     }
 
     /**
-     * 对照 Go {@code wikiInlineChunkCitationRegex}（wiki_page.go L29）：
      * {@code [c003]}、{@code [c003, c007;c009]} 被剥离，普通正文与不合规的括号保留。
      */
     @Test
@@ -411,7 +401,6 @@ class WikiIngestBatchHandlerTest {
     }
 
     /**
-     * 对照 Go {@code isLikelyRateLimitError}（knowledge_process.go L3872-3883）：
      * 429 / rate limit / quota 措辞命中；普通错误不命中；异常链上的 cause 也被检查。
      */
     @Test
@@ -432,7 +421,7 @@ class WikiIngestBatchHandlerTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 批次上下文（对照 Go newWikiBatchContext 的懒加载与缓存）
+    // 批次上下文（懒加载与缓存）
     // ═══════════════════════════════════════════════════════════════
 
     @Nested
@@ -440,7 +429,7 @@ class WikiIngestBatchHandlerTest {
     class BatchContext {
 
         /**
-         * 对照 Go {@code newWikiBatchContext}：slug 标题按需解析、批内缓存、归档页与
+         * slug 标题按需解析、批内缓存、归档页与
          * 系统页视为"查无"、缺失 slug 也进缓存（负缓存）。
          */
         @Test
@@ -486,7 +475,7 @@ class WikiIngestBatchHandlerTest {
             verify(wikiService, times(1)).listBySlugs(eq("kb-1"), anyList());
         }
 
-        /** 对照 Go：摘要正文按 knowledge id 懒加载并缓存 */
+        /** 摘要正文按 knowledge id 懒加载并缓存 */
         @Test
         @DisplayName("摘要正文懒加载 + 缓存")
         void summaryLazyAndCached() {
@@ -501,7 +490,7 @@ class WikiIngestBatchHandlerTest {
             verify(wikiService, times(2)).listSummariesByKnowledgeIDs(eq("kb-1"), anyList());
         }
 
-        /** 对照 Go：WikiConfig 缺席时用零值默认；存在时解析出粒度与指令 */
+        /** WikiConfig 缺席时用默认值；存在时解析出粒度与指令 */
         @Test
         @DisplayName("WikiConfig 解析粒度与指令")
         void wikiConfigResolved() {
@@ -529,7 +518,7 @@ class WikiIngestBatchHandlerTest {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code scheduleFollowUp}：队列已排空时不排后续；还有待办时排一个
+     * 队列已排空时不排后续；还有待办时排一个
      * <b>不带 TaskID</b> 的触发（因此不会被合并）。
      */
     @Test
@@ -552,7 +541,7 @@ class WikiIngestBatchHandlerTest {
         assertThat(h.scheduleFollowUp(payload, WikiIngestConstants.RATE_LIMIT_BACKOFF)).isFalse();
     }
 
-    /** 对照 Go：{@code kb == nil} 时 wikiConfigOf 返回 null（零值语义） */
+    /** kb 为 null 时 wikiConfigOf 返回 null */
     @Test
     @DisplayName("wikiConfigOf 的零值容忍")
     void wikiConfigOfNullTolerance() {
@@ -562,7 +551,7 @@ class WikiIngestBatchHandlerTest {
         assertThat(WikiIngestBatchHandler.wikiConfigOf(kb)).isNull();
     }
 
-    /** 对照 Go {@code GetKnowledgeBaseByIDOnly}：空 id 返回 null（不打库） */
+    /** 空 id 返回 null（不打库） */
     @Test
     @DisplayName("KB 查询的空 id 短路")
     void kbLookupEmptyId() {
@@ -574,7 +563,7 @@ class WikiIngestBatchHandlerTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Reduce 主干（对照 Go reduceSlugUpdates，batch L1702-2123）
+    // Reduce 主干
     // ═══════════════════════════════════════════════════════════════
 
     @Nested
@@ -610,7 +599,7 @@ class WikiIngestBatchHandlerTest {
         }
 
         /**
-         * 对照 Go 的 summary 分支：摘要页整体覆盖，title 为
+         * summary 分支：摘要页整体覆盖，title 为
          * {@code "<docTitle> - Summary"}，pageType=summary，chunk refs 清空，
          * 新建时走 CreatePage。
          */
@@ -646,7 +635,7 @@ class WikiIngestBatchHandlerTest {
         }
 
         /**
-         * 对照 Go 的 additions 分支：调 {@code WikiPageModifyUserPrompt} 生成正文，
+         * additions 分支：调页面修改模板生成正文，
          * 落 aliases / source_refs / chunk refs，并把 taxonomy 计划里的 folder id 应用上。
          */
         @Test
@@ -682,7 +671,7 @@ class WikiIngestBatchHandlerTest {
         }
 
         /**
-         * 对照 Go：页面库报错时返回 {@code error} 且 {@code changed=false}
+         * 页面库报错时返回 {@code error} 且 {@code changed=false}
          * （调用方据此把贡献文档重新排队，而不是静默丢弃）。
          */
         @Test
@@ -701,7 +690,7 @@ class WikiIngestBatchHandlerTest {
         }
 
         /**
-         * 对照 Go：LLM 生成失败时 {@code additionFailed=true}，但<b>不</b>把错误向上传播
+         * LLM 生成失败时 {@code additionFailed=true}，但<b>不</b>把错误向上传播
          * （页面保持原样，批次据此净化摘要页里的死链）。
          */
         @Test
@@ -725,7 +714,7 @@ class WikiIngestBatchHandlerTest {
         }
 
         /**
-         * 对照 Go：页面不存在且更新里没有新增/摘要（纯 retract / retractStale）时，
+         * 页面不存在且更新里没有新增/摘要（纯 retract / retractStale）时，
          * 整个 reduce 是 no-op。
          */
         @Test
@@ -745,7 +734,7 @@ class WikiIngestBatchHandlerTest {
             verify(wikiService, never()).updatePage(any());
         }
 
-        /** 对照 Go：filterLiveUpdates 清空全部更新时直接返回 */
+        /** filterLiveUpdates 清空全部更新时直接返回 */
         @Test
         @DisplayName("全部更新被过滤时 no-op")
         void allUpdatesFilteredIsNoop() {
@@ -761,7 +750,7 @@ class WikiIngestBatchHandlerTest {
         }
     }
 
-    /** 供阅读者：批次统计载体是可变的（对照 Go 的闭包捕获变量） */
+    /** 批次统计载体是可变的 */
     @Test
     @DisplayName("Stats 是可变的统计载体")
     void statsIsMutable() {

@@ -17,8 +17,8 @@ import com.ragagent.auth.service.UserService.LogoutException;
 import io.jsonwebtoken.Claims;
 
 /**
- * 用户会话令牌操作（logout / refresh / switch-tenant，Go user.go L1127-1470 段，
- * 自 {@code UserService} 的 W5a 段外提）。
+ * 用户会话令牌操作（logout / refresh / switch-tenant，
+ * 自 {@code UserService} 外提）。
  *
  * <p>三个失败通道异常（LogoutException 等）是控制器捕获的公共 API，留在
  * {@link UserService}；本类经 {@code user} 回引用访问其协作面（令牌签发、偏好
@@ -34,17 +34,17 @@ final class UserSessionOps {
 
 
     /**
-     * 对照 Logout（L1429-1438）：从（可过期的）JWT 里解出 user_id，吊销该用户
+     * 从（可过期的）JWT 里解出 user_id，吊销该用户
      * 全部会话。access/refresh 两种 token 都收——客户端不必先 refresh 再登出。
      *
-     * @throws LogoutException message = Go error 原文（handler 包成 500 "Logout failed"）
+     * @throws LogoutException message = 服务端错误原文（controller 包成 500 "Logout failed"）
      */
     public void logout(String tokenString) {
         String userId = userIdFromSignedToken(tokenString);
         svc.revokeTokensByUserId(userId);
     }
 
-    /** 对照 userIDFromSignedToken（L1318-1339）：WithoutClaimsValidation → 过期可解。 */
+    /** 不做 claims 校验的解析：过期令牌也能解出 user_id。 */
     private String userIdFromSignedToken(String tokenString) {
         Claims claims;
         try {
@@ -61,18 +61,18 @@ final class UserSessionOps {
 
 
     /**
-     * 对照 RefreshToken（L1372-1427）：校验 refresh JWT → 查 auth_tokens 撤销状态 →
+     * 校验 refresh JWT → 查 auth_tokens 撤销状态 →
      * 吊销旧 refresh → GenerateTokens（按 last-active 偏好解析目标空间）。
      *
      * @return {accessToken, newRefreshToken}
-     * @throws RefreshTokenException message = Go error 原文（handler 包成 401 "Token refresh failed"）
+     * @throws RefreshTokenException message = 服务端错误原文（controller 包成 401 "Token refresh failed"）
      */
     public String[] refreshToken(String refreshTokenString) {
         Claims claims;
         try {
             claims = svc.jwtService.parseSigned(refreshTokenString);
         } catch (TokenValidationException e) {
-            // Go：jwt.Parse 默认校验 claims（含 exp）→ 失败即 "invalid refresh token"
+            // claims 校验（含 exp 过期）失败 → "invalid refresh token"
             throw new UserService.RefreshTokenException("invalid refresh token");
         }
         if (!JwtService.isRefreshTokenClaims(claims)) {
@@ -83,7 +83,7 @@ final class UserSessionOps {
             throw new UserService.RefreshTokenException("invalid user ID in token");
         }
 
-        // 撤销状态检查（Go：record 缺失 / is_revoked → 同一文案）
+        // 撤销状态检查（记录缺失 / 已吊销 → 同一文案）
         AuthToken record = svc.authTokenMapper.selectOne(new LambdaQueryWrapper<AuthToken>()
                 .eq(AuthToken::getToken, refreshTokenString)
                 .last("LIMIT 1"));
@@ -96,25 +96,25 @@ final class UserSessionOps {
 
         User u = svc.getUserById(userId);
         if (u == null) {
-            // Go：GetUserByID 的 gorm 原文透传
+            // 用户不存在 → 透传 "record not found"
             throw new UserService.RefreshTokenException("record not found");
         }
 
-        // 吊销旧 refresh token（Go：Save 整行，GORM 自动刷 updated_at）
+        // 吊销旧 refresh token（整行写回，updated_at 一并刷新）
         record.setIsRevoked(true);
         record.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
         svc.authTokenMapper.updateById(record);
 
-        // 对照 GenerateTokens（L861-866）：按 last-active 偏好解析空间
+        // 按 last-active 偏好解析空间后签发
         return svc.generateTokens(u);
     }
 
 
     /**
-     * 对照 SwitchTenant（L1127-1211）：校验成员关系（跨空间超管豁免）→ 记
+     * 校验成员关系（跨空间超管豁免）→ 记
      * last-active 偏好（先于签发，失败中止）→ 签发新令牌对 → 尽力吊销旧 refresh。
      *
-     * @throws SwitchTenantException message = Go error 原文（handler 包成
+     * @throws SwitchTenantException message = 服务端错误原文（controller 包成
      *         403 "workspace switch failed"）
      */
     public LoginResult switchTenant(User user, long targetTenantId, String currentRefreshToken) {
@@ -135,11 +135,11 @@ final class UserSessionOps {
 
         Tenant tenant = svc.tenantService.getTenantById(targetTenantId);
         if (tenant == null) {
-            // Go：GetTenantByID 的 "record not found" 被包进 "load target workspace: %w"
+            // "record not found" 包进 "load target workspace: " 前缀后抛出
             throw new UserService.SwitchTenantException("load target workspace: record not found");
         }
 
-        // 先落偏好再签发（Go 注释：200 响应必须同时是持久的落地偏好更新）
+        // 先落偏好再签发（200 响应必须同时是持久的落地偏好更新）
         try {
             UserPreferences patch = new UserPreferences();
             patch.setLastActiveTenantId(targetTenantId);

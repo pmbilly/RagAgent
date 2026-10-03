@@ -18,11 +18,11 @@ import com.ragagent.session.domain.SessionNotFoundException;
 import com.ragagent.session.mapper.SessionRepository;
 
 /**
- * 会话读路径的可见性判定（对照 Go {@code internal/application/service/session.go}
- * 的 {@code loadSessionForRead} / {@code runtimeMayBypassAdminConsoleRead}）。
+ * 会话读路径的可见性判定（{@code loadSessionForRead} /
+ * {@code runtimeMayBypassAdminConsoleRead}）。
  *
  * <p>这一组是**授权判定**，不是数据管道：错了就是把别人的会话交出去，
- * 或者把合法调用方挡在门外。每条用例都对应 Go 侧的一段注释。</p>
+ * 或者把合法调用方挡在门外。</p>
  */
 class SessionServiceReadTest {
 
@@ -35,7 +35,7 @@ class SessionServiceReadTest {
     @BeforeEach
     void setUp() {
         repo = mock(SessionRepository.class);
-        // 波 1 G1 起构造器多了写路径依赖（知识清理/建议删除）；读路径用例用 mock 隔离
+        // 构造器含写路径依赖（知识清理/建议删除）；读路径用例用 mock 隔离
         service = new SessionService(repo,
                 org.mockito.Mockito.mock(com.ragagent.session.mapper.MessageRepository.class),
                 org.mockito.Mockito.mock(com.ragagent.session.mapper.MessageSuggestionRepository.class),

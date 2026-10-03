@@ -15,9 +15,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * QQ 机器人开放平台 HTTP 客户端（对照 Go {@code internal/im/qqbot/client.go} L17-222）。
+ * QQ 机器人开放平台 HTTP 客户端。
  *
- * <p>照抄点：access_token 缓存（余量 60 秒、缺省 7200 秒，{@code expires_in} 数字/字符串两形态）、
+ * <p>行为要点：access_token 缓存（余量 60 秒、缺省 7200 秒，{@code expires_in} 数字/字符串两形态）、
  * 除取 token 外一律带 {@code Authorization: QQBot <token>}、发送体
  * {@code {msg_type:2, markdown:{content}, msg_id, msg_seq:1}}、C2C/群两条路径、
  * 基址与 gateway 的校验（http(s) + SSRF 白名单；gateway 必须 {@code wss}）。</p>
@@ -36,7 +36,7 @@ public class QqBotClient {
     private final String clientSecret;
     private final String apiBaseUrl;
     private final String gatewayUrl;
-    /** token 端点（照 Go 硬编码；测试用包内构造注入 stub 基址）。 */
+    /** token 端点（默认官方地址；测试用包内构造注入 stub 基址）。 */
     private final String tokenUrl;
     /** 网关发现端点（同上；包内可见，测试可改指 stub）。 */
     String gatewayDiscoveryUrl = DEFAULT_GATEWAY_URL;
@@ -48,8 +48,7 @@ public class QqBotClient {
     private Instant expiresAt = Instant.EPOCH;
 
     /**
-     * 对照 {@code NewClient}：参数校验失败抛 {@link IllegalArgumentException}
-     * （Go 返回 error，文案逐字照抄）。
+     * 参数校验失败抛 {@link IllegalArgumentException}（文案与平台行为对齐）。
      */
     public QqBotClient(String appId, String clientSecret, String apiBaseUrl, String gatewayUrl,
             SsrfGuard ssrfGuard) {
@@ -85,7 +84,7 @@ public class QqBotClient {
                 .build();
     }
 
-    /** 对照 {@code validateHTTPAPIBaseURL}。 */
+    /** api_base_url 必须 http(s) 且过 SSRF 校验。 */
     static void validateHttpApiBaseUrl(String raw, SsrfGuard ssrfGuard) {
         URI uri;
         try {
@@ -112,7 +111,7 @@ public class QqBotClient {
         }
     }
 
-    /** 对照 {@code validateGatewayURL}：空放行；必须 wss；按 https 做 SSRF 校验。 */
+    /** gateway_url 空放行；必须 wss；按 https 做 SSRF 校验。 */
     static void validateGatewayUrl(String raw, SsrfGuard ssrfGuard) {
         if (raw == null || raw.trim().isEmpty()) {
             return;
@@ -143,7 +142,7 @@ public class QqBotClient {
         }
     }
 
-    /** 对照 {@code GatewayURL}：注入优先，否则 GET 默认网关端点取 {@code url} 并校验。 */
+    /** 注入优先，否则 GET 默认网关端点取 {@code url} 并校验。 */
     public String gatewayUrl() throws Exception {
         if (!gatewayUrl.isEmpty()) {
             return gatewayUrl;
@@ -161,12 +160,12 @@ public class QqBotClient {
         return url;
     }
 
-    /** 对照 {@code SendC2CMessage}：POST {@code /v2/users/{openId}/messages}。 */
+    /** POST {@code /v2/users/{openId}/messages}。 */
     public void sendC2CMessage(String openId, String content, String msgId) throws Exception {
         sendText("/v2/users/" + openId + "/messages", content, msgId);
     }
 
-    /** 对照 {@code SendGroupMessage}：POST {@code /v2/groups/{groupOpenId}/messages}。 */
+    /** POST {@code /v2/groups/{groupOpenId}/messages}。 */
     public void sendGroupMessage(String groupOpenId, String content, String msgId) throws Exception {
         sendText("/v2/groups/" + groupOpenId + "/messages", content, msgId);
     }
@@ -186,7 +185,7 @@ public class QqBotClient {
         doJson("POST", apiBaseUrl + path, body);
     }
 
-    /** 对照 {@code doJSON}：非 2xx 抛错；取 token 的请求不带 Authorization。 */
+    /** 非 2xx 抛错；取 token 的请求不带 Authorization。 */
     private JsonNode doJson(String method, String url, Object body) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
                 .header("Content-Type", "application/json")
@@ -213,7 +212,7 @@ public class QqBotClient {
         return MAPPER.readTree(raw);
     }
 
-    /** 对照 {@code AccessToken}：缓存命中（余量 &gt; 60s）直接用，否则取新。 */
+    /** 缓存命中（余量 &gt; 60s）直接用，否则取新。 */
     public String accessToken() throws Exception {
         synchronized (tokenLock) {
             if (!accessToken.isEmpty()
@@ -239,7 +238,7 @@ public class QqBotClient {
         return token;
     }
 
-    /** 对照 {@code parseExpiresIn}：数字、或可解析的字符串；否则 7200。 */
+    /** 数字、或可解析的字符串；否则 7200。 */
     static int parseExpiresIn(JsonNode raw) {
         if (raw == null || raw.isMissingNode() || raw.isNull()) {
             return DEFAULT_EXPIRES_IN;

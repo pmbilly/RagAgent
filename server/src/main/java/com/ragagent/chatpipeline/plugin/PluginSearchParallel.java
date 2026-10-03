@@ -17,14 +17,14 @@ import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.llm.extract.PipelineConfig;
 
 /**
- * CHUNK_SEARCH_PARALLEL 阶段插件（对照 Go chat_pipeline/search_parallel.go）：
+ * CHUNK_SEARCH_PARALLEL 阶段插件：
  * 并发跑 chunk 检索（内部 PluginSearch 的克隆）与实体检索（内部 PluginSearchEntity
  * 的克隆），两路结果合并去重。
  *
- * <p>Deep-copy：Go 用 chatManage.Clone()（SearchResult=nil）避免并发读写共享切片；
- * Java 同样 {@code cloneChatManage()}。ErrSearchNothing 会被吞掉（两个 Run 任务把
- * SEARCH_NOTHING 归 nil）；合并序恒 chunk 在前 entity 在后（确定性，实录钉住）。
- * 全空时优先返回 chunk_search 的错误（errs map 命中），否则 SEARCH_NOTHING。</p>
+ * <p>Deep-copy：并发任务各自持有 {@code cloneChatManage()} 的副本（检索结果清空）
+ * 避免并发读写共享列表。SEARCH_NOTHING 会被吞掉（两个检索任务把它归为无结果）；
+ * 合并序恒 chunk 在前 entity 在后（确定性）。全空时优先返回 chunk_search 的错误
+ * （errs map 命中），否则 SEARCH_NOTHING。</p>
  */
 public final class PluginSearchParallel implements Plugin {
 
@@ -51,7 +51,7 @@ public final class PluginSearchParallel implements Plugin {
                                 RetrieveGraphRepository graphRepository,
                                 PipelinePorts.ChunkRepository chunkRepository,
                                 PipelinePorts.KnowledgeRepository knowledgeRepository) {
-        // 内部插件不注册到 manager（对照 Go 的未注册构造）
+        // 内部插件不注册到 manager
         this.searchPlugin = new PluginSearch(knowledgeBaseService, knowledgeService, chunkService,
                 config, webSearchService, tenantService, sessionService,
                 webSearchStateService, webSearchProviderRepo);

@@ -20,13 +20,13 @@ import com.qcloud.cos.model.PutObjectRequest;
 import com.qcloud.cos.region.Region;
 
 /**
- * 腾讯云 COS 后端（对照 Go {@code cosFileService}，file/cos.go 全文 275 行）。
+ * 腾讯云 COS 后端。
  *
- * <p>照抄的语义：路径形态 {@code cos://{bucket}/{region}/{objectKey}} 与
+ * <p>语义：路径形态 {@code cos://{bucket}/{region}/{objectKey}} 与
  * <b>遗留 URL 形态</b> {@code https://{bucket}.cos.{region}.myqcloud.com/{objectKey}}；
  * 其它 provider scheme 一律拒绝（{@code cos file service cannot resolve X path}）；
  * 对象名 {@code {pathPrefix}/{tenantId}/{knowledgeId}/{uuid}{ext}}（pathPrefix 默认
- * {@code weknora}，<b>不</b>补斜杠——照 Go）、SaveBytes 主桶
+ * {@code weknora}，<b>不</b>补斜杠）、SaveBytes 主桶
  * {@code {prefix}/{tenantId}/exports/{uuid}{ext}} / 临时桶
  * {@code exports/{tenantId}/{uuid}{ext}} 且返回<b>遗留桶 URL</b>（自动过期桶兼容旧格式）；
  * 服务端 CopyObject（源用无 scheme 的 host 形式）；预签名 24 小时。</p>
@@ -36,9 +36,9 @@ public class CosFileService implements FileService {
     private static final Logger log = LoggerFactory.getLogger(CosFileService.class);
 
     static final String SCHEME = "cos://";
-    /** 预签名有效期（对照 Go：24h）。 */
+    /** 预签名有效期：24h。 */
     static final long PRESIGN_TTL_MILLIS = 24L * 3600 * 1000;
-    /** 其它 provider 的 scheme（照 Go 的拒绝清单）。 */
+    /** 其它 provider 的 scheme（一律拒绝）。 */
     static final String[] OTHER_SCHEMES = {
         "local://", "minio://", "s3://", "tos://", "oss://", "ks3://", "obs://"};
 
@@ -159,7 +159,7 @@ public class CosFileService implements FileService {
 
     @Override
     public String getFileURL(String filePath) {
-        // 对照 Go：先判临时桶（按遗留桶 URL 前缀）
+        // 先判临时桶（按遗留桶 URL 前缀）
         if (tempClient != null && filePath != null && filePath.startsWith(tempBucketUrl)) {
             String objectName = filePath.substring(tempBucketUrl.length());
             StorageObjects.safeObjectKey(objectName);
@@ -197,8 +197,8 @@ public class CosFileService implements FileService {
         String destKey = pathPrefix + "/" + tenantId + "/" + knowledgeId + "/"
                 + UUID.randomUUID() + ext;
         try {
-            // 四参构造的参数序经字节码核对为 (源桶, 源 key, 目标桶, 目标 key)——
-            // 与 Go 的 Object.Copy(ctx, destKey, sourceURL) 等价（源用 host+key 形式）
+            // 四参构造的参数序经字节码核对为 (源桶, 源 key, 目标桶, 目标 key)；
+            // 源用 host+key 形式
             client.copyObject(new CopyObjectRequest(bucketName, srcObjectKey, bucketName, destKey));
         } catch (RuntimeException e) {
             throw new IllegalStateException("failed to copy file in COS: " + e.getMessage(), e);

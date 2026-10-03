@@ -3,8 +3,8 @@ package com.ragagent.tracing.langfuse;
 import java.util.Map;
 
 /**
- * langfuse 未启用时的 no-op 实现（对照 Go cfg.Enabled=false 时的 disabled
- * Manager：每个公共方法都是 no-op，返回的句柄非 null、调用方无需判空）。
+ * langfuse 未启用时的 no-op 实现：
+ * 每个公共方法都是 no-op，返回的句柄非 null、调用方无需判空。
  */
 final class NoopLangfuseManager implements LangfuseManager {
 

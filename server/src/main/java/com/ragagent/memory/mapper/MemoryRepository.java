@@ -27,19 +27,18 @@ import com.ragagent.memory.domain.MemoryVectorQuery;
 import org.springframework.stereotype.Component;
 
 /**
- * 长期记忆的存储契约（对照 Go {@code interfaces.MemoryRepository} +
- * internal/application/repository/memory{,_extraction,_lifecycle,_vector}.go 四个文件）。
+ * 长期记忆的存储契约。
  *
  * <h2>为什么是一个类而不是七个</h2>
- * <p>Go 的 {@code MemoryRepository} 是**一个**接口（60 多个方法），service 层只持有一个它。
+ * <p>service 层只持有一个存储门面。
  * 更重要的是：{@code withSubject} 的事务语义横跨多张表（锁 {@code memory_subjects}、
  * 写 {@code memory_items} / {@code memory_item_embeddings} / {@code memory_extraction_sessions}），
  * 按表拆开会让这些事务散到不同 bean 里。所以这里保持"一个门面 + 七个 Mapper"的形状。</p>
  *
- * <h2>逐条对齐的 Go 语义（读代码前先看这几条）</h2>
+ * <h2>逐条落库语义（读代码前先看这几条）</h2>
  * <ol>
- *   <li><b>scoped 是一切的前提</b>：Go 的每个读写都过
- *       {@code Where("tenant_id = ? AND subject_id = ?")}。Java 侧没有中心化的
+ *   <li><b>scoped 是一切的前提</b>：每条读写 SQL 都带
+ *       {@code tenant_id = ? AND subject_id = ?}。没有中心化的
  *       {@code scoped()} 帮助方法（那会要求每个查询都拼 wrapper），但每个 Mapper 方法的
  *       SQL 都带齐两列——新增方法时务必照做，漏了就是跨主体泄漏。
  *       <b>提示</b>：这一条也意味着本类**不用** MyBatis-Plus 的
@@ -47,38 +46,37 @@ import org.springframework.stereotype.Component;
  *       而是一律走带 scope 的显式 SQL。</li>
  *   <li><b>"查不到"一律是 {@code null} 而不是异常</b>：{@code getSubject} / {@code getItem} /
  *       {@code findActiveByKey} / {@code topicByKey} / {@code topicById} /
- *       {@code docAffinityById} 未命中都回 {@code null}
- *       （Go 的 {@code gorm.ErrRecordNotFound} → {@code nil, nil}）。
+ *       {@code docAffinityById} 未命中都回 {@code null}。
  *       **例外**是 {@code withSubject} 里的主体行、{@code ConfirmPendingItem} 里的条目行
  *       与 {@code UpdateItemContent} 里的当前行，它们把 not-found 原样上抛。</li>
  *   <li><b>空入参短路</b>：{@code normalizedKey == ""}、{@code fingerprint == ""}、
- *       {@code itemID == ""}、空的 id 列表——Go 全都提前 {@code return nil}
+ *       {@code itemID == ""}、空的 id 列表——都提前返回 {@code null}
  *       而不是去查一个不可能命中的条件。逐处保留。</li>
- *   <li><b>GORM 的两处隐式行为</b>：
- *       (a) 带**字面量** {@code default:} tag 的字段在 CREATE 时若为零值，
- *       GORM 会用默认值**替换并回写结构体**（{@code callbacks/create.go} L336-341）——
+ *   <li><b>落库的两处隐式行为</b>：
+ *       (a) 带**字面量** {@code default:} 的列在 CREATE 时若实体字段为零值，
+ *       会用默认值**替换并回写实体**——
  *       对 {@code memory_items} 就是 {@code importance=0→3}、{@code origin=""→"extracted"}、
  *       {@code status=""→"active"}，对 {@code memory_subjects} 是
- *       {@code enabled=false→true}。{@link #applyInsertDefaults} 复刻这条。
- *       (b) {@code created_at}（AutoCreateTime）**零值才补 now**，而
- *       {@code updated_at}（AutoUpdateTime）**无论传什么都被覆盖成 now**。
- *       {@code stampForCreate} 复刻这条。</li>
- *   <li><b>{@code Updates(map)} 的列集</b>：GORM 只写 map 里有的列，**再加上**
- *       （仅当 map 里没写时才补的）{@code updated_at}。三处"Go 没写但 GORM 补了
- *       updated_at"已经写进对应 Mapper 方法的注释，别按 Go 源码的字面列数去核对。</li>
+ *       {@code enabled=false→true}。{@link #applyInsertDefaults} 显式实现这条。
+ *       (b) {@code created_at} **零值才补 now**，而
+ *       {@code updated_at} **无论传什么都被覆盖成 now**。
+ *       {@code stampForCreate} 显式实现这条。</li>
+ *   <li><b>UPDATE 的列集</b>：只写调用方点名的列，**再加上**
+ *       （仅当没显式给时才补的）{@code updated_at}。三处"隐式补
+ *       updated_at"已经写进对应 Mapper 方法的注释，别按表面列数去核对。</li>
  *   <li><b>行锁只在 {@code withSubject} 里</b>：所有需要"读-改-写"原子性的方法都走
  *       {@link MemoryTxTemplate}（独立 bean，因此 {@code @Transactional} 真的生效）。
- *       纯单语句的写方法不带事务，与 Go 一致。</li>
+ *       纯单语句的写方法不带事务。</li>
  * </ol>
  */
 @Component
 public class MemoryRepository {
 
 
-    /** 对照 Go {@code fallbackVectorScanCap}：内存兜底排名的扫描上限。 */
+    /** 内存兜底排名的扫描上限。 */
     static final int FALLBACK_VECTOR_SCAN_CAP = 5000;
 
-    /** 对照 Go {@code RecordExtractionFailure} 的 {@code attempts >= 3}。 */
+    /** 抽取失败达到这个次数就放弃重试。 */
     static final int MAX_EXTRACTION_ATTEMPTS = 3;
 
     final MemorySubjectMapper subjectMapper;
@@ -97,16 +95,16 @@ public class MemoryRepository {
     final MemoryItemStore itemStore;
 
     /**
-     * 对照 Go 的 {@code r.db.Dialector.Name() == "postgres"}——
+     * 是否 PostgreSQL——
      * {@code ON CONFLICT DO NOTHING/DO UPDATE} 在这个方言下可用，H2 上要换成条件插入
      * （与 {@code MessageSuggestionMapper} 同款处置）。
      */
     final boolean postgres;
 
-    /** 元数据探测用的数据源（对照 GORM 的 {@code Migrator().HasColumn}）。 */
+    /** 元数据探列用的数据源。 */
     final DataSource dataSource;
 
-    /** 对照 Go {@code vectorOnce sync.Once} + {@code vectorColumn}。 */
+    /** pgvector 列就绪探测：只探一次并缓存结果。 */
     volatile boolean vectorProbed;
     volatile boolean vectorColumn;
 
@@ -133,15 +131,15 @@ public class MemoryRepository {
         this.postgres = MemoryIndexStore.detectPostgres(dataSource);
     }
 
-    // ── 返回值形状（Go 的多返回值） ────────────────────────────────────────
+    // ── 返回值形状 ────────────────────────────────────────
 
-    /** {@code EnqueuePendingSession} 的结果（对照 Go 的 {@code (*MemorySubject, bool, error)}）。 */
+    /** {@code enqueuePendingSession} 的结果（主体快照 + 是否该投递任务）。 */
     public record EnqueueResult(MemorySubject subject, boolean shouldSend) {
     }
 
     // ── 主体 ───────────────────────────────────────────────────────────────
 
-    /** 对照 {@code GetSubject}：不存在时回 {@code null}（Go 的 {@code nil, nil}）。 */
+    /** 不存在时回 {@code null}。 */
     public MemorySubject getSubject(MemoryScope scope) {
         return subjectMapper.selectByScope(scope.tenantId(), scope.subjectId());
     }
@@ -152,8 +150,8 @@ public class MemoryRepository {
      * <p>"DoNothing + 重读"让并发的第一次对话不会撞进唯一键冲突；
      * 行已存在时那次插入是空操作。</p>
      *
-     * <p>{@code enabled} 显式置 true：字段默认值是 Go 的零值 false，
-     * 而 GORM 在 CREATE 时会把零值替换成 {@code default:true} 并回写结构体——
+     * <p>{@code enabled} 显式置 true：字段默认值是 false，
+     * 而落库时零值会被默认值 {@code default:true} 替换并回写——
      * 两条路殊途同归。</p>
      */
     public MemorySubject ensureSubject(MemoryScope scope) {

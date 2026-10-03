@@ -3,7 +3,7 @@ package com.ragagent;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 契约测试共享的 H2 schema（阶段 1+2 并集）。
+ * 契约测试共享的 H2 schema。
  *
  * 所有契约测试必须用同一份 DDL：H2 内存库在 JVM 生命周期内共享
  * （DB_CLOSE_DELAY=-1），CREATE TABLE IF NOT EXISTS 不会补列，
@@ -70,7 +70,7 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // knowledge_bases：阶段 2 usage 查询 + 阶段 3 CRUD 共用的**全列**定义
+        // knowledge_bases：usage 查询与 CRUD 共用的**全列**定义
         //（H2 共享 JVM，CREATE IF NOT EXISTS 以先建者为准——禁止在别处再建此表）
         jdbc.execute("CREATE TABLE IF NOT EXISTS knowledge_bases (" +
                 "id VARCHAR(36) PRIMARY KEY, name VARCHAR NOT NULL, tenant_id BIGINT NOT NULL," +
@@ -86,7 +86,7 @@ public final class TestSchema {
                 "indexing_strategy VARCHAR, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // custom_agents：波 3 协作面批次扩列（Go types.CustomAgent 全列）——
+        // custom_agents：协作面全列定义——
         // 共享智能体响应要序列化 description/avatar/is_builtin/created_by/时间戳。
         jdbc.execute("CREATE TABLE IF NOT EXISTS custom_agents (" +
                 "id VARCHAR(36) PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT," +
@@ -95,7 +95,7 @@ public final class TestSchema {
                 "config VARCHAR, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // ── 阶段 3：知识库 ──
+        // ── 知识库 ──
         jdbc.execute("CREATE TABLE IF NOT EXISTS storage_backends (" +
                 "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL, name VARCHAR NOT NULL," +
                 "provider VARCHAR(32) NOT NULL, config VARCHAR NOT NULL DEFAULT '{}'," +
@@ -144,8 +144,8 @@ public final class TestSchema {
         jdbc.execute("CREATE TABLE IF NOT EXISTS user_kb_pins (" +
                 "user_id VARCHAR(36) NOT NULL, knowledge_base_id VARCHAR(36) NOT NULL," +
                 "pinned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-        // ── 波 2：knowledge_tags + knowledge_tag_relations（列序/类型以 Go 迁移
-        // 000001 §10 与 000063 为准；seq_id 是迁移 000010 加的 NOT NULL 序列列，
+        // ── knowledge_tags + knowledge_tag_relations（列序/类型以迁移
+        // 000063 为准；seq_id 是迁移 000010 加的 NOT NULL 序列列，
         // H2 无序列 → 播种时显式给值） ──
         jdbc.execute("CREATE TABLE IF NOT EXISTS knowledge_tags (" +
                 "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL," +
@@ -187,7 +187,7 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP," +
                 "CONSTRAINT uq_kpspan_attempt_span UNIQUE (knowledge_id, attempt, span_id))");
-        // ── 阶段 4.1：MCP（列名/约束以 Go 迁移 000001/000042/000062/000064/000074/000091/000092 为准） ──
+        // ── MCP（列名/约束以迁移 000001/000042/000062/000064/000074/000091/000092 为准） ──
         jdbc.execute("CREATE TABLE IF NOT EXISTS mcp_services (" +
                 "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL, name VARCHAR(255) NOT NULL," +
                 "description TEXT, enabled BOOLEAN NOT NULL DEFAULT TRUE," +
@@ -206,8 +206,8 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "CONSTRAINT mcp_oauth_clients_tenant_svc UNIQUE (tenant_id, service_id))");
-        // user_id 放宽到 VARCHAR(512)、principal_type/principal_id 为 struct 演进后的形态
-        // （迁移 000064 补列；以 Go struct 为准）
+        // user_id 放宽到 VARCHAR(512)、principal_type/principal_id 为实体演进后的形态
+        // （迁移 000064 补列）
         jdbc.execute("CREATE TABLE IF NOT EXISTS mcp_oauth_tokens (" +
                 "id VARCHAR(36) PRIMARY KEY, tenant_id BIGINT NOT NULL," +
                 "user_id VARCHAR(512) NOT NULL, principal_type VARCHAR(32) NOT NULL," +
@@ -235,9 +235,9 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "CONSTRAINT mcp_tool_approvals_tenant_svc_tool UNIQUE (tenant_id, service_id, tool_name))");
-        // ── 阶段 4.2：Wiki（列名/约束以 Go 迁移 000037/000061/000075 为准） ──
+        // ── Wiki（列名/约束以迁移 000037/000061/000075 为准） ──
         // H2 用 VARCHAR 承载 jsonb（对照 PG 的 jsonb 列；读回由 TypeHandler 解析）。
-        // jsonb 列在迁移里都是**可空**的（只有 DEFAULT，没有 NOT NULL），此处照抄——
+        // jsonb 列在迁移里都是**可空**的（只有 DEFAULT，没有 NOT NULL），这里保持一致——
         // 否则"清空 page_metadata"的 UPDATE 会在 H2 上炸 NOT NULL，而 PG 上完全合法。
         // 索引：PG 的原始定义是
         //   CREATE UNIQUE INDEX idx_wiki_pages_kb_slug ON wiki_pages (knowledge_base_id, slug)
@@ -301,9 +301,9 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // ── 阶段 4.2：通用任务队列（列名/约束以 Go 迁移 000041 为准） ──
-        // 这两张表是 wiki ingest 的持久化待办队列与死信档案（wiki_ingest.go 的
-        // task_pending_ops / task_dead_letters）。payload 在 PG 里是 jsonb、
+        // ── 通用任务队列（列名/约束以迁移 000041 为准） ──
+        // 这两张表是 wiki ingest 的持久化待办队列与死信档案
+        // （task_pending_ops / task_dead_letters）。payload 在 PG 里是 jsonb、
         // 在 H2 里用 VARCHAR 承载（读回由 PgJsonTypeHandler 解析）；
         // claimed_at 可空（NULL = 未认领）。
         // 索引：PG 的 idx_task_pending_ops_scope / _tenant 与
@@ -333,11 +333,11 @@ public final class TestSchema {
                 "fail_count INT NOT NULL," +
                 "failed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
 
-        // ── 横切回补：租户 API Key（列名/约束以 Go 迁移 000065 + 000071 为准） ──
-        // 两点必须照抄迁移：
+        // ── 横切回补：租户 API Key（列名/约束以迁移 000065 + 000071 为准） ──
+        // 两点必须与迁移一致：
         //   1. tenant_id **可空**（000071 平台级 Key 用 NULL + scope_type='platform'）；
         //   2. knowledge_base_ids / capabilities 是 JSONB **NOT NULL DEFAULT '[]'** ——
-        //      Go 对 nil 切片写入的是字面量 jsonb `null`（不是 SQL NULL），
+        //      空集合写入的是字面量 jsonb `null`（不是 SQL NULL），
         //      H2 用 VARCHAR 承载，写路径必须真的能表达这个区别；
         //      若这里去掉 NOT NULL，就再也测不出"写 SQL NULL 会被 PG 拒绝"这类错。
         // key_hash 的 UNIQUE 在 PG 是 000065 建的唯一索引，H2 用内联 UNIQUE 等价。
@@ -357,13 +357,13 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
 
-        // ── 横切回补：审计日志（列名/约束以 Go 迁移 000044 + 000073 为准） ──
-        // 两点必须照抄迁移：
+        // ── 横切回补：审计日志（列名/约束以迁移 000044 + 000073 为准） ──
+        // 两点必须与迁移一致：
         //   1. 只追加表——没有 updated_at、没有 deleted_at（无软删除、无 Update）；
-        //   2. details JSONB **NOT NULL DEFAULT '{}'**：Go 的 nil JSON 会被 GORM 从
+        //   2. details JSONB **NOT NULL DEFAULT '{}'**：落库行为是 null 字段从
         //      INSERT 列清单里省略、由库默认填 '{}'；MyBatis-Plus 的默认 insertStrategy
-        //      （NOT_NULL）同样省略 null 字段 → 两边净效果一致。**不要**去掉 NOT NULL 或
-        //      改成写 NULL，那会偏离 Go 的行为（对照 Wiki page_metadata 是另一种处置）。
+        //      （NOT_NULL）正是这个语义。**不要**去掉 NOT NULL 或
+        //      改成写 NULL（Wiki page_metadata 是另一种处置）。
         // scope_type/scope_id 由迁移 000073 补入，H2 这里直接内联全列。
         jdbc.execute("CREATE TABLE IF NOT EXISTS audit_logs (" +
                 "id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY," +
@@ -382,10 +382,9 @@ public final class TestSchema {
                 "details VARCHAR NOT NULL DEFAULT '{}'," +
                 "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 
-        // sessions：**只建 Go struct 映射到的那些列**。迁移 000001 建的一批策略配置列
+        // sessions：**只建实体映射到的那些列**。迁移 000001 建的一批策略配置列
         // （knowledge_base_id / max_rounds / enable_rewrite / … / summary_parameters）
-        // 在 Go 的 struct 里是注释掉的（types/session.go L110-125），GORM 不碰它们、
-        // 由 DB 默认值兜住；Java 实体同样不映射。这里也不建——建了反而会掩盖
+        // Java 实体不映射、由 DB 默认值兜住。这里也不建——建了反而会掩盖
         // "Java 不该写这些列"这件事。真 PG 上那些列的 NOT NULL 由 DEFAULT 满足。
         jdbc.execute("CREATE TABLE IF NOT EXISTS sessions (" +
                 "id VARCHAR(36) PRIMARY KEY," +
@@ -400,8 +399,8 @@ public final class TestSchema {
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP," +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
 
-        // messages：阶段 5 消息模块。同样只建 Go struct 映射到的列——迁移 000001 的那些
-        // 列在 struct 里都有对应字段，故这里与真库基本一致；jsonb 列在 H2 用 VARCHAR 承载。
+        // messages：消息模块。同样只建实体映射到的列——迁移 000001 的那些
+        // 列在实体里都有对应字段，故这里与真库基本一致；jsonb 列在 H2 用 VARCHAR 承载。
         jdbc.execute("CREATE TABLE IF NOT EXISTS messages (" +
                 "id VARCHAR(36) PRIMARY KEY," +
                 "request_id VARCHAR(36) NOT NULL DEFAULT ''," +
@@ -468,7 +467,7 @@ public final class TestSchema {
                 "actor_id VARCHAR(512) NOT NULL DEFAULT ''," +
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP)");
 
-        // temporary_documents（波 1 G5）：会话附件。jsonb 列在 H2 用 VARCHAR 承载；
+        // temporary_documents：会话附件。jsonb 列在 H2 用 VARCHAR 承载；
         // 时间列在真库是 **TIMESTAMP WITHOUT TIME ZONE**（naive），H2 用 TIMESTAMP 对齐。
         jdbc.execute("CREATE TABLE IF NOT EXISTS temporary_documents (" +
                 "id VARCHAR(36) PRIMARY KEY," +
@@ -529,10 +528,10 @@ public final class TestSchema {
     }
 
     /**
-     * 波 2 第五批：基础设施配置三组的两张新表（web_search_providers=迁移 000030、
+     * 基础设施配置三组的两张新表（web_search_providers=迁移 000030、
      * vector_stores=迁移 000032，列序/默认值以迁移为准）+ resources /
      * resource_bindings / resource_access_grants（迁移 000069 资源注册表——
-     * W5c 扩到全投影并补齐两张伴生表，/r/ 能力 URL 与 scoped 文件代理依赖它们）。
+     * 全投影并补齐两张伴生表，/r/ 能力 URL 与 scoped 文件代理依赖它们）。
      * 两个 config jsonb 列在 PG 有 DEFAULT（'{}'）——实体恒持非 null 对象，不依赖默认。
      */
     private static void createInfraConfigTables(JdbcTemplate jdbc) {
@@ -550,8 +549,7 @@ public final class TestSchema {
                 "created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, " +
                 "updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, " +
                 "deleted_at TIMESTAMP WITH TIME ZONE)");
-        // Go types.StoredResource 的 TableName() 是 "resources"（types/resource.go L66）。
-        // W5c：按迁移 000069 补齐全投影（此前是停用守卫用的最小投影）。
+        // 资源注册表：按迁移 000069 补齐全投影。
         jdbc.execute("CREATE TABLE IF NOT EXISTS resources (" +
                 "id VARCHAR(36) NOT NULL PRIMARY KEY, handle VARCHAR(22) NOT NULL, " +
                 "tenant_id BIGINT NOT NULL, storage_backend_id VARCHAR(36), " +

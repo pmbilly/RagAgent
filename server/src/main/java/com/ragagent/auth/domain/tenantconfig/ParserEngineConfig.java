@@ -8,14 +8,14 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * 对照 Go {@code types.ParserEngineConfig}（internal/types/tenant.go L306-350）。
+ * 解析引擎配置段。
  *
- * <p>字段序 = Go struct 声明序。仅 mineru_endpoint / mineru_api_key 无 omitempty
- * （恒输出，零值 ""），其余全部 omitempty。布尔三态（Go *bool）用 {@link Boolean}。</p>
+ * <p>字段序 = JSON 键序。仅 mineru_endpoint / mineru_api_key 恒输出
+ * （零值 ""），其余空值省略。布尔三态用 {@link Boolean}。</p>
  *
- * <p>chat_parser_engine_rules 的元素类型 ParserEngineRule 在本批不翻强类型——
- * 规则由 agent 侧配置，租户级只是透传保留（Merge 的 legacy 分支），
- * 用 JsonNode 带过，键序与原文字节一致。</p>
+ * <p>chat_parser_engine_rules 的元素类型不建强类型——
+ * 规则由 agent 侧配置，租户级只是透传保留（合并的 legacy 分支），
+ * 用 JsonNode 带过，键序与原文一致。</p>
  */
 @JsonPropertyOrder({
         "chat_parser_engine_rules", "mineru_endpoint", "mineru_api_key",
@@ -31,7 +31,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 })
 public class ParserEngineConfig {
 
-    /** Go slice + omitempty：nil/空都省略；元素透传 */
+    /** 列表空/缺失都省略键；元素透传 */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @JsonProperty("chat_parser_engine_rules")
     private List<JsonNode> chatParserEngineRules;

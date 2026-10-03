@@ -18,7 +18,7 @@ import com.ragagent.common.retrieval.SearchResult;
  *       <b>恒输出</b>，零值也输出（{@code 0}/{@code false}/{@code ""}/
  *       {@code null}/{@code null}/{@code 零值 usage}）；</li>
  *   <li>{@code knowledge_refs}：未初始化时输出 {@code null}；引擎初始化为空列表后
- *       输出 {@code []}（实录钉住）。</li>
+ *       输出 {@code []}。</li>
  *   <li>{@code turn_usage} 的 cache_status 走 TokenUsage 自己的输出规则。</li>
  * </ul>
  *

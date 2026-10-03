@@ -386,7 +386,7 @@ public class WebFetchTool extends BaseTool {
         return new WebFetchItemResult(output, data, "success");
     }
 
-    /** 按 rune 下标切片。 */
+    /** 按码点下标切片。 */
     static String substringByRunes(String s, int fromRune, int toRuneExclusive) {
         int from = Character.offsetByCodePoints(s, 0, Math.min(fromRune, s.codePointCount(0, s.length())));
         int to = from;

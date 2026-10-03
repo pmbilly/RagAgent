@@ -23,7 +23,7 @@ final class ImQaRequests {
 
 
     static boolean isAgentMode(CustomAgentEntity agent) {
-        // 对照 CustomAgent.IsAgentMode：Config.AgentMode == "smart-reasoning"
+        // agentMode == "smart-reasoning" 即智能推理
         if (agent == null || agent.getConfig() == null || agent.getConfig().isEmpty()) {
             return false;
         }
@@ -35,7 +35,7 @@ final class ImQaRequests {
         }
     }
 
-    /** 对照 buildIMQARequest（service.go L528-558）。 */
+    /** 构造 QA 请求（含 agent config 缺省补全）。 */
     QaSupport.QaRequest buildIMQARequest(Session session, String query,
             String assistantMessageId, String userMessageId, CustomAgentEntity agent,
             IncomingMessage.QuotedMessage quote) {
@@ -61,7 +61,7 @@ final class ImQaRequests {
         return req;
     }
 
-    /** 对照 createIMUserMessagePayload（service.go L580-595）。 */
+    /** 用户消息落库。 */
     Message createUserMessage(String sessionId, String content, String requestId) {
         Message m = new Message();
         m.setSessionId(sessionId);
@@ -73,7 +73,7 @@ final class ImQaRequests {
         return service.messageService.createMessage(m);
     }
 
-    /** 对照 createIMAssistantMessagePayload（service.go L700-709）。 */
+    /** 助手消息落库。 */
     Message createAssistantMessage(String sessionId, String requestId) {
         Message m = new Message();
         m.setSessionId(sessionId);

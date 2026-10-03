@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 /**
  * IpClass 边界回归：走查抓回 0.0.0.0/8 上界误写 0x0fffffff（实为 0.0.0.0/4），
  * 把 1.x–15.x 整段公网（dashscope 8.152.x、8.8.8.8 等）误判 restricted。
- * 对照 Go internal/ipclass 的 restrictedIPv4Ranges 逐段断言。
+ * 受限 IPv4 段表逐段断言。
  */
 class IpClassTest {
 
@@ -19,7 +19,7 @@ class IpClassTest {
 
     @Test
     void zeroSlashEightOnlyCoversFirstOctetZero() throws Exception {
-        assertEquals(IpClass.Class.UNSPECIFIED, classify("0.0.0.0")); // 对照 Go IsUnspecified 分支
+        assertEquals(IpClass.Class.UNSPECIFIED, classify("0.0.0.0"));
         assertEquals(IpClass.Class.RESERVED, classify("0.255.255.255"));
         // 误写上界 0x0fffffff 会把这段全打成 RESERVED
         assertEquals(IpClass.Class.PUBLIC, classify("1.0.0.0"));

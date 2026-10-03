@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
  * <p>语义（与既有 {@code StorageBackendService.configOf/serializeConfig} 逐字一致）：</p>
  * <ul>
  *   <li>{@link #decode}：严格解密——带 {@code enc:v1:} 前缀才解密，失败抛
- *       {@link BizException}（拖垮行加载，与 Go 一致）；无前缀原样。</li>
+ *       {@link BizException}（拖垮行加载）；无前缀原样。</li>
  *   <li>{@link #encode}：凭据加密后才落库；无密钥（未配置 {@code SYSTEM_AES_KEY}）或已带前缀
  *       一律原样（{@link CryptoService#encryptAESGCM} 自身语义）。</li>
  * </ul>
@@ -36,7 +36,7 @@ public class StorageConfigCodec {
         this.crypto = crypto;
     }
 
-    /** 库中 JSON → 行配置（camel）；凭据严格解密（失败拖垮行加载——与 Go 一致）。 */
+    /** 库中 JSON → 行配置（camel）；凭据严格解密（失败拖垮行加载）。 */
     public StorageConfig decode(JsonNode stored) {
         if (stored == null || stored.isNull()) {
             return new StorageConfig();

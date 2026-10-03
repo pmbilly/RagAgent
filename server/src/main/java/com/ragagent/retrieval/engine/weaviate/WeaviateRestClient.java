@@ -15,20 +15,16 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * Weaviate REST 传输层——本仓的"协议决策"落点：Go 的 weaviate-go-client v5 里
- * <b>GraphQL 检索/列举本就走 REST</b>（{@code GetBuilder} 持 {@code connection rest}）、
- * <b>批量删除走 REST</b>（{@code DELETE /v1/batch/objects}）、<b>批量创建在无 gRPC 客户端时
- * 也回落 REST</b>（{@code ObjectsBatcher.runREST}，body 为 {@code {"fields":["ALL"],…}}）；
- * 唯一纯 gRPC 的是 v5 的默认批量创建路径。本仓统一自持 REST（端点与报文形状逐条对照
+ * Weaviate REST 传输层——统一自持 REST（端点与报文形状逐条对照
  * 客户端源码 + 真实 Weaviate 1.28.4 实测，见 known-issues）。
  *
  * <p>端点映射：class 判存 {@code GET /v1/schema/{cls}}、建类 {@code POST /v1/schema}、
- * 单对象创建 {@code POST /v1/objects}（id 在 body，照 {@code Data().Creator()}）、
- * 合并更新 {@code PATCH /v1/objects/{cls}/{id}}（期望 204，照 {@code Updater} 的 merge 分支）、
+ * 单对象创建 {@code POST /v1/objects}（id 在 body）、
+ * 合并更新 {@code PATCH /v1/objects/{cls}/{id}}（期望 204）、
  * 检索 {@code POST /v1/graphql}、探针 {@code GET /v1/.well-known/ready} + {@code GET /v1/meta}。</p>
  *
- * <p>认证：{@code Authorization: Bearer <api-key>}（照 {@code auth.ApiKey}）。SSRF：构造期校验
- * base URL 一次（Go 的 SSRF 是自定义 HTTP 客户端逐请求校验；本仓同其它 Java 驱动姿态）。</p>
+ * <p>认证：{@code Authorization: Bearer <api-key>}。SSRF：构造期校验
+ * base URL 一次（本仓同其它 Java 驱动姿态）。</p>
  */
 public final class WeaviateRestClient {
 
@@ -90,7 +86,7 @@ public final class WeaviateRestClient {
                 .build();
     }
 
-    /** 建 base URL：{@code <scheme>://<host>}（scheme 缺省 http，host 缺省 {@code weaviate:8080}，照 Go）。 */
+    /** 建 base URL：{@code <scheme>://<host>}（scheme 缺省 http，host 缺省 {@code weaviate:8080}）。 */
     public static String buildBaseUrl(String host, String scheme) {
         String h = host == null || host.trim().isEmpty() ? "weaviate:8080" : host.trim();
         String s = scheme == null || scheme.trim().isEmpty() ? "http" : scheme.trim();
@@ -160,25 +156,25 @@ public final class WeaviateRestClient {
 
     // ── schema 面 ──────────────────────────────────────────────────────────
 
-    /** {@code GET /v1/schema}（照 {@code Schema().Getter()}）。 */
+    /** {@code GET /v1/schema}。 */
     JsonNode schema() {
         return request("GET", "/v1/schema", null);
     }
 
-    /** {@code GET /v1/schema/{cls}}：存在 → true；404 → false（照 {@code ClassExistenceChecker}）。 */
+    /** {@code GET /v1/schema/{cls}}：存在 → true；404 → false。 */
     boolean classExists(String className) {
         JsonNode node = request("GET", "/v1/schema/" + pathEscape(className), null, true);
         return node != null;
     }
 
-    /** {@code POST /v1/schema}（照 {@code ClassCreator}；期望 200）。 */
+    /** {@code POST /v1/schema}（期望 200）。 */
     void createClass(ObjectNode classBody) {
         request("POST", "/v1/schema", classBody);
     }
 
     // ── 数据面 ─────────────────────────────────────────────────────────────
 
-    /** {@code POST /v1/objects}（id 在 body；照 {@code Data().Creator()}，期望 200）。 */
+    /** {@code POST /v1/objects}（id 在 body；期望 200）。 */
     JsonNode createObject(ObjectNode object) {
         return request("POST", "/v1/objects", object);
     }
@@ -192,7 +188,7 @@ public final class WeaviateRestClient {
         return request("POST", "/v1/batch/objects", body);
     }
 
-    /** {@code DELETE /v1/batch/objects}（照 {@code ObjectsBatchDeleter}）。 */
+    /** {@code DELETE /v1/batch/objects}。 */
     JsonNode batchDelete(String className, ObjectNode where, String output) {
         ObjectNode body = Json.object();
         if (output != null && !output.isEmpty()) {
@@ -204,7 +200,7 @@ public final class WeaviateRestClient {
         return request("DELETE", "/v1/batch/objects", body);
     }
 
-    /** {@code PATCH /v1/objects/{cls}/{id}}（merge；照 {@code Updater} 的 merge 分支，期望 204）。 */
+    /** {@code PATCH /v1/objects/{cls}/{id}}（merge；期望 204）。 */
     void mergeUpdate(String className, String id, ObjectNode properties) {
         ObjectNode body = Json.object();
         body.put("class", className);
@@ -223,8 +219,8 @@ public final class WeaviateRestClient {
     // ── 探针 ───────────────────────────────────────────────────────────────
 
     /**
-     * {@code GET /v1/.well-known/ready}（照 {@code Misc().ReadyChecker()}）：非 200 视为
-     * 未就绪（Go 的 {@code (false, err)} 分支），不把 HTTP 异常漏给调用方。
+     * {@code GET /v1/.well-known/ready}：非 200 视为
+     * 未就绪，不把 HTTP 异常漏给调用方。
      */
     boolean ready() {
         try {
@@ -234,7 +230,7 @@ public final class WeaviateRestClient {
         }
     }
 
-    /** {@code GET /v1/meta}；失败/缺字段 → ""（照 {@code MetaGetter} 的宽容分支）。 */
+    /** {@code GET /v1/meta}；失败/缺字段 → ""（宽容分支）。 */
     String metaVersion() {
         JsonNode meta;
         try {

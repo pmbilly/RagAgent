@@ -17,39 +17,37 @@ import com.ragagent.datasource.ConnectorHttp;
 import com.ragagent.datasource.domain.DataSourceConfig;
 
 /**
- * 飞书连接器的共享纯函数（对照 Go {@code core/shared.go} 的 L143-301 段：
- * 附件白名单、图片嗅探、配置解析、支持的类型判定、时间戳解析、文件名净化）。
+ * 飞书连接器的共享纯函数（附件白名单、图片嗅探、配置解析、
+ * 支持的类型判定、时间戳解析、文件名净化）。
  *
  * <h2>为什么集中在一个类</h2>
- * <p>这些函数 wiki 与 drive 两个连接器都要用，而它们<b>没有任何状态</b>——
- * Go 侧就是包级函数。Java 侧收在一个 final 类里，与
+ * <p>这些函数 wiki 与 drive 两个连接器都要用，而它们<b>没有任何状态</b>，
+ * 收在一个 final 类里，与
  * {@code SubtreeChildIds} 的处置同族（描述跨连接器共用的规则，不属于任何一侧）。</p>
  *
- * <h2>⚠️ 字节 vs 字符：本项目最贵的翻译陷阱之一</h2>
- * <p>Go 的 {@code string} 按 UTF-8 计长，Java 的 {@code String} 按 UTF-16。
- * 凡是 Go 里拿 {@code len(s)} 做截断/比较的地方，Java 侧<b>必须</b>走
- * {@code getBytes(UTF_8)}——直接当字符数用会让中文尾巴的预算放宽 3 倍
- * （{@link #sanitizeFileName} / {@link #truncateUtf8} 就是这类，与 §9
- * 「{@code maxHeldBytes} 是字节不是字符」同一条）。</p>
+ * <h2>⚠️ 字节 vs 字符</h2>
+ * <p>文件名/截断预算一律按 <b>UTF-8 字节</b>计（{@code getBytes(UTF_8)}），
+ * 不是 {@code String} 的字符数——按字符数算会让中文内容的预算放宽约 3 倍
+ * （{@link #sanitizeFileName} / {@link #truncateUtf8} 就是这类）。</p>
  */
 public final class FeishuSupport {
 
-    /** 对照 Go {@code FeishuWikiNodeResourceSeparator}。 */
+    /** wiki 资源 ID 两段的分隔符。 */
     public static final String FEISHU_WIKI_NODE_RESOURCE_SEPARATOR = ":";
 
-    /** 对照 Go {@code types.ChannelFeishu}（knowledge.source 标签）。 */
+    /** 渠道标签（knowledge.source）。 */
     public static final String CHANNEL_FEISHU = "feishu";
 
-    /** 对照 Go {@code types.ChannelFeishuDrive}：云盘文档的独立渠道标签。 */
+    /** 云盘文档的独立渠道标签。 */
     public static final String CHANNEL_FEISHU_DRIVE = "feishu_drive";
 
-    /** 对照 Go {@code types.ChannelLarkDrive}。 */
+    /** Lark 国际版云盘的渠道标签。 */
     public static final String CHANNEL_LARK_DRIVE = "lark_drive";
 
     /**
      * 值得作为<b>独立知识条目</b>灌入的附件扩展名；其余文件（图标、装饰图）跳过。
      *
-     * <p>键是小写扩展名（含点）。Go 侧是一个包级 map。</p>
+     * <p>键是小写扩展名（含点）。</p>
      */
     public static final Map<String, Boolean> PARSEABLE_ATTACHMENT_EXTS = Map.ofEntries(
             Map.entry(".pdf", true), Map.entry(".doc", true), Map.entry(".docx", true),
@@ -57,15 +55,13 @@ public final class FeishuSupport {
             Map.entry(".ppt", true), Map.entry(".pptx", true),
             Map.entry(".txt", true), Map.entry(".md", true), Map.entry(".csv", true));
 
-    /** 对照 Go {@code MinAttachmentBytes}：过滤掉装饰性微文件。 */
+    /** 过滤掉装饰性微文件的字节下限。 */
     public static final int MIN_ATTACHMENT_BYTES = 2 * 1024;
 
     /**
      * 凭据解析用的 mapper。
      *
-     * <p>必须容忍未知属性：Go 的 {@code json.Unmarshal} 默认忽略未知字段，
-     * Jackson 默认抛错——credentials 里多一个前端留下的键就整条配置读不出来
-     * （§9「jsonb 回读的 ObjectMapper 要容忍未知属性」是同一条）。</p>
+     * <p>必须容忍未知属性：credentials 里多一个前端留下的键也不能让整条配置读不出来。</p>
      */
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -74,16 +70,16 @@ public final class FeishuSupport {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 配置解析（shared.go L172-214）
+    // 配置解析
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code ParseFeishuConfig}：从 {@code DataSourceConfig} 的
+     * 从 {@code DataSourceConfig} 的
      * credentials 里解出飞书配置并校验。
      *
      * <p><b>{@code base_url} 刻意保留为显式覆写</b>：早在 lark 连接器存在之前就有
      * 数据源把 "feishu" 连接器指向 {@code open.larksuite.com}，那条路径必须继续可用；
-     * 没配时用 region 自己的 host 填上，让下游拿到的 {@code Config.BaseURL} 是具体值。</p>
+     * 没配时用 region 自己的 host 填上，让下游拿到的是具体值。</p>
      *
      * @throws ConnectorException {@code "config is nil"} /
      *                            {@code "<type> app_id and app_secret are required"} /
@@ -135,7 +131,7 @@ public final class FeishuSupport {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code IsSupportedDocType}：这个 obj_type 能不能同步。
+     * 这个 obj_type 能不能同步。
      *
      * <p>mindnote 与 slides 没有内容读取 API，一律跳过（它们由
      * {@link FetchTally#skip} 计数，最终体现在汇总日志里）。</p>
@@ -148,14 +144,12 @@ public final class FeishuSupport {
     }
 
     /**
-     * 对照 Go {@code ParseFeishuTimestamp}：把飞书 unix 秒时间戳字符串转成时间。
+     * 把飞书 unix 秒时间戳字符串转成时间。
      *
-     * <p>Go 返回 {@code time.Time}：<b>空串/解析失败 → 零值</b>，而 {@code "0"} 是<b>合法</b>的
-     * （1970-01-01，不是零值）。Java 用 {@code null} 表达 Go 的零值时间，
-     * 赋值处经 {@link #orGoZero} 回落。</p>
+     * <p><b>空串/解析失败 → {@code null}</b>（表示未知），而 {@code "0"} 是<b>合法</b>的
+     * （1970-01-01，不是未知）。需要零值语义的赋值处经 {@link #orGoZero} 回落。</p>
      *
-     * <p>时区用 JVM 默认——Go 的 {@code time.Unix(sec, 0)} 带的是 Local location，
-     * 两边表示的是同一个瞬时。</p>
+     * <p>时区用 JVM 默认。</p>
      */
     public static OffsetDateTime parseFeishuTimestamp(String ts) {
         if (ts == null || ts.isEmpty()) {
@@ -170,24 +164,22 @@ public final class FeishuSupport {
     }
 
     /**
-     * Go 的 {@code time.Time} 是值类型：没有"缺省"这回事，零值也输出
-     * {@code "0001-01-01T00:00:00Z"}。Java 侧用 {@code null} 表达"零值/未知"，
-     * 赋值到领域对象时统一经这里回落（§9「Jackson 对 null 值根本不调 @JsonSerialize」）。
+     * 时间字段的零值语义：{@code null} 表示"未知"，落到领域对象/序列化时
+     * 统一经这里回落成 {@code "0001-01-01T00:00:00Z"} 字面量。
      */
     public static OffsetDateTime orGoZero(OffsetDateTime v) {
         return v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 文件名净化（shared.go L240-285）
+    // 文件名净化
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code SanitizeFileName}：去掉文件名里的非法字符，并在
+     * 去掉文件名里的非法字符，并在
      * <b>UTF-8 字符边界</b>上截断。
      *
-     * <p>按字节裸截会劈开一个多字节码点（中文 3 字节），产出非法 UTF-8，
-     * 被下游的 {@code utf8.ValidString} 校验拒绝。</p>
+     * <p>按字节裸截会劈开一个多字节码点（中文 3 字节），产出非法 UTF-8。</p>
      *
      * <p><b>扩展名跨越截断被保留</b>：只裁基名，所以
      * {@code "很长的名字….pdf"} 这种超长附件名能保住 {@code ".pdf"}——
@@ -208,10 +200,10 @@ public final class FeishuSupport {
         }
         String ext = fileExt(result);
         if (utf8Length(ext) >= maxBytes) {
-            // 病态输入：扩展名自己就超预算 → 丢掉它（对照 Go 的 ext = ""）
+            // 病态输入：扩展名自己就超预算 → 丢掉它
             ext = "";
         }
-        // 对照 Go 的 result[:len(result)-len(ext)]：按字节切掉扩展名那一段。
+        // 按字节切掉扩展名那一段。
         // ext 是 result 的后缀，所以按字节回构是安全的。
         String baseStr = new String(all, 0, all.length - utf8Length(ext), StandardCharsets.UTF_8);
         String base = truncateUtf8(baseStr, maxBytes - utf8Length(ext));
@@ -219,7 +211,7 @@ public final class FeishuSupport {
     }
 
     /**
-     * 对照 Go {@code truncateUTF8}：把 s 截到至多 {@code maxBytes} <b>字节</b>，
+     * 把 s 截到至多 {@code maxBytes} <b>字节</b>，
      * 且不劈开多字节码点（硬截之后把尾巴上的残缺码点整段丢掉）。
      */
     public static String truncateUtf8(String s, int maxBytes) {
@@ -249,7 +241,7 @@ public final class FeishuSupport {
             } else if (c < 0xF8) {
                 len = 4;
             } else {
-                len = -1; // 非法起始字节 → 对照 Go 的 RuneError,size=1 → 丢一个字节
+                len = -1; // 非法起始字节 → 丢一个字节
             }
             if (len > 0 && start + len <= end) {
                 break;
@@ -259,7 +251,7 @@ public final class FeishuSupport {
         return new String(b, 0, end, StandardCharsets.UTF_8);
     }
 
-    /** 对照 Go {@code filepath.Ext}：最后一个 {@code '.'} 起的后缀；没有点则空串。 */
+    /** 最后一个 {@code '.'} 起的后缀；没有点则空串。 */
     public static String fileExt(String path) {
         if (path == null) {
             return "";
@@ -268,21 +260,21 @@ public final class FeishuSupport {
         return i < 0 ? "" : path.substring(i);
     }
 
-    /** 字符串的 UTF-8 <b>字节</b>长度（对照 Go 的 {@code len(s)}）。 */
+    /** 字符串的 UTF-8 <b>字节</b>长度。 */
     public static int utf8Length(String s) {
         return s == null ? 0 : s.getBytes(StandardCharsets.UTF_8).length;
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 图片嗅探（shared.go L159-170）
+    // 图片嗅探
     // ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code SupportedImageExt} 的三返回值。 */
+    /** 图片嗅探结果：扩展名 + content type + 是否受支持。 */
     public record ImageExt(String ext, String contentType, boolean ok) {
     }
 
     /**
-     * 对照 Go {@code SupportedImageExt}：嗅探图片字节，返回 WeKnora 接受的
+     * 嗅探图片字节，返回 WeKnora 接受的
      * 独立图片知识条目能用的扩展名与 content type（png/jpg/gif ——
      * {@code isValidFileType} 认可的图片集合）。
      *
@@ -307,12 +299,12 @@ public final class FeishuSupport {
     /**
      * {@code net/http.DetectContentType} 的等价物（只覆盖本项目真实会遇到的签名）。
      *
-     * <p>Go 的嗅探算法只读前 512 字节，本实现同样只读前 512 字节。签名表按
-     * Go {@code src/net/http/sniff.go} 抄（含 {@code RIFF????WEBPVP} 那个通配模式）；
-     * 未命中任何签名时走 Go 的"文本检查"：出现控制字符即
+     * <p>只读前 512 字节。签名表与 {@code net/http} 的嗅探表一致
+     * （含 {@code RIFF????WEBPVP} 那个通配模式）；
+     * 未命中任何签名时走"文本检查"：出现控制字符即
      * {@code application/octet-stream}，否则 {@code text/plain; charset=utf-8}。</p>
      *
-     * <p><b>已知差异</b>：Go 的 {@code htmlSig} 掩码表还容忍标签内部的空白与
+     * <p><b>已知差异</b>：标准嗅探表还容忍标签内部的空白与
      * {@code text/xml} 的部分写法；本实现只做显式前缀匹配，未命中的会落到 text/plain。
      * 该字符串只用于日志，不影响任何分支决策（分支只看 png/jpg/gif）。</p>
      */
@@ -339,7 +331,7 @@ public final class FeishuSupport {
         if (lower.startsWith("<?xml ")) {
             return "text/xml; charset=utf-8";
         }
-        // Go 的文本检查：任何 <=0x08、0x0B、0x0E..0x1A、0x1C..0x1F 的字节即判为二进制
+        // 文本检查：任何 <=0x08、0x0B、0x0E..0x1A、0x1C..0x1F 的字节即判为二进制
         for (int i = 0; i < n; i++) {
             int b = d[i] & 0xFF;
             if (b <= 0x08 || b == 0x0B || (b >= 0x0E && b <= 0x1A) || (b >= 0x1C && b <= 0x1F)) {
@@ -407,7 +399,7 @@ public final class FeishuSupport {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code strings.Cut(s, sep)}：在<b>第一个</b>分隔符处切分。
+     * 在<b>第一个</b>分隔符处切分。
      * 没找到分隔符时第二段是空串（不是 null）。
      */
     public static String[] cut(String s, String sep) {
@@ -422,25 +414,25 @@ public final class FeishuSupport {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // URL 转义（对照 net/url 的 PathEscape / QueryEscape）
+    // URL 转义（PathEscape / QueryEscape 语义）
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code url.PathEscape}（即 {@code escape(s, encodePathSegment)}）。
+     * 路径段转义。
      *
      * <p>不转义的字符：{@code A-Za-z0-9} 与 {@code - _ . ~}，外加子分隔符里的
      * {@code $ & + : = @}。{@code / ; , ?} 与其余一切（含空格 → {@code %20}）都转义。</p>
      *
      * <p>飞书文档/表格/media token 都是字母数字，实践中两者结果相同；
-     * 照抄是为了任何 token 内容都不出岔子（Go 的 {@code url.PathEscape} 与
-     * Java 的 {@code URLEncoder} 在 {@code +}、{@code ~}、{@code *} 上确实不同）。</p>
+     * 用独立实现是为了任何 token 内容都不出岔子（{@code URLEncoder} 在
+     * {@code +}、{@code ~}、{@code *} 上的行为与路径段转义不同）。</p>
      */
     public static String pathEscape(String s) {
         return escape(s, false);
     }
 
     /**
-     * 对照 Go {@code url.QueryEscape}（即 {@code escape(s, encodeQueryComponent)}）。
+     * 查询串转义。
      * 不转义的只有 {@code A-Za-z0-9-_.~}；空格写成 {@code '+'}；其余 {@code %XX}（大写十六进制）。
      */
     public static String queryEscape(String s) {
@@ -474,10 +466,9 @@ public final class FeishuSupport {
     private static final char[] HEX = "0123456789ABCDEF".toCharArray();
 
     /**
-     * 对照 Go {@code truncate(s, maxLen)}：超长时截断并补 {@code "..."}。
+     * 超长时截断并补 {@code "..."}。
      *
-     * <p><b>已知差异</b>：Go 按<b>字节</b>截（{@code s[:maxLen]}），Java 的
-     * {@link String#substring} 按<b>字符</b>。该串只进日志与错误分类，
+     * <p>按<b>字符</b>而非字节截断（{@link String#substring} 语义）。该串只进日志与错误分类，
      * 且真实场景里前 500/1000 字节多半是 ASCII 的 JSON 骨架，差异不可见。</p>
      */
     public static String truncate(String s, int maxLen) {

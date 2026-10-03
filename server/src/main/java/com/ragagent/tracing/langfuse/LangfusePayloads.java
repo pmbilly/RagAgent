@@ -8,20 +8,18 @@ import java.util.Map;
 import com.ragagent.rerank.RankResult;
 
 /**
- * 模型观测的载荷/用量辅助（合并对照 Go 各 {@code langfuse_wrapper.go} 的私有工具：
- * chat 的 truncateLangfuseText、embedding 的 previewTexts/truncateRunes/approxEmbeddingUsage、
- * rerank 的 previewDocs/summarizeResults/approxRerankUsage、chat 的 convertUsage）。
+ * 模型观测的载荷/用量辅助（文本截断、预览、用量估算、usage 转换）。
  *
- * <p>省略号形态照抄：chat 的 MCP 目录裁剪切用 {@code "…"}（单字符），
- * embedding/rerank 的预览裁剪切用 {@code "..."}（三点）——Go 两处就是这么不一致的。</p>
+ * <p>省略号形态：chat 的 MCP 目录裁剪切用 {@code "…"}（单字符），
+ * embedding/rerank 的预览裁剪切用 {@code "..."}（三点）——两处保持既有差异。</p>
  */
 final class LangfusePayloads {
 
-    /** chat 的 MCP 目录截断上限（对照 langfuseMCPCatalogRunes）。 */
+    /** chat 的 MCP 目录截断上限。 */
     static final int MCP_CATALOG_RUNES = 8000;
-    /** rerank 的输出条数上限（对照 langfuseRerankMaxScores）。 */
+    /** rerank 的输出条数上限。 */
     static final int RERANK_MAX_SCORES = 50;
-    /** rerank 的输入文档预览条数（对照 langfuseRerankPreviewDocs）。 */
+    /** rerank 的输入文档预览条数。 */
     static final int RERANK_PREVIEW_DOCS = 8;
 
     private LangfusePayloads() {
@@ -42,12 +40,12 @@ final class LangfusePayloads {
         return new String(runes, 0, maxRunes) + ellipsis;
     }
 
-    /** 对照 chat 的 truncateLangfuseText（省略号 "…"）。 */
+    /** chat 载荷的文本裁剪（省略号 "…"）。 */
     static String truncateChat(String s, int maxRunes) {
         return truncate(s, maxRunes, "…");
     }
 
-    /** 对照 embedding 的 previewTexts：前 n 条、各裁到 120 码点。 */
+    /** embedding 载荷的输入预览：前 n 条、各裁到 120 码点。 */
     static List<String> previewTexts(List<String> texts, int n) {
         List<String> out = new ArrayList<>(Math.min(n, texts.size()));
         int limit = Math.min(n, texts.size());
@@ -57,7 +55,7 @@ final class LangfusePayloads {
         return out;
     }
 
-    /** 对照 rerank 的 previewDocs：前 n 条文档的 {index, preview, length}。 */
+    /** rerank 载荷的文档预览：前 n 条文档的 {index, preview, length}。 */
     static List<Map<String, Object>> previewDocs(List<String> docs, int n) {
         int limit = Math.min(n, docs.size());
         List<Map<String, Object>> out = new ArrayList<>(limit);
@@ -71,7 +69,7 @@ final class LangfusePayloads {
         return out;
     }
 
-    /** 对照 rerank 的 summarizeResults：前 n 条 {rank, index, model_score, preview}。 */
+    /** rerank 载荷的结果摘要：前 n 条 {rank, index, model_score, preview}。 */
     static List<Map<String, Object>> summarizeRerankResults(List<RankResult> results,
                                                             List<String> documents, int n) {
         int limit = Math.min(n, results.size());
@@ -91,7 +89,7 @@ final class LangfusePayloads {
         return out;
     }
 
-    /** 对照 rerank 的 scoreStats：{min, max, avg}；空结果 → null。 */
+    /** rerank 分数统计：{min, max, avg}；空结果 → null。 */
     static Map<String, Object> scoreStats(List<RankResult> results) {
         if (results.isEmpty()) {
             return null;
@@ -115,7 +113,7 @@ final class LangfusePayloads {
         return stats;
     }
 
-    /** 对照 rerank 的 avgDocChars。 */
+    /** rerank 文档平均码点数。 */
     static int avgDocChars(List<String> documents) {
         if (documents.isEmpty()) {
             return 0;
@@ -127,7 +125,7 @@ final class LangfusePayloads {
         return total / documents.size();
     }
 
-    /** 对照 approxEmbeddingUsage：Σ(码点数/4 + 1)，空 → null。 */
+    /** embedding 用量估算：Σ(码点数/4 + 1)，空 → null。 */
     static TokenUsage approxEmbeddingUsage(List<String> texts) {
         int total = 0;
         for (String t : texts) {
@@ -143,7 +141,7 @@ final class LangfusePayloads {
         return inputTokens(total);
     }
 
-    /** 对照 approxRerankUsage：query + 各文档的 (码点数/4 + 1)。 */
+    /** rerank 用量估算：query + 各文档的 (码点数/4 + 1)。 */
     static TokenUsage approxRerankUsage(String query, List<String> documents) {
         int total = codePointCount(query) / 4 + 1;
         for (String d : documents) {
@@ -164,7 +162,7 @@ final class LangfusePayloads {
     }
 
     /**
-     * 对照 VLM 的 langfuse_wrapper.go：VLM 不返回 token usage，按
+     * VLM 不返回 token usage，按
      * promptTokens=prompt 码点数/4+1、outputTokens=输出码点数/4 估算
      * （空输出 → 0；总数为两者之和）。
      */
@@ -179,7 +177,7 @@ final class LangfusePayloads {
         return usage;
     }
 
-    /** 对照 chat 的 convertUsage：三值全零 → null（不上报）；否则映射 + unit=TOKENS。 */
+    /** chat 用量换算：三值全零 → null（不上报）；否则映射 + unit=TOKENS。 */
     static TokenUsage convertUsage(com.ragagent.llm.domain.TokenUsage usage) {
         if (usage == null) {
             return null;
@@ -199,7 +197,7 @@ final class LangfusePayloads {
         return out;
     }
 
-    /** 对照 len([]rune(s))。 */
+    /** 按 Unicode 码点计数（null 计 0）。 */
     static int codePointCount(String s) {
         return s == null ? 0 : s.codePointCount(0, s.length());
     }

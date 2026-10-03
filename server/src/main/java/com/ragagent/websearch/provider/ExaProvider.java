@@ -11,13 +11,13 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * Exa 搜索 provider（对照 Go {@code web_search/exa.go} 全文）。
+ * Exa 搜索 provider。
  *
  * <p>POST {@code https://api.exa.ai/search} + {@code x-api-key}；请求体恒含
  * {@code contents:{highlights:true}}，{@code text} 仅在 extra_config
- * include_text=true 时出现（omitempty）；numResults 缺省 5、封顶 100；snippet 取
- * highlights 拼接（缺则 content 截 500 rune）；content 截 12000 rune；响应限长
- * 2MB（截断式读取，对照 Go 的 LimitReader(maxExaResponseBytes)）。</p>
+ * include_text=true 时出现；numResults 缺省 5、封顶 100；snippet 取
+ * highlights 拼接（缺则 content 截 500 码点）；content 截 12000 码点；响应限长
+ * 2MB（截断式读取）。</p>
  */
 public final class ExaProvider implements WebSearchProvider {
 
@@ -76,7 +76,7 @@ public final class ExaProvider implements WebSearchProvider {
                 .POST(java.net.http.HttpRequest.BodyPublishers.ofByteArray(json))
                 .build();
         SearchHttp.Result resp = SearchHttp.sendFollowRedirects(req, null);
-        // Go：LimitReader(maxExaResponseBytes) 截断式读取（不报错）
+        // 响应体截断式读取（超限截到 2MB，不报错）
         byte[] bodyBytes = resp.body().length > MAX_RESPONSE_BYTES
                 ? java.util.Arrays.copyOf(resp.body(), MAX_RESPONSE_BYTES) : resp.body();
         if (resp.status() < 200 || resp.status() >= 300) {
@@ -127,7 +127,7 @@ public final class ExaProvider implements WebSearchProvider {
         return results;
     }
 
-    /** 对照 parseExaBool：strconv.ParseBool 语义（非 "1/t/T/true/TRUE/True" 即 false）。 */
+    /** 布尔解析（大小写不敏感的 1/t/true；空值与其余取值均 false）。 */
     static boolean parseExaBool(Map<String, String> config, String key) {
         String v = config == null ? null : config.get(key);
         v = v == null ? "" : v.trim();
@@ -140,7 +140,7 @@ public final class ExaProvider implements WebSearchProvider {
         };
     }
 
-    /** 对照 truncateExaText：按 rune 截断；maxRunes<=0 → ""。 */
+    /** 按码点截断；maxRunes<=0 → ""。 */
     static String truncateExaText(String value, int maxRunes) {
         if (maxRunes <= 0) {
             return "";

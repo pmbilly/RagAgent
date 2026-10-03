@@ -9,17 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 对照 Go {@code memoryRepository.withSubject}
- * （internal/application/repository/memory_extraction.go L13-22）：
- *
- * <pre>
- *   r.db.Transaction(func(tx) {
- *       var subject types.MemorySubject
- *       tx.Where("tenant_id = ? AND subject_id = ?", …).
- *          Clauses(forUpdateClause()).First(&amp;subject)
- *       return fn(tx, &amp;subject)
- *   })
- * </pre>
+ * 行锁事务模板：在一个事务里锁住本 scope 的主体行，再把回调跑完。
  *
  * <h2>为什么单独一个 bean 而不是 {@link MemoryRepository} 的私有方法</h2>
  * <p><b>Spring 的自调用不走代理</b>：{@code MemoryRepository} 内部直接调用自己的
@@ -31,12 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
  * <h2>回调里为什么能直接用别的 mapper</h2>
  * <p>Spring 的事务是**线程绑定**的：回调在同一个线程里执行，各 mapper 的
  * SqlSession 会加入同一个事务（{@code DataSourceTransactionManager} + MyBatis 的
- * {@code SpringManagedTransaction}），等价于 Go 把 {@code tx} 传下去。</p>
+ * {@code SpringManagedTransaction}），等价于把事务句柄沿调用链显式传下去。</p>
  *
  * <h2>找不到主体时</h2>
- * <p>Go 让 {@code gorm.ErrRecordNotFound} 原样上抛（**不是** {@code nil, nil}），
- * 所以 Java 侧抛 {@link MemorySubjectMissingException}。悄悄当成"没有主体"继续，
- * 会在一行不存在的基础上做写入。</p>
+ * <p>主体行不存在时**抛** {@link MemorySubjectMissingException}（不是静默返回 null）。
+ * 悄悄当成"没有主体"继续，会在一行不存在的基础上做写入。</p>
  */
 @Component
 public class MemoryTxTemplate {

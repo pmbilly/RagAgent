@@ -33,24 +33,22 @@ import org.springframework.stereotype.Component;
 import com.ragagent.common.session.SessionMessagePort;
 
 /**
- * 后台蒸馏：把一段对话变成记忆（对照 Go
- * {@code internal/application/service/memory/extract.go} 全文）。
+ * 后台蒸馏：把一段对话变成记忆。
  *
  * <h2>最重要的性质：一轮都不会被丢掉</h2>
  * <p>{@code ScheduleExtraction} 以前拿当前时间跟上次运行比较、在间隔内直接返回，
  * 于是那个窗口里的每一轮都被悄悄丢掉了。现在这一轮**总是**被记在主体上，
  * 计时器只决定一次运行**什么时候**发生，绝不决定一条消息**是否**被考虑。</p>
  *
- * <h2>Java 侧与 Go 的三处形状差异（都是"没有 context"的后果）</h2>
+ * <h2>三处形状差异（都是"没有 context"的后果）</h2>
  * <ol>
- *   <li><b>租户/语言不再从 ctx 重建</b>：Go 的 {@code Handle} 要把 {@code tenant_id} 与
- *       {@code language} 塞回 ctx（asynq 给的是裸 ctx）。Java 侧 {@code workspaceConfig}
- *       直接收 tenant 参数，语言上下文未翻译（见 {@link MemoryExtractPayload}），
- *       所以这段重建消失了——约束（"后台不许读 ThreadLocal"）反而更硬。</li>
- *   <li><b>截止时间走 {@link MemoryRunBudget}</b>：对应 Go 的
- *       {@code context.WithTimeout(ctx, extractInFlightGrace-time.Minute)}。</li>
- *   <li><b>租约释放放在 finally</b>：对应 Go 的 {@code defer}，
- *       并且与 Go 一样使用"不受取消影响"的那条路径（Java 的 repo 调用没有 ctx）。</li>
+ *   <li><b>租户/语言不再从上下文重建</b>：{@code workspaceConfig}
+ *       直接收 tenant 参数，语言上下文未接入（见 {@link MemoryExtractPayload}）——
+ *       约束（"后台不许读 ThreadLocal"）反而更硬。</li>
+ *   <li><b>截止时间走 {@link MemoryRunBudget}</b>：上限取 {@code extractInFlightGrace}
+ *       那个时长。</li>
+ *   <li><b>租约释放放在 finally</b>：走"不受取消影响"的那条路径
+ *       （repo 调用不感知预算取消）。</li>
  * </ol>
  */
 @Component
@@ -61,48 +59,48 @@ public class MemoryExtractionService {
     static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    /** 对照 Go {@code extractMaxMessagesPerRun}：一次运行读多少对话。 */
+    /** 一次运行读多少对话。 */
     static final int EXTRACT_MAX_MESSAGES_PER_RUN = 40;
-    /** 对照 Go {@code extractMaxItemsPerRun}：一个片段最多产出多少条记忆。 */
+    /** 一个片段最多产出多少条记忆。 */
     static final int EXTRACT_MAX_ITEMS_PER_RUN = 8;
     /**
-     * 对照 Go {@code extractSegmentGap}：结束一个话题的静默时长。
+     * 结束一个话题的静默时长。
      * 相隔一小时的消息几乎不可能在说同一件事，而要求一次调用同时理解两者
      * 正是抽取质量崩掉的地方。
      */
     static final Duration EXTRACT_SEGMENT_GAP = Duration.ofHours(1);
-    /** 对照 Go {@code extractMaxSegmentsPerRun}：一次运行做多少次模型调用。 */
+    /** 一次运行做多少次模型调用。 */
     static final int EXTRACT_MAX_SEGMENTS_PER_RUN = 3;
-    /** 对照 Go {@code extractContextLines}：展示多少条更早的用户消息作为只读上下文。 */
+    /** 展示多少条更早的用户消息作为只读上下文。 */
     static final int EXTRACT_CONTEXT_LINES = 4;
-    /** 对照 Go {@code extractMaxLineRunes}：一条粘贴进来的超长消息的截断长度。 */
+    /** 一条粘贴进来的超长消息的截断长度。 */
     static final int EXTRACT_MAX_LINE_RUNES = 1000;
     /**
-     * 对照 Go {@code extractInFlightGrace}：加在配置延迟之上，用来判定"在途认领"何时算陈旧。
+     * 加在配置延迟之上，用来判定"在途认领"何时算陈旧。
      * 没有它，一个在认领与运行之间死掉的 worker 会把这个主体永久卡住。
      */
     static final Duration EXTRACT_IN_FLIGHT_GRACE = Duration.ofMinutes(10);
     /**
-     * 对照 Go {@code extractRelevantCandidates}：展示给抽取模型的已存记忆条数。
+     * 展示给抽取模型的已存记忆条数。
      *
      * <p>把一切都展示出来是原来的行为，而它在任何规模的仓库上都活不下来：模型得同时记住
      * 几十条互不相干的笔记，才能判断一句话是否更新了其中某条；提示词无界增长，
      * 而且不相关的记忆会招来莫名其妙的更新与删除决定。</p>
      */
     static final int EXTRACT_RELEVANT_CANDIDATES = 15;
-    /** 对照 Go {@code extractShownTopics}：展示给抽取调用的话题标签上限。 */
+    /** 展示给抽取调用的话题标签上限。 */
     static final int EXTRACT_SHOWN_TOPICS = 12;
-    /** 对照 Go {@code extractBudgetTokens}：一次抽取调用的补全预算。 */
+    /** 一次抽取调用的补全预算。 */
     static final int EXTRACT_BUDGET_TOKENS = 1200;
     /**
-     * 对照 Go {@code extractBudgetRetryTokens}：截断之后第二次尝试的预算。
+     * 截断之后第二次尝试的预算。
      * 无视"关思考"开关的推理模型需要有地方放它们的推理，然后才答得出来。
      */
     static final int EXTRACT_BUDGET_RETRY_TOKENS = 4000;
-    /** 对照 Go {@code extractFollowUpDelay}：撞上消息上限（或运行期间又来新轮次）之后，后继任务的等待。 */
+    /** 撞上消息上限（或运行期间又来新轮次）之后，后继任务的等待。 */
     static final Duration EXTRACT_FOLLOW_UP_DELAY = Duration.ofSeconds(15);
 
-    /** 对照 Go {@code errInvalidExtractionOutput}。 */
+    /** 抽取输出不合法时抛出。 */
     static final class InvalidExtractionOutputException extends RuntimeException {
         InvalidExtractionOutputException(String message) {
             super(message);
@@ -143,10 +141,10 @@ public class MemoryExtractionService {
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code ScheduleExtraction}：记下"这一轮需要蒸馏"，
+     * 记下"这一轮需要蒸馏"，
      * 并在还没有人负责时把这次运行排进队列。
      *
-     * <p>handler 需要的一切都随负载走：asynq 与 Lite 执行器都交给 handler 一个裸 ctx，
+     * <p>handler 需要的一切都随负载走：任务在新线程上跑、不带任何请求上下文，
      * 所以请求当时知道、而负载没带的作用域，在任务真正跑起来时已经没了。</p>
      */
     public void scheduleExtraction(String sessionId, String messageId, String chatModelId) {
@@ -208,11 +206,11 @@ public class MemoryExtractionService {
     }
 
     /**
-     * 对照 Go {@code enqueueExtraction}：推一个蒸馏任务。
+     * 推一个蒸馏任务。
      *
      * <p>投递本身失败时要释放在途槽位，否则一个丢掉的任务会把这个主体一直挡到租约过期。</p>
      *
-     * @return {@code false} = 没有可用的投递口（对照 Go 的 {@code s.enqueuer == nil}）
+     * @return {@code false} = 没有可用的投递口
      */
     boolean enqueueExtraction(MemoryScope scope, String sessionId, String messageId,
                               String chatModelId, Duration delay) {
@@ -220,7 +218,7 @@ public class MemoryExtractionService {
         if (queue == null) {
             return false;
         }
-        // 入队侧注入（对照 Go 的 langfuse.InjectTracing(ctx, &payload)）：请求线程 capture
+        // 入队侧注入追踪载体：请求线程 capture
         // 当前 traceparent，worker 侧续接同一棵树
         MemoryExtractPayload payload = MemoryExtractPayload.withTracing(
                 scope.tenantId(), scope.subjectId(),
@@ -236,7 +234,7 @@ public class MemoryExtractionService {
         return true;
     }
 
-    /** 对照 Go {@code releaseSlot}。 */
+    /** 释放"在途"槽位。 */
     void releaseSlot(MemoryScope scope) {
         try {
             repo.releaseExtractionSlot(scope, "");
@@ -250,10 +248,10 @@ public class MemoryExtractionService {
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code Handle}：跑一趟蒸馏。
+     * 跑一趟蒸馏。
      *
-     * <p>Java 侧取代 asynq 的 {@code *asynq.Task} 参数：{@link MemoryExtractPayload}。
-     * 抛异常 = 任务失败（队列按 MaxRetry 重试）；正常返回 = 完成，不重试。</p>
+     * <p>负载由 {@link MemoryExtractPayload} 承载。
+     * 抛异常 = 任务失败（队列按重试预算重试）；正常返回 = 完成，不重试。</p>
      */
     public void handle(MemoryExtractPayload payload) {
         MemoryScope scope = payload.scope();
@@ -348,9 +346,8 @@ public class MemoryExtractionService {
                     }
                     repo.checkpointExtraction(scope, leaseId, session, cursor,
                             !more && i == segments.size() - 1);
-                    // 对照 Go 的 `session.Cursor = cursor`：Go 里 session 是循环变量的副本，
-                    // Java 里它是共享引用——但这里的推进只对下一次迭代有意义，
-                    // 而外层循环随后就换到下一个会话了，所以语义一致。
+                    // 游标推进只对下一次迭代有意义，
+                    // 而外层循环随后就换到下一个会话了，所以共享引用没有副作用。
                     session.setCursor(cursor);
                     processed++;
                     if (processed >= EXTRACT_MAX_SEGMENTS_PER_RUN) {
@@ -381,7 +378,7 @@ public class MemoryExtractionService {
     // 片段收集
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** 对照 Go {@code transcriptLine}：用户说过的一件事，连同它来自哪条消息。 */
+    /** 用户说过的一件事，连同它来自哪条消息。 */
     static final class TranscriptLine {
         String sessionId = "";
         String messageId = "";
@@ -399,7 +396,7 @@ public class MemoryExtractionService {
         }
     }
 
-    /** 对照 Go {@code transcriptSegment}：一段作为整体交给模型的连贯对话。 */
+    /** 一段作为整体交给模型的连贯对话。 */
     static final class TranscriptSegment {
         String sessionId = "";
         final List<TranscriptLine> lines = new ArrayList<>();
@@ -414,7 +411,7 @@ public class MemoryExtractionService {
     // 单段抽取
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** 对照 Go {@code extractSegment}。 */
+    /** 对一个片段跑一次抽取。 */
     void extractSegment(MemoryScope scope, MemoryConfig cfg, MemoryExtractPayload payload,
                         TranscriptSegment segment, MemoryRunBudget budget) {
         List<MemoryItem> existing = llmOps.relevantExisting(scope, cfg, segment);
@@ -438,7 +435,7 @@ public class MemoryExtractionService {
     }
 
     /**
-     * 对照 Go {@code scheduleFollowUpIfNeeded}：还有活要干时排下一次运行。
+     * 还有活要干时排下一次运行。
      */
     void scheduleFollowUpIfNeeded(MemoryScope scope, MemoryConfig cfg, MemoryExtractPayload payload) {
         if (queueProvider.getIfAvailable() == null) {
@@ -471,7 +468,7 @@ public class MemoryExtractionService {
     }
 
     /**
-     * 对照 Go {@code extractionSystemPrompt}（逐字照抄）。
+     * 抽取的系统提示词（内容是固定契约）。
      *
      * <p>它是用户说的话进入模型判断的唯一规格说明，措辞直接决定抽取质量，
      * 所以任何"顺手改写"都要当成行为变更来对待。</p>
@@ -589,7 +586,7 @@ public class MemoryExtractionService {
             - Return {"memories":[]} when nothing is worth recording. That is a normal
               outcome, but "topics" should rarely be empty when the user asked anything.""".strip();
 
-    /** 对照 Go {@code extractionSchema}（作为 response format 发送）。 */
+    /** 抽取响应的 schema（作为 response format 发送）。 */
     static final String EXTRACTION_SCHEMA = """
             {
               "type": "object",
@@ -617,12 +614,12 @@ public class MemoryExtractionService {
               "required": ["memories"]
             }""";
 
-    /** 对照 Go 的 {@code line.at.Format("2006-01-02 15:04")}（服务器本地时区的墙上时间）。 */
+    /** 服务器本地时区的墙上时间，格式 {@code yyyy-MM-dd HH:mm}。 */
     static final DateTimeFormatter LINE_TIME =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     /**
-     * 对照 Go {@code applyDecisions}：把模型输出变成存储状态。
+     * 把模型输出变成存储状态。
      * 每条决定互相独立：一条坏的不该丢掉这次运行的其余部分。
      */
     void applyDecisions(MemoryScope scope, MemoryConfig cfg, TranscriptSegment segment,

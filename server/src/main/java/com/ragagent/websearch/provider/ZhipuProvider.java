@@ -12,10 +12,10 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * 智谱独立 Web 搜索 provider（对照 Go {@code web_search/zhipu.go} 全文）。
+ * 智谱独立 Web 搜索 provider。
  *
  * <p>POST {@code https://open.bigmodel.cn/api/paas/v4/web_search}；search_engine
- * 缺省 search_std、content_size 缺省 medium（白名单校验）；query 按 rune 截到
+ * 缺省 search_std、content_size 缺省 medium（白名单校验）；query 按码点截到
  * 70；search_intent 恒 false；maxResults 缺省 10、封顶 50。错误分支：
  * 非 200 走 {@code Zhipu API returned status %d (%s): %s}；200 但 error 字段非空
  * 走 {@code Zhipu API error (%s): %s}。响应 2MB 上限。</p>
@@ -48,7 +48,7 @@ public final class ZhipuProvider implements WebSearchProvider {
         this.contentSize = options[1];
     }
 
-    /** 对照 ValidateZhipuParameters。 */
+    /** 入参校验：api_key 必填；search_engine/content_size 必须在白名单内。 */
     public static void validateParameters(WebSearchProviderParams params) {
         if (params.getApiKey().trim().isEmpty()) {
             throw new SearchHttp.SearchHttpException("API key is required for Zhipu provider");
@@ -152,7 +152,7 @@ public final class ZhipuProvider implements WebSearchProvider {
         return results;
     }
 
-    /** 对照 normalizeZhipuQuery：rune 计截到 70。 */
+    /** 按码点截到 70。 */
     static String normalizeZhipuQuery(String query) {
         String q = query == null ? "" : query.trim();
         if (q.codePointCount(0, q.length()) <= MAX_QUERY_RUNES) {
@@ -166,7 +166,7 @@ public final class ZhipuProvider implements WebSearchProvider {
         return b.toString();
     }
 
-    /** 对照 parseZhipuDate：四个 layout（RFC3339Nano/日期时间/日期分钟/日期）。 */
+    /** 四个时间格式依序尝试（带偏移 RFC3339/日期时间/日期分钟/日期）。 */
     static OffsetDateTime parseZhipuDate(String value) {
         String v = value == null ? "" : value.trim();
         if (v.isEmpty()) {
@@ -193,7 +193,7 @@ public final class ZhipuProvider implements WebSearchProvider {
         }
     }
 
-    /** 对照 zhipuHTTPError：错误结构优先，body 截 4096。 */
+    /** 错误体解析：error 结构优先，body 截 4096。 */
     static SearchHttp.SearchHttpException zhipuHttpError(int statusCode, byte[] body) {
         JsonNode response = GoJson.parse(body);
         if (response != null && response.isObject()) {

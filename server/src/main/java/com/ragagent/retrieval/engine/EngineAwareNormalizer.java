@@ -1,20 +1,18 @@
 package com.ragagent.retrieval.engine;
 
 /**
- * 分数归一化——对照 Go {@code internal/application/service/retriever/normalizer.go}
- * 全文（ScoreNormalizer 接口 + EngineAwareNormalizer + clamp01）。
+ * 分数归一化——{@link ScoreNormalizer} 的引擎感知实现 + {@code clamp01} 工具。
  *
- * <h2>照抄点（Go 注释原文的语义）</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>只归一化<b>向量</b>分；关键词（BM25）分是正数无界，重缩放会塌掉长尾——
  *       原样透传（下游 RRF 按秩融合，对刻度免疫）。</li>
  *   <li>Milvus 是唯一把<b>带符号</b>余弦 [-1,1] 暴露给归一器的引擎 →
  *       {@code (score+1)/2} 后再 clamp01（防 1.0000002 之类越界值漏出）。</li>
  *   <li>其余已落地的引擎（elasticsearch/opensearch/weaviate/postgres/sqlite/qdrant/
- *       tencent_vectordb/doris + 两个死枚举 elastic_faiss/infinity）到达时已在 [0,1]
- *       ——逐引擎的推导见 Go normalizer.go 结构体 godoc（Lucene script_score 非负不变量 /
- *       OpenSearch k-NN scoreTranslation / Weaviate certainty / pgvector 等的
- *       IR 归一化旁注）。</li>
+ *       tencent_vectordb/doris + 两个遗留枚举 elastic_faiss/infinity）到达时已在 [0,1]
+ *       ——Lucene script_score 非负、OpenSearch k-NN 分数换算、Weaviate certainty、
+ *       pgvector 距离转相似度等均产出 IR 归一化分数。</li>
  *   <li>未知引擎防御性 clamp；"未知引擎"的 WARN 由扇出调用方按请求去重发出
  *       （{@code Normalize} 本身保持无锁无 IO）。</li>
  * </ul>
@@ -23,7 +21,7 @@ package com.ragagent.retrieval.engine;
  */
 public final class EngineAwareNormalizer implements ScoreNormalizer {
 
-    /** 对照 {@code EngineAwareNormalizer{}}（无状态单例语义）。 */
+    /** 无状态单例。 */
     public static final EngineAwareNormalizer INSTANCE = new EngineAwareNormalizer();
 
     @Override
@@ -57,9 +55,8 @@ public final class EngineAwareNormalizer implements ScoreNormalizer {
     }
 
     /**
-     * 对照 {@code clamp01}：任何 double 安全落入 [0,1]，包括 NaN/Inf
-     * （否则会破坏下游排序的严格弱序）。±Inf 分别被 {@code <=0} / {@code >=1} 覆盖，
-     * 与 Go 的 IsInf 分支等价。
+     * 任何 double 安全落入 [0,1]，包括 NaN/Inf
+     * （否则会破坏下游排序的严格弱序）。±Inf 分别被 {@code <=0} / {@code >=1} 覆盖。
      */
     static double clamp01(double s) {
         if (Double.isNaN(s)) {

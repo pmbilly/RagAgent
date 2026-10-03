@@ -25,7 +25,7 @@ final class ImSessionResolver {
         this.service = service;
     }
 
-    // ── 会话解析（service.go L2237-2444） ────────────────────────────────
+    // ── 会话解析 ─────────────────────────────────────────────────────────
 
     ChannelSessionEntity resolveSession(IncomingMessage msg, long tenantId, String agentId,
             String imChannelId, String sessionMode) {
@@ -92,7 +92,7 @@ final class ImSessionResolver {
         ChannelSessionEntity e = new ChannelSessionEntity();
         e.setId(UUID.randomUUID().toString());
         e.setPlatform(msg.platform);
-        // Go 零值语义：空串不是 NULL（H2 显式 NULL 不落列 DEFAULT）
+        // 缺省字段落空串而非 NULL（沿用既有落库语义）
         e.setUserId(msg.userId == null ? "" : msg.userId);
         e.setChatId(msg.chatId == null ? "" : msg.chatId);
         e.setThreadId(msg.threadId == null ? "" : msg.threadId);
@@ -113,7 +113,7 @@ final class ImSessionResolver {
             return fresh;
         } catch (RuntimeException e) {
             log.error("[IM] channel session insert failed: {}", e.toString(), e);
-            // 并发创建撞唯一约束：清掉孤儿会话，回落已存在映射（Go L2320-2340 同形）。
+            // 并发创建撞唯一约束：清掉孤儿会话，回落已存在映射。
             try {
                 service.sessionService.deleteSession(created.getId());
             } catch (Exception cleanup) {

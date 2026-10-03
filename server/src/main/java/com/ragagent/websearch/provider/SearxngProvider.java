@@ -1,7 +1,5 @@
 package com.ragagent.websearch.provider;
 
-import java.io.IOException;
-import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -15,7 +13,7 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * 自托管 SearXNG provider（对照 Go {@code web_search/searxng.go} 全文）。
+ * 自托管 SearXNG provider。
  *
  * <p>实例 URL 由租户提供（base_url 参数），SSRF 校验在构造与服务层参数校验共用
  * {@code ValidateSearxngBaseURL}（save 与 use 永不分歧）。GET
@@ -42,7 +40,7 @@ public final class SearxngProvider implements WebSearchProvider {
         return "searxng";
     }
 
-    /** 对照 EmptyResultDiagnostics。 */
+    /** 空结果时的诊断信息（拼上未响应引擎清单与排查提示）。 */
     @Override
     public String emptyResultDiagnostics() {
         String detail = formatUnresponsiveEngines(lastUnresponsive);
@@ -116,8 +114,8 @@ public final class SearxngProvider implements WebSearchProvider {
     }
 
     /**
-     * 对照 searxngDateLayouts（六个 layout，首个命中即用；RFC3339 已含纳秒形态，
-     * RFC3339Nano 刻意不在列）。
+     * 六个时间格式依序尝试，首个命中即用；RFC3339 已含纳秒形态，
+     * 纳秒专属格式刻意不在列。
      */
     static OffsetDateTime parseSearxngDate(String s) {
         String v = s == null ? "" : s.trim();
@@ -130,7 +128,7 @@ public final class SearxngProvider implements WebSearchProvider {
         } catch (RuntimeException ignored) {
             // next
         }
-        // 2006-01-02T15:04:05 / 2006-01-02 15:04:05 → UTC 墙钟
+        // yyyy-MM-dd'T'HH:mm:ss / yyyy-MM-dd HH:mm:ss → UTC 墙钟
         for (String layout : new String[] {"yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss"}) {
             try {
                 return java.time.LocalDateTime.parse(v, DateTimeFormatter.ofPattern(layout))
@@ -139,13 +137,13 @@ public final class SearxngProvider implements WebSearchProvider {
                 // next
             }
         }
-        // 2006-01-02
+        // yyyy-MM-dd
         try {
             return java.time.LocalDate.parse(v).atStartOfDay().atOffset(java.time.ZoneOffset.UTC);
         } catch (RuntimeException ignored) {
             // next
         }
-        // RFC1123Z / RFC1123
+        // RFC1123Z / RFC1123（带时区名的邮件日期形态）
         try {
             return java.time.ZonedDateTime.parse(v,
                     DateTimeFormatter.RFC_1123_DATE_TIME).toOffsetDateTime();
@@ -154,7 +152,7 @@ public final class SearxngProvider implements WebSearchProvider {
         }
     }
 
-    /** 对照 formatUnresponsiveEngines：[[engine, reason]] → "unresponsive engines: a (x), b"。 */
+    /** [[engine, reason]] → "unresponsive engines: a (x), b"。 */
     static String formatUnresponsiveEngines(List<List<String>> engines) {
         if (engines == null || engines.isEmpty()) {
             return "";

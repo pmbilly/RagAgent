@@ -32,7 +32,7 @@ import com.ragagent.llm.domain.StreamResponse;
  *
  * <h2>⚠️ 两个只看 Java 直觉会写错的地方</h2>
  * <ol>
- *   <li><b>JSON 用 Go 的转义规则</b>：gin 用 {@code json.NewEncoder}，它默认开
+ *   <li><b>JSON 的转义规则</b>：默认开
  *       HTML 转义——{@code < > &} 会被写成 {@code \u003c} / {@code \u003e} / {@code \u0026}。
  *       这条规则现在由 {@code config.JacksonConfig} <b>全局</b>装在应用统一的 mapper 上
  *       （原先只有 SSE 这一条路径特批），所以本类直接用注入的那个 mapper 即可。
@@ -76,8 +76,7 @@ public class SseFrameWriter {
     /**
      * 写一帧并 flush（对照 {@code c.SSEvent("message", response)} + {@code c.Writer.Flush()}）。
      *
-     * <p>序列化用的是应用统一的 mapper（其地转义规则见类注释）。序列化失败按 Go 的
-     * {@code json.Encoder} 行为是写一个零长度输出并返回错误——这里直接抛出，
+     * <p>序列化用的是应用统一的 mapper（其他转义规则见类注释）。序列化失败在写出任何字节前直接抛出，
      * 由调用方按"写失败"处理（关流）。</p>
      */
     public void write(HttpServletResponse response, StreamResponse payload) throws IOException {

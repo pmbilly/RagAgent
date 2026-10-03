@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * {@link WikiIngestTaskQueue} 的<b>进程内</b>实现：虚拟线程队列
- * （与阶段 3 的 {@code KnowledgeProcessWorker} 同模式）。
+ * （与 {@code KnowledgeProcessWorker} 同模式）。
  *
  * <p>保留以下行为：</p>
  * <ul>
@@ -76,7 +76,7 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
     private final ObjectProvider<com.ragagent.wiki.mapper.TaskDeadLetterRepository> deadLetterProvider;
 
     /**
-     * 任务级死信后的槽位收尾入口（B12）。用 {@code ObjectProvider} 懒取：
+     * 任务级死信后的槽位收尾入口。用 {@code ObjectProvider} 懒取：
      * {@code WikiIngestService} 反向持有本队列的 provider，硬注入会成为构造环。
      */
     private final ObjectProvider<WikiIngestService> ingestServiceProvider;
@@ -168,8 +168,8 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
         try {
             WikiIngestTaskHandler handler = handlerProvider.getIfAvailable();
             if (handler == null) {
-                // 没有处理器 bean 不是可重试的失败：它是"batch/finalize 的翻译还没接线"
-                // 临时装配状态的信号，重试 10 次只会刷 10 行无信息的 warn。
+                // 没有处理器 bean 不是可重试的失败：它表示 batch/finalize 尚未接线，
+                // 重试 10 次只会刷 10 行无信息的 warn。
                 // 但必须<b>释放 TaskID</b>——否则该 KB 的 finalize 合并会被一个
                 // 永不存在的任务永久占住（比丢一次任务严重得多）。
                 log.warn("wiki task queue: no WikiIngestTaskHandler bean registered, "
@@ -243,7 +243,7 @@ public class InProcessWikiIngestTaskQueue implements WikiIngestTaskQueue {
 
     private void archive(WikiIngestTask task, Throwable failure, int attempt) {
         // 先释放槽位再归档：任务级的终态失败意味着该 KB 的 op 没人结算了，
-        // 不释放的话对应文档会一直停在「优化中」（B12；op 保留，等下次触发重跑）。
+        // 不释放的话对应文档会一直停在「优化中」（op 保留，等下次触发重跑）。
         releaseAbandonedSubtaskSlots(task);
         com.ragagent.wiki.mapper.TaskDeadLetterRepository repo = deadLetterProvider.getIfAvailable();
         if (repo == null) {

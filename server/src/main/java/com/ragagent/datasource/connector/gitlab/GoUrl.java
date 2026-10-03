@@ -5,36 +5,36 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Go {@code net/url} 的三个转义原语的逐行复刻：{@code PathEscape} /
+ * 按 Go 标准库 {@code net/url} 的三个转义原语语义实现：{@code PathEscape} /
  * {@code PathUnescape} / {@code Values.Encode}。
  *
  * <h2>为什么不直接用 {@code java.net.URLEncoder} / {@code URI}</h2>
  * <p>连接器的请求 URL 是<b>发往 GitLab 的线上字节</b>，而 GitLab 侧对
- * {@code repository/files/<path>} 这一段的解码是与 Go 对齐的。JDK 的
+ * {@code repository/files/<path>} 这一段的解码按同一套转义规则。JDK 的
  * {@code URLEncoder} 是 {@code application/x-www-form-urlencoded} 语义
  * （空格写 {@code +}、{@code ~} 被转义、不区分 path/query 模式），
  * {@code URI} 的构造又会自己做一次规范化。任何一处分叉都会让
  * {@code group%2Fproject} 变成 {@code group%252Fproject} 之类的双重转义——
  * GitLab 会 404，而这正是本项目最贵的一类 bug（只在真集成时暴露）。
- * 所以这里按 Go 的 {@code shouldEscape(c, mode)} 规则表自己算。</p>
+ * 所以这里按 {@code shouldEscape(c, mode)} 的规则表自己算。</p>
  *
- * <h2>与 Go 的三处对应</h2>
+ * <h2>三个原语</h2>
  * <ul>
- *   <li>{@link #pathEscape} = {@code url.PathEscape}（mode {@code encodePathSegment}）：
+ *   <li>{@link #pathEscape}（path segment 模式）：
  *       只保留字母数字与 {@code - _ . ~}，另外把 {@code $ & + : @} 也保留
  *       （RFC 3986 §2.2 允许它们在 path segment 里出现）；
  *       而 {@code / ; , ?} 必须转义——{@code /} 要转义正是"路径分隔"的用法。</li>
- *   <li>{@link #pathUnescape} = {@code url.PathUnescape}：只解 {@code %XX}，
+ *   <li>{@link #pathUnescape}：只解 {@code %XX}，
  *       <b>不</b>把 {@code +} 当空格（那是 query 模式才有的规则）；
- *       非法转义返回错误，Go 的调用方（{@code projectPath}）会保留原串。</li>
- *   <li>{@link #valuesEncode} = {@code url.Values.Encode}：键<b>排序</b>后
+ *       非法转义抛 {@link InvalidEscapeException}，调用方（{@code projectPath}）会保留原串。</li>
+ *   <li>{@link #valuesEncode}：键<b>排序</b>后
  *       {@code k=v} 用 {@code &} 连接，键值都走 {@code QueryEscape}
  *       （空格写 {@code +}，其余按 query 模式全转义）。</li>
  * </ul>
  *
  * <p><b>内部工具，不是契约</b>：它不落 jsonb、也不进任何 HTTP 响应体，
- * 只决定出站请求的 URL 字节。转义表由 {@code GoUrlTest} 用<b>Go 实录</b>
- * （对 0x20-0x7E 全量打印的 95 位标记串）逐字符钉住。</p>
+ * 只决定出站请求的 URL 字节。转义表由 {@code GoUrlTest}
+ * 用对 0x20-0x7E 全量打印的 95 位标记串逐字符钉住。</p>
  */
 final class GoUrl {
 
@@ -43,7 +43,7 @@ final class GoUrl {
     private GoUrl() {
     }
 
-    /** 对照 Go 的 {@code url.PathEscape}（mode = {@code encodePathSegment}）。 */
+    /** 路径段转义。 */
     static String pathEscape(String s) {
         if (s == null || s.isEmpty()) {
             return "";
@@ -60,11 +60,10 @@ final class GoUrl {
     }
 
     /**
-     * 对照 Go 的 {@code url.PathUnescape}。
+     * 解码 {@code %XX} 转义。
      *
-     * @throws InvalidEscapeException 出现 {@code %XX} 之外的 {@code %}（对应 Go 的
-     *                                {@code EscapeError}，消息逐字一致：
-     *                                {@code invalid URL escape "%zz"}）
+     * @throws InvalidEscapeException 出现 {@code %XX} 之外的 {@code %}
+     *                                （消息：{@code invalid URL escape "%zz"}）
      */
     static String pathUnescape(String s) {
         if (s == null || s.isEmpty()) {
@@ -75,12 +74,12 @@ final class GoUrl {
         int w = 0;
         for (int i = 0; i < src.length; ) {
             if (src[i] != '%') {
-                // Go 的 unescape 在 encodePathSegment 模式下不把 '+' 当空格
+                // path segment 模式下不把 '+' 当空格
                 out[w++] = src[i++];
                 continue;
             }
             if (i + 2 >= src.length || !isHex(src[i + 1]) || !isHex(src[i + 2])) {
-                // 对照 Go：错误里带的是从 '%' 起最多 3 字节的原文
+                // 错误里带的是从 '%' 起最多 3 字节的原文
                 int end = Math.min(i + 3, src.length);
                 throw new InvalidEscapeException(
                         new String(src, i, end - i, java.nio.charset.StandardCharsets.UTF_8));
@@ -91,7 +90,7 @@ final class GoUrl {
         return new String(out, 0, w, java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    /** 对照 Go 的 {@code url.QueryEscape}（mode = {@code encodeQueryComponent}）。 */
+    /** 查询串转义。 */
     static String queryEscape(String s) {
         if (s == null || s.isEmpty()) {
             return "";
@@ -110,19 +109,17 @@ final class GoUrl {
     }
 
     /**
-     * 对照 Go 的 {@code url.Values.Encode()}：键按<b>字节序</b>排序，
+     * 键按<b>字节序</b>排序，
      * {@code QueryEscape(k) + "=" + QueryEscape(v)} 用 {@code &} 连接。
      *
-     * <p>本连接器只用单值 Values（Go 侧每处都只 {@code Set} 一次），
-     * 故签名收窄成 {@code Map<String,String>}；多值展开在 Go 里是
-     * {@code for _, v := range vs} 的同键重复，本模块不可达。</p>
+     * <p>本连接器只用单值，故签名收窄成 {@code Map<String,String>}；多值展开本模块不可达。</p>
      */
     static String valuesEncode(Map<String, String> values) {
         if (values == null || values.isEmpty()) {
             return "";
         }
         List<String> keys = new ArrayList<>(values.keySet());
-        // 键都是连接器自己写的 ASCII 字面量，String.compareTo 与 Go 的字节序一致
+        // 键都是连接器自己写的 ASCII 字面量，String.compareTo 即字节序
         keys.sort(String::compareTo);
         StringBuilder b = new StringBuilder();
         for (String key : keys) {
@@ -134,13 +131,12 @@ final class GoUrl {
         return b.toString();
     }
 
-    // ── Go shouldEscape 的规则表 ───────────────────────────────────────────
+    // ── shouldEscape 的规则表 ───────────────────────────────────────────
 
     /**
-     * 对照 {@code shouldEscape(c, encodePathSegment)}。
+     * {@code shouldEscape(c, encodePathSegment)} 的规则：
      *
      * <pre>
-     *   Go 源码：
      *     alnum / '-' '_' '.' '~'                 → false
      *     '$' '&' '+' ',' '/' ':' ';' '=' '?' '@' → 仅 c=='/' || c==';' || c==',' || c=='?' 时 true
      *     其余                                     → true
@@ -169,7 +165,7 @@ final class GoUrl {
     }
 
     /**
-     * 对照 {@code shouldEscape(c, encodeQueryComponent)}：保留集只有
+     * {@code shouldEscape(c, encodeQueryComponent)} 的规则：保留集只有
      * alnum 与 {@code - _ . ~}，其余（含全部 reserved）都转义；
      * 空格由调用方（{@link #queryEscape}）单独写成 {@code +}。
      */
@@ -211,7 +207,7 @@ final class GoUrl {
         return -1;
     }
 
-    /** 对照 Go 的 {@code url.EscapeError}（消息体只用于内部诊断）。 */
+    /** 非法转义异常（消息体只用于内部诊断）。 */
     static class InvalidEscapeException extends RuntimeException {
 
         private static final long serialVersionUID = 1L;

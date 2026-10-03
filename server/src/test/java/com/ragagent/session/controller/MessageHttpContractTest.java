@@ -31,20 +31,19 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 消息 HTTP 层的契约测试（波 1 G2：load / search / chat-history-stats /
- * DELETE /messages + ClearSessionMessages，对照 Go {@code internal/handler/message.go}
- * 与 routes_chat.go RegisterMessageRoutes L28-31）。
+ * 消息 HTTP 层的契约测试（load / search / chat-history-stats /
+ * DELETE /messages + ClearSessionMessages）。
  *
- * <h2>期望值来源：Go 实录</h2>
+ * <h2>期望值来源：录制 golden</h2>
  * <p>golden 录制脚本 {@code scripts/record-message-golden.sh}：会话走 API 创建
  * （拿到真实 owner 范围），消息用 psql 直接插 dev PG（消息没有 HTTP 创建端点，
- * 由聊天管线产生——波 4/5）。H2 侧用同一组 id / 内容 / 时间戳播种。</p>
+ * 由聊天管线产生）。H2 侧用同一组 id / 内容 / 时间戳播种。</p>
  *
  * <h2>golden 实测钉住的契约</h2>
  * <ul>
  *   <li><b>search 的 match_type 全是 "hybrid"</b>：关键词只命中 assistant 一侧时，
- *       partner 补对的 matchType 是空串，Go 的合并分支 {@code "keyword" != ""} →
- *       直接升 "hybrid"——不排除空串（§9 波 1 G2）；</li>
+ *       partner 补对的 matchType 是空串，但合并分支只看关键词参数是否非空 →
+ *       直接升 "hybrid"——不排除空串；</li>
  *   <li>RRF 分值 1/61 = {@code 0.01639344262295082}（Go float64 最短表示，
  *       GoDoubleSerializer 逐字段）；keyword 模式单结果分值是 {@code 1} 不是 {@code 1.0}；</li>
  *   <li>{@code limit} 非整数**容错**回落 20；{@code before_time} 边界是严格小于；</li>
@@ -171,7 +170,7 @@ class MessageHttpContractTest {
         assertEquals(mask(golden("msg-load-limit2.json")), mask(raw(r)));
     }
 
-    /** {@code limit=abc} 容错回落 20（Go 的 Atoi 失败 → 默认值），返回全部 4 条。 */
+    /** {@code limit=abc} 容错回落 20（非整数解析失败 → 默认值），返回全部 4 条。 */
     @Test
     void loadLimitAbcIsTolerant() throws Exception {
         MvcResult r = perform(get("/api/v1/messages/" + sid + "/load?limit=abc")
@@ -331,7 +330,7 @@ class MessageHttpContractTest {
         assertEquals(mask(golden("msg-load-after-delete.json")), mask(raw(load)));
     }
 
-    /** 删第二次：消息不存在 → gorm 原文 "record not found"（不是 "message not found"）。 */
+    /** 删第二次：消息不存在 → 历史文案 "record not found"（不是 "message not found"）。 */
     @Test
     void deleteTwiceIsRecordNotFound() throws Exception {
         perform(delete("/api/v1/messages/" + sid + "/" + M3).header("Authorization", bearer));
@@ -379,7 +378,7 @@ class MessageHttpContractTest {
     /**
      * 4 条消息路由 + ClearSessionMessages 的策略：search/stats 要
      * {@code message_history(fullAccess())}，load/DELETE 与清空要
-     * {@code chat(fullAccess())}（对照 Go 的 {@code messages.With(...)} 两组）。
+     * {@code chat(fullAccess())}（登记为两组策略）。
      */
     @Test
     void messageRoutesAreRegisteredWithTheirPolicies() {
@@ -415,7 +414,7 @@ class MessageHttpContractTest {
         return builder.contentType("application/json").content(body);
     }
 
-    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake，§9）。 */
+    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake）。 */
     private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
 

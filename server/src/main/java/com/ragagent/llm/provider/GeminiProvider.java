@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.GeminiProvider（gemini.go）。
+ * Google Gemini。
  * Chat 走 OpenAI 兼容端点，Embedding 走原生 Gemini API（两个 URL 不同，勿混）。
  */
 public class GeminiProvider implements Provider {

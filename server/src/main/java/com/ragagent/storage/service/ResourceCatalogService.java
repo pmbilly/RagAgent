@@ -19,11 +19,9 @@ import com.ragagent.storage.fileserve.StoragePaths;
 import com.ragagent.storage.mapper.ResourceRepository;
 
 /**
- * 资源注册表领域服务（对照 Go {@code service/resource.go resourceCatalog}）。
- * W5c 只翻文件代理面消费的解析/授权子集；Register/Bind/Release 随 chat 与
- * 知识库写入链（波 5）回补。
+ * 资源注册表领域服务：resource:// 手柄的解析/授权与注册/绑定/软删。
  *
- * <h2>/r/ 能力 URL 的令牌两态（照抄 Go）</h2>
+ * <h2>/r/ 能力 URL 的令牌两态</h2>
  * <ul>
  *   <li><b>派生令牌</b>：SYSTEM_AES_KEY 在位时优先——token = 前 16 字节 HMAC 的
  *       base64url，输入 {@code "resource_grant:v1:<resourceID>:<窗口起点>"}；窗口 = TTL/2，
@@ -43,7 +41,7 @@ public class ResourceCatalogService {
         this.repo = repo;
     }
 
-    /** 对照 Go {@code resourceLocationHash}：SHA-256 hex。 */
+    /** 位置哈希：SHA-256 hex。 */
     public static String locationHash(String path) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -58,7 +56,7 @@ public class ResourceCatalogService {
         }
     }
 
-    /** 对照 Go {@code Resolve}：非 resource:// 引用 → error；缺失/已删 → error。 */
+    /** 非 resource:// 引用 → empty；缺失/已删 → empty。 */
     public Optional<StoredResource> resolve(String reference) {
         String handle = StoragePaths.parseResourcePath(reference);
         if (handle == null) {
@@ -69,9 +67,8 @@ public class ResourceCatalogService {
     }
 
     /**
-     * 对照 Go {@code ResolvePath}：(physicalPath, resource, error)。
      * 非 resource:// 的值原样返回、resource 为空、无错误；resource:// 解析失败
-     * （缺行/已删/引用非法）→ Go 返回 error（文件路由把 error 折成 404）。
+     * （缺行/已删/引用非法）→ error=true（文件路由折成 404）。
      */
     public record ResolvedPath(String physicalPath, StoredResource resource, boolean error) {
     }
@@ -87,7 +84,7 @@ public class ResourceCatalogService {
         return new ResolvedPath(resource.get().getPhysicalPath(), resource.get(), false);
     }
 
-    /** 对照 Go {@code ResolveAccessGrant}：token → 存活资源；任何一步落空 → empty。 */
+    /** token → 存活资源；任何一步落空 → empty。 */
     public Optional<StoredResource> resolveAccessGrant(String token) {
         String trimmed = token == null ? "" : token.trim();
         Optional<String> resourceId =
@@ -99,7 +96,7 @@ public class ResourceCatalogService {
     }
 
     /**
-     * 对照 Go {@code CreateAccessGrant}： opportunistic 清理过期行 → 优先复用派生
+     * opportunistic 清理过期行 → 优先复用派生
      * 令牌 → 回落随机令牌。供 {@code GetFileURL} 的 resource:// + APP_EXTERNAL_URL
      * 分支（dev 未设该 env 时不可达，属部署态）。
      */
@@ -131,7 +128,7 @@ public class ResourceCatalogService {
         return Optional.empty();
     }
 
-    /** 对照 Go {@code reuseOrCreateDerivedGrant}。 */
+    /** 复用同窗口已存在的派生令牌；无则按派生值新建。 */
     private Optional<String> reuseOrCreateDerivedGrant(String resourceId, java.time.Duration ttl) {
         DerivedToken derived = derivedGrantToken(resourceId, ttl);
         if (derived == null) {
@@ -165,13 +162,13 @@ public class ResourceCatalogService {
     }
 
     /**
-     * 对照 Go {@code derivedGrantToken}：窗口 = TTL/2；token = base64url_nopad(
+     * 窗口 = TTL/2；token = base64url_nopad(
      * HMAC-SHA256(key, "resource_grant:v1:<id>:<windowStart>")[:16])。key 不在位
      * → null（调用方回落随机令牌）。
      *
-     * <p>⚠️ 窗口起点是 Go 的 {@code time.Now().UTC().Truncate(window)}——Truncate 以
-     * <b>Go 零值时间（公元 1 年 1 月 1 日）</b>为锚点向下取整，不是 Unix 纪元。
-     * 零值时间距纪元 62135596800 秒，先换算再对齐（跨语言派生同一 token 的前提）。</p>
+     * <p>⚠️ 窗口起点以<b>公元 1 年 1 月 1 日（零值锚点）</b>向下取整到窗口倍数，
+     * 不是 Unix 纪元。零值时间距纪元 62135596800 秒，先换算再对齐
+     * （与既有行派生同一 token 的前提）。</p>
      */
     private static DerivedToken derivedGrantToken(String resourceId, java.time.Duration ttl) {
         byte[] key = StoragePaths.systemHmacKey();
@@ -199,7 +196,7 @@ public class ResourceCatalogService {
         }
     }
 
-    /** 对照 Go {@code randomResourceToken}：16 随机字节 base64url_nopad（22 字符）。 */
+    /** 16 随机字节 base64url_nopad（22 字符）。 */
     static String randomToken() {
         byte[] buf = new byte[16];
         new java.security.SecureRandom().nextBytes(buf);
@@ -211,7 +208,7 @@ public class ResourceCatalogService {
         return msg.contains("duplicate") || msg.contains("unique constraint") || msg.contains("unique index");
     }
 
-    /** 对照 Go {@code IsReferencedByKnowledgeBase}（catalog 层：先解析引用再查绑定）。 */
+    /** 先解析引用（别名兜底）再查绑定。 */
     public boolean isReferencedByKnowledgeBase(long tenantId, String kbId, String reference) {
         ResolvedPath resolved = resolvePath(reference);
         if (resolved.error()) {
@@ -228,14 +225,13 @@ public class ResourceCatalogService {
         return repo.isReferencedByKnowledgeBase(tenantId, kbId, resource.getId());
     }
 
-    /** 对照 Go types.MessageFileBindings（消息文件的权威来源：KB 绑定 + 消息 artifact 绑定）。 */
+    /** 消息文件绑定的权威来源：KB 绑定 + 消息 artifact 绑定。 */
     public record MessageFileBindings(java.util.List<String> knowledgeBaseIds, boolean messageArtifact) {
     }
 
     /**
-     * 对照 Go {@code resourceCatalog.GetMessageFileBindings}（service/resource.go L179-197）：
-     * 先解析别名（ResolvePath → GetByTenantLocation 兜底），资源不存在或租户不符 →
-     * 空 origins（不是错误）；命中才读权威绑定。
+     * 先解析别名（resolvePath → GetByTenantLocation 兜底），资源不存在或租户不符 →
+     * 空结果（不是错误）；命中才读权威绑定。
      */
     public MessageFileBindings getMessageFileBindings(long tenantId, String reference, String messageId) {
         ResolvedPath resolved = resolvePath(reference);
@@ -254,9 +250,9 @@ public class ResourceCatalogService {
                 repo.hasMessageArtifactBinding(tenantId, resource.getId(), messageId));
     }
 
-    // ── 注册/绑定写面（2026-09-24 存储写字节面批，对照 resource.go Register/Bind/MarkDeleted）──
+    // ── 注册/绑定写面（Register/Bind/MarkDeleted）───────────────────────────
 
-    /** 对照 Go interfaces.ResourceRegistration。 */
+    /** 注册元数据。 */
     public record ResourceRegistration(String kind, String mimeType, String originalName,
             long size, String contentHash, boolean temporary) {
     }
@@ -294,7 +290,7 @@ public class ResourceCatalogService {
         return "";
     }
 
-    /** 对照 Go randomResourceToken：16 随机字节的 base64url（无填充）。 */
+    /** 16 随机字节的 base64url（无填充）。 */
     private static String randomResourceToken() {
         byte[] buf = new byte[16];
         java.security.SecureRandom random = new java.security.SecureRandom();
@@ -303,7 +299,7 @@ public class ResourceCatalogService {
     }
 
     /**
-     * 对照 Go {@code resourceCatalog.Register}：物理路径注册为稳定 resource:// 手柄。
+     * 物理路径注册为稳定 resource:// 手柄。
      * 同 (tenant, location_hash) 已注册 → 复用既有手柄；handle 撞 unique 重试 4 次。
      */
     public String register(long tenantId, String physicalPath, ResourceRegistration meta) {
@@ -358,7 +354,7 @@ public class ResourceCatalogService {
         throw new IllegalStateException("failed to allocate unique resource handle");
     }
 
-    /** 对照 Go {@code resourceCatalog.Bind}：解析 → owner 校验 → 绑定行。 */
+    /** 解析 → owner 校验 → 绑定行。 */
     public void bind(String reference, String ownerType, String ownerId, String relation) {
         StoredResource resource = resolve(reference).orElse(null);
         if (resource == null) {
@@ -371,7 +367,7 @@ public class ResourceCatalogService {
         repo.createBinding(resource.getId(), resource.getTenantId(), ownerType, ownerId, rel);
     }
 
-    /** 对照 Go {@code resourceCatalog.MarkDeleted}。 */
+    /** 解析后软删资源行。 */
     public void markDeleted(String reference) {
         StoredResource resource = resolve(reference).orElse(null);
         if (resource == null) {

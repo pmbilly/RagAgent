@@ -29,14 +29,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 语雀 Open API v2 客户端（对照 Go {@code yuque/client.go} 全文）。
+ * 语雀 Open API v2 客户端。
  *
  * <h2>令牌永不进日志</h2>
  * <p>原始 {@code X-Auth-Token} <b>从不</b>被记录；只在整条 client 生命期的
  * <b>第一次</b>真实请求时打一行脱敏形态（{@link #redactToken}），而不是每个请求都打
- * ——否则千文档规模的同步日志会被它淹没（这正是 Go 注释里写明的理由）。</p>
+ * ——否则千文档规模的同步日志会被它淹没。</p>
  *
- * <h2>重试矩阵（与 Go 逐行对应）</h2>
+ * <h2>重试矩阵</h2>
  * <ul>
  *   <li>传输层失败 → 退避 {@code backoff[attempt]}；</li>
  *   <li>429 → 等 {@link #parseRetryAfter}（{@code Retry-After} 头，缺失/不可解析时
@@ -53,7 +53,7 @@ public class YuqueClient {
 
     private static final Logger log = LoggerFactory.getLogger(YuqueClient.class);
 
-    /** 对照 Go {@code yuque/client.go} 的常量。 */
+    /** 客户端常量。 */
     public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
     public static final int DEFAULT_PAGE_SIZE = 100;
     public static final String USER_AGENT = "WeKnora-Yuque-Connector/1.0";
@@ -80,18 +80,18 @@ public class YuqueClient {
 
     // ── 端点 ──────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code Ping}：{@code GET /api/v2/user} 验凭据。 */
+    /** {@code GET /api/v2/user} 验凭据。 */
     public void ping() {
         doRequest("GET", "/api/v2/user", V2UserResponse.class);
     }
 
-    /** 对照 Go {@code GetCurrentUser}。 */
+    /** 当前令牌对应的用户。 */
     public V2User getCurrentUser() {
         return doRequest("GET", "/api/v2/user", V2UserResponse.class).getData();
     }
 
     /**
-     * 对照 Go {@code ListUserGroups}：给定用户所属的团队。
+     * 给定用户所属的团队。
      *
      * <p>注意 {@code userId} 是语雀的**数字**用户 ID（不是 login）——
      * {@code /users/{id}/groups} 只认整数形式。</p>
@@ -104,18 +104,18 @@ public class YuqueClient {
         return doRequest("GET", path, V2GroupListResponse.class).getData();
     }
 
-    /** 对照 Go {@code ListUserRepos}：某个用户 login 名下 type=Book 的仓库。 */
+    /** 某个用户 login 名下 type=Book 的仓库。 */
     public List<V2Repo> listUserRepos(String login) {
         return listReposPaginated("/api/v2/users/" + login + "/repos");
     }
 
-    /** 对照 Go {@code ListGroupRepos}：某个团队 login 名下 type=Book 的仓库。 */
+    /** 某个团队 login 名下 type=Book 的仓库。 */
     public List<V2Repo> listGroupRepos(String login) {
         return listReposPaginated("/api/v2/groups/" + login + "/repos");
     }
 
     /**
-     * 对照 Go {@code listReposPaginated}：按 offset 翻页，只取
+     * 按 offset 翻页，只取
      * {@code type=Book}（设计稿 / 表格 / 资源库都跳过）。
      */
     private List<V2Repo> listReposPaginated(String basePath) {
@@ -139,7 +139,7 @@ public class YuqueClient {
     }
 
     /**
-     * 对照 Go {@code ListBookDocs}：列一本书里的全部文档（只含摘要，正文要
+     * 列一本书里的全部文档（只含摘要，正文要
      * {@link #getDocDetail}）。
      */
     public List<V2Doc> listBookDocs(long bookId) {
@@ -162,7 +162,7 @@ public class YuqueClient {
         return all;
     }
 
-    /** 对照 Go {@code GetDocDetail}：按文档 ID 取全文（含 {@code body}）。 */
+    /** 按文档 ID 取全文（含 {@code body}）。 */
     public V2DocDetail getDocDetail(long docId) {
         String path = "/api/v2/repos/docs/" + docId;
         return doRequest("GET", path, V2DocDetailResponse.class).getData();
@@ -171,9 +171,9 @@ public class YuqueClient {
     // ── 请求核心 ──────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code doRequest}：带重试的鉴权请求 + JSON 解码。
+     * 带重试的鉴权请求 + JSON 解码。
      *
-     * @param resultType 目标类型；Go 传的是结果指针，Java 传类对象
+     * @param resultType 目标类型
      */
     <T> T doRequest(String method, String path, Class<T> resultType) {
         logTokenOnce();
@@ -250,8 +250,7 @@ public class YuqueClient {
             try {
                 byte[] raw = resp.body() == null ? new byte[0] : resp.body();
                 T value = MAPPER.readValue(raw, resultType);
-                // Go 的 json.Unmarshal("null", &resp) 成功且留下**零值** struct；
-                // Jackson 直接回 null，所以这里补一个零值实例。
+                // 响应体是字面量 null 时按"空对象"处理，不让下游拿到 null。
                 return value != null ? value : newInstance(resultType);
             } catch (java.io.IOException | RuntimeException e) {
                 throw new ConnectorException("decode response: " + e.getMessage(), e);
@@ -260,7 +259,7 @@ public class YuqueClient {
         throw lastErr;
     }
 
-    /** 错误体解析失败时 Go 是 {@code _ = json.Unmarshal(...)} —— 静默忽略。 */
+    /** 错误体解析失败时静默忽略（错误文案走响应体预览的兜底）。 */
     private static ApiErrorBody tryParseError(ConnectorHttp.Response resp) {
         try {
             byte[] raw = resp.body() == null ? new byte[0] : resp.body();
@@ -280,7 +279,7 @@ public class YuqueClient {
         }
     }
 
-    /** 对照 Go 的 {@code c.logTokenOnce.Do(...)}：整条 client 生命期只记一次。 */
+    /** 整条 client 生命期只记一次。 */
     private void logTokenOnce() {
         if (tokenLogged.compareAndSet(false, true)) {
             log.info("[Yuque] client configured token={} base={}", redactToken(token), baseUrl);
@@ -290,15 +289,15 @@ public class YuqueClient {
     // ── 纯函数 ────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code parseRetryAfter}：从 {@code Retry-After} 头取等待时长，
+     * 从 {@code Retry-After} 头取等待时长，
      * 取不到就回落到 {@code fallback}。
      *
      * <p>{@code Retry-After: "0"}（或负数）被强制成 <b>100ms</b>，
      * 这样我们仍然让出一次调度、不会忙重试。</p>
      *
      * <p>只支持整数秒形式（RFC 7231 也允许 HTTP-date，但语雀从没发过）。
-     * 解析用的是 {@link GoDuration#parse}（{@code header + "s"}），
-     * 所以连"什么算合法"都与 Go 一致：{@code "abc"} → {@code "abcs"} 失败、
+     * 解析用的是 {@link GoDuration#parse}（{@code header + "s"}）：
+     * {@code "abc"} → {@code "abcs"} 失败、
      * {@code "1s"} → {@code "1ss"} 失败、{@code "0.5"} → 500ms 成功。</p>
      */
     public static Duration parseRetryAfter(String header, Duration fallback) {
@@ -317,9 +316,9 @@ public class YuqueClient {
     }
 
     /**
-     * 对照 Go {@code redactToken}：令牌的脱敏形态，<b>绝不</b>记录完整令牌。
+     * 令牌的脱敏形态，<b>绝不</b>记录完整令牌。
      *
-     * <p>按 Go 的**字节**语义实现（{@code len(t) < 12} 数的是字节，切片也是字节切片）：
+     * <p>按 <b>UTF-8 字节</b>计长度（不足 12 字节直接 {@code ***}）：
      * ASCII 令牌下与按字符实现完全一致。</p>
      */
     public static String redactToken(String t) {
@@ -337,12 +336,11 @@ public class YuqueClient {
     }
 
     /**
-     * 对照 Go {@code buildQuery}：编码查询参数，**省略空值**；返回串带前导
+     * 编码查询参数，**省略空值**；返回串带前导
      * {@code "?"}，全空时回空串。
      *
-     * <p>Go 的 {@code url.Values.Encode()} 按 key <b>升序</b>拼，所以 Java 侧用
-     * {@link TreeMap}；转义规则也照抄 Go 的 {@code QueryEscape}
-     * （保留 {@code A-Za-z0-9-_.~}，空格转 {@code +}，其余百分号转义）。
+     * <p>键按<b>升序</b>拼（{@link TreeMap}）；转义规则
+     * 保留 {@code A-Za-z0-9-_.~}，空格转 {@code +}，其余百分号转义。
      * 用 {@code URLEncoder} 会在 {@code *} 等字符上分叉，所以自己写。</p>
      */
     static String buildQuery(Map<String, String> params) {
@@ -363,7 +361,7 @@ public class YuqueClient {
         return sb.length() == 0 ? "" : "?" + sb;
     }
 
-    /** 对照 Go 的 {@code url.QueryEscape}（保留 {@code -_.~}，空格转 {@code +}）。 */
+    /** 查询串转义（保留 {@code -_.~}，空格转 {@code +}）。 */
     private static String goQueryEscape(String s) {
         StringBuilder sb = new StringBuilder(s.length());
         for (byte raw : s.getBytes(StandardCharsets.UTF_8)) {

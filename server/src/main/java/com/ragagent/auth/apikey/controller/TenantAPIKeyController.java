@@ -31,12 +31,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 租户 API Key 管理端点（对照 Go internal/handler/tenant.go 的
- * {@code ListAPIKeys} L660-677 / {@code CreateAPIKey} L679-723 /
- * {@code UpdateAPIKey} L725-763 / {@code DeleteAPIKey} L765-782）。
+ * 租户 API Key 管理端点（列表 / 创建 / 更新 / 删除）。
  *
- * <p>路由（对照 Go router/routes_auth_tenant.go L97-100，均由 {@code WebConfig}
- * 注册 RBAC 规则）：</p>
+ * <p>路由（均由 {@code WebConfig} 注册 RBAC 规则）：</p>
  * <ul>
  *   <li>{@code GET    /api/v1/tenants/{id}/api-keys} — Owner+</li>
  *   <li>{@code POST   /api/v1/tenants/{id}/api-keys} — Owner+</li>
@@ -44,18 +41,17 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>{@code DELETE /api/v1/tenants/{id}/api-keys/{key_id}} — Owner+</li>
  * </ul>
  *
- * <p>另有两条 Go 路由守卫（本模块不注册，见任务报告）：</p>
+ * <p>另有两道路由守卫（本模块不注册，由框架侧承担）：</p>
  * <ul>
- *   <li>{@code g.PathTenantMatch()}：URL 的 {@code :id} 必须等于调用者的活动租户
- *       （跨空间超管除外）。Java 侧需在 {@code WebConfig} 给
- *       {@code /api/v1/tenants/&#42;/api-keys/&#42;&#42;} 加一条租户匹配校验；</li>
- *   <li><b>API Key 主体对这四个端点 default-deny</b>——它们没走 {@code apiKeyRoute}
- *       包装，所以门禁查不到策略即 403。这正是 Go 测试
- *       {@code TestAPIKeyGateDeniesTenantKeyManagementPaths} 钉住的契约
- *       （否则一把 Key 能给自己扩权）。Java 侧靠"不登记策略"天然满足。</li>
+ *   <li>URL 的 {@code :id} 必须等于调用者的活动租户（跨空间超管除外），
+ *       由 {@code RbacInterceptor} 对 {@code /api/v1/tenants/{id}/**} 的
+ *       租户匹配校验自动保证；</li>
+ *   <li><b>API Key 主体对这四个端点 default-deny</b>——它们不走 {@code apiKeyRoute}
+ *       包装，门禁查不到策略即 403（否则一把 Key 能给自己扩权），
+ *       靠"不登记策略"天然满足。</li>
  * </ul>
  *
- * <h2>响应形态（§2.1）</h2>
+ * <h2>响应形态</h2>
  * <ul>
  *   <li>列表/创建/更新 = 裸资源（camelCase，键名=字段名）；</li>
  *   <li>{@code DELETE} → <b>204</b>；</li>
@@ -79,7 +75,7 @@ public class TenantAPIKeyController {
 
     // ── 列表 ──
 
-    /** 对照 {@code ListAPIKeys}：返回**裸数组**（空列表输出 {@code []}，不是 null）。 */
+    /** 返回裸数组（空列表输出 {@code []}，不是 null）。 */
     @GetMapping
     public ResponseEntity<List<TenantAPIKeyResponse>> list(@PathVariable("id") String rawId) {
         long tenantId = parseWorkspaceIdOrBadRequest(rawId);
@@ -93,9 +89,9 @@ public class TenantAPIKeyController {
     // ── 创建 ──
 
     /**
-     * 对照 {@code CreateAPIKey}：201 + {@code data.token}（明文只此一次）。
+     * 创建：201 + {@code data.token}（明文只此一次）。
      *
-     * <p>校验顺序照抄 Go：workspace ID → JSON 绑定 → {@code validateTenantAPIKeyRequest}
+     * <p>校验顺序：workspace ID → JSON 绑定 → {@code validateTenantAPIKeyRequest}
      * → {@code expiresAtUnix} 必须在未来 → 服务层。</p>
      */
     @PostMapping
@@ -132,17 +128,15 @@ public class TenantAPIKeyController {
     // ── 更新 ──
 
     /**
-     * 对照 {@code UpdateAPIKey}。
+     * 更新。
      *
-     * <p><b>两个刻意的差异，别"顺手修正"</b>：</p>
+     * <p><b>两个刻意的行为，别"顺手修正"</b>：</p>
      * <ol>
-     *   <li>Go **没有** {@code expiresAtUnix 必须在未来} 的校验（只有 Create 有）；
-     *       而且过期时间**不转 UTC 之外的加工**就交给服务层
-     *       （服务层再统一 UTC 化，见 {@code TenantAPIKeyService.update}）；</li>
+     *   <li>这里<b>没有</b> {@code expiresAtUnix 必须在未来} 的校验（只有 Create 有）；
+     *       过期时间除转 UTC 外不做加工，直接交给服务层
+     *       （服务层统一 UTC 化，见 {@code TenantAPIKeyService.update}）；</li>
      *   <li>服务层任何错误都被映射成 <b>404 {@code API key not found}</b>——
-     *       包括"name is required"这类校验错。这是 Go 的写法
-     *       （{@code if err != nil { c.Error(errors.NewNotFoundError("API key not found")) }}），
-     *       已如实照抄。</li>
+     *       包括"name is required"这类校验错。</li>
      * </ol>
      */
     @PutMapping("/{key_id}")
@@ -165,7 +159,7 @@ public class TenantAPIKeyController {
                     tenantId, keyId, req.name(), req.fullAccess(),
                     req.knowledgeBaseIds(), req.capabilities(), expiresAt));
         } catch (RuntimeException e) {
-            // 对照 Go：任何服务层错误都落到 404（含 TenantAPIKeyNotFoundException）
+            // 任何服务层错误都落到 404（含 TenantAPIKeyNotFoundException）
             throw new BizException(AppError.notFound("API key not found"));
         }
         return ResponseEntity.ok(TenantAPIKeyResponse.from(updated));
@@ -173,7 +167,7 @@ public class TenantAPIKeyController {
 
     // ── 删除（软撤销） ──
 
-    /** 对照 {@code DeleteAPIKey}：响应体只有 {@code {"success": true}}。 */
+    /** 删除：204，无响应体。 */
     @DeleteMapping("/{key_id}")
     public ResponseEntity<Void> delete(@PathVariable("id") String rawId,
                                        @PathVariable("key_id") String rawKeyId) {
@@ -190,8 +184,7 @@ public class TenantAPIKeyController {
     // ── 辅助 ──
 
     /**
-     * 对照 {@code strconv.ParseUint(c.Param("id"), 10, 64)}：
-     * 只接受十进制无符号整数（Go 的 ParseUint **不接受**正负号），溢出也算失败。
+     * 只接受十进制无符号整数（不接受正负号），溢出也算失败。
      */
     private static long parseWorkspaceIdOrBadRequest(String raw) {
         Long parsed = parseUint(raw);
@@ -201,7 +194,7 @@ public class TenantAPIKeyController {
         return parsed;
     }
 
-    /** 对照 Update/Delete 的 {@code key_id} 解析：失败**或为 0** 都是 400。 */
+    /** Update/Delete 的 {@code key_id} 解析：失败**或为 0** 都是 400。 */
     private static long parseKeyIdOrBadRequest(String raw) {
         Long parsed = parseUint(raw);
         if (parsed == null || parsed == 0L) {
@@ -222,12 +215,12 @@ public class TenantAPIKeyController {
         try {
             return Long.parseUnsignedLong(raw);
         } catch (NumberFormatException e) {
-            return null; // 溢出（Go 的 ParseUint 同样报错）
+            return null; // 溢出
         }
     }
 
     /**
-     * 对照 ShouldBindJSON：空 body → details {@code "EOF"}；非法 JSON → 解析器消息
+     * 空 body → details {@code "EOF"}；非法 JSON → 解析器消息
      * （与登录端点用的同一套处理，见 {@code AuthController.parseBody}）。
      */
     private static TenantAPIKeyRequest parseBody(String rawBody) {
@@ -247,8 +240,7 @@ public class TenantAPIKeyController {
     }
 
     /**
-     * KB 归属查询（对照 Go 传给 {@code validateTenantAPIKeyRequest} 的
-     * {@code kbService.GetKnowledgeBaseByID}）。
+     * KB 归属查询（供 {@link TenantAPIKeyValidator} 校验使用）。
      *
      * <p><b>刻意不按租户过滤</b>：校验需要区分"查不到"（400）与
      * "存在但属于别的空间"（403），所以查询只按 id + 未软删，

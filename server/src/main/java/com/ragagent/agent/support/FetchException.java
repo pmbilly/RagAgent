@@ -1,17 +1,15 @@
 package com.ragagent.agent.support;
 
 /**
- * 抓取失败的可机读错误（对照 Go {@code web_fetch} 的
- * {@code ErrorCode / FetchError / ErrorDetails}，fetcher.go L32-90）。
+ * 抓取失败的可机读错误。
  *
  * <p>失败码区分「可重试的网络错误」与「永久失败」；{@link #getCode} /
- * {@link #isRetryable} / {@link #getMessage()} 即 Go 的
- * {@code ErrorDetails(err) (code, retryable, msg)} 三元组。非 FetchException 的
- * 异常按 {@code ErrorConnection + retryable} 处理（对照 ErrorDetails 的默认分支）。</p>
+ * {@link #isRetryable} / {@link #getMessage()} 提供 code/retryable/msg 三元组。非 FetchException 的
+ * 异常按 {@link Code#CONNECTION} + retryable 处理。</p>
  */
 public class FetchException extends RuntimeException {
 
-    /** 抓取失败的阶段与类别（fetcher.go L36-54，值逐字对照）。 */
+    /** 抓取失败的阶段与类别。 */
     public enum Code {
         INVALID_URL("invalid_url"),
         DNS("dns_failed"),
@@ -37,7 +35,7 @@ public class FetchException extends RuntimeException {
             this.wire = wire;
         }
 
-        /** Go 的 ErrorCode 字符串值。 */
+        /** 对外输出的错误码字符串值。 */
         public String wire() {
             return wire;
         }
@@ -60,7 +58,7 @@ public class FetchException extends RuntimeException {
         return retryable;
     }
 
-    /** 对照 ErrorDetails：非 FetchException → connection + retryable。 */
+    /** 非 FetchException → connection + retryable。 */
     public static Code codeOf(Throwable err) {
         if (err instanceof FetchException fe) {
             return fe.code;

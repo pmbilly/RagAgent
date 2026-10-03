@@ -5,8 +5,7 @@ import java.util.List;
 import com.ragagent.memory.domain.MemoryItem;
 
 /**
- * 一次按需查找记忆库的返回（对照 Go {@code interfaces.MemorySearchResult}，
- * internal/types/interfaces/memory.go L257-272）。
+ * 一次按需查找记忆库的返回。
  *
  * <p><b>为什么与 {@link MemoryRecall} 是两个类型</b>：两者的消费者不同。
  * 召回为某一轮产出提示词信封；查找为工具产出条目，而那个工具必须告诉模型
@@ -19,6 +18,6 @@ import com.ragagent.memory.domain.MemoryItem;
  */
 public record MemorySearchResult(boolean available, List<MemoryItem> items) {
 
-    /** 对照 Go 的 {@code interfaces.MemorySearchResult{}} 零值：不可用 + nil 条目。 */
+    /** 不可用零值：不可用 + null 条目。 */
     public static final MemorySearchResult UNAVAILABLE = new MemorySearchResult(false, null);
 }

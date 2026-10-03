@@ -5,11 +5,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 对照 Go {@code types.StorageEngineConfig} 与 8 个 provider 子结构
- * （internal/types/tenant.go L516-625）。
+ * 存储引擎配置段（8 个 provider 子结构）。
  *
- * <p>default_provider 无 omitempty（恒输出，零值 ""）；8 个 provider 指针
- * 全是 omitempty（nil 省略）。provider 子结构内部字段**全部无 omitempty**——
+ * <p>default_provider 恒输出（零值 ""）；8 个 provider 子结构
+ * 为 null 时省略键。provider 子结构内部字段**全部恒输出**——
  * 对象一旦存在，所有键恒输出（含 "" 与 false），golden ct-kv-storage-* 钉住。</p>
  */
 @JsonPropertyOrder({

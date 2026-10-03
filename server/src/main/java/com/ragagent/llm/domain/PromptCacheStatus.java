@@ -4,8 +4,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
- * 区分"真正的缓存未命中"与"该 provider 根本不上报缓存账目"
- * （对照 Go types.PromptCacheStatus，internal/types/chat.go:11-18）。
+ * 区分"真正的缓存未命中"与"该 provider 根本不上报缓存账目"。
  *
  * 把两者都当成 0 会让全fleet 的命中率看板失真，故保留四态。
  */

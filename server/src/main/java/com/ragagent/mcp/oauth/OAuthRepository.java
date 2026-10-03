@@ -7,13 +7,11 @@ import com.ragagent.mcp.domain.McpOAuthClient;
 import com.ragagent.mcp.domain.McpOAuthToken;
 
 /**
- * OAuth 持久化端口（对照 Go {@code interfaces.MCPOAuthRepository}，
- * internal/types/interfaces/mcp_oauth.go）。
+ * OAuth 持久化端口。
  *
- * <p><b>为什么在 Java 侧再抽一层接口</b>：Go 的 {@code OAuthManager}/{@code oauthRuntime}/
- * {@code dbTokenStore} 都依赖接口而非具体仓储，其测试用内存 fake
- * （{@code fakeOAuthRepo}/{@code lockedOAuthRepo}）验证租约与 principal 隔离；
- * 生产实现见 {@link McpOAuthRepositoryAdapter}（转发到既有的
+ * <p><b>为什么抽一层接口</b>：上层（manager / runtime / token store）依赖接口而非具体仓储，
+ * 测试可用内存 fake 验证租约与 principal 隔离；
+ * 生产实现见 {@link McpOAuthRepositoryAdapter}（转发到
  * {@link com.ragagent.mcp.mapper.McpOAuthRepository}）。</p>
  *
  * <p><b>不变式（硬契约，实现方必须保证）</b>：
@@ -27,7 +25,7 @@ public interface OAuthRepository {
 
     // ── OAuth 客户端（每服务一个） ──────────────────────────────────────
 
-    /** 未注册返回 {@code null}（对照 Go 的 (nil, nil)）。 */
+    /** 未注册返回 {@code null}。 */
     McpOAuthClient getClient(long tenantId, String serviceId);
 
     void saveClient(McpOAuthClient client);

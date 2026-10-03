@@ -22,7 +22,7 @@ import com.ragagent.llm.domain.ChatResponse;
 import com.ragagent.llm.domain.StreamResponse;
 
 /**
- * 压缩器端到端的 Go 实录断言（/tmp/wave42rec：compactor.go + stub 内嵌）。
+ * 压缩器端到端的录制常量断言。
  * 场景：ReAct 轮压缩（12/40 round）、length 停止拒绝→档案回退、LLM 失败→档案回退、
  * 二次压缩无事可压、增量更新路径、小对话不调 LLM、validateSummary 判定表、
  * buildSummarizationPrompt 完整输出、Reason/ErrNothingToCompact 文案。
@@ -260,7 +260,7 @@ class CompactorTest {
         assertThat(Compactor.buildSummarizationPrompt(convo2, "prior summary about rockets",
                 CompactionPrompts.UPDATE_SUMMARIZATION_INSTRUCTIONS)).isEqualTo(STR_PROMPT_UPDATE);
 
-        // 常量逐字节（与 Go 源码常量对照实录）
+        // 常量逐字节（与录制常量对照）
         assertThat(CompactionPrompts.SUMMARIZATION_SYSTEM_PROMPT).isEqualTo(STR_SUMMARIZATIONSYSTEMPROMPT);
         assertThat(CompactionPrompts.SUMMARY_FORMAT).isEqualTo(STR_SUMMARYFORMAT);
     }

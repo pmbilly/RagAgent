@@ -7,8 +7,7 @@ import com.ragagent.datasource.domain.FetchedItem;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * 部分 feed 成功、部分失败（对照 Go 的
- * {@code return out, newCursor, &datasource.PartialFetchError{Details: feedErrors}}）。
+ * 部分 feed 成功、部分失败。
  *
  * <p>继承 {@link ConnectorException.PartialFetch}，这样 service 层可以用
  * {@code catch (ConnectorException.PartialFetch e)} 一次覆盖所有连接器的"部分成功"
@@ -29,8 +28,8 @@ public class PartialFetchException extends ConnectorException.PartialFetch
 
     /**
      * @param details 每个失败 feed 的 {@code "<url>: <err>"}
-     * @param items   已抓到的条目；允许 {@code null}（对照 Go 的 nil slice）
-     * @param cursor  新游标；{@code FetchAll} 路径恒为 {@code null}（Go 用 {@code _} 丢弃）
+     * @param items   已抓到的条目；允许 {@code null}
+     * @param cursor  新游标；全量路径恒为 {@code null}（该路径不使用游标）
      */
     public PartialFetchException(List<String> details, List<FetchedItem> items, SyncCursor cursor) {
         super(details);

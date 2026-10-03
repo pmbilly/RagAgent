@@ -11,9 +11,9 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.service.ImService;
 
 /**
- * 微信（个人号）iLink 机器人渠道工厂——对照 Go {@code internal/im/wechat/factory.go} L13-39。
+ * 微信（个人号）iLink 机器人渠道工厂。
  *
- * <p><b>只有长轮询</b>：照 Go 不读 mode（无分支），凭据必须给 {@code bot_token} +
+ * <p><b>只有长轮询</b>：不读 mode（无分支），凭据必须给 {@code bot_token} +
  * {@code ilink_bot_id}（缺任一报 "wechat credentials require bot_token and ilink_bot_id"）。</p>
  */
 public class WechatAdapterFactory implements ImService.AdapterFactory {

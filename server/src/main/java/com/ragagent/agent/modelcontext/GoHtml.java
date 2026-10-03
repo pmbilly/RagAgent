@@ -1,14 +1,14 @@
 package com.ragagent.agent.modelcontext;
 
 /**
- * Go html 包两个函数的等价（internal/modelcontext 引用的全部面）。
+ * HTML 实体转义/反转义两个函数（本包引用的全部面）。
  *
  * <p>EscapeString 只转义五个字符（{@code " ' & < >} → {@code &#34; &#39; &amp; &lt; &gt;}）。</p>
  *
- * <p>UnescapeString 的 Go 版本带完整 HTML5 实体表（含不带分号的 HTML5 形态）。
+ * <p>完整的 HTML5 实体表很大（含不带分号的 HTML5 形态）。
  * 本包的消费面只有「模型写出的标签属性值」与「MCP 结果里扫出的 URL」，实际
  * 出现的是五个基本实体与数字引用；这里覆盖它们加常用命名实体，更冷僻的
- * HTML5 命名实体按原样保留（已知差异，见波 4.6a 报告）。</p>
+ * HTML5 命名实体按原样保留（已知差异）。</p>
  */
 final class GoHtml {
 

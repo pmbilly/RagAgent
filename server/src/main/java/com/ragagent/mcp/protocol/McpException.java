@@ -1,17 +1,16 @@
 package com.ragagent.mcp.protocol;
 
 /**
- * MCP 协议层异常（对照 Go internal/mcp/errors.go 的哨兵 error + client.go 里的 {@code fmt.Errorf(... %w)} 包裹）。
+ * MCP 协议层异常。
  *
- * <p>Go 的调用方用 {@code errors.Is(err, ErrNotConnected)} 判定类别；Java 用
- * {@link #hasCode(McpErrorCode)}。消息一律取 Go 的包裹文案（如
- * {@code "failed to list tools: ..."}），保留原始 cause 链。</p>
+ * <p>用 {@link #hasCode(McpErrorCode)} 判定类别。消息形如
+ * {@code "failed to list tools: ..."}（前缀 + 底层原因），保留原始 cause 链。</p>
  */
 public class McpException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
-    /** null = 该错误在 Go 侧只是普通 {@code fmt.Errorf}，不对应任何哨兵（如 SSRF 校验失败）。 */
+    /** null = 该错误不对应任何哨兵类别（如 SSRF 校验失败）。 */
     private final McpErrorCode code;
 
     public McpException(McpErrorCode code) {
@@ -22,7 +21,7 @@ public class McpException extends RuntimeException {
         this(code, message, null);
     }
 
-    /** 构造"无哨兵"异常（对照 Go 的普通 {@code fmt.Errorf("...")}——errors.Is 判定不到任何哨兵）。 */
+    /** 构造"无哨兵"异常（无法按 code 判定类别）。 */
     public McpException(String message) {
         this(null, message, null);
     }
@@ -36,7 +35,7 @@ public class McpException extends RuntimeException {
         this.code = code;
     }
 
-    /** @return 对应 Go errors.go 的哨兵；null 表示 Go 侧无对应哨兵 */
+    /** @return 哨兵类别；null 表示无对应哨兵 */
     public McpErrorCode code() {
         return code;
     }

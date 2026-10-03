@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.MimoProvider（mimo.go）：小米 Mimo。
+ * 小米 Mimo。
  */
 public class MimoProvider implements Provider {
 

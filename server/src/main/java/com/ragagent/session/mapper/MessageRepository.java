@@ -24,17 +24,17 @@ import org.springframework.stereotype.Component;
 import com.ragagent.common.session.SessionMessagePort;
 
 /**
- * 消息仓储（对照 Go internal/application/repository/message.go）。
+ * 消息仓储。
  *
- * <h2>GORM 隐式行为 → Java 的等效清单（约定 §3 要求显式列出）</h2>
+ * <h2>落库隐式行为清单</h2>
  * <ol>
  *   <li><b>钩子 BeforeCreate</b>（Go L463-484）：无条件新 UUID + 六个 nil 切片置空。
  *       → {@link #create} 里调 {@code normalizeListsForInsert()} 并覆盖 ID。</li>
- *   <li><b>⚠️ Updates(结构体) 跳过零值</b>（Go L139-143）：GORM 对**结构体**的 Updates
- *       只写非零字段——string "" / 数值 0 / bool false / 指针 nil / 切片 nil 一律跳过。
+ *   <li><b>⚠️ 实体式整行更新跳过零值</b>：只写非零字段——string "" / 数值 0 / bool false /
+ *       指针 null / 集合 null 一律跳过。
  *       也就是说"把 content 改成空串"在这条路径上**不生效**。
  *       → {@link #update} 逐字段按同一规则判断后才 SET（见该方法注释）。</li>
- *   <li><b>软删除</b>：{@code gorm.DeletedAt}。查询显式 {@code deleted_at IS NULL}，
+ *   <li><b>软删除</b>：deleted_at 列。查询显式 {@code deleted_at IS NULL}，
  *       删除是 UPDATE。</li>
  *   <li><b>默认排序</b>：{@code created_at ASC/DESC} 各查询自带（Go L54/L68/L94/L121/L134）。</li>
  * </ol>
@@ -82,7 +82,7 @@ public class MessageRepository implements SessionMessagePort {
 
     // ── 写 ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code CreateMessage}（L27-34）：钩子无条件生成新 ID。 */
+    /** 无条件生成新 ID。 */
     public Message create(Message message) {
         message.setId(UUID.randomUUID().toString());
         message.normalizeListsForInsert();
@@ -91,15 +91,15 @@ public class MessageRepository implements SessionMessagePort {
     }
 
     /**
-     * 对照 Go {@code UpdateMessage}（L139-143）——**只写非零字段**。
+     * **只写非零字段**。
      *
-     * <p>GORM 对结构体的 Updates 会跳过零值，所以这里逐字段判断：
-     * string {@code != ""}、数值 {@code != 0}、bool {@code != false}、对象/切片 {@code != null}。
-     * 这条规则直接决定了"清空某列"在这种调用下是做不到的——照抄，别"修好"。</p>
+     * <p>落库语义：零值不更新，所以这里逐字段判断：
+     * string {@code != ""}、数值 {@code != 0}、bool {@code != false}、对象/集合 {@code != null}。
+     * 这条规则直接决定了"清空某列"在这种调用下是做不到的——别"修好"。</p>
      *
-     * <p>注意其中 {@code session_id} 也在非零字段之列（GORM 不排除它），不过它已被 WHERE
-     * 钉住，写了也是同值。{@code id} 是主键、{@code created_at}/{@code deleted_at} 由 GORM 另行处理，
-     * 都不进 SET；{@code updated_at} 由 GORM 的 autoUpdateTime 自动刷新，这里显式补上。</p>
+     * <p>注意其中 {@code session_id} 也在非零字段之列，不过它已被 WHERE
+     * 钉住，写了也是同值。{@code id} 是主键、{@code created_at}/{@code deleted_at} 都不进 SET；
+     * {@code updated_at} 在这里显式补上。</p>
      */
     public void update(Message m) {
         // 用字符串列名的 UpdateWrapper 而不是 Lambda：jsonb 列必须靠 3 参 set 显式挂
@@ -171,7 +171,7 @@ public class MessageRepository implements SessionMessagePort {
         any |= setJson(w, "used_memories", m.getUsedMemories(), USED_MEMORIES);
 
         if (!any) {
-            // GORM 在全部字段为零时会生成 `UPDATE messages SET` 这种非法语句而报错；
+            // 全部字段为零时没有可更新的列（硬拼会生成非法 UPDATE 语句）；
             // 这里直接跳过，语义等价于"没有可更新的列"。
             return;
         }
@@ -179,7 +179,7 @@ public class MessageRepository implements SessionMessagePort {
         mapper.update(null, w);
     }
 
-    /** Go 的零值判定：string 的非零就是非空。 */
+    /** 零值判定：string 的非零就是非空。 */
     private static boolean nonEmpty(String v) {
         return v != null && !v.isEmpty();
     }
@@ -193,7 +193,7 @@ public class MessageRepository implements SessionMessagePort {
         return true;
     }
 
-    /** 对照 Go {@code DeleteMessage}（L146-150）——软删。 */
+    /** 软删。 */
     public void delete(String sessionId, String messageId) {
         LambdaUpdateWrapper<Message> w = new LambdaUpdateWrapper<Message>()
                 .eq(Message::getId, messageId)
@@ -203,7 +203,7 @@ public class MessageRepository implements SessionMessagePort {
         mapper.update(null, w);
     }
 
-    /** 对照 Go {@code DeleteMessagesBySessionID}（L322-324）——整会话软删。 */
+    /** 整会话软删。 */
     public void deleteBySessionId(String sessionId) {
         LambdaUpdateWrapper<Message> w = new LambdaUpdateWrapper<Message>()
                 .eq(Message::getSessionId, sessionId)
@@ -213,29 +213,26 @@ public class MessageRepository implements SessionMessagePort {
     }
 
     /**
-     * 对照 Go {@code UpdateMessageImages}（L306-311）：只写 images 列。
+     * 只写 images 列。
      *
-     * <p>Go 的注释说它"用 Select 强制 GORM 带上这一列（否则结构体式 Updates 会跳过
-     * 自定义 Valuer 类型）"，但代码实际写的是 {@code Update("images", images)}——
-     * 单列 Update 本就不会被零值规则拦。Java 用显式 UPDATE 语句，同一效果。</p>
+     * <p>单列 UPDATE 本就不受零值跳过规则影响；这里用显式 UPDATE 语句。</p>
      */
     public void updateImages(String sessionId, String messageId, List<MessageImage> images) {
         mapper.updateImages(sessionId, messageId, images);
     }
 
-    /** 对照 Go {@code UpdateMessageRenderedContent}（L314-319）。 */
     public void updateRenderedContent(String sessionId, String messageId, String renderedContent) {
         mapper.updateRenderedContent(sessionId, messageId, renderedContent);
     }
 
-    /** 对照 Go {@code UpdateMessageKnowledgeID}（L327-334）：**没有 session_id 条件**。 */
+    /** **没有 session_id 条件**（只按主键）。 */
     public void updateKnowledgeId(String messageId, String knowledgeId) {
         mapper.updateKnowledgeId(messageId, knowledgeId);
     }
 
     // ── 读 ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code GetMessage}（L37-47）：id + session_id；零行抛 404。 */
+    /** id + session_id 定位；零行抛 404。 */
     public Message getMessage(String sessionId, String messageId) {
         LambdaQueryWrapper<Message> w = new LambdaQueryWrapper<Message>()
                 .eq(Message::getId, messageId)
@@ -248,7 +245,7 @@ public class MessageRepository implements SessionMessagePort {
         return m;
     }
 
-    /** 对照 Go {@code GetMessagesBySession}（L50-59）：created_at ASC，offset/limit 不做归一化。 */
+    /** created_at ASC，offset/limit 不做归一化。 */
     public List<Message> getMessagesBySession(String sessionId, int page, int pageSize) {
         return mapper.selectList(new LambdaQueryWrapper<Message>()
                 .eq(Message::getSessionId, sessionId)
@@ -258,13 +255,11 @@ public class MessageRepository implements SessionMessagePort {
     }
 
     /**
-     * 对照 Go {@code GetRecentMessagesBySession}（L62-85）：倒序取 limit 条，**再正序重排**。
+     * 倒序取 limit 条，**再正序重排**。
      *
-     * <p>重排的比较器照抄 Go：先比 created_at；相等时 user 在前、其余在后。</p>
-     *
-     * <p><b>已知差异</b>：Go 用的是 {@code slices.SortFunc}（pdqsort，**不保证稳定**），
-     * 且该比较器对"同一时间戳、同一 role"的两条返回 {@code a > b}（自反不一致）。
-     * Java 用稳定排序，这种输入下会保留 SQL 顺序。二者只在"同微秒同角色"时可能不同序。</p>
+     * <p>重排的比较器：先比 created_at；相等时 user 在前、其余在后。
+     * 比较器对"同一时间戳、同一 role"的两条返回 {@code a > b}（自反不一致），
+     * Java 用稳定排序，这种输入下会保留 SQL 顺序——只在"同微秒同角色"时可能不同序。</p>
      */
     public List<Message> getRecentMessagesBySession(String sessionId, int limit) {
         List<Message> messages = new ArrayList<>(mapper.selectList(new LambdaQueryWrapper<Message>()
@@ -276,7 +271,7 @@ public class MessageRepository implements SessionMessagePort {
         return messages;
     }
 
-    /** 对照 Go {@code GetMessagesBySessionBeforeTime}（L88-108）：同样的倒序取 + 正序重排。 */
+    /** 同样的倒序取 + 正序重排（带 beforeTime 上界）。 */
     public List<Message> getMessagesBySessionBeforeTime(String sessionId, OffsetDateTime beforeTime, int limit) {
         List<Message> messages = new ArrayList<>(mapper.selectList(new LambdaQueryWrapper<Message>()
                 .eq(Message::getSessionId, sessionId)
@@ -289,10 +284,10 @@ public class MessageRepository implements SessionMessagePort {
     }
 
     /**
-     * 对照 Go {@code ListMessagesBySessionAfterTime}（L113-125）：取 afterTime 之后**最旧的**
+     * 取 afterTime 之后**最旧的**
      * limit 条，让持有水位线的调用方能一页页往前推而不跳过。
      *
-     * <p>afterTime 为零值时**不加时间条件**（Go 的 {@code !afterTime.IsZero()}）。</p>
+     * <p>afterTime 为 null 时**不加时间条件**。</p>
      */
     public List<Message> listMessagesBySessionAfterTime(String sessionId, OffsetDateTime afterTime, int limit) {
         LambdaQueryWrapper<Message> w = new LambdaQueryWrapper<Message>()
@@ -306,10 +301,7 @@ public class MessageRepository implements SessionMessagePort {
     }
 
     /**
-     * 对照 Go {@code GetMessageByRequestID}（L164-181）。
-     *
-     * <p><b>查不到返回 null 而不是抛错</b>——Go 在这里显式把 {@code ErrRecordNotFound}
-     * 翻成 {@code nil, nil}，与同文件其它读方法不同。</p>
+     * <b>查不到返回 null 而不是抛错</b>——与同文件其它读方法不同。
      */
     public Message getMessageByRequestId(String sessionId, String requestId) {
         return mapper.selectOne(new LambdaQueryWrapper<Message>()
@@ -319,22 +311,18 @@ public class MessageRepository implements SessionMessagePort {
                 .last("LIMIT 1"));
     }
 
-    /** 对照 Go {@code GetFirstMessageOfUser}（L153-161）。 */
     public Message getFirstMessageOfUser(String sessionId) {
         return mapper.selectFirstBySessionAndRole(sessionId, Message.ROLE_USER);
     }
 
     /**
-     * 对照 Go {@code ListMessagesBySessionAfterCursor}（L127-136）：
      * memory 模块分页读消息时用的**稳定游标**（{@code (created_at, id)} 双键）。
      *
      * <p>为什么是双键：{@code created_at} 会撞（同一毫秒落多条），单键游标会漏读或重读。
      * 所以判据是 {@code created_at > at} <b>或</b>（{@code created_at = at} 且 {@code id > id}）。</p>
      *
-     * <p><b>实测确认 GORM 会把这段 OR 包进括号</b>（Standalone DryRun：
-     * {@code ... AND (created_at > $2 OR (created_at = $3 AND id > $4)) AND deleted_at IS NULL ...}），
-     * 所以不像"裸串接 AND/OR"那样有优先级问题；本方法用 {@code .and(...)} 显式分组，
-     * 与 GORM 的实际 SQL 同形。软删除条件同样是 GORM 自动补的。</p>
+     * <p>OR 条件必须显式分组（{@code .and(...)}），否则与外层 AND 串接会有优先级问题；
+     * 生成的 SQL 形如 {@code ... AND (created_at > ? OR (created_at = ? AND id > ?)) AND deleted_at IS NULL ...}。</p>
      */
     public List<Message> listMessagesBySessionAfterCursor(
             String sessionId, MemoryMessageCursor cursor, int limit) {
@@ -354,7 +342,7 @@ public class MessageRepository implements SessionMessagePort {
         return mapper.selectList(w);
     }
 
-    /** 对照 Go {@code GetKnowledgeIDsBySessionID}（L290-301）：只取非空 knowledge_id。 */
+    /** 只取非空 knowledge_id。 */
     public List<String> getKnowledgeIdsBySessionId(String sessionId) {
         return mapper.selectObjs(new LambdaQueryWrapper<Message>()
                         .select(Message::getKnowledgeId)
@@ -366,7 +354,7 @@ public class MessageRepository implements SessionMessagePort {
     }
 
     /**
-     * 对照 Go {@code OwnedSessionIDs}（L223-247）：把一组会话 id 收窄到这个人拥有的那些。
+     * 把一组会话 id 收窄到这个人拥有的那些。
      *
      * <p>向量检索路径是通过**共享知识库**找到消息的，那里没有"谁写的"的概念，
      * 所以返回之前必须在这里重新确立归属。</p>
@@ -395,7 +383,7 @@ public class MessageRepository implements SessionMessagePort {
 
     // ── 投影 ────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code GetSessionArtifacts}（L342-371）：按创建序把各行的 artifacts 展平。 */
+    /** 按创建序把各行的 artifacts 展平。 */
     public List<MessageArtifact> getSessionArtifacts(String sessionId) {
         if (sessionId == null || sessionId.isEmpty()) {
             return null;
@@ -412,7 +400,7 @@ public class MessageRepository implements SessionMessagePort {
         return result;
     }
 
-    /** 对照 Go {@code GetSessionAttachments}（L375-398）：**不跳过空列表**。 */
+    /** **不跳过空列表**。 */
     public List<MessageAttachment> getSessionAttachments(String sessionId) {
         if (sessionId == null || sessionId.isEmpty()) {
             return null;
@@ -427,7 +415,7 @@ public class MessageRepository implements SessionMessagePort {
         return result;
     }
 
-    /** Go 的重排比较器：created_at 升序；相等时 user 在前，其余在后。 */
+    /** 重排比较器：created_at 升序；相等时 user 在前，其余在后。 */
     private static Comparator<Message> createdAtThenUserFirst() {
         return (a, b) -> {
             int cmp = a.getCreatedAt().compareTo(b.getCreatedAt());
@@ -438,18 +426,18 @@ public class MessageRepository implements SessionMessagePort {
         };
     }
 
-    // ── 搜索（波 1 G2）────────────────────────────────────────────────────
+    // ── 搜索 ─────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code SearchMessagesByKeyword}（message.go L184-216）：租户 + owner 范围内
+     * 租户 + owner 范围内
      * 按内容关键词搜索，created_at DESC 取 limit 条，带出会话标题。
      *
-     * <p><b>Go 是一条 JOIN SQL</b>；Java 两步化（先取范围内会话 id，再查消息）——
+     * <p>两步化（先取范围内会话 id，再查消息）——
      * 等价性：INNER JOIN sessions ON id AND tenant_id AND deleted_at IS NULL (+owner 范围)
-     * 与第一步的 id 集合完全相同；第二步的消息过滤与排序照抄。会话标题由第二步后
+     * 与第一步的 id 集合完全相同；第二步的消息过滤与排序同一条 JOIN 语句。会话标题由第二步后
      * 一次批量查询补齐（等价于 SELECT 里那列 session_title）。</p>
      *
-     * <p>owner 范围逐字对照：{@code (user_id = ? OR user_id IS NULL OR user_id = '')}；
+     * <p>owner 范围：{@code (user_id = ? OR user_id IS NULL OR user_id = '')}；
      * 大小写不敏感匹配在 PG 用 {@code ILIKE}、H2 用 {@code LOWER} 对
      * {@code LOWER}（方言开关与 SessionMapper 同款）；LIKE 转义复用
      * {@code SessionRepository.escapeLikeKeyword}。</p>
@@ -491,9 +479,9 @@ public class MessageRepository implements SessionMessagePort {
     }
 
     /**
-     * 对照 Go {@code GetMessagesByRequestIDs}（message.go L270-287）：按 request_id 取
-     * Q&amp;A 对的另一半（搜索管线的补对步骤用）。没有租户/owner 条件——Go 也只有
-     * {@code request_id IN ?} + 软删过滤，标题来自 JOIN。
+     * 按 request_id 取
+     * Q&amp;A 对的另一半（搜索管线的补对步骤用）。没有租户/owner 条件——
+     * 只有 {@code request_id IN ?} + 软删过滤，标题来自补齐查询。
      */
     public List<MessageWithSession> getMessagesByRequestIds(List<String> requestIds) {
         if (requestIds == null || requestIds.isEmpty()) {
@@ -506,14 +494,14 @@ public class MessageRepository implements SessionMessagePort {
     }
 
     /**
-     * 对照 Go {@code GetMessagesByKnowledgeIDs}（message.go L250-267）：向量搜索把
+     * 向量搜索把
      * 聊天历史 KB 的命中按 {@code knowledge_id} 映射回消息。
      *
-     * <p>这条**不走两步化**：Go 的 {@code INNER JOIN sessions ... AND sessions.deleted_at
+     * <p>这条**不走两步化**：{@code INNER JOIN sessions ... AND sessions.deleted_at
      * IS NULL} 会把「会话已软删/不存在」的消息直接从结果里丢掉，两步化必须再补一次
      * 会话存在性过滤，净效果写起来反而更绕——保留一条 JOIN SQL（见
      * {@link MessageMapper#selectMessagesByKnowledgeIds}，jsonb 列靠方法级
-     * {@code @Results} 显式挂类型处理器）。空入参直接返回空列表（Go 的 {@code nil, nil}）。</p>
+     * {@code @Results} 显式挂类型处理器）。空入参直接返回空列表。</p>
      */
     public List<MessageWithSession> getMessagesByKnowledgeIds(List<String> knowledgeIds) {
         if (knowledgeIds == null || knowledgeIds.isEmpty()) {

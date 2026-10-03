@@ -12,11 +12,11 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * Bing 搜索 provider（对照 Go {@code web_search/bing.go} 全文）。
+ * Bing 搜索 provider。
  *
  * <p>GET 官方端点 + {@code Ocp-Apim-Subscription-Key} + 桌面 UA；count 原样传递
- * （Go 不做默认值/上限钳制）；结果恒带 dateLastCrawled（Go 直接取
- * {@code &item.DateLastCrawled}，解析失败为 nil）。</p>
+ * （不做默认值/上限钳制）；结果恒带 dateLastCrawled
+ * （解析失败为 null）。</p>
  */
 public final class BingProvider implements WebSearchProvider {
 
@@ -69,8 +69,7 @@ public final class BingProvider implements WebSearchProvider {
             result.setUrl(item.path("url").asText(""));
             result.setSnippet(item.path("snippet").asText(""));
             result.setSource("bing");
-            // Go：PublishedAt 恒非 nil 指针（DateLastCrawled 零值也是值）；JSON 解析
-            // 失败时 time.Time 零值 → Java null 等价于 Go 的 year-1 形态，不外显
+            // dateLastCrawled 恒承载（零值也是值）；解析失败置 null，不外显
             OffsetDateTime crawled = parseRfc3339(item.path("dateLastCrawled").asText(""));
             result.setPublishedAt(crawled);
             results.add(result);

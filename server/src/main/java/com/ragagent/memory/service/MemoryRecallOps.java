@@ -41,7 +41,7 @@ final class MemoryRecallOps {
     }
 
     /**
-     * 对照 Go {@code Recall}：装配一轮要注入的记忆。
+     * 装配一轮要注入的记忆。
      *
      * <p>它**永不调用模型、永不返回错误**：记忆是增强，任何失败都必须退化成
      * 一个普通回答，而不是一次失败的请求。</p>
@@ -199,7 +199,7 @@ final class MemoryRecallOps {
         return new MemoryRecall(prompt, used);
     }
 
-    /** 对照 Go 里 recall 的两处"主体取不到"分支（它们只差 reason 文案）。 */
+    /** recall 的两处"主体取不到"分支（它们只差 reason 文案）。 */
     private void finishSubjectLoadFailure(MemoryTrace.Span span, String reason, MemoryScope scope) {
         log.info("memory: recall skipped ({})", reason);
         Map<String, Object> meta = new LinkedHashMap<>();
@@ -211,7 +211,7 @@ final class MemoryRecallOps {
     }
 
     /**
-     * 对照 Go {@code recallEmptyMeta}：解释 {@code Recall} 为什么没产出提示词。
+     * 解释 {@code Recall} 为什么没产出提示词。
      */
     private Map<String, Object> recallEmptyMeta(MemoryScope scope, int residentCount,
                                                 int candidateCount,
@@ -232,7 +232,7 @@ final class MemoryRecallOps {
     }
 
     /**
-     * 对照 Go {@code residentItemsWithinBlock}：筛出内容真的在块里活下来的那些条目。
+     * 筛出内容真的在块里活下来的那些条目。
      */
     static List<MemoryItem> residentItemsWithinBlock(List<MemoryItem> items, String block) {
         if (block == null || block.isEmpty()) {

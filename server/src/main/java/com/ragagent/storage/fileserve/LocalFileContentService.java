@@ -8,11 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 本地盘文件服务（对照 Go {@code service/file/local.go localFileService} 的
- * GetFile / GetFileURL / normalizePathForBase 子集——W5c 文件代理面只消费这两个方法；
- * Save/Delete/Copy 随写入链回补）。
+ * 本地盘文件服务（GetFile / GetFileURL / SaveBytes / DeleteFile）。
  *
- * <p>{@code externalURL} 在 Go 构造时取 env {@code APP_EXTERNAL_URL}（去尾斜杠）；
+ * <p>{@code externalURL} 取 env {@code APP_EXTERNAL_URL}（去尾斜杠）；
  * 设置时 {@code GetFileURL} 返回预签名 URL，否则返回 {@code local://…} 原样——
  * dev 部署恒为后者。</p>
  */
@@ -38,8 +36,7 @@ public class LocalFileContentService implements WritableFileContentService {
         String resolved = safePathUnderBase(baseDir, candidate);
         Path p = Path.of(resolved);
         if (!Files.isReadable(p)) {
-            // 打开失败：Go 会 fmt.Errorf("failed to open file: %w") → 路由折成 404。
-            // 文案只进日志，HTTP 形态是 404 无体。
+            // 打开失败：文案只进日志，HTTP 形态是 404 无体。
             throw new IOException("failed to open file: open " + resolved + ": no such file or directory");
         }
         return FileTransport.OpenedFile.ofSeekable(p, Files.size(p));
@@ -84,7 +81,7 @@ public class LocalFileContentService implements WritableFileContentService {
         return s.substring(0, end);
     }
 
-    /** 对照 Go url.Values.Encode 的查询串转义（Space→+，其余 url.QueryEscape 语义）。 */
+    /** 查询串转义（Space→+，其余按 UTF-8 百分号化）。 */
     private static String urlQueryEscape(String s) {
         StringBuilder sb = new StringBuilder();
         byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
@@ -106,10 +103,9 @@ public class LocalFileContentService implements WritableFileContentService {
     // ── SaveBytes / DeleteFile（2026-09-24 存储写字节面批）──────────────────
 
     /**
-     * 对照 Go {@code localFileService.SaveBytes}（file/local.go L218-249）：
      * SafeFileName 校验 → baseDir/{tenantID}/exports/ → {@code <base>_<纳秒><ext>}
      * 唯一名 → 写 0644 → 返回 {@code local://<rel>}。temp 对本地存储无效
-     * （无自动过期支持——Go 注释原文）。
+     * （无自动过期支持）。
      */
     @Override
     public String saveBytes(byte[] data, long tenantId, String fileName, boolean temp)
@@ -125,7 +121,7 @@ public class LocalFileContentService implements WritableFileContentService {
         return FileContentService.LOCAL_SCHEME + relPath;
     }
 
-    /** 对照 Go {@code localFileService.DeleteFile}：normalize + 守卫 + 删除。 */
+    /** normalize + 守卫 + 删除。 */
     @Override
     public void deleteFile(String filePath) throws IOException {
         String candidate = normalizePathForBase(filePath == null ? "" : filePath);
@@ -133,7 +129,7 @@ public class LocalFileContentService implements WritableFileContentService {
         Files.deleteIfExists(Path.of(resolved));
     }
 
-    /** 对照 Go secutils.SafeFileName（security.go L150-165）。 */
+    /** 文件名安全校验：取 basename、拒空/穿越/超长（255）。 */
     public static String safeFileName(String fileName) throws IOException {
         if (fileName == null || fileName.isEmpty()) {
             throw new IOException("fileName cannot be empty");
@@ -168,7 +164,7 @@ public class LocalFileContentService implements WritableFileContentService {
     // ── 路径规范化 + 守卫 ───────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code normalizePathForBase}：local://{rel} → join；绝对路径原样；
+     * local://{rel} → join；绝对路径原样；
      * legacy 相对路径剥掉重复 base 前缀（"data/files/..."）。
      */
     String normalizePathForBase(String filePath) {
@@ -211,7 +207,7 @@ public class LocalFileContentService implements WritableFileContentService {
         return s.substring(start, end);
     }
 
-    /** 对照 Go {@code filepath.Join}（Clean 语义）。 */
+    /** join 后做 Clean 规范化。 */
     static String joinPath(String... elems) {
         List<String> parts = new ArrayList<>();
         for (String e : elems) {
@@ -222,19 +218,19 @@ public class LocalFileContentService implements WritableFileContentService {
         return cleanPath(String.join("/", parts));
     }
 
-    /** 对照 Go {@code filepath.Clean}（unix 规则）——单一份实现在 {@link StoragePathGuard}（③ 去重）。 */
+    /** 路径 Clean（unix 规则）——单一份实现在 {@link StoragePathGuard}。 */
     static String cleanPath(String path) {
         return StoragePathGuard.cleanPath(path);
     }
 
     private static String fromSlash(String s) {
-        // unix 上 Separator 就是 '/'，no-op（Go 的 FromSlash 在 Windows 才有差别）
+        // unix 上分隔符就是 '/'，no-op（Windows 才有差别）
         return s;
     }
 
     /**
-     * 对照 Go {@code filepath.Rel}（unix）：同源相对化；根性不同 / base 含 ".."
-     * 时返回 null（调用方按 Go 的 error 分支处理）。
+     * unix 相对化（Rel 语义）：同源相对化；根性不同 / base 含 ".."
+     * 时返回 null（调用方按失败分支处理）。
      */
     static String goRel(String basePath, String targPath) {
         String base = cleanPath(basePath);
@@ -277,7 +273,7 @@ public class LocalFileContentService implements WritableFileContentService {
             b0 = bi;
             t0 = ti;
             if (b0 > bl && t0 > tl) {
-                // Go 的循环对"段耗尽且相等"不会停——那只在两路相等时发生，已在入口挡住
+                // 循环对"段耗尽且相等"不会停——那只在两路相等时发生，已在入口挡住
                 break;
             }
         }
@@ -305,10 +301,10 @@ public class LocalFileContentService implements WritableFileContentService {
         return targ.substring(Math.min(t0, tl));
     }
 
-    // ── utils/security.go SafePathUnderBase ─────────────────────────────────
+    // ── SafePathUnderBase ───────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code SafePathUnderBase}：返回规范化绝对路径或抛 IOException（逃逸）。
+     * 返回规范化绝对路径或抛 IOException（逃逸）。
      * 单一份实现在 {@link StoragePathGuard}（③ 去重；本支保留 IOException 错误通道）。
      */
     static String safePathUnderBase(String baseDir, String filePath) throws IOException {

@@ -15,12 +15,11 @@ import com.ragagent.session.service.SessionService;
 import com.ragagent.session.service.TemporaryDocumentService;
 
 /**
- * {@code KnowledgeQaController} 的**收尾簇**（§14.9c 刀 7）：轮次状态落库、待处理附件判定、
+ * {@code KnowledgeQaController} 的**收尾簇**：轮次状态落库、待处理附件判定、
  * assistant 消息收尾（落库/标题/建议），以及租户作用域包装 {@code runWithTenant}。
  *
- * <p>为什么这些在同一个协作者：本簇零『共享行为』回调（§11.26 判据）；把 {@code runWithTenant}
- * 与 {@code completeAssistantMessage} 一起搬走后，SSE 编排协作者（刀 5）只需持有本类即可转发这两件事，
- * 不必回调控制器。</p>
+ * <p>{@code runWithTenant} 与 {@code completeAssistantMessage} 集中在本类，
+ * SSE 编排协作者持有本类即可转发这两件事，不必回调控制器。</p>
  */
 final class QaTurnFinalizer {
 
@@ -42,7 +41,7 @@ final class QaTurnFinalizer {
     }
 
     /**
-     * 借用执行租户运行（对照 Go types.WithExecutionTenant：只换执行租户，身份原样保留）。
+     * 借用执行租户运行：只换执行租户，身份（principal/role/userId）原样保留。
      *
      * <p>纪律 #1：借用必须**保存-恢复**而非 clear。旧实现在 finally 里先
      * {@code clear()} 再读 {@code currentPrincipal()/currentRole()/currentUserId()}
@@ -78,7 +77,6 @@ final class QaTurnFinalizer {
         }
         return false;
     }
-    /** persistLastRequestState（qa.go L1635-1666）。 */
     void persistLastRequestState(QaRequestContext reqCtx, QaMode mode) {
         boolean agentEnabled = reqCtx.reqAgentEnabled;
         if (mode == QaMode.AGENT && reqCtx.agentConfig != null) {
@@ -102,7 +100,7 @@ final class QaTurnFinalizer {
             log.warn("persist last_request_state failed for session {}: {}", reqCtx.sessionId, e.toString());
         }
     }
-    /** completeAssistantMessage（qa.go L1679-1702）。 */
+    /** 收尾 assistant 消息：置完成态落库，并异步排 KB 索引 / 追问建议 / 记忆蒸馏。 */
     void completeAssistantMessage(Message assistantMessage, String userQuery,
             String userMessageId, Long tenantId) {
         assistantMessage.setUpdatedAt(OffsetDateTime.now());
@@ -147,7 +145,7 @@ final class QaTurnFinalizer {
                 }
             });
         }
-        // 记忆自动蒸馏调度（Go 的 QA 收尾 ScheduleExtraction 点）：enabledScope 读当前
+        // 记忆自动蒸馏调度：enabledScope 读当前
         // 租户上下文（调用方已 runWithTenant），model_id 沿 assistant 行取。
         if (memoryExtraction != null) {
             try {

@@ -3,7 +3,7 @@ package com.ragagent.common.wiki;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 部署默认语言的配置（B6 批 6）。
+ * 部署默认语言的配置。
  *
  * <p>env 名保持原样：{@code WEKNORA_LANGUAGE} → {@code weknora.language}（Spring 松散绑定；
  * 同前缀下 {@code weknora.edition} / {@code weknora.housekeeping.*} 等由各自配置类绑定）。</p>

@@ -27,19 +27,19 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对照 Go internal/handler/tenant.go L869-1110 的 api-principal 三条路由（Owner+）：
+ * api-principal 三条路由（Owner+）：
  * GET/PUT /tenants/{id}/api-principal-config、POST /tenants/{id}/api-principal-test-token。
  *
- * <p><b>缺省归一</b>（apiPrincipalConfigForResponse）：cfg 为 nil → mode=tenant +
- * 两个默认头名；direct_header_name / signed_token_header_name **恒**输出 Go 的
+ * <p><b>缺省归一</b>（apiPrincipalConfigForResponse）：cfg 为 null → mode=tenant +
+ * 两个默认头名；direct_header_name / signed_token_header_name **恒**输出
  * 默认常量（不回显存储值）；hmac_secret 永不回显，只回 has_hmac_secret。</p>
  *
  * <p><b>*** 占位符</b>：GET 不再披露明文，客户端编辑配置时把打码值原样交回表示
  * "保留存量密钥"——PUT 对 "***" 特判为 no-op（golden mb-apc-put-placeholder 钉住）。
- * 显式 null / 缺省同义（Go 的 *string nil）；显式空串 = 清空。</p>
+ * 显式 null / 缺省同义；显式空串 = 清空。</p>
  *
- * <p><b>已知差异</b>：test-token 的 HS256 签名走 jjwt——对 &lt;256bit 的 hmac_secret
- * jjwt 签名端抛 WeakKeyException → 500（Go 的 jwt 库接受任意长度密钥）。dev/生产
+ * <p><b>实现边界</b>：test-token 的 HS256 签名走 jjwt——对 &lt;256bit 的 hmac_secret
+ * jjwt 抛 WeakKeyException → 500（契约原本接受任意长度密钥）。dev/生产
  * 密钥均 ≥32 字节，golden 未触及该分叉。</p>
  */
 @RestController
@@ -54,8 +54,7 @@ public class TenantAPIPrincipalController {
     static final String SECRET_REDACTED = "***";
 
     /**
-     * 请求绑定的 mapper：Go 的 json.Unmarshal 默认忽略未知字段 →
-     * FAIL_ON_UNKNOWN_PROPERTIES 关掉（请求体带多余键不报错）。
+     * 请求绑定的 mapper：FAIL_ON_UNKNOWN_PROPERTIES 关掉（请求体带多余键不报错）。
      */
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -152,7 +151,7 @@ public class TenantAPIPrincipalController {
         Instant expiresAt = now.plus(ttl);
         String token;
         try {
-            // claims 为 map（jwt.MapClaims）→ encoding/json 序列化按字母序：
+            // 令牌 claims 的输出按字母序：
             // aud < exp < iat < sub < tenant_id（jjwt 按插入序，故按字母序插入）
             token = Jwts.builder()
                     .claim("aud", "weknora")
@@ -164,7 +163,7 @@ public class TenantAPIPrincipalController {
                             "HmacSHA256"))
                     .compact();
         } catch (RuntimeException e) {
-            // jjwt 对 <256bit 密钥抛 WeakKeyException（Go 无此限制）——已知差异，见类注释
+            // jjwt 对 <256bit 密钥抛 WeakKeyException——已知差异，见类注释
             throw new BizException(AppError.internal("Failed to create API principal test token")
                     .withDetails(e.getMessage()));
         }
@@ -179,7 +178,7 @@ public class TenantAPIPrincipalController {
 
     // ── 辅助 ───────────────────────────────────────────────────────────────
 
-    /** 对照 apiPrincipalConfigForResponse：缺省归一 + 密钥打码（只回 has_hmac_secret） */
+    /** 缺省归一 + 密钥打码（只回 has_hmac_secret）。 */
     static APIPrincipalConfigResponse configForResponse(APIPrincipalConfig cfg) {
         if (cfg == null) {
             cfg = new APIPrincipalConfig();
@@ -193,7 +192,7 @@ public class TenantAPIPrincipalController {
                 cfg.hmacSecret != null && !cfg.hmacSecret.trim().isEmpty());
     }
 
-    /** 对照 validateAPIPrincipalExternalUserID：必填 / ≤128 / 无控制字符 */
+    /** 校验 external_user_id：必填 / ≤128 / 无控制字符 */
     private static void validateExternalUserId(String id) {
         String problem = null;
         if (id.isEmpty()) {
@@ -210,8 +209,8 @@ public class TenantAPIPrincipalController {
             }
         }
         if (problem != null) {
-            // Go：handler 把 AppError 的 err.Error() 塞进 details → "error code: 1010,
-            // error message: …" 双前缀原文（AppError.Error() 的形态，照抄）
+            // details 塞完整异常消息，保留 "error code: 1010,
+            // error message: …" 双前缀原文（wire 契约形态）
             String doublePrefixed = new BizException(AppError.validation(problem)).getMessage();
             throw new BizException(AppError.validation("external_user_id is invalid").withDetails(doublePrefixed));
         }
@@ -220,7 +219,7 @@ public class TenantAPIPrincipalController {
     private Tenant loadTenant(long tenantId) {
         Tenant tenant = tenantService.getTenantById(tenantId);
         if (tenant == null) {
-            // GetTenantByID 的 gorm.ErrRecordNotFound 非业务错误 → 500 + err 原文 details
+            // 租户不存在（底层 record not found）非业务错误 → 500 + 原文 details
             throw new BizException(AppError.internal("Failed to load workspace").withDetails("record not found"));
         }
         return tenant;
@@ -235,7 +234,7 @@ public class TenantAPIPrincipalController {
         } catch (NumberFormatException ignored) {
             // fall through
         }
-        // 不可达死代码：PathTenantMatch 在 handler 之前以同码 1010 拒绝（§9 audit 回补）
+        // 不可达兜底：PathTenantMatch 在 handler 之前以同码 1010 拒绝
         throw new BizException(AppError.badRequest("Invalid workspace ID"));
     }
 

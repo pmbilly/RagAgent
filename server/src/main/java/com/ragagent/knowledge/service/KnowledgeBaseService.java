@@ -474,7 +474,7 @@ public class KnowledgeBaseService
         kb.setChunkCount(cc == null ? 0 : cc);
         kb.setProcessingCount(pc == null ? 0 : pc);
         kb.setIsProcessing(pc != null && pc > 0);
-        kb.setShareCount(0); // 共享（kb_shares）随组织模块翻译
+        kb.setShareCount(0); // 共享（kb_shares）属组织模块，暂未接入，恒为 0
     }
 
     private void fillPin(KnowledgeBase kb, String uid) {

@@ -14,15 +14,14 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * mcp_metadata 仓储语句（对照 Go internal/application/repository/mcp_metadata.go）。
+ * mcp_metadata 仓储语句。
  *
  * <p>复合主键 (tenant_id, service_id, principal)，MyBatis-Plus 的 BaseMapper
  * 无法表达，故本接口**刻意不继承 BaseMapper**，所有语句显式书写。</p>
  *
- * <p>版本拒绝旧写：Go 的 {@code OnConflict{... Where: "mcp_metadata.synced_at <= excluded.synced_at"}}
- * 等价于「只有当行内 synced_at 不新于本次 synced_at 时才覆盖」——
- * Java 用 {@code UPDATE ... AND synced_at <= #{syncedAt}} 表达，未命中则视为陈旧写入、
- * **不报错也不落库**（与 Go 完全相同：慢刷新不得覆盖新快照）。</p>
+ * <p>版本拒绝旧写：「只有当行内 synced_at 不新于本次 synced_at 时才覆盖」——
+ * 用 {@code UPDATE ... AND synced_at <= #{syncedAt}} 表达，未命中则视为陈旧写入、
+ * **不报错也不落库**（慢刷新不得覆盖新快照）。</p>
  */
 @Mapper
 public interface McpMetadataMapper {

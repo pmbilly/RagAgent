@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * 存储后端的响应形态（config 掩码后输出）。键名即 Java 字段名（camelCase）；
- * 键恒输出，{@code deletedAt} 恒 null（§1.6 可空显式 null），时间 ISO-8601 带时区。
+ * 键恒输出，{@code deletedAt} 恒 null（可空字段显式输出 null），时间 ISO-8601 带时区。
  */
 public class StorageBackendResponse {
 

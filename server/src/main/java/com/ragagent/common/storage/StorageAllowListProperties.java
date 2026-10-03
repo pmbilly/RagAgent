@@ -3,7 +3,7 @@ package com.ragagent.common.storage;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 存储提供方白名单的部署配置（B6 批 6）。
+ * 存储提供方白名单的部署配置。
  *
  * <p>env 名保持原样：{@code STORAGE_ALLOW_LIST} → {@code storage.allow-list}
  * （Spring 松散绑定；同前缀下 {@code storage.type} 由 {@code storage.config.StorageProviderEnv}

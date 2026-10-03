@@ -13,24 +13,23 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.crypto.CryptoService;
 
 /**
- * 未加密的数据源配置（对照 Go {@code types.DataSourceConfig}，
- * internal/types/datasource.go L211-280）。
+ * 未加密的数据源配置。
  *
  * <p>它既是 {@code data_sources.config} 这个 jsonb 列的**值形状**，也是
  * {@code DataSourceConfigDTO} 的来源。凭据管理走独立的 {@code /credentials} 子资源
  * ——密钥值**从不**出现在 API 响应里（handler 经 {@code dto.NewDataSourceResponse}
  * 按构造剥离 Credentials map）。</p>
  *
- * <h2>Go 实录（{@code DataSourceJsonTest} 逐字节钉住）</h2>
+ * <h2>JSON 形状（{@code DataSourceJsonTest} 逐字节钉住）</h2>
  * <pre>
  *   DataSourceConfig{}            → {"type":"","credentials":null,"resource_ids":null,"settings":null}
  *   DataSourceConfig{Type:"rss"}  → {"type":"rss","credentials":null,"resource_ids":null,"settings":null}
  *   带全部字段                     → {"type":"feishu","credentials":{"app_id":"x","b":true,"n":1},
  *                                    "resource_ids":["r1","r2"],"settings":{"folder_token":"ft"}}
  * </pre>
- * <p><b>四个键全部恒输出</b>（§1.6），{@code multimodalEnabled} 一个键都不出。</p>
+ * <p><b>四个键全部恒输出</b>，{@code multimodalEnabled} 一个键都不出。</p>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>持久化语义</h2>
  * <ol>
  *   <li><b>钩子</b>：无。</li>
  *   <li><b>关联预加载</b>：无。</li>
@@ -40,15 +39,15 @@ import com.ragagent.common.crypto.CryptoService;
  *   <li><b>自动时间戳</b>：无。</li>
  * </ol>
  *
- * <h2>三条必须照抄的语义</h2>
+ * <h2>三条固定语义</h2>
  * <ol>
- *   <li><b>{@code MultimodalEnabled} 是 {@code json:"-"}，且从不落库</b>：它不是"响应里没有
- *       但库里还在"的那种——JSON 与 jsonb 是**同一个 {@code json.Marshal}**，
+ *   <li><b>{@code MultimodalEnabled} 不参与序列化、也从不落库</b>：它不是"响应里没有
+ *       但库里还在"的那种——JSON 与 jsonb 用的是同一套序列化，
  *       所以它两边都不出现。它是"每次同步前由 service 按目标知识库的 VLM 设置临时填上"的
  *       **运行期**字段。Java 侧 {@code @JsonIgnore}，不参与任何持久化。</li>
- *   <li><b>{@code Has*()} 方法在 Go 里是方法、不是字段</b>，故 Java 侧刻意**不加**
+ *   <li><b>{@code Has*()} 是方法、不是属性</b>：刻意**不加**
  *       {@code get}/{@code is} 前缀（叫 {@code hasCredentials()}），Jackson 便不会把它们
- *       当属性写进 JSON——这正是约定 §7.5 第 2 条要防的那类泄漏。</li>
+ *       当属性写进 JSON——防的就是这类无意识泄漏。</li>
  *   <li><b>{@code ToJSON} 的加密是浅拷贝</b>：只加密 Credentials 里**值为非空字符串**的项，
  *       其余（数字 / 布尔 / 嵌套对象）原样穿过；且绝不改动调用方的内存 map
  *       （否则后续的读会看见密文）。</li>
@@ -56,7 +55,7 @@ import com.ragagent.common.crypto.CryptoService;
  */
 public class DataSourceConfig {
 
-    /** 与 Go 的 {@code json.Marshal} 对齐的写出器（容忍未知属性，对照 json.Unmarshal）。 */
+    /** 共享写出器（容忍未知属性）。 */
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -67,7 +66,7 @@ public class DataSourceConfig {
      * （见 {@link #toJSON()}）；API 响应里整张 map 被剥离。
      *
      * <p>挂 {@link DataSourceMapSerializer} 而不是 {@code GoMapSerializer}：
-     * 连接器会把数字塞进这张表，而 map 值的 {@code Double} 格式也要按 Go 的编码器走。</p>
+     * 连接器会把数字塞进这张表，map 值的 {@code Double} 格式也要走同一套数字编码器。</p>
      */
     @JsonSerialize(using = DataSourceMapSerializer.class)
     private Map<String, Object> credentials;
@@ -102,9 +101,9 @@ public class DataSourceConfig {
 
     /**
      * ⚠️ 与 {@link #setMultimodalEnabled(boolean)} **成对**加 {@code @JsonIgnore}：
-     * 字段名 {@code multimodalEnabled} 与 getter {@code isMultimodalEnabled()} 的隐式属性名
-     * 一致（都叫 {@code multimodalEnabled}），本会合并成一个属性；但 Go 的 tag 是
-     * {@code json:"-"}，两侧都必须不输出——显式标掉最稳。
+     * 字段名与 getter {@code isMultimodalEnabled()} 的隐式属性名
+     * 一致（都叫 {@code multimodalEnabled}），会合并成一个属性，而该键两侧都必须不输出
+     * ——显式标掉最稳。
      */
     @JsonIgnore
     public boolean isMultimodalEnabled() { return multimodalEnabled; }
@@ -112,10 +111,10 @@ public class DataSourceConfig {
     @JsonIgnore
     public void setMultimodalEnabled(boolean v) { multimodalEnabled = v; }
 
-    // ── 业务方法（对照 Go 的三个方法） ─────────────────────────────────────
+    // ── 业务方法 ─────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code HasCredentials}：凭据 map 里到底有没有值。
+     * 凭据 map 里到底有没有值。
      * Update 路径与凭据子资源用它决定要不要跑一次真实的连接器校验。
      */
     @JsonIgnore
@@ -124,7 +123,7 @@ public class DataSourceConfig {
     }
 
     /**
-     * 对照 Go {@code HasConfiguredCredentials}：**用户可见的密钥**是否已配置。
+     * **用户可见的密钥**是否已配置。
      *
      * <p>RSS 的 feed URL 是非密钥配置（属于 settings）；对该连接器而言，
      * 只有 {@code auth_headers} 算凭据。所以 {@code auth_headers} 缺失、或只有空白，
@@ -146,15 +145,14 @@ public class DataSourceConfig {
     }
 
     /**
-     * 对照 Go {@code StripNonSecretCredentials}：落库前把**误存进** credentials
+     * 落库前把**误存进** credentials
      * 的非密钥项删掉。
      *
      * <p>RSS 的 {@code feed_urls} 历史上曾住在 credentials 里、现在归 settings；
-     * 清完若 map 空了就置为 {@code null}（Go 的 {@code d.Credentials = nil}）——
+     * 清完若 map 空了就置为 {@code null}——
      * 落库那一步会把它写成 SQL NULL，与"从未配过凭据"不可区分。</p>
      *
-     * <p>Go 的接收者是 {@code *DataSourceConfig}，首行判 {@code d == nil || d.Credentials == nil}
-     * 直接返回；Java 侧照抄这个 no-op（对 null 调用不抛）。</p>
+     * <p>credentials 为 {@code null} 时是 no-op（直接返回）。</p>
      */
     public void stripNonSecretCredentials(String connectorType) {
         if (credentials == null) {
@@ -169,19 +167,18 @@ public class DataSourceConfig {
     }
 
     /**
-     * 对照 Go {@code ToJSON}：把本对象转成写进 {@code DataSource.Config} 的 JSON。
+     * 把本对象转成写进 {@code DataSource.config} 的 JSON。
      *
      * <p>配了 {@code SYSTEM_AES_KEY} 时，Credentials 里**每个非空字符串值**先
      * AES-256-GCM 加密再序列化；非字符串值（数字 / 布尔 / 嵌套对象）原样穿过。
-     * 这是凭据抵达数据库的**唯一写路径**（Go 的 GORM {@code JSON} 类型本身只是字节透传），
-     * 所以在这里加密就足以让 {@code DataSource.Config} 落盘时整块是密文。</p>
+     * 这是凭据抵达数据库的**唯一写路径**，
+     * 所以在这里加密就足以让 {@code config} 列落盘时整块是密文。</p>
      *
      * <p>加密作用在 Credentials 的**浅拷贝**上，避免改到调用方的内存 map
      * ——否则后续的读会看见密文。</p>
      *
-     * <p><b>与 Go 的签名差异</b>：Go 读包级 env（{@code utils.GetAESKey()}），
-     * 所以 {@code ToJSON()} 无参。Java 侧用 {@code new CryptoService()}
-     * （无状态、只在调用时读 env）保持同样的无参签名——与
+     * <p>密钥经 {@code new CryptoService()} 读取（无状态、只在调用时读 env），
+     * 方法因此保持无参——与
      * {@code ModelParametersTypeHandler} 的默认构造器是同一处置。</p>
      *
      * @return 可赋给 {@code DataSource.config} 的 JSON；接收者为 null 时回 null
@@ -190,7 +187,7 @@ public class DataSourceConfig {
         CryptoService crypto = new CryptoService();
         byte[] key = crypto.getAESKey();
 
-        // 浅拷贝：绝不改调用方的 map（Go 的 out := *d + 逐项填）
+        // 浅拷贝：绝不改调用方的 map
         DataSourceConfig out = new DataSourceConfig();
         out.type = this.type;
         out.resourceIds = this.resourceIds;
@@ -217,11 +214,10 @@ public class DataSourceConfig {
     }
 
     /**
-     * 对照 Go 的 {@code json.Unmarshal(bytes, &config)}。
+     * 从 {@code config} 列的 JSON 反序列化。
      *
-     * <p>两态与 Go 一致：SQL NULL（{@code node == null}）→ Go 的
-     * {@code len(d.Config) == 0} 短路回 {@code null}；字面量 {@code null}
-     * （{@code NullNode}）→ {@code json.Unmarshal("null", &config)} **成功**且留下零值。</p>
+     * <p>两态：SQL NULL（{@code node == null}）→ 回 {@code null}；
+     * 字面量 {@code null}（{@code NullNode}）→ 回零值对象。</p>
      */
     public static DataSourceConfig fromJson(JsonNode node) {
         if (node == null) {

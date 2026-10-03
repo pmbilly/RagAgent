@@ -25,9 +25,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * MCP 连接池（对照 Go internal/mcp/manager.go 全文）。
+ * MCP 连接池。
  *
- * <p>五条必须保持的语义（Go 注释点名）：</p>
+ * <p>五条必须保持的语义：</p>
  * <ol>
  *   <li><b>按 cacheKey 复用</b>：OAuth 服务按 principal 隔离（每个身份用自己的 token），
  *       其余服务按 serviceId 共享一条连接；</li>
@@ -37,23 +37,19 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  *   <li><b>等待者可独立取消</b>：某个等待者取消不影响共享连接；</li>
  *   <li><b>CloseClient 退役 pending</b>：正在建连的尝试也要能被关掉，并把错误交给等待者。</li>
  * </ol>
- *
- * <p>与 Go 的映射：{@code sync.RWMutex} → {@link ReentrantReadWriteLock}；
- * {@code go m.connectClient(...)} → 虚拟线程；{@code context.WithCancel} →
- * {@link McpCancellation}；5 分钟一次的清理 goroutine → 守护调度线程。</p>
  */
 public final class McpClientManager {
 
     private static final Logger log = LoggerFactory.getLogger(McpClientManager.class);
 
-    /** 对照 Go cacheKey 的分隔符（"<serviceID>\x00<principal.storageID>"）。 */
+    /** cacheKey 的分隔符（"<serviceID>\0<principal.storageID>"）。 */
     private static final String KEY_SEPARATOR = "\0";
 
     private final Map<String, ManagedMcpClient> clients = new HashMap<>();
     private final Map<String, PendingConnection> connecting = new HashMap<>();
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final McpOAuthSupport oauthSupport;
-    /** 对照 Go 的 m.ctx/cancel：Shutdown 时级联取消所有连接生命周期。 */
+    /** manager 级取消信号：Shutdown 时级联取消所有连接生命周期。 */
     private final McpCancellation managerCancellation = new McpCancellation();
     private final ScheduledExecutorService idleCleaner;
 
@@ -71,7 +67,7 @@ public final class McpClientManager {
                 TimeUnit.MILLISECONDS);
     }
 
-    /** 连接中的在建尝试（对照 Go pendingMCPConnection）。 */
+    /** 连接中的在建尝试。 */
     private static final class PendingConnection {
         final CompletableFuture<Void> done = new CompletableFuture<>();
         final McpCancellation cancellation;
@@ -85,7 +81,7 @@ public final class McpClientManager {
         }
     }
 
-    /** 带生命周期的客户端包装（对照 Go managedMCPClient）：Disconnect 时连带取消 lifeCtx。 */
+    /** 带生命周期的客户端包装：Disconnect 时连带取消生命周期。 */
     private static final class ManagedMcpClient implements McpClient {
         private final McpClient delegate;
         private final McpCancellation cancellation;
@@ -154,7 +150,7 @@ public final class McpClientManager {
     // ------------------------------------------------------------------
 
     /**
-     * 取已有连接或新建连接（对照 Go {@code GetOrCreateClient}）。
+     * 取已有连接或新建连接。
      *
      * @param callerCtx 调用方上下文：取消/超时都只影响<b>本次等待</b>，不影响共享连接
      */
@@ -218,7 +214,7 @@ public final class McpClientManager {
             lock.writeLock().unlock();
         }
 
-        // 等待时绝不再持锁（对照 Go：无关服务不能因为一条慢连接被卡住）
+        // 等待时绝不再持锁：无关服务不能因为一条慢连接被卡住
         awaitPending(callerCtx, pending);
         if (pending.error != null) {
             throw pending.error;
@@ -226,7 +222,7 @@ public final class McpClientManager {
         return pending.client;
     }
 
-    /** 对照 Go 的 {@code select { case <-ctx.Done(): ...; case <-pending.done: ... }}。 */
+    /** 等待"调用方取消"与"建连完成"两者先到者。 */
     private void awaitPending(McpContext callerCtx, PendingConnection pending) {
         CompletableFuture<Void> caller = callerCtx.cancellation().future();
         Duration remaining = callerCtx.remaining();
@@ -256,18 +252,18 @@ public final class McpClientManager {
         }
     }
 
-    /** 对照 Go {@code connectClient}：建连 + initialize，跑在独立虚拟线程里。 */
+    /** 建连 + initialize，跑在独立虚拟线程里。 */
     private void connectClient(McpCancellation life, String key, McpClientConfig config, PendingConnection pending) {
         McpContext ctx = McpContext.cancellable(life);
-        // 取消 ⇒ 中断本线程：Go 侧 ctx 取消会让阻塞的 HTTP 调用立即返回，
-        // Java 的阻塞式 HttpClient.send 只能靠中断达到同样效果。
+        // 取消 ⇒ 中断本线程：阻塞的 HTTP 调用靠中断立即返回，
+        // 阻塞式 HttpClient.send 只能这样达到同样效果。
         life.onCancelInterrupt(Thread.currentThread());
 
         McpClient client = null;
         RuntimeException error = null;
         try {
             client = McpClientFactory.createClient(config);
-            // SSE 需要的是连接生命周期，而不是发起方这一轮的 deadline（对照 Go 注释）
+            // SSE 需要的是连接生命周期，而不是发起方这一轮的 deadline
             client.connect(ctx);
             initializeClient(ctx, config.service(), client);
         } catch (RuntimeException e) {
@@ -305,7 +301,7 @@ public final class McpClientManager {
         }
     }
 
-    /** 对照 Go {@code initializeClient}：初始化握手 + 超时封顶（默认 30s，最多 60s）。 */
+    /** 初始化握手 + 超时封顶（默认 30s，最多 60s）。 */
     private void initializeClient(McpContext lifeCtx, McpService service, McpClient client) {
         Duration initTimeout = McpProtocol.DEFAULT_TIMEOUT;
         if (service.getAdvancedConfig() != null && service.getAdvancedConfig().getTimeout() > 0) {
@@ -329,7 +325,7 @@ public final class McpClientManager {
     // 查询 / 关闭
     // ------------------------------------------------------------------
 
-    /** 对照 Go {@code GetClient}：只按"纯 serviceId"键查（OAuth 的按 principal 连接不在此列）。 */
+    /** 只按"纯 serviceId"键查（OAuth 的按 principal 连接不在此列）。 */
     public McpClient getClient(String serviceId) {
         lock.readLock().lock();
         try {
@@ -340,7 +336,7 @@ public final class McpClientManager {
     }
 
     /**
-     * 对照 Go {@code CloseClient}：关掉该服务的<b>所有</b>缓存连接（OAuth 下是每个 principal 一条），
+     * 关掉该服务的<b>所有</b>缓存连接（OAuth 下是每个 principal 一条），
      * 并退役仍在建连中的尝试（键前缀匹配 {@code "<serviceID>\x00"}）。
      */
     public void closeClient(String serviceId) {
@@ -369,7 +365,7 @@ public final class McpClientManager {
         }
     }
 
-    /** 对照 Go {@code CloseAll}。 */
+    /** 关闭全部连接与在建尝试。 */
     public void closeAll() {
         lock.writeLock().lock();
         try {
@@ -391,14 +387,14 @@ public final class McpClientManager {
         }
     }
 
-    /** 对照 Go {@code Shutdown}：先取消 manager 级 ctx（级联所有 lifeCtx），再关闭全部连接。 */
+    /** 先取消 manager 级取消信号（级联所有连接生命周期），再关闭全部连接。 */
     public void shutdown() {
         managerCancellation.cancel();
         closeAll();
         idleCleaner.shutdownNow();
     }
 
-    /** 对照 Go {@code removeDisconnectedClients}：清掉已断开的缓存条目。 */
+    /** 清掉已断开的缓存条目。 */
     void removeDisconnectedClients() {
         lock.writeLock().lock();
         try {
@@ -417,7 +413,7 @@ public final class McpClientManager {
         }
     }
 
-    /** 对照 Go {@code GetActiveClients}。 */
+    /** 当前活跃连接数。 */
     public int getActiveClients() {
         lock.readLock().lock();
         try {
@@ -433,7 +429,7 @@ public final class McpClientManager {
         }
     }
 
-    /** 对照 Go {@code ListActiveServices}。 */
+    /** 当前活跃连接的键列表。 */
     public List<String> listActiveServices() {
         lock.readLock().lock();
         try {
@@ -449,7 +445,7 @@ public final class McpClientManager {
         }
     }
 
-    /** 测试可见：当前在建连接数（对照 Go 直接读 m.connecting）。 */
+    /** 测试可见：当前在建连接数。 */
     int pendingCount() {
         lock.readLock().lock();
         try {
@@ -463,7 +459,7 @@ public final class McpClientManager {
     // 内部工具
     // ------------------------------------------------------------------
 
-    /** 对照 Go {@code cacheKey}。 */
+    /** 缓存键：OAuth 服务按 principal 隔离，其余按 serviceId。 */
     static String cacheKey(McpService service, TenantContext.Principal principal) {
         if (McpClientFactory.isOAuth(service)) {
             return service.getId() + KEY_SEPARATOR + storageId(principal);
@@ -475,7 +471,7 @@ public final class McpClientManager {
         return key.equals(serviceId) || key.startsWith(serviceId + KEY_SEPARATOR);
     }
 
-    /** 对照 Go {@code principal.Normalize()...StorageID()}（"type:id"）。 */
+    /** principal 的存储标识（"type:id"）。 */
     static String storageId(TenantContext.Principal principal) {
         TenantContext.Principal normalized = normalize(principal);
         if (!valid(normalized)) {
@@ -497,7 +493,7 @@ public final class McpClientManager {
     }
 
     /**
-     * 对照 Go {@code MCPOAuthPrincipalFromContext}：embed 会话在有 X-Embed-Visitor 时
+     * embed 会话在有 X-Embed-Visitor 时
      * 下沉到"访客"主体，让同一会话里的不同访客各自持 token。
      */
     private static TenantContext.Principal oauthPrincipal() {
@@ -515,7 +511,7 @@ public final class McpClientManager {
         return new TenantContext.Principal(TenantContext.PrincipalTypes.EMBED_VISITOR, visitorId);
     }
 
-    /** 对照 Go 的 {@code service.UpdatedAt}（time.Time 的 Equal 语义 = 比瞬时，不比时区）。 */
+    /** 服务版本号 = updatedAt 的瞬时值（比瞬时，不比时区）。 */
     private static Instant versionOf(McpService service) {
         OffsetDateTime updatedAt = service.getUpdatedAt();
         return updatedAt == null ? null : updatedAt.toInstant();

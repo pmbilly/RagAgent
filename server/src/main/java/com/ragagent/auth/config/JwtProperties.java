@@ -3,7 +3,7 @@ package com.ragagent.auth.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * JWT 签名密钥的部署配置（B6 批 7）。
+ * JWT 签名密钥的部署配置。
  *
  * <p>env 名保持原样：{@code JWT_SECRET} → {@code jwt.secret}（Spring 松散绑定）。</p>
  *

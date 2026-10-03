@@ -12,8 +12,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * mcp_oauth_tokens 仓储语句（对照 Go mcpOAuthRepository 的 token 部分，
- * internal/application/repository/mcp_oauth.go:57-190）。
+ * mcp_oauth_tokens 仓储语句。
  *
  * <p><b>principal 隔离</b>：唯一键
  * (tenant_id, principal_type, principal_id, service_id)，
@@ -21,8 +20,8 @@ import org.apache.ibatis.annotations.Update;
  *
  * <p><b>refresh 租约 CAS</b>：TryAcquire 是「条带式单所有者」语义——
  * 只有 {@code refresh_lease_until IS NULL OR < now} 的行才能被抢占，
- * 返回值以受影响行数 == 1 判定（0 行 = 未抢到/行不存在），这正是 Go 的
- * {@code result.RowsAffected == 1}。<b>不能用「读-改-写」代替</b>，那会让两个实例同时成为所有者。</p>
+ * 返回值以受影响行数 == 1 判定（0 行 = 未抢到/行不存在）。
+ * <b>不能用「读-改-写」代替</b>，那会让两个实例同时成为所有者。</p>
  */
 @Mapper
 public interface McpOAuthTokenMapper extends BaseMapper<McpOAuthToken> {
@@ -92,7 +91,7 @@ public interface McpOAuthTokenMapper extends BaseMapper<McpOAuthToken> {
 
     /**
      * 对照 ReleaseTokenRefreshLease：只有仍持有 leaseId 的调用者能释放
-     * （release_lease_id = 空串、until = NULL，与 Go 的 map 值一致）。
+     * （release_lease_id 置回空串、until 置 NULL）。
      */
     @Update("UPDATE mcp_oauth_tokens SET refresh_lease_id = '', refresh_lease_until = NULL "
             + "WHERE tenant_id = #{tenantId} AND principal_type = #{principalType} "

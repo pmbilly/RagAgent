@@ -1,14 +1,13 @@
 package com.ragagent.datasource.domain;
 
 /**
- * 子树子项的 external_id 构造规则（对照 Go {@code SubtreeChildID} /
- * {@code SubtreeChildPrefix}，internal/types/datasource.go L392-402）。
+ * 子树子项的 external_id 构造规则。
  *
  * <h2>为什么是独立的一个类而不是 {@link FetchedItem} 上的方法</h2>
- * <p>Go 里这两个是**包级函数**，产出方（连接器）与消费方（子树清扫，
- * {@code FindByMetadataKeyPrefix}）分别 import 它们——它描述的是
+ * <p>产出方（连接器）与消费方（子树清扫，
+ * {@code FindByMetadataKeyPrefix}）都要用它——它描述的是
  * **跨模块的 id 契约**，不属于任何一侧。挂在 {@link FetchedItem} 上会让
- * "清扫方"为了拿前缀而去依赖产出方的类型，正是 Go 刻意避开的耦合。</p>
+ * "清扫方"为了拿前缀而去依赖产出方的类型，正是要避开的耦合。</p>
  *
  * <h2>契约</h2>
  * <pre>
@@ -26,7 +25,7 @@ public final class SubtreeChildIds {
     }
 
     /**
-     * 对照 Go {@code SubtreeChildID}。
+     * 构造一个子项的 external_id。
      *
      * @param parentExternalID 父节点的 external_id
      * @param kind             短判别串（{@code "file"} / {@code "image"}）
@@ -38,7 +37,7 @@ public final class SubtreeChildIds {
     }
 
     /**
-     * 对照 Go {@code SubtreeChildPrefix}：匹配某个父节点**全部**子项的 external_id 前缀。
+     * 匹配某个父节点**全部**子项的 external_id 前缀。
      */
     public static String subtreeChildPrefix(String parentExternalID) {
         return parentExternalID + "#";

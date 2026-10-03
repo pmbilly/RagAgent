@@ -1,8 +1,8 @@
 package com.ragagent.chatpipeline.support;
 
 /**
- * 匹配类型常量（对照 Go {@code types.MatchType} int 枚举，internal/types/embedding.go:13-27）。
- * Java 的 {@code retrieval.domain.SearchResult.matchType} 是 int，常量按 Go 的 iota 值。
+ * 匹配类型常量（int 枚举）。
+ * {@code com.ragagent.common.retrieval.SearchResult.matchType} 为 int，常量值即其取值。
  */
 public final class MatchTypes {
 

@@ -8,10 +8,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Anthropic Messages 请求体（对照 Go chat.anthropicRequest，
- * internal/models/chat/anthropic.go:49-59）。
+ * Anthropic Messages 请求体。
  *
- * <p><b>字段序 = Go 声明序</b>：model, max_tokens, stream, system, messages,
+ * <p><b>JSON 字段序 = 声明序</b>：model, max_tokens, stream, system, messages,
  * temperature, top_p, tools, tool_choice。</p>
  *
  * <p>omitempty 语义逐条对齐：</p>
@@ -72,7 +71,7 @@ public class AnthropicRequest {
     public AnthropicToolChoice getToolChoice() { return toolChoice; }
     public void setToolChoice(AnthropicToolChoice v) { toolChoice = v; }
 
-    /** 对照 Go 的 {@code req.Tools = append(req.Tools, ...)}。 */
+    /** 追加工具定义。 */
     public void addTool(AnthropicTool tool) {
         if (tools == null) {
             tools = new ArrayList<>();

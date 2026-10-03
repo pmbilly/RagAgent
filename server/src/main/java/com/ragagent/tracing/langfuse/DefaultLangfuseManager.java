@@ -4,13 +4,12 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * langfuse 真实实现（对照 Go manager.go 的 Manager + tracer.go 的
- * Trace/Span/Generation 句柄族）。
+ * langfuse 真实实现。
  *
  * <p>生命周期：构造即建导出链路（{@link OtlpHttpExporter} +
  * {@link BatchSpanProcessor}）；{@code shutdown} 终刷并停用（重复调用幂等）。</p>
  *
- * <p>句柄语义照 Go：trace 的 Finish 合并开启期 metadata；span/generation 的
+ * <p>句柄语义：trace 的 Finish 合并开启期 metadata；span/generation 的
  * Finish 追加 output/usage、非空 err 记 ERROR（exception 事件 + Status）；span 若
  * 隐式开过自动根（autoTrace），Finish 时连根一起结束（否则根永不出导）。</p>
  */
@@ -25,7 +24,7 @@ final class DefaultLangfuseManager implements LangfuseManager {
         this(cfg, new OtlpHttpExporter(cfg)::export);
     }
 
-    /** 测试专用：注入记录出口（对照 Go Config.testExporter + SimpleSpanProcessor 的同步语义）。 */
+    /** 测试专用：注入记录出口（同步导出语义）。 */
     DefaultLangfuseManager(LangfuseConfig cfg, BatchSpanProcessor.SpanSink sink) {
         this.cfg = cfg;
         // 同步导出：测试断言依赖 "Finish 即已导出" 的确定性（生产构造器走后台导出线程）
@@ -37,7 +36,7 @@ final class DefaultLangfuseManager implements LangfuseManager {
         return !closed;
     }
 
-    /** 对照 Manager.Shutdown（由 LangfuseRegistry 调用）。 */
+    /** 由 LangfuseRegistry 调用。 */
     void shutdown() {
         if (closed) {
             return;
@@ -53,8 +52,8 @@ final class DefaultLangfuseManager implements LangfuseManager {
         if (!enabled()) {
             return NoopLangfuseManager.NOOP_TRACE;
         }
-        // 父继承：OTel 的 tracer.Start(ctx) 语义——ctx 携带远端 span context（traceparent
-        // 提取）或活跃 span 时，根 span 继承其 trace id / 父 span id；否则开新 trace。
+        // 父继承：线程上下文携带远端 span context（traceparent 提取）或活跃
+        // span 时，根 span 继承其 trace id / 父 span id；否则开新 trace。
         RecordedSpan span = newSpan(opts.name(), LangfuseContext.current());
         span.putAttribute(LangfuseAttributes.ATTR_OBS_TYPE, LangfuseAttributes.OBS_TYPE_TRACE);
         if (!LangfuseAttributes.isEmpty(opts.name())) {
@@ -66,7 +65,7 @@ final class DefaultLangfuseManager implements LangfuseManager {
         if (!LangfuseAttributes.isEmpty(opts.sessionId())) {
             span.putAttribute(LangfuseAttributes.ATTR_SESSION_ID, opts.sessionId());
         }
-        // environment/release：观测级覆盖配置级（照 Go 的 firstNonEmpty 语义）
+        // environment/release：观测级覆盖配置级（非空优先）
         String environment = LangfuseAttributes.isEmpty(opts.environment())
                 ? cfg.environment() : opts.environment();
         if (!LangfuseAttributes.isEmpty(environment)) {
@@ -108,7 +107,7 @@ final class DefaultLangfuseManager implements LangfuseManager {
         }
         LangfuseContext.push(new LangfuseContext.Frame(traceIdHex, parentSpan));
         LangfuseContext.markTrace();
-        // 根归上游所有：句柄无自有 span（Go 的 span==nil → Finish 为 no-op）
+        // 根归上游所有：句柄无自有 span（Finish 为 no-op）
         return new TraceHandle(null, null, traceIdHex);
     }
 
@@ -162,7 +161,7 @@ final class DefaultLangfuseManager implements LangfuseManager {
         span.putAttribute(LangfuseAttributes.ATTR_OBS_MODEL_PARAMS,
                 LangfuseAttributes.jsonAttrValue(opts.modelParameters()));
         // generation 是叶子观测，不入帧栈：本项目调用点均把生成结果直接消费，
-        // 不在其上下文里派生兄弟观测（Go 各 models/*/langfuse_wrapper.go 同形）。
+        // 不在其上下文里派生兄弟观测。
         return new GenerationHandle(span, autoTrace);
     }
 
@@ -187,14 +186,14 @@ final class DefaultLangfuseManager implements LangfuseManager {
         return now.getEpochSecond() * 1_000_000_000L + now.getNano();
     }
 
-    /** 收口：定稿结束时刻 → 出栈 → 入队（对照 OTel SDK 的 End → OnEnd）。 */
+    /** 收口：定稿结束时刻 → 出栈 → 入队（对应 OTel 的 End → OnEnd 时序）。 */
     private void record(RecordedSpan span) {
         span.endNanos = epochNanos();
         LangfuseContext.pop(frameOf(span));
         processor.enqueue(span);
     }
 
-    /** Trace 句柄（对照 tracer.go 的 Trace；resume 场景 span==null，Finish 为 no-op）。 */
+    /** Trace 句柄（resume 场景 span==null，Finish 为 no-op）。 */
     private final class TraceHandle implements Trace {
 
         private final RecordedSpan span;
@@ -231,7 +230,7 @@ final class DefaultLangfuseManager implements LangfuseManager {
         }
     }
 
-    /** Span 句柄（对照 tracer.go 的 Span）。 */
+    /** Span 句柄。 */
     private final class SpanHandle implements Span {
 
         private final RecordedSpan span;
@@ -272,7 +271,7 @@ final class DefaultLangfuseManager implements LangfuseManager {
         }
     }
 
-    /** Generation 句柄（对照 tracer.go 的 Generation）。 */
+    /** Generation 句柄。 */
     private final class GenerationHandle implements Generation {
 
         private final RecordedSpan span;

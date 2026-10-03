@@ -13,7 +13,7 @@ import com.ragagent.common.llm.ToolResult;
 import com.ragagent.llm.domain.ChatMessage;
 
 /**
- * 工具图片注入的 Go 实录断言（/tmp/wave42rec + tool_images_test.go 场景）：
+ * 工具图片注入的录制常量断言：
  * 图片跟在全部工具回复之后、视觉模型直挂 user 消息、无视觉模型时提示词落回
  * 对应 tool 消息、描述成功/失败/空白三种描述器行为。
  */

@@ -32,7 +32,7 @@ import com.ragagent.datasource.domain.Resource;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * 飞书 wiki 连接器（对照 Go {@code feishu/wiki/connector.go} 全文）。
+ * 飞书 wiki 连接器。
  *
  * <p>同一份代码同时服务飞书与 Lark：两朵云的 wiki/docx/drive API 面<b>完全一致</b>，
  * 由 {@link FeishuRegion} 选云。</p>
@@ -48,7 +48,7 @@ import com.ragagent.datasource.domain.SyncCursor;
  *   parentId == "spaceID:nodeToken"   → 该节点的直接子节点
  * </pre>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库行为清单</h2>
  * <ol>
  *   <li>钩子 / 关联预加载 / 软删除 / 默认排序 / 唯一索引 / 自动时间戳：<b>全无</b>——
  *       本连接器不碰数据库，只与飞书 API 和领域对象打交道。</li>
@@ -60,7 +60,7 @@ public class WikiConnector implements StreamingConnector {
 
     private final FeishuRegion region;
 
-    /** 对照 Go {@code NewConnector(region)}。 */
+    /** @param region 部署区域（决定 connector type 与 URL host）。 */
     public WikiConnector(FeishuRegion region) {
         this.region = region;
     }
@@ -69,13 +69,13 @@ public class WikiConnector implements StreamingConnector {
         return region;
     }
 
-    /** 对照 Go {@code Type()}。 */
+    /** 连接器类型（feishu / lark）。 */
     @Override
     public String type() {
         return region.connectorType();
     }
 
-    /** 对照 Go {@code Validate}：真实连一次飞书验活。 */
+    /** 真实连一次飞书验活。 */
     @Override
     public void validate(DataSourceConfig config) {
         FeishuConfig feishuConfig = FeishuSupport.parseFeishuConfig(config, region);
@@ -83,13 +83,12 @@ public class WikiConnector implements StreamingConnector {
         try {
             client.ping();
         } catch (RuntimeException e) {
-            // 对照 fmt.Errorf("feishu connection failed: %w", err)
             throw new ConnectorException("feishu connection failed: " + messageOf(e), e);
         }
     }
 
     /**
-     * 对照 Go {@code ListResources}：给选择器列出可同步的资源，
+     * 给选择器列出可同步的资源，
      * <b>一次只加载一层</b>，避免提前遍历整棵 wiki。
      */
     @Override
@@ -144,11 +143,11 @@ public class WikiConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code ResolveResourceAncestors}：返回"为了让惰性选择器展开到某个
+     * 返回"为了让惰性选择器展开到某个
      * 已存在的选中项、必须去加载其直接子项"的全部祖先资源 ID。
      *
      * <p>对一个选中的 {@code "spaceID:nodeToken"}，就是它的空间加上树上每一级中间节点；
-     * 上溯走 {@code GetWikiNode}（{@code parent_node_token}），每个选中项 O(depth)，
+     * 上溯走单节点查询（{@code parent_node_token}），每个选中项 O(depth)，
      * 因此永远不会重新遍历整棵 wiki。</p>
      */
     @Override
@@ -200,7 +199,7 @@ public class WikiConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code FetchAll}：全量同步指定 wiki 空间下的全部文档。
+     * 全量同步指定 wiki 空间下的全部文档。
      *
      * <p>是防御性回落路径——连接器实现了 {@link StreamingConnector}，
      * service 会优先调 {@link #fetchStream}。</p>
@@ -213,10 +212,9 @@ public class WikiConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code FetchIncremental}：对比节点编辑时间与上次记录做增量同步。
+     * 对比节点编辑时间与上次记录做增量同步。
      *
-     * <p>同样路由到共享引擎，所以 "#2136：失败不推进游标" 的语义在这里也成立
-     * （此前这条路径在抓取<b>之前</b>就推进游标，是个潜伏的 #2136 bug）。</p>
+     * <p>同样路由到共享引擎，所以 "#2136：失败不推进游标" 的语义在这里也成立。</p>
      */
     @Override
     public FetchIncrementalResult fetchIncremental(DataSourceConfig config, SyncCursor cursor) {
@@ -230,7 +228,7 @@ public class WikiConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code FetchStream}：可续跑、内存有界的同步。
+     * 可续跑、内存有界的同步。
      *
      * <p>把全量与增量统一成一条路径：{@code cursor == null} 时抓全部，有游标时跳过
      * 编辑时间未变的节点——正是这套机制让"遍历中途超时的同步"能从最后一个检查点续跑，
@@ -252,8 +250,8 @@ public class WikiConnector implements StreamingConnector {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code wikiOps}：携带 region（用于渲染 URL），并负责
-     * 编解码 wiki 的游标线格式（{@code core.FeishuCursor / space_node_times}），
+     * 携带 region（用于渲染 URL），并负责
+     * 编解码 wiki 的游标线格式（{@code space_node_times}），
      * 让引擎保持格式无关。
      */
     static final class WikiOps implements SyncEngine.NodeOps<WikiNode> {
@@ -271,7 +269,7 @@ public class WikiConnector implements StreamingConnector {
                 List<WikiNode> nodes = client.listWikiNodesRecursiveFrom(parts[0], parts[1]);
                 return SyncEngine.NodeOps.ListResult.ok(nodes);
             } catch (PartialWikiNodeListException partial) {
-                // 部分列举：nodes 仍可用；失败的子树经 ListFailureItems 暴露，同步继续。
+                // 部分列举：nodes 仍可用；失败的子树经 listFailureItems 暴露，同步继续。
                 return SyncEngine.NodeOps.ListResult.partial(partial.getNodes(), partial);
             } catch (RuntimeException err) {
                 return SyncEngine.NodeOps.ListResult.failed(err);
@@ -340,16 +338,15 @@ public class WikiConnector implements StreamingConnector {
         }
 
         /**
-         * 对照 Go {@code wikiOps.DecodeCursorTimes}：JSON 往返（Go 是
-         * {@code json.Marshal} + {@code json.Unmarshal} 进 {@code core.FeishuCursor}）。
-         * Java 侧直接从 map 里取 {@code space_node_times}，语义等价。
+         * 从持久化的 cursor map 里取 {@code space_node_times}
+         * （缺席时 {@code null}）。
          */
         @Override
         public Map<String, Map<String, String>> decodeCursorTimes(Map<String, Object> connectorCursor) {
             return FeishuCursorCodec.decodeSpaceNodeTimes(connectorCursor);
         }
 
-        /** 对照 Go {@code wikiOps.EncodeCursor}。 */
+        /** 编码 wiki 游标。 */
         @Override
         public SyncCursor encodeCursor(Map<String, Map<String, String>> times, OffsetDateTime lastSync) {
             return FeishuCursorCodec.encodeSpaceNodeTimes(times, lastSync);
@@ -361,7 +358,7 @@ public class WikiConnector implements StreamingConnector {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code fetchNodeContent}：抓一个 wiki 节点的内容并转成 FetchedItem 列表。
+     * 抓一个 wiki 节点的内容并转成 FetchedItem 列表。
      *
      * <p>docx 节点会扇出成"主 Markdown 文档 + 可选附件子项"。按 obj_type 派发：</p>
      * <ul>
@@ -419,7 +416,7 @@ public class WikiConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code fetchViaExport}：经异步导出 API 导出 doc/sheet/bitable 节点，
+     * 经异步导出 API 导出 doc/sheet/bitable 节点，
      * 返回单个承载导出二进制的 FetchedItem。
      */
     private static FetchedItem fetchViaExport(FeishuClient client, WikiNode node, String resourceId,
@@ -458,7 +455,7 @@ public class WikiConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code fetchDriveFile}：从云盘下载用户上传的原始文件，
+     * 从云盘下载用户上传的原始文件，
      * 返回单个承载原始字节的 FetchedItem。
      */
     private static FetchedItem fetchDriveFile(FeishuClient client, WikiNode node, String resourceId,
@@ -492,11 +489,11 @@ public class WikiConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code contentEditTime}：文档最后一次<b>内容</b>编辑时间
+     * 文档最后一次<b>内容</b>编辑时间
      * （{@code obj_edit_time}），飞书省略时回落到节点属性编辑时间。
      *
      * <p>它才是 ingestion 持久化为 {@code source_updated_at} 的值；只用
-     * {@code NodeEditTime} 会在重命名或树上移动（内容没变）时就变动。</p>
+     * {@code node_edit_time} 会在重命名或树上移动（内容没变）时就变动。</p>
      */
     static OffsetDateTime contentEditTime(WikiNode node) {
         OffsetDateTime t = FeishuSupport.parseFeishuTimestamp(node.getObjEditTime());
@@ -506,7 +503,7 @@ public class WikiConnector implements StreamingConnector {
         return FeishuSupport.orGoZero(FeishuSupport.parseFeishuTimestamp(node.getNodeEditTime()));
     }
 
-    /** 对照 Go {@code contentCreateTime}：{@code obj_create_time}，回落 {@code node_create_time}。 */
+    /** {@code obj_create_time}，回落 {@code node_create_time}。 */
     static OffsetDateTime contentCreateTime(WikiNode node) {
         OffsetDateTime t = FeishuSupport.parseFeishuTimestamp(node.getObjCreateTime());
         if (t != null) {
@@ -519,17 +516,17 @@ public class WikiConnector implements StreamingConnector {
     // 辅助函数
     // ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code makeWikiNodeResourceID}。 */
+    /** 拼 {@code "spaceID:nodeToken"} 形式的资源 ID。 */
     static String makeWikiNodeResourceId(String spaceId, String nodeToken) {
         return spaceId + FeishuSupport.FEISHU_WIKI_NODE_RESOURCE_SEPARATOR + nodeToken;
     }
 
-    /** 对照 Go {@code parseWikiResourceID}：在<b>第一个</b>冒号处切分。 */
+    /** 在<b>第一个</b>冒号处切分。 */
     static String[] parseWikiResourceId(String resourceId) {
         return FeishuSupport.cut(resourceId, FeishuSupport.FEISHU_WIKI_NODE_RESOURCE_SEPARATOR);
     }
 
-    /** 对照 Go {@code (*Connector).wikiNodeToResource}。 */
+    /** 把列表结果里的一个节点转成选择器 Resource。 */
     Resource wikiNodeToResource(String spaceId, WikiNode node) {
         String parentId;
         if (node.getParentNodeId().isEmpty()) {
@@ -566,7 +563,7 @@ public class WikiConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code appendWikiNodeListFailureItems}：把列举失败的子树转成<b>错误条目</b>，
+     * 把列举失败的子树转成<b>错误条目</b>，
      * 让同步日志能指出哪些子树没列成（而不是静默丢弃）。
      */
     static List<FetchedItem> appendWikiNodeListFailureItems(List<FetchedItem> items, String spaceId,

@@ -16,16 +16,13 @@ import com.ragagent.common.wiki.WikiImageMarkup;
 import com.ragagent.wiki.service.page.WikiTextUtils;
 
 /**
- * wiki ingest 的纯文本工具对等测试（对照 Go wiki_ingest_test.go 的
- * {@code TestSlugify} / {@code TestTruncateString} / {@code TestAppendUnique} /
- * {@code TestReconstructContent*} / {@code TestStripImageMarkup} /
- * {@code TestHasSufficientTextContent} / {@code TestMaskImageURLs} /
- * {@code TestUnmaskImageURLsDropsUnknownPlaceholders}）。
+ * wiki ingest 的纯文本工具测试（slugify / 截断 / 去重追加 /
+ * 内容重建 / 图片标记剥离 / 文本充分性 / 图片 URL 掩码与还原）。
  */
 class WikiIngestTextUtilsTest {
 
     // ═══════════════════════════════════════════════════════════════
-    // TestSlugify（Go L17-43）
+    // slugify
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -57,7 +54,7 @@ class WikiIngestTextUtilsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestTruncateString（Go L45-67）
+    // truncateString
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -73,7 +70,7 @@ class WikiIngestTextUtilsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestAppendUnique（Go L69-83）
+    // appendUnique
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -87,7 +84,7 @@ class WikiIngestTextUtilsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestReconstructContent（Go L85-116）
+    // 内容重建
     // ═══════════════════════════════════════════════════════════════
 
     private static Chunk chunk(int index, String type, String content) {
@@ -140,7 +137,7 @@ class WikiIngestTextUtilsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestStripImageMarkup（Go L118-160）
+    // 图片标记剥离
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -175,7 +172,7 @@ class WikiIngestTextUtilsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestHasSufficientTextContent（Go L162-211）
+    // 文本充分性判定
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -210,7 +207,7 @@ class WikiIngestTextUtilsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestMaskImageURLs（Go L213-289）
+    // 图片 URL 掩码
     // ═══════════════════════════════════════════════════════════════
 
     static final String URL_A = "minio://kb/10000/exports/4135-aaaa-bbbb-cccc/page_1.jpg";
@@ -275,7 +272,7 @@ class WikiIngestTextUtilsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestUnmaskImageURLsDropsUnknownPlaceholders（Go L291-302）
+    // 掩码还原丢弃未知占位符
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -293,7 +290,7 @@ class WikiIngestTextUtilsTest {
 
     // ═══════════════════════════════════════════════════════════════
     // 补充：cleanLLMJSON / sanitizeJSONString / splitSummaryLine / 预览
-    //（Go 侧没有独立用例，但它们是 map/reduce 的输入清洗路径）
+    //（map/reduce 的输入清洗路径）
     // ═══════════════════════════════════════════════════════════════
 
     @Nested

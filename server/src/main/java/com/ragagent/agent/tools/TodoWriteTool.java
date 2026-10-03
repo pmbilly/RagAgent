@@ -47,7 +47,7 @@ public class TodoWriteTool extends BaseTool {
     }
 
     // description 字面量过长（7247 字节）；这段是发给模型提示词的一部分，
-    // 逐字节契约由 schema 承担，全文照抄如下。
+    // 逐字节契约由 schema 承担，原文如下。
     private static final String TOOL_DESCRIPTION = """
             Use this tool to create and manage a structured task list for retrieval and research tasks. This helps you track progress, organize complex retrieval operations, and demonstrate thoroughness to the user.
 
@@ -205,7 +205,7 @@ public class TodoWriteTool extends BaseTool {
         return result;
     }
 
-    /** 解析入参：steps 缺省/为 null → null（序列化输出 null，不是 []——实录 R_TODO_NO_STEPS 钉死）。 */
+    /** 解析入参：steps 缺省/为 null → null（序列化输出 null，不是 []——行为钉死）。 */
     private static List<PlanStep> parseSteps(JsonNode stepsNode) {
         if (stepsNode == null || stepsNode.isNull()) {
             return null;

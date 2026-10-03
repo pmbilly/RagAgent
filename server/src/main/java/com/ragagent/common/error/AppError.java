@@ -3,10 +3,9 @@ package com.ragagent.common.error;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * 对照 Go internal/errors/errors.go 的 AppError。
- * 全局错误响应形态（Go middleware/error_handler.go）：
+ * 全局错误响应形态：
  * {"success": false, "error": {"code": N, "message": "...", "details": ...}}
- * 注意 details 即使为 null 也输出（Go gin.H 无 omitempty），故此处用 ALWAYS。
+ * 注意 details 即使为 null 也输出，故此处用 ALWAYS。
  */
 @JsonInclude(JsonInclude.Include.ALWAYS)
 public record AppError(int code, String message, Object details, int httpCode) {

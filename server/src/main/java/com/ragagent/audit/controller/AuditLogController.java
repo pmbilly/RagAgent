@@ -20,20 +20,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 审计日志端点（对照 Go internal/handler/audit_log.go 整个文件）。
+ * 审计日志端点。
  *
- * <h2>三个端点与 Go 的路由矩阵</h2>
+ * <h2>三个端点与守卫矩阵</h2>
  * <ul>
  *   <li>{@code GET /api/v1/tenants/{id}/audit-log} — 空间审计流。
- *       Go 挂在 {@code tenantByID} 组下，守卫 {@code PathTenantMatch} + {@code g.Admin()}
- *       （routes_auth_tenant.go L143-146）。<b>Admin+ 是刻意的</b>：拒绝历史不该让普通成员看到。</li>
+ *       守卫为租户匹配 + Admin+。<b>Admin+ 是刻意的</b>：拒绝历史不该让普通成员看到。</li>
  *   <li>{@code GET /api/v1/knowledge-bases/{id}/activity} — 单个知识库的活动投影。
- *       Go 守卫 {@code OwnedKBOrAdmin} + {@code KBAccessRead("id")}，
- *       <b>刻意只对 JWT 开放</b>（没有任何工作区 API-Key 能力授予审计读取，
- *       routes_knowledge.go L249-257）。</li>
+ *       守卫为 KB 归属/创建者或 Admin + KB 读权限，<b>刻意只对 JWT 开放</b>
+ *       （没有任何工作区 API-Key 能力授予审计读取）。</li>
  *   <li>{@code GET /api/v1/system/admin/audit-log} — 平台流（{@code tenant_id=0} 的行）。
- *       Go 挂在 {@code /system/admin} 组，组级守卫 {@code SystemAdmin()}，
- *       外加 API-Key 能力 {@code system_audit_read}（routes_auth_tenant.go L341-343）。
+ *       组级守卫 SystemAdmin，外加 API-Key 能力 {@code system_audit_read}。
  *       这条路由<b>不是</b>租户作用域的——system_settings 变更、管理员升/降级、
  *       配额批量写都写 tenant_id=0 的审计行，租户流永远看不到它们。</li>
  * </ul>
@@ -62,7 +59,7 @@ public class AuditLogController {
     // ── 空间审计流 ───────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code ListTenantAuditLog}（L53-107）。
+     * 空间审计流。
      *
      * <p>游标与页大小的解析是<b>容错</b>的：非法值一律当成"从最新开始"，
      * 免得配错的客户端在空请求/首页请求上直接吃 400。更严的校验属于前端。</p>
@@ -94,26 +91,20 @@ public class AuditLogController {
     // ── 知识库活动流 ─────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code ListKnowledgeBaseActivity}（L127-170）：单个知识库的 durable 活动投影。
+     * 单个知识库的 durable 活动投影。
      *
      * <p>路由侧已经解析过 KB 访问权；本方法补一道<b>归属空间</b>检查，
      * 让组织级共享的消费方无法窥探源工作空间的 actor 与配置历史。</p>
      *
-     * <h2>三层判定（顺序即 Go 的实际生效顺序）</h2>
+     * <h2>三层判定（顺序即生效顺序）</h2>
      * <ol>
-     *   <li><b>KB 不存在</b> → 404 AppError 信封 {@code knowledge base not found}
-     *       （对照 Go handler L131-134）。</li>
+     *   <li><b>KB 不存在</b> → 404 AppError 信封 {@code knowledge base not found}。</li>
      *   <li><b>调用方租户 ≠ KB 归属租户</b> → 403 AppError 信封
-     *       {@code knowledge base activity is only available in the owner workspace}
-     *       （对照 Go handler L135-139）。</li>
+     *       {@code knowledge base activity is only available in the owner workspace}。</li>
      *   <li><b>既不是创建者、角色又低于 Admin</b> → 403 <b>路由守卫形态</b>
      *       {@code {"error":"Forbidden: must own the resource or have the required role"}}
-     *       ——这一条对应 Go 中间件链里的 {@code g.OwnedKBOrAdmin()}，它<b>先于</b>
-     *       handler 执行，所以线上看到的是守卫形态。（{@code 2026-09-18} 对运行中的
-     *       Go dev server 实测确认：viewer 读他人 KB 的活动流返回的正是这条纯字符串。）
-     *       <br>Go handler 内部另有一条<b>不可达</b>的同义检查（L142-145，文案
-     *       {@code knowledge base activity requires creator or admin access}，
-     *       AppError 信封）——中间件已先拒，这里不再复刻死代码。</li>
+     *       ——该判定先于业务处理执行，客户端看到的是守卫形态字符串
+     *       （处理器内部不再重复同义检查）。</li>
      * </ol>
      */
     @GetMapping("/api/v1/knowledge-bases/{id}/activity")
@@ -125,9 +116,9 @@ public class AuditLogController {
             @RequestParam(value = "outcome", required = false) String outcome,
             @RequestParam(value = "actor", required = false) String actor) {
 
-        // 对照中间件 KBAccessRead 解析出的 access.KnowledgeBase（本租户 + 未删除）。
-        // ⚠️ 共享空间（kb_shares）尚未翻译 → 跨租户的 KB 在这里直接落 404，
-        // 与 Go 在共享场景下的 403 存在差异（见报告）。
+        // KB 事实解析覆盖本租户 + 未删除。
+        // ⚠️ 共享空间（kb_shares）能力未接入 → 跨租户的 KB 在这里直接落 404
+        // （共享场景语义上是 403，暂缺）。
         KnowledgeBaseFacts kb = knowledgeBaseGateway.findFacts(kbId);
         if (kb == null) {
             throw new BizException(AppError.notFound("knowledge base not found"));
@@ -145,8 +136,7 @@ public class AuditLogController {
         TenantRole role = currentRoleOrViewer();
         String creatorId = kb.creatorId() == null ? "" : kb.creatorId();
         if (!creatorId.equals(actorId) && !role.hasPermission(TenantRole.ADMIN)) {
-            // 对照 Go 中间件 g.OwnedKBOrAdmin() 的拒绝：**守卫形态**，
-            // 不是 AppError 信封（见方法注释第 3 条）。
+            // 守卫形态拒绝：不是 AppError 信封（见方法注释第 3 条）。
             throw GuardForbiddenException.mustOwnResourceOrHaveRole();
         }
 
@@ -163,7 +153,7 @@ public class AuditLogController {
     // ── 平台审计流 ───────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code ListSystemAuditLog}（L211-257）。
+     * 平台审计流。
      *
      * <p>游标/页大小解析与租户版一致，让前端共用同一套调用形状；对垃圾输入同样容错，
      * 因为空请求/首次请求不该被弹回。</p>
@@ -192,12 +182,11 @@ public class AuditLogController {
     // ── 工具方法 ─────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go 三个 handler 里统一的错误分支：
-     * {@code logger.Error(...); c.Error(errors.NewInternalServerError(err.Error()))}。
+     * 统一错误转换：
      *
      * <p>要点是<b>把原始错误消息带进响应体</b>（前端在抽屉的 error alert 里逐字显示它）；
      * 若不在这里转换，异常会落到 {@code GlobalExceptionHandler.handleOther}，
-     * 消息被换成固定的 {@code "Internal server error"}，与 Go 不一致。</p>
+     * 消息被换成固定的 {@code "Internal server error"}。</p>
      */
     private List<AuditLog> listOrInternalError(long tenantId, AuditLogQuery q) {
         try {
@@ -210,7 +199,6 @@ public class AuditLogController {
     }
 
     /**
-     * 对照 Go {@code parseTenantIDFromPath}（handler/tenant_member.go L74-86）：
      * 空 → {@code workspace id is required}；非数字或 0 → {@code workspace id must be a
      * positive integer}。两者都是 400 的 AppError 校验错误。
      */
@@ -232,11 +220,10 @@ public class AuditLogController {
     }
 
     /**
-     * 对照 Go {@code parseAuditCursor}（L172-186）：{@code after_id} 解析失败一律归 0；
+     * {@code afterId} 解析失败一律归 0；
      * {@code limit} 解析失败或非正一律归 0（"0 让仓储用它自己的默认值 50"）。
      *
-     * <p>注意 Go 用的是 {@code strconv.ParseUint}——负数与溢出都算解析失败，所以
-     * {@code after_id=-1} 也归 0（Java 侧必须显式挡掉负值）。</p>
+     * <p>负数与溢出都算解析失败，所以 {@code afterId=-1} 也归 0。</p>
      *
      * @return 长度为 2 的数组 {afterId, limit}
      */
@@ -267,12 +254,11 @@ public class AuditLogController {
     }
 
     /**
-     * 对照 Go {@code types.TenantRoleFromContext}（context_helpers.go L136-142）：
-     * 未附加或非法时<b>回落 Viewer</b>（fail-closed）。
+     * 角色未附加或非法时<b>回落 Viewer</b>（fail-closed）。
      *
      * <p>⚠️ 与 {@code RbacInterceptor} 里的 {@code TenantRole.fromString} 写法有意不同：
-     * 那边不回落到 Viewer（UNKNOWN 的 level 0 对任何角色下限都更严）。本控制器按 Go 的
-     * 上下文语义取 Viewer，才能在"创建者本人但未附加角色"这类路径上与 Go 一致。</p>
+     * 那边不回落到 Viewer（UNKNOWN 的 level 0 对任何角色下限都更严）。本控制器需要
+     * Viewer 回落，才能放行"创建者本人但未附加角色"这类路径。</p>
      */
     private static TenantRole currentRoleOrViewer() {
         TenantRole r = TenantRole.fromString(TenantContext.currentRole());

@@ -3,7 +3,7 @@ package com.ragagent.im.feishu;
 import com.ragagent.im.runtime.ImTypes;
 
 /**
- * 飞书 / Lark 的云区（对照 Go {@code internal/im/feishu/region.go} L5-49）。
+ * 飞书 / Lark 的云区。
  *
  * <p>飞书与 Lark 是同一产品的两朵隔离云：API 面完全相同，只有域名与租户不同。
  * 应用、租户、token 与资源键（image_key / file_key / card_id）都绑定单朵云、
@@ -25,7 +25,7 @@ public record FeishuRegion(String platform, String openBaseUrl, String label,
             ImTypes.PLATFORM_LARK, LARK_OPEN_BASE_URL, "Lark",
             "Thinking...", "Image");
 
-    /** 对照 Go：按平台名取 region（配置里的 {@code region} 键为 {@code lark} 时用国际云）。 */
+    /** 按平台名取 region（配置里的 {@code region} 键为 {@code lark} 时用国际云）。 */
     public static FeishuRegion of(String name) {
         return name != null && name.trim().equalsIgnoreCase("lark") ? LARK : FEISHU;
     }

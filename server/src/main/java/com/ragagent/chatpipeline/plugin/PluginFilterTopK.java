@@ -10,10 +10,10 @@ import com.ragagent.chatpipeline.PipelineLog;
 import com.ragagent.common.retrieval.SearchResult;
 
 /**
- * FILTER_TOP_K 阶段插件（对照 Go chat_pipeline/filter_top_k.go）：
+ * FILTER_TOP_K 阶段插件：
  * MergeResult &gt; RerankResult &gt; SearchResult 择一截 TopK；
  * 截断前先做确定性排序（分数降序 + knowledgeID/chunkType/chunkIndex/ID 逐级 tiebreak，
- * nil 元素沉底）。
+ * null 元素沉底）。
  */
 public final class PluginFilterTopK implements Plugin {
 
@@ -70,9 +70,9 @@ public final class PluginFilterTopK implements Plugin {
     }
 
     /**
-     * 对照 sortSearchResultsDeterministically：merge 各阶段经 map 分组后恢复全局相关性序。
-     * 稳定排序（List.sort 是 TimSort，同 Go 的 SliceStable 语义）。
-     * nil 元素沉底（Go 的 {@code left != nil}：非 nil 排前）。
+     * merge 各阶段经 map 分组后恢复全局相关性序。
+     * 稳定排序（List.sort 是 TimSort，相等元素保持原序）。
+     * null 元素沉底（非 null 排前）。
      */
     public static void sortSearchResultsDeterministically(List<SearchResult> results) {
         results.sort((left, right) -> {

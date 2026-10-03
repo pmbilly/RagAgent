@@ -37,13 +37,13 @@ final class MemoryCatalogOps {
         this.service = service;
     }
 
-    /** 对照 Go {@code ListItems}：记忆管理器的条目列表。 */
+    /** 记忆管理器的条目列表。 */
     public MemoryPage<MemoryItem> listItems(String status, int limit, int offset) {
         MemoryScope scope = MemoryScopes.resolve();
         return service.repo.listItems(scope, status, limit, offset);
     }
 
-    /** 对照 Go {@code ListTopics}：已计数但还没被提升的主体的视图。 */
+    /** 已计数但还没被提升的主体的视图。 */
     public MemoryPage<MemoryTopicView> listTopics(int limit, int offset) {
         MemoryScope scope = MemoryScopes.resolve();
         MemoryPage<MemoryTopicStat> page = service.repo.listUnpromotedTopics(scope, limit, offset);
@@ -59,7 +59,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code unpromotedTopic}：取一条还没被提升的主题，否则
+     * 取一条还没被提升的主题，否则
      * {@link MemoryScopeExceptions.ItemNotFound}。
      *
      * <p>"已经提升过"与"不存在"刻意回同一个错误——与 {@code ErrItemNotFound} 的
@@ -73,7 +73,7 @@ final class MemoryCatalogOps {
         return stat;
     }
 
-    /** 对照 Go {@code PromoteTopic}：把一个被计数的主体立刻变成兴趣，不再等剩余命中数。 */
+    /** 把一个被计数的主体立刻变成兴趣，不再等剩余命中数。 */
     public MemoryItem promoteTopic(String id) {
         MemoryService.ScopeState state = service.enabledScope();
         if (!state.ok()) {
@@ -96,7 +96,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code DeleteTopic}：停止跟踪一个主体，并记住这次拒绝，
+     * 停止跟踪一个主体，并记住这次拒绝，
      * 免得自动提升又把这个标签带回来。
      */
     public void deleteTopic(String id) {
@@ -106,7 +106,7 @@ final class MemoryCatalogOps {
         service.repo.deleteTopic(scope, id);
     }
 
-    /** 对照 Go {@code ListDocuments}：当作习惯被引用过足够多次的文档。 */
+    /** 当作习惯被引用过足够多次的文档。 */
     public MemoryPage<MemoryDocView> listDocuments(int limit, int offset) {
         MemoryScope scope = MemoryScopes.resolve();
         MemoryPage<MemoryDocAffinity> page = service.repo.listFamiliarDocs(
@@ -121,7 +121,7 @@ final class MemoryCatalogOps {
         return new MemoryPage<>(views, page.total());
     }
 
-    /** 对照 Go {@code DeleteDocument}：不再把某个文档当个人检索信号。 */
+    /** 不再把某个文档当个人检索信号。 */
     public void deleteDocument(String id) {
         MemoryScope scope = MemoryScopes.resolve();
         if (service.repo.docAffinityById(scope, id) == null) {
@@ -131,7 +131,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code FamiliarKnowledgeIDs}：这个人反复引用的文档 id。
+     * 这个人反复引用的文档 id。
      *
      * <p>任何失败都回空，好让调用方无条件使用它。</p>
      */
@@ -164,9 +164,9 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code service.topicWasForgotten}：这个主题（或它的任一个别名）被刻意忘掉过吗。
+     * 这个主题（或它的任一个别名）被刻意忘掉过吗。
      *
-     * <p>查墓碑失败时**继续**（Go 的 {@code continue}），而不是当成"没忘过"就返回——
+     * <p>查墓碑失败时**继续**，而不是当成"没忘过"就返回——
      * 它只是跳过那一个标签。</p>
      */
     boolean topicWasForgotten(MemoryScope scope, String... labels) {
@@ -193,7 +193,7 @@ final class MemoryCatalogOps {
         return false;
     }
 
-    /** 对照 Go {@code tombstoneTopic}：把一条主题连同它的全部别名记成"被拒绝"。 */
+    /** 把一条主题连同它的全部别名记成"被拒绝"。 */
     void tombstoneTopic(MemoryScope scope, MemoryTopicStat stat) {
         if (stat == null) {
             return;
@@ -224,7 +224,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code CreateItem}：加一条用户自己敲进来的记忆。
+     * 加一条用户自己敲进来的记忆。
      *
      * <p>它走与其它一切相同的写路径，所以一条手写的记忆可以**取代**同主题上
      * 抽取出来的一条，而不是并排躺着。</p>
@@ -249,7 +249,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code UpdateItem}：从记忆管理器里编辑一条。
+     * 从记忆管理器里编辑一条。
      * 被编辑过的条目会变成 manual，这样之后的抽取不会悄悄撤销用户的更正。
      */
     public MemoryItem updateItem(String id, String content, int importance) {
@@ -281,7 +281,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code DeleteItem}：永久忘掉一条记忆。
+     * 永久忘掉一条记忆。
      */
     public void deleteItem(String id) {
         MemoryScope scope = MemoryScopes.resolve();
@@ -301,7 +301,7 @@ final class MemoryCatalogOps {
     service.rebuildBlock(scope);
     }
 
-    /** 对照 Go {@code Clear}：忘掉调用者记忆空间里的一切。 */
+    /** 忘掉调用者记忆空间里的一切。 */
     public long clear() {
         MemoryScope scope = MemoryScopes.resolve();
         // 清空是对当前存着的一切的拒绝，所以它留下的墓碑与逐条删除一样。
@@ -314,7 +314,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code tombstoneEverything}：为清空删掉的每一条记忆记一次拒绝。
+     * 为清空删掉的每一条记忆记一次拒绝。
      *
      * <p>一个主体最多保留 {@code MaxMemoryTombstones} 条拒绝，而存储能持有的行远多于此：
      * {@code max_items} 只管活跃记忆，被取代与被归档的行可以无上限堆积。所以读一页平铺的
@@ -354,7 +354,7 @@ final class MemoryCatalogOps {
         }
     }
 
-    /** 对照 Go {@code GetSettings}：设置界面渲染的那个合并视图。 */
+    /** 设置界面渲染的那个合并视图。 */
     public MemorySettings getSettings() {
         MemoryScope scope = MemoryScopes.resolve();
         MemoryConfig cfg = service.workspaceConfig(scope.tenantId());
@@ -374,19 +374,19 @@ final class MemoryCatalogOps {
         try {
             settings.setItemCount((int) service.repo.countActive(scope));
         } catch (RuntimeException e) {
-            // Go 只在 err == nil 时覆盖；失败时保留主体上的那一份。
+            // 计数查询失败时保留主体行上的那一份。
         }
         settings.setEffective(settings.isWorkspaceEnabled() && settings.isUserEnabled());
         return settings;
     }
 
-    /** 对照 Go {@code SetEnabled}：翻转调用者自己的退出开关。 */
+    /** 翻转调用者自己的退出开关。 */
     public void setEnabled(boolean enabled) {
         MemoryScope scope = MemoryScopes.resolve();
         service.repo.updateSubjectEnabled(scope, enabled);
     }
 
-    /** 对照 Go {@code ConfirmItem}：接受系统推断出来的东西，让它开始被使用。 */
+    /** 接受系统推断出来的东西，让它开始被使用。 */
     public MemoryItem confirmItem(String id) {
         MemoryScope scope = MemoryScopes.resolve();
         MemoryItem existing = service.repo.getItem(scope, id);
@@ -400,7 +400,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code RejectItem}：拒绝一条推断。
+     * 拒绝一条推断。
      *
      * <p>它删掉而不是归档，这样墓碑就能阻止同一个猜测下周再被提出来。</p>
      */
@@ -409,7 +409,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code service.renameTopic}：给一个主体采纳更好的标签，并让一切指向它的东西跟上。
+     * 给一个主体采纳更好的标签，并让一切指向它的东西跟上。
      *
      * <p>一次合并留下的标签否则就只是"先到的那个措辞"，而那个标签不是装饰性的：
      * 它被当作这个人的词汇喂给查询改写器，也展示给他看我们以为他在乎什么。</p>
@@ -434,7 +434,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code renameInterestItem}：让提升出来的兴趣与它的主体保持同步。
+     * 让提升出来的兴趣与它的主体保持同步。
      *
      * <p>它只碰"仍然一字不差地读作旧标签"的条目。别的都被用户编辑过，
      * 悄悄覆盖别人自己的措辞比让两者稍微不同步更糟。</p>
@@ -472,7 +472,7 @@ final class MemoryCatalogOps {
         }
     }
 
-    /** 对照 Go {@code service.topicAliasCount}：一个主体已经以多少种措辞被认识。 */
+    /** 一个主体已经以多少种措辞被认识。 */
     int topicAliasCount(MemoryScope scope, String key) {
         MemoryTopicStat stat;
         try {
@@ -487,7 +487,7 @@ final class MemoryCatalogOps {
     }
 
     /**
-     * 对照 Go {@code service.invalidateInterestEmbedding}：丢掉从这个主体提升出来的那条兴趣的向量。
+     * 丢掉从这个主体提升出来的那条兴趣的向量。
      * 尽力而为：在一个维护周期里没有向量只损失一条记忆的语义召回，而这条记忆全程都还能
      * 靠措辞被找到。
      */

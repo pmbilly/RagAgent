@@ -7,7 +7,7 @@ import java.util.Map;
 
 
 /**
- * wiki 的聚合统计。JSON 键为 snake（§11 登记边界，前端按此解析）。
+ * wiki 的聚合统计。JSON 键为 snake（前端按此解析）。
  *
  * <p>统计口径：按类型计数与孤儿页计数都带 {@code status <> 'archived'} 过滤，
  * 即<b>排除归档页</b>。</p>

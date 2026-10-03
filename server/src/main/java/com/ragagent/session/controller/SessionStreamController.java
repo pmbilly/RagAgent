@@ -38,8 +38,7 @@ import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;
 
 /**
- * 继续接收活跃流（对照 Go {@code internal/handler/session/stream.go} 的
- * {@code ContinueStream}，L29-204）。
+ * 继续接收活跃流。
  *
  * <p>路由：{@code GET /api/v1/sessions/continue-stream/:session_id?message_id=…}，
  * Viewer 角色 + API-Key 的 chat 能力（full-access）。</p>
@@ -51,31 +50,30 @@ import com.ragagent.stream.StreamManager;
  *       这样非法的取值还能落成普通 400 JSON；</li>
  *   <li>{@code GetSession}——不存在 404，其它 500；</li>
  *   <li>{@code GetMessage}——会话不可见 404、消息不存在 404（文案是
- *       {@code gorm.ErrRecordNotFound.Error()}）、其它 500；</li>
+ *       {@code "record not found"}）、其它 500；</li>
  *   <li>从 offset 0 读事件；**一个都没有就 404**；</li>
  *   <li>设 SSE 头，回放全部事件；若其中已有 {@code complete} 就直接收尾返回；</li>
  *   <li>否则进入 100ms 轮询，直到收到 {@code complete} 或客户端断开。</li>
  * </ol>
  *
- * <h2>⚠️ 客户端断开检测与 Go 的差异</h2>
- * <p>Go 用 {@code c.Request.Context().Done()}——连接一断就立刻返回。
- * Java 的阻塞式 Servlet 拿不到等价的即时通知（要拿到得走 {@code AsyncContext} + 容器钩子，
+ * <h2>⚠️ 客户端断开检测的局限</h2>
+ * <p>阻塞式 Servlet 拿不到连接断开的即时通知（要拿到得走 {@code AsyncContext} + 容器钩子，
  * 而那条路要求过滤器链声明 {@code asyncSupported}，风险高于收益）。
  * 这里改用<b>写失败</b>检测：{@link SseFrameWriter#write} 抛 {@link IOException}
  * 即视为断开。</p>
  * <p>后果是<b>延迟</b>而非<b>错误</b>：客户端在流中途断线时，要等下一次有事件可写
  * 才会发现（活跃生成下就是下一个分片，亚秒级）；只有"流完全停滞"这种情形会多挂一会儿。
- * 差异有界且方向安全，未复刻 Go 的即时性。</p>
+ * 差异有界且方向安全。</p>
  */
 @RestController
 public class SessionStreamController {
 
     private static final Logger log = LoggerFactory.getLogger(SessionStreamController.class);
 
-    /** 对照 Go {@code gorm.ErrRecordNotFound.Error()}——消息不存在时 404 的文案。 */
+    /** 消息不存在时 404 的文案。 */
     private static final String RECORD_NOT_FOUND = "record not found";
 
-    /** 对照 Go 的轮询间隔（{@code time.NewTicker(100 * time.Millisecond)}）。 */
+    /** 轮询间隔（毫秒）。 */
     private static final long POLL_INTERVAL_MILLIS = 100L;
 
     private final SessionService sessionService;
@@ -99,16 +97,16 @@ public class SessionStreamController {
         this.streamManager = streamManager;
         this.emitter = emitter;
         // A3-3 起 StorageBackendResolver 有生产实现（fileserve 桥）；FileService 的
-        // 进程级实现仍属装配项。缺 bean 时按 Go 的 nil 分支降级：引用原样保留成 handle。
+        // 进程级实现仍属装配项。缺 bean 时按未装配分支降级：引用原样保留成 handle。
         this.fileService = fileService.getIfAvailable();
         this.storageBackendResolver = storageBackendResolver.getIfAvailable();
         this.tenantService = tenantService;
     }
 
-    // ── 对照 Go resource_urls.go 的前两个函数 ────────────────────────────────
+    // ── 资源引用重写器 ──────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code resolveResourceRewriter}：由请求的 {@code resource_urls} 参数
+     * 由请求的 {@code resource_urls} 参数
      * （缺省时取部署默认）构造重写器。
      */
     Rewriter resolveResourceRewriter(String resourceUrls) {
@@ -117,7 +115,7 @@ public class SessionStreamController {
     }
 
     /**
-     * 对照 Go {@code resolveStreamRewriter}：再加一层 SSE 用的扣留缓冲。
+     * 在 {@link #resolveResourceRewriter} 之上再加一层 SSE 用的扣留缓冲。
      *
      * <p>因为一条存储引用可能横跨两个增量，必须**在任何 SSE 头写出之前**调用——
      * 非法取值还能落成普通 JSON 错误。</p>
@@ -133,7 +131,7 @@ public class SessionStreamController {
      * <p><b>A3-3 接线</b>：Go 从 ctx 里取已加载好的 {@code *types.Tenant}（认证中间件放进去的），
      * Java 的 {@code TenantContext} 只存 tenantId、不存实体，故此处按 id 取实体
      * （与 {@code SystemController} / {@code HybridSearchService} 同一写法）。
-     * 取不到时返回 null，等价于 Go 的 ctx 无租户降级。</p>
+     * 取不到时返回 null（调用方按无租户降级）。</p>
      */
     private Tenant currentTenant() {
         Long tid = com.ragagent.common.context.TenantContext.currentTenantId();
@@ -153,7 +151,7 @@ public class SessionStreamController {
             @RequestParam(value = Mode.QUERY_PARAM, required = false) String resourceUrls,
             HttpServletResponse response) throws IOException {
 
-        // 对照 Go 的 secutils.SanitizeForLog：去掉换行/制表/控制字符，防日志注入。
+        // 日志消毒：去掉换行/制表/控制字符，防日志注入。
         String sessionId = sanitizeForLog(rawSessionId);
         if (sessionId.isEmpty()) {
             throw BizException.badRequest("invalid session id");
@@ -187,9 +185,9 @@ public class SessionStreamController {
             throw BizException.internal(e.getMessage());
         }
 
-        // 取这条未完成的消息。注意三种失败各自映射（照抄 Go）：
-        //   会话不可见 → 404 "session not found"（PR #1309 把 user 范围接进了这层检查）
-        //   消息不存在 → 404 "record not found"（gorm.ErrRecordNotFound 的原文）
+        // 取这条未完成的消息。三种失败各自映射：
+        //   会话不可见 → 404 "session not found"
+        //   消息不存在 → 404 "record not found"
         //   其它       → 500
         Message message;
         try {
@@ -205,9 +203,7 @@ public class SessionStreamController {
         }
 
         if (message == null) {
-            // Go 的死代码：仓储零行时返回的是 (nil, err)、不是 (nil, nil)，
-            // 所以这一支在 Go 里不可达。Java 侧同样不可达（仓储抛异常）。
-            // 保留是为了让调用序列与 Go 逐行对应，将来若仓储改了行为这里有落点。
+            // 防御分支：仓储查不到时抛异常，正常不可达；保留作兜底落点。
             log.warn("Incomplete message not found, session ID: {}, message ID: {}", sessionId, messageId);
             writeJsonError(response, 404, "Incomplete message not found");
             return;
@@ -283,7 +279,7 @@ public class SessionStreamController {
             try {
                 next = streamManager.getEvents(sessionId, messageId, currentOffset);
             } catch (RuntimeException e) {
-                // 读事件失败：把扣留缓冲里还剩的吐出去，然后收工（照抄 Go）
+                // 读事件失败：把扣留缓冲里还剩的吐出去，然后收工
                 log.error("Failed to get new events: {}", e.toString());
                 try {
                     emitter.flushHeldStreamContent(response, requestId, resourceRewriter, client);
@@ -332,7 +328,7 @@ public class SessionStreamController {
         response.getOutputStream().flush();
     }
 
-    /** 对照 Go {@code secutils.SanitizeForLog}（internal/utils/security.go:469-492）。 */
+    /** 日志消毒：去换行/制表/控制字符，防日志注入。 */
     static String sanitizeForLog(String input) {
         if (input == null || input.isEmpty()) {
             return "";

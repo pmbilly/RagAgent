@@ -10,22 +10,20 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 
 /**
- * API-Key 门禁的拒绝响应（对照 Go 里各中间件直接写的
- * {@code gin.H{"error": ...}}）。
+ * API-Key 门禁的拒绝响应。
  *
- * <p>Go 侧这几处都是"中间件直接 {@code c.AbortWithStatusJSON}"，因此形态是
- * **纯字符串 error 信封** {@code {"error":"..."}}（不是 AppError 信封）——
+ * <p>形态是**纯字符串 error 信封** {@code {"error":"..."}}（不是 AppError 信封）——
  * 与 {@code GuardForbiddenException} 属于同一类"守卫式 403"。
- * 键序按 encoding/json 的 map 字母序输出；这里只有一个键，无歧义。</p>
+ * 这里只有一个键，无键序歧义。</p>
  */
 final class APIKeyGateResponses {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 {@code {"error": "Forbidden: API key scope does not allow this operation"}}（gate / file-serve）。 */
+    /** gate / file-serve 的 403 文案。 */
     static final String SCOPE_FORBIDDEN = "Forbidden: API key scope does not allow this operation";
 
-    /** 对照 {@code {"error": "Forbidden: API keys cannot access this endpoint"}}（DenyAPIKeyPrincipal）。 */
+    /** DenyAPIKeyPrincipal 的 403 文案。 */
     static final String API_KEY_DENIED = "Forbidden: API keys cannot access this endpoint";
 
     private APIKeyGateResponses() {

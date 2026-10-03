@@ -16,22 +16,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code agent_steps}（Go {@code types.AgentSteps}）的逐字节契约测试。
+ * {@code agent_steps}（{@code AgentSteps} jsonb 载荷）的逐字节契约测试。
  *
  * <h2>期望值的来源</h2>
- * <p>把 {@code internal/types/agent.go} 的 {@code AgentStep} / {@code ToolCall} /
- * {@code ToolCallTarget} / {@code ToolResult} 原样抄进一个独立 Go 程序，
- * 喂同样的输入打印 {@code json.Marshal} 结果，再抄进下面的常量。</p>
+ * <p>期望值常量由录制程序对历史线格式跑出真值后抄入。</p>
  *
- * <p><b>录制时用 {@code time.Local}（本机 CST +0800）而不是 {@code time.UTC}</b>——
- * Java 侧 {@code GoTimeSerializer} 按 §9 的既定规则把时间归一化到 JVM 默认时区，
+ * <p><b>录制时用本机时区（CST +0800）而不是 UTC</b>——
+ * Java 侧 {@code GoTimeSerializer} 把时间归一化到 JVM 默认时区，
  * 用 UTC 录的话两边会差一个时区偏移，那是**录制方法**的问题不是实现的问题。</p>
  *
  * <p>这份语料同时钉住三件容易看走眼的事：</p>
  * <ol>
- *   <li>{@code result} <b>没有</b> omitempty（Go 是指针）→ nil 也要输出 {@code "result":null}；</li>
- *   <li>{@code tool_calls} <b>没有</b> omitempty → nil 输出 {@code "toolCalls":null}；</li>
- *   <li>{@code timestamp} 是 Go 的**值类型** → 零值输出 {@code "0001-01-01T00:00:00Z"}。</li>
+ *   <li>{@code result} <b>键恒出现</b> → null 也要输出 {@code "result":null}；</li>
+ *   <li>{@code tool_calls} <b>键恒出现</b> → null 输出 {@code "toolCalls":null}；</li>
+ *   <li>{@code timestamp} 是**值语义** → 零值输出 {@code "0001-01-01T00:00:00Z"}。</li>
  * </ol>
  */
 class AgentStepsJsonTest {
@@ -116,7 +114,7 @@ class AgentStepsJsonTest {
                         + "\"timestamp\":\"2026-09-18T10:00:00+08:00\"}]");
     }
 
-    /** 全零实例：Go 的零值 {@code time.Time} 输出 year-1 字面量，**不是** {@code null}。 */
+    /** 全零实例：零值时间输出 year-1 字面量，**不是** {@code null}。 */
     @Test
     void zeroStepWireFormat() throws Exception {
         assertThat(write(List.of(new AgentStep()))).isEqualTo(
@@ -124,7 +122,7 @@ class AgentStepsJsonTest {
                         + "\"timestamp\":\"0001-01-01T00:00:00Z\"}]");
     }
 
-    /** nil 切片 → Go 的 {@code json.Marshal} 输出 {@code null}。 */
+    /** null 列表 → 序列化输出 {@code null}。 */
     @Test
     void nilStepsSerializeAsNull() throws Exception {
         assertThat(write((List<AgentStep>) null)).isEqualTo("null");
@@ -145,11 +143,11 @@ class AgentStepsJsonTest {
                         + "\"timestamp\":\"0001-01-01T00:00:00Z\"}]");
     }
 
-    // ── 派生方法不能泄漏成 JSON 键（§9 复发率最高的坑） ───────────────────────
+    // ── 派生方法不能泄漏成 JSON 键（复发率最高的坑） ─────────────────────────
 
     /**
      * {@code getObservations()} / {@code getExecutionName()} / {@code getExecutionArgs()}
-     * 在 Go 里都是**方法**。漏 {@code @JsonIgnore} 就会写进 jsonb，
+     * 是**派生方法**。漏 {@code @JsonIgnore} 就会写进 jsonb，
      * 回读时抛 {@code UnrecognizedPropertyException} 让整列不可用。
      */
     @Test
@@ -218,7 +216,7 @@ class AgentStepsJsonTest {
     }
 
     /**
-     * year-1 字面量读回**零值时间**（不是 {@code null}——Go 的值类型没有"缺省"），
+     * year-1 字面量读回**零值时间**（不是 {@code null}——值语义没有"缺省"），
      * 于是再写出去还是 year-1——往返幂等。
      */
     @Test
@@ -228,12 +226,12 @@ class AgentStepsJsonTest {
         List<AgentStep> steps = MAPPER.readValue(raw,
                 new com.fasterxml.jackson.core.type.TypeReference<List<AgentStep>>() {});
         assertThat(com.ragagent.common.web.GoTimeSerializer.isGoZero(steps.get(0).getTimestamp()))
-                .as("Go 的零值时间读回仍是零值，对应 t.IsZero()")
+                .as("零值时间读回仍是零值（isGoZero 判定）")
                 .isTrue();
         assertThat(write(steps)).isEqualTo(raw);
     }
 
-    /** 未知键必须被容忍（Go 的 json.Unmarshal 默认忽略），否则历史行整条读不出来。 */
+    /** 未知键必须被容忍（反序列化默认忽略未知键），否则历史行整条读不出来。 */
     @Test
     void unknownKeysAreTolerated() throws Exception {
         String raw = "[{\"iteration\":0,\"toolCalls\":null,"

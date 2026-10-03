@@ -7,13 +7,10 @@ import com.ragagent.common.graph.GraphNode;
 import com.ragagent.common.graph.GraphRelation;
 
 /**
- * 管线消费的配置切片（对照 Go {@code config.Config} 被 chat_pipeline 读到的部分：
- * Conversation.RewritePromptSystem/RewritePromptUser/IntentSystemPrompts 与
- * ExtractManager.ExtractEntity，internal/config/config.go:462+ / types/extract_graph.go:12-16）。
+ * 管线消费的配置切片：对话改写与意图系统提示词、实体抽取模板。
  *
- * <p>Go 的实际默认值由 DB prompt 模板回填（backfillConversationDefaults）；4.6d 装配时
- * 从 system setting / prompt template 加载后构造本类。缺省行为（全空 + nil 模板）与
- * Go 的未配置部署一致。</p>
+ * <p>装配时从 system setting / prompt template 加载后构造本类；
+ * 缺省行为为全空 + 未配置模板。</p>
  */
 public final class PipelineConfig {
 

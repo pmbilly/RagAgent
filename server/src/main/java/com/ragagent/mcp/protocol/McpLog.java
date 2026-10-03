@@ -3,8 +3,7 @@ package com.ragagent.mcp.protocol;
 import com.ragagent.common.security.LogSanitizer;
 
 /**
- * MCP 日志辅助（对照 Go internal/mcp/client.go:677-687 的 {@code mcpTextPreview}
- * + {@code secutils.SanitizeForLog}）。
+ * MCP 日志辅助。
  *
  * <p>MCP 服务名、服务端自述名、host、instructions 全部来自租户可控的远端，
  * 写日志前必须脱敏（防日志注入），长度也要截断（instructions 可能很长）。</p>
@@ -14,16 +13,16 @@ public final class McpLog {
     private McpLog() {
     }
 
-    /** 对照 Go {@code secutils.SanitizeForLog}。 */
+    /** 脱敏（防日志注入）。 */
     public static String sanitize(String input) {
         return LogSanitizer.sanitize(input);
     }
 
     /**
-     * 对照 Go {@code mcpTextPreview}：<b>先脱敏，再按"字符"截断</b>（Go 的 rune = Unicode 码点），
+     * <b>先脱敏，再按 Unicode 码点截断</b>，
      * 超长时追加 {@code "..."}。
      *
-     * <p>三个边界逐条对齐 Go：</p>
+     * <p>三个边界：</p>
      * <ul>
      *   <li>{@code maxRunes <= 0} → 返回空串；</li>
      *   <li>长度不足 → 原样返回（<b>不加</b>省略号）；</li>

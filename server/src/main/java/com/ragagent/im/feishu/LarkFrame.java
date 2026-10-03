@@ -6,9 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * lark WS 的 {@code pbbp2} 帧（对照官方 Go SDK
- * {@code oapi-sdk-go/v3/ws/pbbp2.pb.go} 的 {@code Frame}/{@code Header} 与
- * {@code ws/model.go} 的 {@code Headers} 助手）。
+ * lark WS 的 {@code pbbp2} 帧（protobuf 线格式，schema 如下）。
  *
  * <pre>
  * message Header { bytes key = 1; bytes value = 2; }
@@ -19,14 +17,14 @@ import java.util.List;
  * }
  * </pre>
  *
- * <p><b>线格式与 Go 逐字节一致</b>（经独立 Go 程序录制 fixture 对照，见
- * {@code LarkFrameTest}）：字段升序书写；{@code payload_encoding}/{@code payload_type}/
- * {@code LogIDNew} <b>空串也照写</b>（0 长度字段，照 {@code MarshalToSizedBuffer} 的无条件写法）；
+ * <p><b>线格式要点</b>（行为由 {@code LarkFrameTest} 钉住）：字段升序书写；
+ * {@code payload_encoding}/{@code payload_type}/
+ * {@code LogIDNew} <b>空串也照写</b>（0 长度字段，无条件写）；
  * {@code payload} 仅在非 null 时写；{@code headers} 仅在非空时写。</p>
  */
 public final class LarkFrame {
 
-    /** 对照 {@code pbbp2.Header}。 */
+    /** 帧头键值对。 */
     public static final class Header {
         public final String key;
         public final String value;
@@ -42,7 +40,7 @@ public final class LarkFrame {
         }
     }
 
-    // 帧类型（照 ws/const.go）
+    // 帧类型
     public static final int METHOD_CONTROL = 0;
     public static final int METHOD_DATA = 1;
 
@@ -56,7 +54,7 @@ public final class LarkFrame {
     public byte[] payload;
     public String logIdNew = "";
 
-    /** 对照 {@code Headers.GetString}：首个匹配即返回，无则空串。 */
+    /** 首个匹配即返回，无则空串。 */
     public String header(String key) {
         for (Header h : headers) {
             if (h.key.equals(key)) {
@@ -66,7 +64,7 @@ public final class LarkFrame {
         return "";
     }
 
-    /** 对照 {@code Headers.GetInt}：解析失败算 0。 */
+    /** 解析失败算 0。 */
     public int intHeader(String key) {
         String value = header(key);
         try {
@@ -76,12 +74,12 @@ public final class LarkFrame {
         }
     }
 
-    /** 对照 {@code Headers.Add}：追加（允许重复键）。 */
+    /** 追加（允许重复键）。 */
     public void addHeader(String key, String value) {
         headers.add(new Header(key, value));
     }
 
-    /** 对照 {@code NewPingFrame}：控制帧 + 仅 {@code type=ping} 头。 */
+    /** 控制帧 + 仅 {@code type=ping} 头。 */
     public static LarkFrame ping(int serviceId) {
         LarkFrame frame = new LarkFrame();
         frame.method = METHOD_CONTROL;
@@ -90,14 +88,14 @@ public final class LarkFrame {
         return frame;
     }
 
-    /** 回执上行（照 {@code handleDataFrame}：同帧回写 + payload 为响应 JSON）。 */
+    /** 回执上行（同帧回写 + payload 为响应 JSON）。 */
     public static LarkFrame response(int code) {
         LarkFrame frame = new LarkFrame();
         frame.payload = ("{\"code\":" + code + "}").getBytes(StandardCharsets.UTF_8);
         return frame;
     }
 
-    // ── 编码（照 MarshalToSizedBuffer 的线格式） ─────────────────────────────
+    // ── 编码 ────────────────────────────────────────────────────────────────
 
     public byte[] encode() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();

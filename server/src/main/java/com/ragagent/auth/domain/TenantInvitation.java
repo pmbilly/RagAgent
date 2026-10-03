@@ -7,13 +7,13 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * tenant_invitations 表实体（对照 Go types/tenant_invitation.go TenantInvitation）。
+ * tenant_invitations 表实体。
  *
- * GORM 隐式行为清单（迁移 000048 建表 + 000064 补 token/accepted_count 列）：
+ * 落库行为清单（迁移 000048 建表 + 000064 补 token/accepted_count 列）：
  * - 软删除 → 显式 isNull("deleted_at") 条件；部分唯一索引
  *   idx_tenant_invitations_unique_pending ON (tenant_id, invitee_user_id)
- *   WHERE status='pending' AND deleted_at IS NULL（Go 侧以事务内预检查为主，
- *   索引仅作并发兜底——Java 复刻预检查路径）
+ *   WHERE status='pending' AND deleted_at IS NULL（以事务内预检查为主，
+ *   索引仅作并发兜底——代码走预检查路径）
  * - invitee_user_id 默认 ''（share-link 行的空串哨兵，不是 NULL）
  * - token 默认 ''（share-link 明文 token；per-user 邀请恒空串）
  * - status 默认 'pending'；accepted_count 默认 0
@@ -25,7 +25,7 @@ public class TenantInvitation {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
-    /** share-link 行为空串（Go 的 "" 哨兵） */
+    /** share-link 行为空串（空串哨兵，不是 NULL） */
     private String inviteeUserId = "";
     /** share-link 明文 token（per-user 邀请恒 ""） */
     private String token = "";

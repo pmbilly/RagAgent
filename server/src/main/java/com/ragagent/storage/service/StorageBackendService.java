@@ -20,14 +20,12 @@ import com.ragagent.storage.mapper.StorageBackendRepository;
 import org.springframework.stereotype.Service;
 
 /**
- * 对照 Go {@code service.StorageBackendService}（internal/application/service/storagebackend.go）
- * 的 HTTP 面方法：Create / Update / Delete / SetDefault / Test + Validate 链。
+ * 存储后端管理的 HTTP 面方法：Create / Update / Delete / SetDefault / Test + Validate 链。
  *
- * <p><b>与 Go 的已知差异</b>（见报告）：远端 provider（minio/cos/tos/s3/oss/ks3/obs）的
- * 连通性测试 Go 走各云 SDK（HEAD bucket 等）；Java 以 TCP 拨号到 endpoint 替代——
- * 拒连的**清洗后文案**一致（SanitizeStorageConnectivityError 的中文映射），拨通后的
- * 鉴权/桶存在性检查不实现（成功路径随存储引擎模块收口）；本地 provider 完整对齐
- * （SafeJoin + mkdir + 目录可访问检查）。docker 模式的 env 回填（MINIO_*）按 Go 语义保留。</p>
+ * <p><b>连通性测试的形态</b>：远端 provider（minio/cos/tos/s3/oss/ks3/obs）以 TCP 拨号到
+ * endpoint 替代云 SDK 探测——拒连的**清洗后文案**一致（SanitizeStorageConnectivityError
+ * 的中文映射），拨通后的鉴权/桶存在性检查不实现；本地 provider 完整对齐
+ * （SafeJoin + mkdir + 目录可访问检查）。docker 模式的 env 回填（MINIO_*）保留。</p>
  */
 @Service
 public class StorageBackendService {
@@ -64,7 +62,7 @@ public class StorageBackendService {
     private final SsrfGuard ssrfGuard;
     private final StorageConfigCodec codec;
     private final org.springframework.transaction.support.TransactionTemplate tx;
-    /** 对照 Go LOCAL_STORAGE_BASE_DIR（缺省 /data/files）；测试经 weknora.storage.local-base-dir 指向 build 目录 */
+    /** 本地存储根（{@code LOCAL_STORAGE_BASE_DIR}，缺省 /data/files）；测试经 weknora.storage.local-base-dir 指向 build 目录 */
     private final String localStorageBaseDir;
 
     public StorageBackendService(StorageBackendRepository repo, StorageAllowList allowList,
@@ -107,8 +105,7 @@ public class StorageBackendService {
         validateForProvider(configOf(b), b.getProvider());
     }
 
-    /** 对照 ValidateForProvider：required 检查的 map 迭代序在 Go 是**随机的**——
-     *  Java 取固定序（golden 全部用单缺失字段钉住，顺序不进契约） */
+    /** required 检查取固定序（golden 全部用单缺失字段钉住，顺序不进契约） */
     public void validateForProvider(StorageConfig c, String provider) {
         String prefix = c.pathPrefix == null ? "" : c.pathPrefix.replace("\\", "/").trim();
         String cleanPrefix = clean(prefix);
@@ -182,8 +179,8 @@ public class StorageBackendService {
                 String baseDir = localStorageBaseDir == null || localStorageBaseDir.trim().isEmpty()
                         ? "/data/files"
                         : localStorageBaseDir.trim();
-                // §9 波 1 G5：必须 toAbsolutePath().normalize()——相对 base 下
-                // startsWith(absolute) 会误判穿越（本轮实测复现）
+                // 必须 toAbsolutePath().normalize()——相对 base 下
+                // startsWith(absolute) 会误判穿越（实测复现过）
                 Path base = Path.of(baseDir).toAbsolutePath().normalize();
                 Path safe = safeJoinUnderBase(base, c.pathPrefix);
                 try {
@@ -210,9 +207,7 @@ public class StorageBackendService {
             }
             case "cos" -> {
                 // COS 无 endpoint 配置面（前端表单/校验都不收）：按腾讯云规则由
-                // region+bucket 构造探测域名（Go 侧 SDK 用 region+密钥 HEAD bucket，
-                // 同样不需要 endpoint）。此前 dialEndpoint("") 必败，COS 后端
-                // create/update/test 全部 400。
+                // region+bucket 构造探测域名（同样不需要 endpoint）。
                 String region = c.region == null ? "" : c.region.trim();
                 String bucket = c.bucketName == null ? "" : c.bucketName.trim();
                 if (region.isEmpty() || bucket.isEmpty()) {
@@ -494,7 +489,7 @@ public class StorageBackendService {
         return result;
     }
 
-    /** provider 家族键读取（统一查找面，B6 批 8）；未配置 → 空串。 */
+    /** provider 家族键读取（统一查找面）；未配置 → 空串。 */
     private static String env(String key) {
         String v = com.ragagent.storage.config.StorageEnvLookup.get(key);
         return v == null ? "" : v;

@@ -8,12 +8,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Ollama 聊天消息（对照 ollamaapi.Message，ollama@v0.23.2/api/types.go:180-203）。
+ * Ollama 聊天消息（对齐 ollama v0.23.2 API）。
  *
- * <p>字段序 = Go 声明序：role / content 恒输出，其余 omitempty → NON_EMPTY。</p>
+ * <p>JSON 字段序 = 声明序：role / content 恒输出，其余为空时省略（NON_EMPTY）。</p>
  *
- * <p>{@code images} 是<b>原始字节</b>（Go 的 {@code []ImageData} = {@code [][]byte}）：
- * Go 把 []byte 序列化成 base64 字符串，Jackson 对 {@code byte[]} 行为一致。</p>
+ * <p>{@code images} 是<b>原始字节</b>（{@code byte[][]}）：
+ * 序列化为 base64 字符串数组（{@code byte[]} 的标准 JSON 编码）。</p>
  */
 @JsonPropertyOrder({"role", "content", "thinking", "images", "tool_calls", "tool_name", "tool_call_id"})
 @JsonIgnoreProperties(ignoreUnknown = true)

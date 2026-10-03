@@ -7,15 +7,14 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * 逐工具的审批/启用策略（对照 Go types.MCPToolApproval）。
+ * 逐工具的审批/启用策略。
  *
  * **关键语义（容易翻错）**：
  * - **缺行 = enabled=true**（向后兼容）。工具清单本身来自 MCP ListTools，本表只存覆盖值。
- * - Java 的 boolean 字段零值是 false，而 DB/GORM 默认是 true——Go 用 map Create
- *   绕开 GORM 省略零值的行为（repository:76 UpsertPolicy 用 clause.OnConflict + map）。
- *   Java 侧在仓储层同样必须显式写入，不能依赖实体默认值。
+ * - Java 的 boolean 字段零值是 false，而 DB 列默认是 true——落库时零值不能被省略，
+ *   否则会意外落成默认 true。Java 侧在仓储层必须显式写入，不能依赖实体默认值。
  *
- * <p>⚠️ <b>本实体直接作为 GET /{id}/tool-approvals 的响应体</b>（§14.9n M4 后：裸数组，
+ * <p>⚠️ <b>本实体直接作为 GET /{id}/tool-approvals 的响应体</b>（裸数组，
  * 键名＝Java 字段名）；MyBatis 的列名仍按 map-underscore-to-camel-case 映射，
  * 两者互不干扰。</p>
  */

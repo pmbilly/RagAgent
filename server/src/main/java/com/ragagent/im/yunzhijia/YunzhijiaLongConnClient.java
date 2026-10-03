@@ -24,10 +24,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.im.runtime.IncomingMessage;
 
 /**
- * 云之家长连接（websocket）客户端——对照 Go {@code internal/im/yunzhijia/websocket.go}
- * L18-337。
+ * 云之家长连接（websocket）客户端。
  *
- * <h2>照抄点</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>常量：心跳 15s、读超时 45s、握手 10s、单帧上限 1MiB、<b>连续坏帧上限 3</b>、
  *       消息队列 64；重连间隔表 {@code [1s,2s,5s,10s,30s,60s]}（越界取末项），
@@ -41,10 +40,10 @@ import com.ragagent.im.runtime.IncomingMessage;
  *       {@code {"cmd":"ack","seq":<seq>}}；</li>
  *   <li>收到业务消息 → 复用 {@link YunzhijiaAdapter#toIncomingMessage} 转统一消息 → 队列 → 处理器；</li>
  *   <li>心跳：每 15s 发 WS 控制 ping（5s 等待），失败即关连接触发重连；</li>
- *   <li>关连接/写文本都加锁并校验"还是当前连接"（照 Go 的 writeText/closeConn）。</li>
+ *   <li>关连接/写文本都加锁并校验"还是当前连接"。</li>
  * </ul>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现差异（备案）</h2>
  * <p>Java 的 {@code java.net.http.WebSocket} 没有读 deadline 与自定义拨号器：
  * 读超时改为由心跳线程检查"距上次收帧超过 45s 即判死"；公网 IP 校验在连接前解析
  * （见 {@link YunzhijiaUrl#resolvePublicAddress}）。</p>
@@ -62,7 +61,7 @@ public class YunzhijiaLongConnClient {
     static final long[] RECONNECT_DELAYS_MS = {1_000L, 2_000L, 5_000L, 10_000L, 30_000L, 60_000L};
     private static final String CLOSED_SENTINEL = "\u0000closed";
 
-    /** 一帧的解析结果（对照 Go {@code webSocketFrame}）。 */
+    /** 一帧的解析结果。 */
     record ParsedFrame(YunzhijiaTypes.CallbackMessage message, byte[] ack, String control) {
     }
 
@@ -86,7 +85,7 @@ public class YunzhijiaLongConnClient {
                 .build();
     }
 
-    /** 对照 {@code Start}：无限重连 + 间隔表 + 活过 60s 清零。 */
+    /** 无限重连 + 间隔表 + 活过 60s 计数清零。 */
     public void start() {
         loopThread = Thread.currentThread();
         int attempt = 0;
@@ -119,7 +118,6 @@ public class YunzhijiaLongConnClient {
         }
     }
 
-    /** 对照 {@code Stop}。 */
     public void stop() {
         closed.set(true);
         closeConn();
@@ -129,7 +127,7 @@ public class YunzhijiaLongConnClient {
         }
     }
 
-    /** 查表取重连间隔（越界取末项，负数取首项；照 Go）。 */
+    /** 查表取重连间隔（越界取末项，负数取首项）。 */
     static long webSocketReconnectDelayMs(int attempt) {
         if (attempt < 0) {
             attempt = 0;
@@ -140,7 +138,7 @@ public class YunzhijiaLongConnClient {
         return RECONNECT_DELAYS_MS[attempt];
     }
 
-    /** 对照 {@code connectAndRun}：建连 → 心跳线程 → 读帧循环（直到出错/关闭）。 */
+    /** 建连 → 心跳线程 → 读帧循环（直到出错/关闭）。 */
     void connectAndRun() throws Exception {
         WebSocket socket;
         try {
@@ -164,7 +162,7 @@ public class YunzhijiaLongConnClient {
             while (!closed.get()) {
                 String raw = inbox.poll(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS);
                 if (raw == null) {
-                    // 读超时（照 Go 的 SetReadDeadline）
+                    // 读超时
                     throw new IllegalStateException("read websocket message: timeout");
                 }
                 if (CLOSED_SENTINEL.equals(raw)) {
@@ -209,7 +207,7 @@ public class YunzhijiaLongConnClient {
         }
     }
 
-    /** 对照 {@code heartbeatLoop}：15s 一次控制 ping（5s 等待），失败即关连接。 */
+    /** 每 15s 一次控制 ping（5s 等待），失败即关连接。 */
     private void heartbeatLoop(WebSocket socket) {
         try {
             while (!closed.get() && !Thread.currentThread().isInterrupted()) {
@@ -236,7 +234,7 @@ public class YunzhijiaLongConnClient {
         }
     }
 
-    /** 对照 {@code writeText}：只往"当前连接"写。 */
+    /** 只往"当前连接"写。 */
     private void writeText(WebSocket socket, String data) {
         if (socket != ws) {
             throw new IllegalStateException("websocket connection changed");
@@ -258,7 +256,6 @@ public class YunzhijiaLongConnClient {
 
     // ── 帧解析（纯逻辑，可单测） ─────────────────────────────────────────────
 
-    /** 对照 {@code parseWebSocketFrame}。 */
     static ParsedFrame parseWebSocketFrame(String raw) {
         String trimmed = raw == null ? "" : raw.trim();
         if (trimmed.isEmpty()) {
@@ -332,7 +329,7 @@ public class YunzhijiaLongConnClient {
         throw new IllegalArgumentException("frame has no business message or control type");
     }
 
-    /** 对照 {@code decodeBusinessMessage}：六个字符串字段 + type 整数 + time 整数。 */
+    /** 业务消息判据：六个字符串字段 + type 整数 + time 整数。 */
     static YunzhijiaTypes.CallbackMessage decodeBusinessMessage(JsonNode data) {
         if (data == null || data.isMissingNode() || data.isNull()) {
             return null;
@@ -354,7 +351,7 @@ public class YunzhijiaLongConnClient {
         }
     }
 
-    /** 对照 {@code rawString}：非字符串或缺失 → 空串。 */
+    /** 非字符串或缺失 → 空串。 */
     static String rawString(JsonNode node) {
         return node != null && node.isTextual() ? node.asText("") : "";
     }

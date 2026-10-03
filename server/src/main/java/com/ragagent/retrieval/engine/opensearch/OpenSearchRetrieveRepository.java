@@ -26,20 +26,15 @@ import com.ragagent.retrieval.engine.RetrieveEngineRepository;
 import com.ragagent.vectorstore.domain.IndexConfig;
 
 /**
- * OpenSearch k-NN 检索引擎仓库——对照 Go
- * {@code internal/application/repository/retriever/opensearch/} 全包（15 个非测试文件，
- * ~2380 行：repository/config/transport/errors/healthcheck/mapping/crud/query/retrieve/
- * byquery/copy/move/bulk_update/audit/stubs）。HTTP 自持（java.net.http），与
- * ES v7/v8 驱动同一姿态（Go 侧为 opensearch-go v4 SDK；wire 形状逐段对照）。
+ * OpenSearch k-NN 检索引擎仓库。HTTP 自持（java.net.http），与 ES v7/v8 驱动同一姿态。
  *
- * <h2>照抄点（按 Go 文件序）</h2>
+ * <h2>行为要点</h2>
  * <ul>
- *   <li><b>生命周期</b>（repository.go）：构造期验证连通 + 版本 + 每节点 k-NN 插件，
+ *   <li><b>生命周期</b>：构造期验证连通 + 版本 + 每节点 k-NN 插件，
  *       <b>不建索引</b>——Save/Retrieve 首次见到某嵌入维度时惰性建（ensureReady，
  *       逐维索引命名）；瞬时错误（TRANSPORT/CIRCUIT_BREAKER）不持久化、下次重试，
- *       永久错误持久化到 initErr（照 Go 代码——注意 Go 注释声称"caller still sees
- *       this attempt's err"与代码不符：瞬时失败时 initErr 未写、当次调用也拿 nil，
- *       后续操作以 INDEX_NOT_FOUND 显形。以代码为准，备案）</li>
+ *       永久错误持久化到 initErr。注意：瞬时失败时 initErr 未写、当次调用也拿 nil，
+ *       后续操作以 INDEX_NOT_FOUND 显形（注释与代码的历史分叉见 known-issues）</li>
  *   <li><b>索引命名</b>：base = ResolveIndexName(OPENSEARCH_INDEX, "weknora")；
  *       DB-store 折叠 storeID 前 12 hex（48 位碰撞空间），env-store（前缀 id）映射为
  *       ""；storeId 非空须 ≥16 字符；sanitizeIndexName 正则
@@ -49,53 +44,48 @@ import com.ragagent.vectorstore.domain.IndexConfig;
  *   <li><b>版本探针</b>：distribution != "opensearch" 拒；1.x 拒；2.0~2.3 拒
  *       （pre-Lucene-HNSW-GA）；2.4~2.10 WARN 收；2.11+/3.x 收</li>
  *   <li><b>k-NN 插件探针</b>：_cat/plugins 按节点分组，每个节点都要有
- *       opensearch-knn；空结果/缺节点 → CONFIG_INVALID（缺节点列表按 Go 的
- *       {@code %v} 形态 "[a b c]"）</li>
- *   <li><b>错误分类</b>（errors.go + wrapTransport）：401/403→AUTH；
+ *       opensearch-knn；空结果/缺节点 → CONFIG_INVALID（缺节点列表渲染为
+ *       {@code [a b c]} 形态）</li>
+ *   <li><b>错误分类</b>：401/403→AUTH；
  *       429+knn_circuit_breaker_exception→CIRCUIT_BREAKER；其余→TRANSPORT；
  *       reason 文案不进异常 message（只进 DEBUG）</li>
- *   <li><b>mapping.go</b>：settings（knn=true/shards/replicas/refresh_interval=1s/
+ *   <li><b>索引映射</b>：settings（knn=true/shards/replicas/refresh_interval=1s/
  *       knn.algo_param.ef_search）+ properties（embedding knn_vector hnsw cosinesimil、
  *       *_id 全 keyword——无 ES 的 .keyword 后缀探测、source_type integer、
  *       is_enabled/is_recommended boolean）；alias 存在即短路；跨进程竞争
  *       resource_already_exists → 结构指纹比对（dimension/m/ef_construction/engine/
  *       space_type），漂移 → CONFIG_INVALID "manual reindex required"；aliasPut 失败
  *       尽力删孤儿 _v1</li>
- *   <li><b>query.go</b>：knn 查询（embedding.vector/k/filter 内嵌 bool.must）+
+ *   <li><b>查询</b>：knn 查询（embedding.vector/k/filter 内嵌 bool.must）+
  *       min_score 直通（COSINESIMIL.scoreTranslation 已映射 (1+cos)/2 ∈ [0,1]）；
  *       BM25 match + terms 过滤；TopK 缺省 10（WARN caller bug）、cap 10000；
  *       过滤是类型化字段（无 JSON 注入面）；is_enabled=true 隐含子句</li>
- *   <li><b>crud.go</b>：Save 幂等（_id=chunk_id）；BatchSave 的批量上限
+ *   <li><b>写入</b>：Save 幂等（_id=chunk_id）；BatchSave 的批量上限
  *       （预估 n*(100+dim*5+1024) &gt; 10MB、n &gt; 1000 → BATCH_TOO_LARGE）、
  *       逐项错误检视（≤5 条 "[op id] type"，reason 只进 DEBUG）、混合维度 →
  *       DIMENSION_MISMATCH；三种删除走 _delete_by_query terms + refresh=true、
- *       cap 1000；缺 embedding 的文档/批次路由到 keywords 索引</li>
- *   <li><b>copy.go</b>：批 500 分页扫源（from/size，受 max_result_window 10000 界——
- *       超大批量需 scroll 异步路径，Go 同缺）+ 三态 SourceID 改写 + embedding 按
+ *       cap 1000；缺 embedding 的文档/批路由到 keywords 索引</li>
+ *   <li><b>复制</b>：批 500 分页扫源（from/size，受 max_result_window 10000 界——
+ *       超大批量需 scroll 异步路径，未实现）+ 三态 SourceID 改写 + embedding 按
  *       <b>目标 SourceID</b> 键回填 + BatchSave 逐页落</li>
- *   <li><b>move.go</b>：_update_by_query 于 {@code <base>_*}（跨维）改写
+ *   <li><b>迁移</b>：_update_by_query 于 {@code <base>_*}（跨维）改写
  *       knowledge_base_id 并清 tag_id，painless 脚本 + params 绑定（防注入）、
  *       refresh=true，完整性校验（timed_out/version_conflicts/total==updated）</li>
- *   <li><b>bulk_update.go</b>：按值分组（false 先 true 后 / tag 字典序、组内 id 排序——
+ *   <li><b>批量更新</b>：按值分组（false 先 true 后 / tag 字典序、组内 id 排序——
  *       确定性）逐组 _update_by_query，常量 painless 源 + params 绑定</li>
- *   <li><b>stubs.go</b>：EstimateStorageSize 保守下界 n*(1024+4*768+128)
- *       （真实现读 _stats 未落地，Go 同——删除守卫 fail-closed）</li>
- *   <li><b>audit.go</b>：AuditSink 接口（EmitIndexCreated/EmitReindexExecuted）+
+ *   <li><b>存储估算</b>：保守下界 n*(1024+4*768+128)
+ *       （按 _stats 读取的实现未落地——删除守卫 fail-closed）</li>
+ *   <li><b>审计</b>：AuditSink 接口（EmitIndexCreated/EmitReindexExecuted）+
  *       no-op 缺省；生产适配器见 config.OpenSearchAuditSinkAdapter</li>
  * </ul>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现说明</h2>
  * <ul>
- *   <li>SDK → 自持 HTTP：opensearch-go v4 的 TLS 加固（TLS1.2 min、前向保密套件、
- *       连接池 32/90s）在 Java 侧由 HttpClient 缺省 + insecureSkipVerify 的
- *       trust-all SSLContext 承担；Go 的 ResponseHeaderTimeout=30s 在 Java 无
- *       per-request 等价（ES 驱动同姿态：仅 connectTimeout 15s）；
- *       Go 的 SSRFValidatingRoundTripper（逐请求重校验）→ 构造期一次校验
- *       （ES 驱动同姿态）</li>
- *   <li>漂移/缺节点的分组遍历序：Go map 随机 → 本仓排序（日志确定性备案）</li>
- *   <li>map 序列化一律字母序（TreeMap）——Go json.Marshal 对 map 的排序语义</li>
- *   <li>ensureReady 的 transient 分支照 Go <b>代码</b>（不持久化、当次不报错）；
- *       Go 注释与代码的分叉见 known-issues</li>
+ *   <li>自持 HTTP：TLS 走 HttpClient 缺省 + insecureSkipVerify 时的
+ *       trust-all SSLContext；无 per-request 响应超时（ES 驱动同姿态：仅
+ *       connectTimeout 15s）；SSRF 为构造期一次校验（ES 驱动同姿态）</li>
+ *   <li>漂移/缺节点的分组遍历序：排序输出（日志确定性）</li>
+ *   <li>map 序列化一律字母序（TreeMap）</li>
  * </ul>
  */
 public class OpenSearchRetrieveRepository
@@ -104,9 +94,9 @@ public class OpenSearchRetrieveRepository
     private static final Logger log = LoggerFactory.getLogger(OpenSearchRetrieveRepository.class);
     static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 CopyIndices 的 copyBatchSize（受 max_result_window 10000 界，Go 同缺）。 */
+    /** CopyIndices 分页批大小（受 max_result_window 10000 界）。 */
     static final int COPY_BATCH_SIZE = 500;
-    /** 对照 bulk 的文档数上限与体积预估上限（crud.go）。 */
+    /** bulk 的文档数上限与体积预估上限。 */
     static final int BULK_DOC_CAP = 1000;
     static final long BULK_BODY_CAP_BYTES = 10L * 1024 * 1024;
     /** 检索响应 16MB / bulk 响应 64MB（limitedDecode 的调用点文档）。 */
@@ -122,12 +112,12 @@ public class OpenSearchRetrieveRepository
     final InternalCfg cfg;
     private volatile AuditSink sink;
 
-    /** 逐维惰性初始化（照 ensureReady 的 once + initErr 语义）。 */
+    /** 逐维惰性初始化（once + initErr 语义，见类注释）。 */
     final ConcurrentHashMap<Integer, DimInit> dimInits = new ConcurrentHashMap<>();
     final ConcurrentHashMap<Integer, OpenSearchDriverException> initErrs =
             new ConcurrentHashMap<>();
 
-    /** keyword 专用索引的懒初始化（mutex+flag，可重试——照 keywordsIndex 三件套）。 */
+    /** keyword 专用索引的懒初始化（mutex+flag，可重试）。 */
     final Object keywordsLock = new Object();
     boolean keywordsReady;
     OpenSearchDriverException keywordsErr;
@@ -136,7 +126,7 @@ public class OpenSearchRetrieveRepository
     final OpenSearchWriteOps writeOps;
     final OpenSearchAdminOps adminOps;
 
-    /** 对照 internalCfg（config.go）：缺省 shards=4/replicas=1/lucene/16/100/100。 */
+    /** 驱动内部缺省配置：shards=4/replicas=1/lucene/16/100/100。 */
     static final class InternalCfg {
         final int shards;
         final int replicas;
@@ -156,21 +146,21 @@ public class OpenSearchRetrieveRepository
         }
     }
 
-    /** 逐维 once 状态（Go sync.Once 的 Java 等价物，transient 可重置）。 */
+    /** 逐维 once 状态（transient 可重置）。 */
     static final class DimInit {
         volatile boolean done;
     }
 
-    /** 对照 audit.go 的 AuditSink（驱动自有抽象，依赖箭头单向）。 */
+    /** 审计事件口（驱动自有抽象，依赖箭头单向）。 */
     public interface AuditSink {
-        /** 对照 EmitIndexCreated；dim=0 表示 keyword 专用索引。 */
+        /** 索引创建事件；dim=0 表示 keyword 专用索引。 */
         void emitIndexCreated(String alias, int dim);
 
-        /** 对照 EmitReindexExecuted。 */
+        /** reindex 执行完成事件。 */
         void emitReindexExecuted(String srcAlias, String dstAlias, long docs);
     }
 
-    /** 生产构造（照 NewOpenSearchClient + NewRepository 的合成入口）。 */
+    /** 生产构造。 */
     public OpenSearchRetrieveRepository(String addr, String storeId, IndexConfig indexCfg,
                                         String username, String password, boolean insecureSkipVerify,
                                         SsrfGuard guard) {
@@ -186,14 +176,12 @@ public class OpenSearchRetrieveRepository
             address = address.substring(0, address.length() - 1);
         }
         if (address.isEmpty()) {
-            // 对照 NewOpenSearchClient："opensearch: ConnectionConfig.Addr required"
             throw new OpenSearchDriverException(
                     OpenSearchDriverException.Kind.CONFIG_INVALID,
                     "opensearch: ConnectionConfig.Addr required: opensearch: invalid index config");
         }
         if (guard != null) {
-            // 对照 NewOpenSearchClient 的 ValidateURLForSSRF（env-path 也过——Go 侧该
-            // 驱动的客户端构造无条件校验，与 ES 的 env-path 无校验不同）
+            // env-path 也过校验：本驱动构造期无条件校验（ES 驱动的 env-path 无校验，两者不同）
             try {
                 guard.validateURLForSSRF(address);
             } catch (RuntimeException e) {
@@ -202,7 +190,7 @@ public class OpenSearchRetrieveRepository
                         "opensearch: address failed SSRF validation: " + e.getMessage());
             }
         }
-        // 对照 NewRepository：storeId 非空须 ≥16 字符；env-store id 由调用方折叠为 ""
+        // storeId 非空须 ≥16 字符；env-store id 由调用方折叠为 ""
         if (storeId != null && !storeId.isEmpty() && storeId.length() < 16) {
             throw new OpenSearchDriverException(
                     OpenSearchDriverException.Kind.CONFIG_INVALID,
@@ -235,7 +223,7 @@ public class OpenSearchRetrieveRepository
             }
             this.http = builder.build();
         }
-        // 对照 NewRepository：探针在构造期（注册期即显形），不建索引
+        // 探针在构造期（注册期即显形），不建索引
         this.adminOps = new OpenSearchAdminOps(this);
         probeVersion();
         probeKnnPlugin();
@@ -245,7 +233,7 @@ public class OpenSearchRetrieveRepository
                 this.baseIndex, this.cfg.knnEngine, this.cfg.hnswM);
     }
 
-    /** 对照 WithAuditSink（构造后注入；null 忽略——照 Go 的 option 语义）。 */
+    /** 审计 sink 构造后注入；null 忽略。 */
     public void withAuditSink(AuditSink auditSink) {
         if (auditSink != null) {
             this.sink = auditSink;
@@ -281,7 +269,7 @@ public class OpenSearchRetrieveRepository
     }
 
     /**
-     * 对照 healthcheck.go 的 {@code TestConnection}：验证集群可达、版本受支持、
+     * 连通性探针：验证集群可达、版本受支持、
      * 每节点装了 k-NN 插件——VectorStore 服务 CreateStore 健康检查的连通性探针
      * （复用构造期的两个探针）。失败抛哨兵异常，调用方折叠成通用文案。
      */
@@ -298,17 +286,15 @@ public class OpenSearchRetrieveRepository
         return EngineTypes.ENGINE_OPENSEARCH;
     }
 
-    /** 对照 Support：k-NN 单文档同时承载 ANN + BM25；keywords 索引服务无向量路径。 */
+    /** k-NN 单文档同时承载 ANN + BM25；keywords 索引服务无向量路径。 */
     @Override
     public List<String> support() {
         return List.of(EngineTypes.RETRIEVER_KEYWORDS, EngineTypes.RETRIEVER_VECTOR);
     }
 
-    // ── 写入（crud.go） ─────────────────────────────────────────────────────
+    // ── 写入 ────────────────────────────────────────────────────────────────
 
-    /** 对照 Save：幂等（_id=chunk_id）；缺 embedding → keywords 索引。 */
-    /** 对照 BatchSave：批量上限 + 混合维度检 + NDJSON + 逐项错误检视。 */
-    /** 对照 stubs.go 的 EstimateStorageSize：保守下界 n*(1024+4*768+128)。 */
+    /** 存储估算：保守下界 n*(1024+4*768+128)。 */
     @Override
     public long estimateStorageSize(List<IndexInfo> indexInfoList, Map<String, Object> params) {
         if (indexInfoList == null || indexInfoList.isEmpty()) {
@@ -317,13 +303,12 @@ public class OpenSearchRetrieveRepository
         return (long) indexInfoList.size() * (1024 + 4 * 768 + 128);
     }
 
-    // ── 删除（crud.go 的三个 DeleteBy* + byquery.go） ───────────────────────
+    // ── 删除 ────────────────────────────────────────────────────────────────
 
-    // ── 复制 / 批量更新（copy.go + bulk_update.go） ─────────────────────────
+    // ── 复制 / 批量更新 ─────────────────────────────────────────────────────
 
-    /** 对照 CopyIndices：批 500 分页扫源 + 三态 SourceID 改写 + 逐页 BatchSave。 */
     /**
-     * 对照 transformSourceID：本块 → 目标 chunkID；生成问题（&lt;chunk&gt;-&lt;q&gt;）→
+     * SourceID 三态改写：本块 → 目标 chunkID；生成问题（&lt;chunk&gt;-&lt;q&gt;）→
      * 目标 chunkID-q；兜底新 UUID。
      */
     static String transformSourceId(String sourceId, String chunkId, String targetChunkId) {
@@ -336,18 +321,11 @@ public class OpenSearchRetrieveRepository
         return UUID.randomUUID().toString();
     }
 
-    /** 对照 BatchUpdateChunkEnabledStatus：false 先 true 后（确定性），ids 排序。 */
-    /** 对照 BatchUpdateChunkTagID：tag 字典序、组内 id 排序。 */
-    // ── 迁移（move.go） ─────────────────────────────────────────────────────
+    // ── 迁移 ────────────────────────────────────────────────────────────────
 
-    /**
-     * 对照 MoveKnowledgeIndices：跨 {@code <base>_*} 改写（含历史向量——chunk 行已删的
-     * 也搬），保向量 id；完整性校验 requireComplete=true。
-     */
-    // ── 检索（retrieve.go + query.go） ──────────────────────────────────────
+    // ── 检索 ────────────────────────────────────────────────────────────────
 
-    /** 对照 Retrieve：按 RetrieverType 分派；dim 解析序 AdditionalParams &gt; embedding。 */
-    /** 对照 effectiveTopK：≤0 → WARN + 10（caller bug）；&gt;10000 钳 10000。 */
+    /** TopK 缺省：≤0 → WARN + 10（caller bug）；&gt;10000 钳 10000。 */
     static int effectiveTopK(RetrieveParams p) {
         if (p.topK <= 0) {
             log.warn("[OpenSearch] Retrieve called with TopK<=0; defaulting to 10 (caller bug?)");
@@ -421,18 +399,18 @@ public class OpenSearchRetrieveRepository
 
 
 
-    /** 对照 indexAlias。 */
+    /** 维度别名：{@code <base>_<dim>}。 */
     String indexAlias(int dim) {
         return baseIndex + "_" + dim;
     }
 
-    /** 对照 keywordsIndex。 */
+    /** keyword 专用索引名：{@code <base>_keywords}。 */
     String keywordsIndex() {
         return baseIndex + "_keywords";
     }
 
 
-    /** 对照 parseMajorMinor：剥 pre-release 后缀、容忍缺 patch。 */
+    /** 版本号解析：剥 pre-release 后缀、容忍缺 patch。 */
     static int[] parseMajorMinor(String num) {
         String base = num == null ? "" : num.split("-", 2)[0];
         String[] parts = base.split("\\.");
@@ -446,13 +424,9 @@ public class OpenSearchRetrieveRepository
         }
     }
 
-    // ── 文档投影与参数查表（crud.go toDoc/lookup*/extractBatchEmbeddings） ───
+    // ── 配置 ────────────────────────────────────────────────────────────────
 
-    /** 对照 lookupEmbedding：按 SourceID 查；形状不对降级 keyword-only + WARN。 */
-    /** 对照 lookupChunkEnabled：chunk_enabled 覆写 IndexInfo.isEnabled。 */
-    // ── 配置（config.go buildInternalCfg） ──────────────────────────────────
-
-    /** 对照 buildInternalCfg：只补缺省、不拒绝（范围校验是服务层职责）。 */
+    /** 只补缺省、不拒绝（范围校验是服务层职责）。 */
     static InternalCfg buildInternalCfg(IndexConfig c) {
         InternalCfg cfg = new InternalCfg(4, 1, "lucene", 16, 100, 100);
         if (c == null) {
@@ -467,7 +441,7 @@ public class OpenSearchRetrieveRepository
                 c.hnswEfSearch > 0 ? c.hnswEfSearch : cfg.efSearch);
     }
 
-    // ── 索引名净化（repository.go sanitizeIndexName） ───────────────────────
+    // ── 索引名净化 ──────────────────────────────────────────────────────────
 
     static String sanitizeIndexName(String name) {
         if (name == null || name.isEmpty()) {
@@ -489,7 +463,7 @@ public class OpenSearchRetrieveRepository
         return name;
     }
 
-    // ── HTTP 自持（对照 transport.go + 各 typed 调用点） ─────────────────────
+    // ── HTTP 自持 ───────────────────────────────────────────────────────────
 
     AuditSink auditSink() {
         return sink != null ? sink : new AuditSink() {
@@ -552,7 +526,7 @@ public class OpenSearchRetrieveRepository
         return send(method, pathWithQuery, body, contentType, SEARCH_BODY_CAP);
     }
 
-    /** 对照 wrapTransport：401/403→AUTH；429+断路器→CIRCUIT_BREAKER；其余→TRANSPORT。 */
+    /** 传输错误分类：401/403→AUTH；429+断路器→CIRCUIT_BREAKER；其余→TRANSPORT。 */
     static OpenSearchDriverException classifyFailure(int status, byte[] body) {
         String errorType = "";
         try {

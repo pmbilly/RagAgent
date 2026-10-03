@@ -15,15 +15,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 对照 Go internal/utils/security.go 的 SSRF 校验子集：
- * ValidateURLForSSRF / FormatSSRFError / IsSSRFWhitelisted。
+ * SSRF 校验守卫：URL 校验 / 错误格式化 / 白名单判定。
  *
  * 策略：用户提交的 URL 仅允许 http/https、禁止直连 IP（含八进制/十六进制/十进制混淆）、
  * 禁止受限主机名/后缀/端口，DNS 解析后任一解析 IP 受限即拒绝；
  * SSRF_WHITELIST + SSRF_WHITELIST_EXTRA 白名单豁免（仅放宽主机/IP，不放松 scheme）。
  *
- * 阶段说明：DB 可调白名单（SystemSettingService 运行时推送）未翻译——
- * 该能力属系统设置模块；当前仅 ENV 兜底路径（对照 loadSSRFWhitelist 的 Once 缓存）。
+ * 白名单有两个来源：ENV 启动期兜底（config.RuntimeSnapshotWiring 安装），
+ * 以及系统设置运行时推送（SystemSettingService 调 {@code reloadWhitelist}）。
  */
 @Component
 public class SsrfGuard {
@@ -64,9 +63,9 @@ public class SsrfGuard {
     }
 
     /**
-     * 白名单是**进程级**状态（对照 Go 的包级变量 + {@code SetSSRFWhitelistFromRaw}）。
+     * 白名单是**进程级**状态。
      *
-     * <p>刻意用 static：一是对齐 Go 的语义（白名单来自进程 env，不是每实例配置）；
+     * <p>刻意用 static：白名单来自进程 env，不是每实例配置；
      * 二是消除一个真实的偶发故障——出站工具类（{@code LlmTransport} / {@code McpHttp}）
      * 持有的是**静态** guard 引用，而每个 Spring 测试上下文都会新建一个 {@code SsrfGuard} bean
      * 并在构造期覆盖那把静态引用。多上下文场景下，测试对"自己的" bean 调
@@ -76,7 +75,7 @@ public class SsrfGuard {
     private static volatile Whitelist whitelist = Whitelist.empty();
 
     public SsrfGuard() {
-        // 白名单是进程级静态；值由 config.RuntimeSnapshotWiring 启动期安装（B6 批 6）
+        // 白名单是进程级静态；值由 config.RuntimeSnapshotWiring 启动期安装
     }
 
     /**
@@ -87,7 +86,7 @@ public class SsrfGuard {
         whitelist = parseWhitelistRaw(mergeRaws(raw, extraRaw));
     }
 
-    /** 对照 Go SetSSRFWhitelistFromRaw：原子替换白名单（SystemSettingService 运行时调谐路径；测试亦用） */
+    /** 原子替换白名单（SystemSettingService 运行时调谐路径；测试亦用）。 */
     public void reloadWhitelist(String raw) {
         whitelist = parseWhitelistRaw(raw);
     }
@@ -148,7 +147,7 @@ public class SsrfGuard {
         try {
             isSafeURL(normalized, uri, hostname);
         } catch (SsrfException e) {
-            // 对照 Go：仅 isSSRFSafeURL 的拒绝带 "SSRF validation failed: " 前缀
+            // 仅 isSSRFSafeURL 的拒绝带 "SSRF validation failed: " 前缀
             throw new SsrfException("SSRF validation failed: " + e.getMessage());
         }
     }
@@ -346,7 +345,7 @@ public class SsrfGuard {
         return false;
     }
 
-    /** 校验失败异常，消息与 Go error 原文一致 */
+    /** 校验失败异常（消息文案即对外契约）。 */
     public static class SsrfException extends RuntimeException {
         public SsrfException(String message) {
             super(message);

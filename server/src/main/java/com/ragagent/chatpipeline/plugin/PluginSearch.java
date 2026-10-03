@@ -19,10 +19,9 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.llm.extract.PipelineConfig;
 
 /**
- * CHUNK_SEARCH 阶段插件（对照 Go chat_pipeline/search.go 的 PluginSearch +
- * query_expansion.go 的 runQueryExpansion/expandQueries 及其辅助函数）。
+ * CHUNK_SEARCH 阶段插件（含查询扩展与检索执行协作者）。
  *
- * <h2>编排面（实录组 search/search_by_targets/search_parallel 钉住）</h2>
+ * <h2>编排面</h2>
  * <ul>
  *   <li>OnEvent：无目标且 web 关闭 → null（kb_not_found）；KB 检索与 web 检索并发；
  *       KB 失败且全空 → SEARCH；低召回（EnableQueryExpansion）触发本地查询扩展。</li>
@@ -32,9 +31,8 @@ import com.ragagent.llm.extract.PipelineConfig;
  *   <li>扩展检索：并发窗口 16，阈值 KeywordThreshold*0.8，SkipContextEnrichment。</li>
  * </ul>
  *
- * <p>并发语义：Go 的 errgroup 首错保留（recordError 的 errOnce）；Java 用
- * happens-before 的首个异常字段落定。web 结果转换走 searchutil.WebResultConverter
- * （4.4 已实录对齐）。langfuse span 保持调用形状（Java 恒 no-op）。</p>
+ * <p>并发语义：并发任务的首个错误保留（happens-before 的首个异常字段落定）。
+ * web 结果转换走 WebResultConverter。langfuse span 保持调用形状（恒 no-op）。</p>
  */
 public final class PluginSearch implements Plugin {
 
@@ -48,10 +46,10 @@ public final class PluginSearch implements Plugin {
     private final PipelinePorts.WebSearchStateService webSearchStateService;
     private final PipelinePorts.WebSearchProviderRepository webSearchProviderRepo;
 
-    /** 查询扩展协作者（对照 query_expansion.go）。 */
+    /** 查询扩展协作者。 */
     final PluginExpansionOps expansionOps;
 
-    /** 检索执行协作者（对照 search.go 检索段）。 */
+    /** 检索执行协作者。 */
     final PluginSearchOps searchOps;
 
     public PluginSearch(PipelinePorts.KnowledgeBaseService knowledgeBaseService,
@@ -95,9 +93,9 @@ public final class PluginSearch implements Plugin {
 
         logInput(chatManage);
 
-        // KB 检索与 web 检索并发（对照两个 goroutine + mu）。
-        // Go 的 ctx 值随 goroutine 捕获流转；Java ThreadLocal 不跨线程，必须显式快照/回放
-        // （约定 §5，与 EventBus 异步派发同款纪律——否则虚拟线程上 tenantId()=0，
+        // KB 检索与 web 检索并发。
+        // ThreadLocal 不跨线程，必须显式快照/回放
+        // （与 EventBus 异步派发同款纪律——否则虚拟线程上 tenantId()=0，
         // getModelByID 抛 ModelNotFoundException，整组静默降级为关键词-only）。
         TenantContextSnapshot tenantSnap = TenantContextSnapshot.capture();
         List<SearchResult> allResults = new ArrayList<>();
@@ -204,7 +202,7 @@ public final class PluginSearch implements Plugin {
     // ------------------------------------------------------------------
 
     /**
-     * 跨虚拟线程显式传 TenantContext（约定 §5）：提交线程 capture，工作线程 replay，
+     * 跨虚拟线程显式传 TenantContext：提交线程 capture，工作线程 replay，
      * finally clear（虚拟线程由 JVM 池化复用载体，不清理会污染下一个任务）。
      */
     static java.util.concurrent.Callable<Object> withTenant(

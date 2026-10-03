@@ -27,11 +27,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * 对照 Go internal/models/chat/anthropic_tools_test.go 的三条用例。
+ * Anthropic 工具调用的三条用例。
  *
- * <p>Go 直接用零值结构体 {@code &AnthropicChat{modelName: "claude-test"}}；Java 侧必须走
- * 构造器（要过 API key 校验），故用一个不带 baseURL 的配置——构造器只做 SSRF 校验与
- * key 校验，不发任何网络请求。</p>
+ * <p>实例统一走构造器（要过 API key 校验），故用一个不带 baseURL 的配置——
+ * 构造器只做 SSRF 校验与 key 校验，不发任何网络请求。</p>
  */
 class AnthropicToolsTest {
 
@@ -45,7 +44,6 @@ class AnthropicToolsTest {
     }
 
     /**
-     * 对照 Go TestAnthropicToolsPreserveParallelHistoryAndSchema：
      * 工具 schema 原样保留（$defs / $ref / oneOf / additionalProperties），
      * 并行工具调用在历史里保 ID、保 JSON、保空白、保空结果，且两条 tool 合进同一条 user 消息。
      */
@@ -124,7 +122,7 @@ class AnthropicToolsTest {
         assertEquals("tool", req.getToolChoice().getType());
         assertEquals("lookup", req.getToolChoice().getName());
 
-        // choice=none 时不发 disable_parallel_tool_use（对照 Go 的 choice.Type != "none" 判断）
+        // choice=none 时不发 disable_parallel_tool_use（非 none 才设置该字段）
         ChatOptions noneOpts = new ChatOptions();
         noneOpts.setTools(tools);
         noneOpts.setToolChoice("none");
@@ -141,7 +139,6 @@ class AnthropicToolsTest {
     }
 
     /**
-     * 对照 Go TestAnthropicToolStreamParallelFragmentsAndIncompleteCalls：
      * 并行工具片段累加；<b>没观察到 content_block_stop 的调用一律丢弃</b>。
      *
      * <p>四种尾部（完整 / 截断 / 缺 block stop / 撞 max_tokens）都要把 finish_reason
@@ -207,7 +204,7 @@ class AnthropicToolsTest {
         assertToolCallsEqual(parsed.getToolCalls(), last.getToolCalls());
     }
 
-    /** 对照 Go TestAnthropicNonStreamingToolUse：非流式响应里的 tool_use block。 */
+    /** 非流式响应里的 tool_use block。 */
     @Test
     void nonStreamingToolUse() throws Exception {
         AnthropicResponse response = MAPPER.readValue(

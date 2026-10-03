@@ -7,19 +7,14 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Ollama 工具定义（对照 ollamaapi.Tool / ToolFunction，
- * ollama@v0.23.2/api/types.go:300-320 与 500-505）。
+ * Ollama 工具定义（对齐 ollama v0.23.2 API）。
  *
- * <p><b>⚠️ 与 Go 的一处差异（已在任务报告里登记，需要主会话决策）</b>：</p>
- * <p>Go 把调用方的 schema 反序列化进强类型结构体 {@code ollamaapi.ToolFunctionParameters}，
- * 于是<b>未被建模的 JSON Schema 关键字会被静默丢弃</b>——实测会丢
- * {@code oneOf} / {@code additionalProperties}，以及 properties 里的 {@code $ref}
- * （{@code ToolProperty} 没有 $ref 字段），只保留 type / $defs / items / required /
- * properties（且 property 内部同样只剩它建模的那几个键）。
- * Java 侧没有该 SDK，直接<b>原样透传</b> schema（JsonNode）——信息只会更完整，不会更少。</p>
+ * <p><b>schema 原样透传</b>（JsonNode）：不做强类型结构体的有损往返，
+ * {@code oneOf} / {@code additionalProperties} / {@code $ref} 等
+ * 未建模的 JSON Schema 关键字全部保留——信息只会更完整，不会更少。</p>
  *
- * <p>字段序 = Go 声明序：type / function 恒输出，description 空则省略，
- * parameters 恒输出（nil 时为 JSON null）。</p>
+ * <p>JSON 字段序 = 声明序：type / function 恒输出，description 空则省略，
+ * parameters 恒输出（null 时为 JSON null）。</p>
  */
 @JsonPropertyOrder({"type", "items", "function"})
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -48,7 +43,7 @@ public class OllamaTool {
     public Function getFunction() { return function; }
     public void setFunction(Function v) { function = v == null ? new Function() : v; }
 
-    /** 对照 ollamaapi.ToolFunction。 */
+    /** function 子对象。 */
     @JsonPropertyOrder({"name", "description", "parameters"})
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Function {
@@ -59,8 +54,8 @@ public class OllamaTool {
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         private String description;
         /**
-         * JSON Schema，原样透传（见类注释里与 Go 的差异说明）。
-         * Go 的 {@code Parameters} 无 omitempty → 恒输出，null 时输出 JSON null。
+         * JSON Schema，原样透传（见类注释）。
+         * 恒输出，null 时输出 JSON null。
          */
         @JsonProperty("parameters")
         private JsonNode parameters;

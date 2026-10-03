@@ -34,17 +34,16 @@ import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * Wiki 页面 HTTP 层的契约测试（对照 Go internal/handler/wiki_page.go 的 21 个端点）。
+ * Wiki 页面 HTTP 层的契约测试（覆盖 21 个端点）。
  *
  * <p><b>三个来源</b>：</p>
  * <ol>
- *   <li><b>路由级越权</b>：{@code internal/router/router_wiki_test.go}（212 行）——跨空间 KB 的
- *       读/写拒绝、KB 不存在的 404。Go 侧这些 403 由 {@code KBAccessRead/KBAccessWrite} 守卫产生；
- *       Java 侧由守卫的等价判定产生（见 {@link WikiKbAccessGuard#requireWikiKB}），
- *       断言的状态码与 Go 测试逐条一致。</li>
- *   <li><b>所有权</b>：{@code OwnedWikiKBOrAdmin}（Go {@code rbac.go:500} →
- *       {@code RequireOwnershipOrRole}）——非创建者的 Contributor 写被拒、读放行，
- *       文案与 Go 一致。</li>
+ *   <li><b>路由级越权</b>：跨空间 KB 的
+ *       读/写拒绝、KB 不存在的 404。这些 403 由 {@code KBAccessRead/KBAccessWrite} 守卫产生；
+ *       Java 侧由守卫的等价判定产生（见 {@link WikiKbAccessGuard#requireWikiKB}）。</li>
+ *   <li><b>所有权</b>：{@code OwnedWikiKBOrAdmin}
+ *       ——非创建者的 Contributor 写被拒、读放行，
+ *       拒绝文案为固定的 must-own 文案。</li>
  *   <li><b>端点契约</b>：响应形态（实体直出 / gin.H / 裸数组 / handler 直写错误）、
  *       状态码、关键字段序。</li>
  * </ol>
@@ -138,7 +137,7 @@ class WikiHttpContractTest {
         memberMapper.insert(member);
     }
 
-    /** 对照 Go 测试的 {@code stubWikiKBLookup} 夹具：KB 行带 tenant_id + creator_id */
+    /** 夹具：KB 行带 tenant_id + creator_id */
     private void insertKb(String kbId, long tenantId, String creatorId, boolean wikiEnabled) {
         jdbc.update("INSERT INTO knowledge_bases (id, name, tenant_id, type, creator_id, "
                         + "indexing_strategy, chunking_config, storage_config) "
@@ -148,11 +147,11 @@ class WikiHttpContractTest {
                         + wikiEnabled + ",\"graphEnabled\":false}");
     }
 
-    // ══════════════════════════ 越权（对照 router_wiki_test.go） ══════════════════════════
+    // ══════════════════════════ 越权 ══════════════════════════
 
     /**
-     * 对照 Go {@code TestWikiReadRoutesDenyCrossTenantKB}：跨空间 KB 的全部读端点必须 403。
-     * Go 由 {@code KBAccessRead} 守卫产生该 403，Java 由控制器内的等价判定产生。
+     * 跨空间 KB 的全部读端点必须 403。
+     * 该 403 由 {@code KBAccessRead} 守卫（控制器内的等价判定）产生。
      */
     @ParameterizedTest(name = "GET {0}")
     @CsvSource({
@@ -199,7 +198,7 @@ class WikiHttpContractTest {
     }
 
     /**
-     * 被拒的读走<b>全局错误信封</b>（对照 Go 的 {@code c.Error()} → ErrorHandler），
+     * 被拒的读走<b>全局错误信封</b>（由全局 ErrorHandler 产生），
      * 与 handler 直写的 {@code {"error":"..."}} 形态不同。
      */
     @Test
@@ -214,7 +213,7 @@ class WikiHttpContractTest {
         assertTrue(body.contains("Permission denied to access this knowledge base"), body);
     }
 
-    /** 对照 Go {@code kb_access.go} 的 {@code access.ErrNotFound} 分支：KB 不存在 → 404（不是 400）。 */
+    /** KB 不存在 → 404（不是 400）。 */
     @Test
     void unknownKbReturns404() throws Exception {
         String token = loginOwner();
@@ -228,8 +227,8 @@ class WikiHttpContractTest {
 
     /**
      * {@code OwnedWikiKBOrAdmin}：KB 的创建者本人或 Admin+ 才能写；非创建者的 Contributor
-     * 写被拒（403），读仍然放行。文案与 Go 的
-     * {@code "Forbidden: must own the resource or have the required role"} 同源。
+     * 写被拒（403），读仍然放行。文案为
+     * {@code "Forbidden: must own the resource or have the required role"}。
      */
     @Test
     void nonOwnerContributorCanReadButNotWrite() throws Exception {
@@ -257,8 +256,8 @@ class WikiHttpContractTest {
     }
 
     /**
-     * 对照 Go {@code TestWikiOperationLogRouteIsRemoved}：wiki 专用的操作日志端点已下线，
-     * 不能再出现在路由表里（Go 由“没有注册该路由”保证，Java 由“没有该映射”保证）。
+     * wiki 专用的操作日志端点已下线，
+     * 不能再出现在路由表里（由“没有该映射”保证）。
      */
     @Test
     void removedOperationLogRouteIsGone() throws Exception {
@@ -281,7 +280,7 @@ class WikiHttpContractTest {
 
     // ══════════════════════════════ 页面 CRUD ══════════════════════════════
 
-    /** ListPages：<b>结构体直出</b>（无 data 信封），字段序 = Go struct 声明序。 */
+    /** ListPages：<b>结构体直出</b>（无 data 信封），字段序 = 响应结构体声明序。 */
     @Test
     void listPagesReturnsStructOrderWithoutEnvelope() throws Exception {
         String token = loginOwner();
@@ -315,7 +314,7 @@ class WikiHttpContractTest {
         assertFalse(body.contains("concept/rag"), body);
     }
 
-    /** CreatePage → 201，响应是裸实体（键序 = Go 声明序）。 */
+    /** CreatePage → 201，响应是裸实体（键序 = 实体声明序）。 */
     @Test
     void createPageReturns201EntityInDeclarationOrder() throws Exception {
         String token = loginOwner();
@@ -336,12 +335,12 @@ class WikiHttpContractTest {
         int iPageType = body.indexOf("\"pageType\":");
         assertTrue(iId == 1 && iId < iTenant && iTenant < iKb && iKb < iSlug
                 && iSlug < iTitle && iTitle < iPageType, "实体键序错误：" + body);
-        // 服务侧补的默认值（对照 Go：status 空 → published，version 0 → 1）
+        // 服务侧补的默认值（status 空 → published，version 0 → 1）
         assertTrue(body.contains("\"status\":\"published\""), body);
         assertTrue(body.contains("\"version\":1"), body);
     }
 
-    /** page_type 只在<b>非空</b>时校验（对照 Go L372）。 */
+    /** page_type 只在<b>非空</b>时校验。 */
     @Test
     void createPageRejectsInvalidPageTypeButAllowsEmpty() throws Exception {
         String token = loginOwner();
@@ -510,7 +509,7 @@ class WikiHttpContractTest {
         assertEquals("{\"error\":\"Wiki page not found\"}", body(r));
     }
 
-    /** Revert 到当前版本 → <b>400</b>（不是 500），文案取 Go 的哨兵错误。 */
+    /** Revert 到当前版本 → <b>400</b>（不是 500），文案为固定的哨兵错误。 */
     @Test
     void revertToCurrentVersionReturns400() throws Exception {
         String token = loginOwner();
@@ -542,7 +541,7 @@ class WikiHttpContractTest {
         assertTrue(body(r).contains("\"version\":3"), "回滚也是一次普通编辑，版本前进：" + body(r));
     }
 
-    /** revert 的 {@code binding:"required"} 复刻：缺字段时的 Go validator 文案（多字段换行连接）。 */
+    /** revert 缺字段时的绑定校验文案（多字段换行连接）。 */
     @Test
     void revertWithoutRequiredFieldsReturnsGoBindingText() throws Exception {
         String token = loginOwner();
@@ -636,7 +635,7 @@ class WikiHttpContractTest {
         assertEquals("{\"error\":\"wiki folder not found\"}", body(missing));
     }
 
-    /** 非空（含子文件夹）的文件夹不可删 → 409，文案取 Go 的 sentinel。 */
+    /** 非空（含子文件夹）的文件夹不可删 → 409，文案为固定哨兵值。 */
     @Test
     void deletingNonEmptyFolderReturns409() throws Exception {
         String token = loginOwner();
@@ -650,7 +649,7 @@ class WikiHttpContractTest {
     }
 
     /**
-     * ListFolders：{@code WikiFolderNode} 把 {@code WikiFolder} 扁平展开（Go 的匿名嵌入），
+     * ListFolders：{@code WikiFolderNode} 把 {@code WikiFolder} 扁平展开，
      * 并附 page_count（<b>递归</b>子树计数）与 has_children。
      */
     @Test
@@ -695,7 +694,7 @@ class WikiHttpContractTest {
         assertTrue(body.contains("\"items\":[{\"slug\":\"entity/acme\""), body);
     }
 
-    /** GetGraph 的参数校验分支必须逐一与 Go 对齐（400 文案逐字相同）。 */
+    /** GetGraph 的参数校验分支逐一钉桩（400 文案逐字固定）。 */
     @ParameterizedTest(name = "{0}")
     @CsvSource(delimiter = '|', value = {
             "bad mode       | mode=top  | {\"error\":\"mode must be 'overview' or 'ego'\"}",

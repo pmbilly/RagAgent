@@ -6,12 +6,12 @@ import com.ragagent.auth.domain.User;
 import com.ragagent.auth.domain.UserPreferences;
 
 /**
- * 用户信息投影（对照 Go types/user.go UserInfo + User.ToUserInfo）。
+ * 用户信息投影。
  * 用于 GET /auth/validate 与 GET /auth/me 的 user 字段。
  *
- * 与 User 实体序列化的差别：**没有 deleted_at 字段**（UserInfo 结构体不含它）。
- * avatar 恒输出（Go 非指针 string 零值 ""）；tenant_id 恒输出（uint64 零值 0）；
- * preferences 恒输出对象（Go 值类型，空为 {}）。
+ * 与 User 实体序列化的差别：**没有 deleted_at 字段**。
+ * avatar 恒输出（零值 ""）；tenant_id 恒输出（零值 0）；
+ * preferences 恒输出对象（空为 {}）。
  */
 public record UserInfo(
         String id,
@@ -27,7 +27,7 @@ public record UserInfo(
         OffsetDateTime updatedAt) {
 
     /**
-     * 对照 ToUserInfo + /auth/me 的调整：canAccessAllTenants 在 /auth/me 里还要
+     * 实体 → 投影。canAccessAllTenants 在 /auth/me 里还要
      * 与部署级 EnableCrossTenantAccess 相与（其它端点传 user.isCanAccessAllTenants()）。
      */
     public static UserInfo from(User u, boolean canAccessAllTenants) {

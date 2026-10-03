@@ -65,7 +65,7 @@ public class ChunkQuestionService {
     private final TenantService tenantService;
     private final ConversationProperties conversationProps;
     private final ChunkAccessGuard guard;
-    /** RETRIEVE_DRIVER（B6 批 3：属性绑定）。 */
+    /** RETRIEVE_DRIVER（属性绑定）。 */
     private final RetrievalDriverProperties driverProperties;
 
     public ChunkQuestionService(ChunkRepository chunkRepository,
@@ -188,7 +188,7 @@ public class ChunkQuestionService {
         log.info("Deleting generated question, chunk ID: {}, question ID: {}", chunkId, questionId);
         long tenantId = mustTenantId();
 
-        //    "error code: N, ..." 前缀一并进入 400 文案，照抄）
+        // "error code: N, ..." 前缀一并进入 400 文案
         Chunk chunk;
         try {
             chunk = guard.writableChunk(chunkId);

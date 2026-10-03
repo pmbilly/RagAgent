@@ -23,23 +23,23 @@ import com.ragagent.common.web.JsonMappers;
 import com.ragagent.llm.extract.PipelineConfig;
 
 /**
- * QUERY_UNDERSTAND 阶段插件（对照 Go chat_pipeline/query_understand.go）：
+ * QUERY_UNDERSTAND 阶段插件：
  * 查询改写 + 意图分类 + 图片描述；文本/图文/纯图三种输入组合。
  *
- * <h2>关键语义（实录组 qu_* 钉住）</h2>
+ * <h2>关键语义</h2>
  * <ul>
  *   <li>无改写开关且无图 → 直接 next（RewriteQuery 先行落原始查询）。</li>
  *   <li>模型选择：有图优先 vision 模型（chat 支持 → chat；否则 VLM），无图走
  *       QueryUnderstandModelID 覆写，失败回落 ChatModelID；全失败 → next()。</li>
  *   <li>LLM 调用失败 / 输出不可解析 → 保持原查询原意图（降级不短路）。</li>
  *   <li>非检索意图时应用 intent 系统提示词覆写（agent 覆写优先，空白回落全局）。</li>
- *   <li>图片描述落库是<b>异步</b>（context.WithoutCancel → Java 虚拟线程，无取消语义）。</li>
+ *   <li>图片描述落库是<b>异步</b>（虚拟线程执行，无取消语义）。</li>
  *   <li>记忆背景（asker_background）只进改写提示词，不进 UsedMemories。</li>
  * </ul>
  *
  * <p>结构化输出的宽容解析（parseStructuredQueryOutput）：直接 JSON → 失败时截取
  * 首个 { 到末个 } 再试；query 键别名族 rewrite_query/rewritten_query/query/question；
- * 图片描述键别名族 desc 族 + ocr 族（desc 与 ocr 合并规则实录钉住）。</p>
+ * 图片描述键别名族 desc 族 + ocr 族。</p>
  */
 public final class PluginQueryUnderstand implements Plugin {
 
@@ -169,7 +169,7 @@ public final class PluginQueryUnderstand implements Plugin {
         return next.next();
     }
 
-    /** 对照 updateUserMessageImageCaption：把生成的图片描述写回用户消息。 */
+    /** 把生成的图片描述写回用户消息。 */
     private void updateUserMessageImageCaption(ChatManage chatManage) {
         PipelineMessageView msg;
         try {
@@ -203,7 +203,7 @@ public final class PluginQueryUnderstand implements Plugin {
         }
     }
 
-    /** 对照 loadHistory：MaxRounds ≤ 0 视为显式关闭多轮，不回落全局默认。 */
+    /** MaxRounds ≤ 0 视为显式关闭多轮，不回落全局默认。 */
     private List<History> loadHistory(ChatManage chatManage) {
         if (chatManage.getMaxRounds() <= 0) {
             return null;
@@ -230,10 +230,10 @@ public final class PluginQueryUnderstand implements Plugin {
         return historyList;
     }
 
-    /** 模型选择结果（对照 Go 的 (model, useImages) 双返回）。 */
+    /** 模型选择结果（选中的模型 + 是否用图）。 */
     private record ModelChoice(LlmChatClient model, boolean useImages) {}
 
-    /** 对照 selectModel：有图优先 vision，再 VLM；无图走 QU 覆写并回落。 */
+    /** 有图优先 vision，再 VLM；无图走 QU 覆写并回落。 */
     private ModelChoice selectModel(ChatManage chatManage, boolean hasImages) {
         if (hasImages) {
             if (chatManage.isChatModelSupportsVision()) {
@@ -294,7 +294,7 @@ public final class PluginQueryUnderstand implements Plugin {
         }
     }
 
-    /** 对照 buildPrompts：system/user 提示词（conversation/query/language 占位符）。 */
+    /** system/user 提示词组装（conversation/query/language 占位符）。 */
     public String[] buildPrompts(ChatManage chatManage, List<History> historyList) {
         String userPrompt = config.getRewritePromptUser();
         if (!chatManage.getRewritePromptUser().isEmpty()) {
@@ -333,7 +333,7 @@ public final class PluginQueryUnderstand implements Plugin {
     }
 
     /**
-     * 对照 memoryBackground：给改写器"谁在问"的常驻背景。刻意不建议进 UsedMemories
+     * 给改写器"谁在问"的常驻背景。刻意不进 UsedMemories
      * （这里读的是全量背景，MEMORY_RECALL 才按相关性与本轮答案对账）。
      */
     private String memoryBackground(ChatManage chatManage) {
@@ -371,7 +371,7 @@ public final class PluginQueryUnderstand implements Plugin {
     }
 
     /**
-     * 对照 parseOutput：解析失败保持原查询与原意图（blank 直接返回）。
+     * 解析模型输出；解析失败保持原查询与原意图（blank 直接返回）。
      */
     public void parseOutput(ChatManage chatManage, String raw) {
         String content = raw == null ? "" : raw.trim();
@@ -392,14 +392,14 @@ public final class PluginQueryUnderstand implements Plugin {
         // 解析失败：保留原查询与意图
     }
 
-    /** 对照 queryUnderstandOutput。 */
+    /** 结构化查询输出（rewrite/intent/图片描述）。 */
     public static final class StructuredQueryOutput {
         public String rewriteQuery = "";
         public String intent = "";
         public String imageDescription = "";
     }
 
-    /** 对照 parseStructuredQueryOutput：直接 JSON → 截 {..} 再试。 */
+    /** 先按纯 JSON 解析，失败则截取 {..} 段再试。 */
     public static StructuredQueryOutput parseStructuredQueryOutput(String raw) {
         String content = raw == null ? "" : raw.trim();
         if (content.isEmpty()) {
@@ -421,7 +421,7 @@ public final class PluginQueryUnderstand implements Plugin {
         return parseStructuredQueryOutputJson(candidate);
     }
 
-    /** 对照 parseStructuredQueryOutputJSON：map[string]RawMessage + 键别名族。 */
+    /** JSON 对象解析 + 键别名族（rewrite/intent/image_description/ocr 多种命名）。 */
     static StructuredQueryOutput parseStructuredQueryOutputJson(String content) {
         JsonNode obj;
         try {
@@ -471,7 +471,7 @@ public final class PluginQueryUnderstand implements Plugin {
         return new MergeResult(desc + "\n\n[OCR]\n" + ocr, true);
     }
 
-    /** 对照 firstStringField：键序尝试，取第一个能解成 string 的值。 */
+    /** 按键序尝试，取第一个能解成 string 的值。 */
     static String firstStringField(JsonNode obj, String... keys) {
         for (String key : keys) {
             JsonNode raw = obj.get(key);
@@ -485,7 +485,7 @@ public final class PluginQueryUnderstand implements Plugin {
         return "";
     }
 
-    /** 对照 applyIntentPromptOverride：agent 覆写优先，空白回落全局。返回是否应用。 */
+    /** agent 覆写优先，空白回落全局。返回是否应用。 */
     public static boolean applyIntentPromptOverride(ChatManage chatManage, Map<String, String> globalPrompts) {
         String intentKey = chatManage.getIntent();
         if (chatManage.getIntentPromptOverrides() != null) {
@@ -505,7 +505,7 @@ public final class PluginQueryUnderstand implements Plugin {
         return !chatManage.getSystemPromptOverride().isEmpty();
     }
 
-    /** 对照 formatConversationHistory。 */
+    /** 历史格式化为文本块序列。 */
     public static String formatConversationHistory(List<History> historyList) {
         if (historyList == null || historyList.isEmpty()) {
             return "";

@@ -5,17 +5,15 @@ import java.time.OffsetDateTime;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * 某轮对话中 skill 脚本产出的文件（对照 Go {@code types.MessageArtifact}，
- * internal/types/message.go L235-243）。
+ * 某轮对话中 skill 脚本产出的文件。
  *
  * <p>与 {@link MessageAttachment} 的区别：附件是**用户上传**的，产物是沙箱
  * **替模型生成**、由 WeKnora 落到文件服务里的——沙箱被回收后用户仍能下载。</p>
  *
- * <p>七个键全部恒输出（§1.6）；键名＝Java 字段名（§14.9l S2）。</p>
+ * <p>七个键全部恒输出（§1.6）；键名＝Java 字段名。</p>
  *
- * <p>关于 {@code url}：Go 的字段注释说它"never exposed directly to the client"，
- * 但 json tag 就是 {@code json:"url"}（没有 {@code -}）——**以 tag 为准**，
- * 契约里它是输出的。注释描述的是意图（调用方不该拿它当可下载链接），不是序列化行为。</p>
+ * <p>关于 {@code url}：**序列化上它是输出的**（契约里有 {@code url} 键）；
+ * "不要直接暴露给客户端"是意图层面的告诫（调用方不该拿它当可下载链接），不是序列化行为。</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MessageArtifact {

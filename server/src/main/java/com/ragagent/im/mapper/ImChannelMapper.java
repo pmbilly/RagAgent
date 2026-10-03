@@ -14,17 +14,16 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.ragagent.im.domain.ImChannelEntity;
 
 /**
- * im_channels 仓储（对照 Go internal/im/service.go 的 CRUD 段 L3117-3267 与
- * migrations 000021/000023/000024/000028 的列）。
+ * im_channels 仓储（列集见 migrations 000021/000023/000024/000028）。
  */
 public interface ImChannelMapper extends BaseMapper<ImChannelEntity> {
 
-    /** 对照 GetChannelByIDAndTenant / ToggleChannel 的 First。 */
+    /** 按 id + 租户取一行（update/toggle 用）。 */
     @Select("SELECT * FROM im_channels WHERE id = #{id} AND tenant_id = #{tenantId} "
             + "AND deleted_at IS NULL")
     ImChannelEntity getByIdAndTenant(@Param("id") String id, @Param("tenantId") long tenantId);
 
-    /** 对照 GetChannelByID（service.go L1627-1633，W5a 回调面用）：无租户过滤。 */
+    /** 按 id 取一行（回调面用）：无租户过滤。 */
     @Select("SELECT * FROM im_channels WHERE id = #{id} AND deleted_at IS NULL")
     ImChannelEntity getById(@Param("id") String id);
 
@@ -32,15 +31,15 @@ public interface ImChannelMapper extends BaseMapper<ImChannelEntity> {
     @Select("SELECT * FROM im_channels WHERE enabled = TRUE AND deleted_at IS NULL")
     java.util.List<ImChannelEntity> listEnabled();
 
-    /** 对照 ListChannelsByAgent：created_at DESC。 */
+    /** 按 agent 列出，created_at DESC。 */
     @Select("SELECT * FROM im_channels WHERE agent_id = #{agentId} AND tenant_id = #{tenantId} "
             + "AND deleted_at IS NULL ORDER BY created_at DESC")
     List<ImChannelEntity> listByAgent(@Param("agentId") String agentId,
             @Param("tenantId") long tenantId);
 
     /**
-     * 对照 ListChannelsByTenant（L3151-3186）：LEFT JOIN custom_agents 回填 agent_name；
-     * agent 被软删且非内建的行被排除；created_at DESC。返回投影行（键名对照
+     * 跨 agent 列表：LEFT JOIN custom_agents 回填 agent_name；
+     * agent 被软删且非内建的行被排除；created_at DESC。返回投影行（键名同
      * ChannelWithAgent 的列）。
      */
     @Select("<script>"
@@ -63,7 +62,7 @@ public interface ImChannelMapper extends BaseMapper<ImChannelEntity> {
     List<Map<String, Object>> listByTenantWithAgent(@Param("tenantId") long tenantId,
             @Param("builtinIds") List<String> builtinIds);
 
-    /** 对照 checkDuplicateBot 的 First（部分唯一索引的查询形态）。 */
+    /** bot_identity 查重（部分唯一索引的查询形态）。 */
     @Select("<script>SELECT * FROM im_channels WHERE bot_identity = #{botIdentity} "
             + "AND deleted_at IS NULL "
             + "<if test=\"excludeId != null and excludeId != ''\">AND id != #{excludeId}</if> "
@@ -71,7 +70,7 @@ public interface ImChannelMapper extends BaseMapper<ImChannelEntity> {
     ImChannelEntity findByBotIdentity(@Param("botIdentity") String botIdentity,
             @Param("excludeId") String excludeId);
 
-    /** 对照 db.Create（BeforeCreate 之后的列已由 service 备齐）。 */
+    /** 插入（前置列已由 service 备齐）。 */
     @Insert("INSERT INTO im_channels (id, tenant_id, agent_id, platform, name, enabled, mode, "
             + "output_mode, knowledge_base_id, bot_identity, session_mode, credentials, "
             + "created_at, updated_at) VALUES "
@@ -81,7 +80,7 @@ public interface ImChannelMapper extends BaseMapper<ImChannelEntity> {
             + "#{e.createdAt}, #{e.updatedAt})")
     void insertChannel(@Param("e") ImChannelEntity e);
 
-    /** 对照 db.Save（全列写；BeforeSave 后的 bot_identity 落列）。 */
+    /** 全列更新（保存钩子算好的 bot_identity 一并落列）。 */
     @Update("UPDATE im_channels SET agent_id = #{e.agentId}, platform = #{e.platform}, "
             + "name = #{e.name}, enabled = #{e.enabled}, mode = #{e.mode}, "
             + "output_mode = #{e.outputMode}, knowledge_base_id = #{e.knowledgeBaseId}, "
@@ -91,13 +90,13 @@ public interface ImChannelMapper extends BaseMapper<ImChannelEntity> {
             + "WHERE id = #{e.id} AND deleted_at IS NULL")
     int saveChannel(@Param("e") ImChannelEntity e);
 
-    /** 对照 DeleteChannel（软删；RowsAffected=0 → "channel not found"）。 */
+    /** 软删；影响 0 行 → 上层报 "channel not found"。 */
     @Update("UPDATE im_channels SET deleted_at = #{now} WHERE id = #{id} "
             + "AND tenant_id = #{tenantId} AND deleted_at IS NULL")
     int softDelete(@Param("id") String id, @Param("tenantId") long tenantId,
             @Param("now") OffsetDateTime now);
 
-    /** 对照 DeleteChannelsByAgent 的批量软删（agents 批 DeleteAgent 的依赖口，供后续接线）。 */
+    /** 按 agent 硬删仍未软删的行（agent 删除流程的依赖口）。 */
     @Delete("DELETE FROM im_channels WHERE agent_id = #{agentId} AND tenant_id = #{tenantId} "
             + "AND deleted_at IS NULL")
     int deleteHardByAgent(@Param("agentId") String agentId, @Param("tenantId") long tenantId);

@@ -4,8 +4,7 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.memory.domain.MemoryScope;
 
 /**
- * 只从请求上下文推导记忆空间（对照 Go
- * {@code internal/application/service/memory/scope.go} 的 {@code ResolveScope}）。
+ * 只从请求上下文推导记忆空间。
  *
  * <h2>推导而不是接受 scope，就是整套隔离模型</h2>
  * <p>不存在任何"客户端可以用自己传的 id 选中一个记忆空间"的代码路径，
@@ -13,9 +12,8 @@ import com.ragagent.memory.domain.MemoryScope;
  * 它同时覆盖 Web 用户、IM 用户、API 外部用户和 embed 访客；
  * 再与工作区配对，同一个人在多个工作区之间的记忆也就不会串。</p>
  *
- * <h2>Java 与 Go 的形状差异</h2>
- * <p>Go 把 {@code (MemoryScope, error)} 作为返回值；Java 用
- * {@link MemoryScopeExceptions.NoScope} 表达同一个失败——读路径把异常当"没有记忆"，
+ * <h2>失败表达</h2>
+ * <p>失败用 {@link MemoryScopeExceptions.NoScope} 表达——读路径把异常当"没有记忆"，
  * API 路径把它转成 401（因为"没有主人的记忆管理器"是 bug，不是空状态）。</p>
  * <p>没有 context 参数：租户与主体走 {@link TenantContext}（约定 §5）。</p>
  */
@@ -24,12 +22,12 @@ public final class MemoryScopes {
     private MemoryScopes() {}
 
     /**
-     * 对照 Go {@code ResolveScope}。
+     * 推导记忆 scope。
      *
-     * <p>三条前置逐条照抄：租户必须存在且 **非 0**；主体必须存在；主体的
+     * <p>三条前置逐条检查：租户必须存在且 **非 0**；主体必须存在；主体的
      * {@code StorageID()} 必须非空。</p>
      *
-     * @throws MemoryScopeExceptions.NoScope 对应 Go 的 {@code ErrNoMemoryScope}
+     * @throws MemoryScopeExceptions.NoScope 任一前置不满足
      */
     public static MemoryScope resolve() {
         Long tenantId = TenantContext.currentTenantId();
@@ -48,13 +46,13 @@ public final class MemoryScopes {
     }
 
     /**
-     * 对照 Go {@code Principal.StorageID()}：{@code Type + ":" + ID}，两者都去空白后非空才算有效。
+     * {@code Type + ":" + ID} 形式的主体 id，两者都去空白后非空才算有效。
      *
      * <p>Java 侧没有独立的 Principal 领域类型（{@code TenantContext.Principal} 是 record），
      * 所以 {@code Normalize}/{@code Valid}/{@code StorageID} 三个方法在这里合一。</p>
      *
-     * <p>⚠️ 去空白用的是 Go 的 {@code strings.TrimSpace} 语义
-     * （{@code unicode.IsSpace}：含 U+00A0 / U+0085），**不是** {@link String#strip()}
+     * <p>⚠️ 去空白按 Unicode White_Space 语义（含 U+00A0 / U+0085），**不是**
+     * {@link String#strip()}
      * ——后者不含不换行空格（与 §9 记的那条 {@code \s} 差异同族）。</p>
      */
     public static String storageId(TenantContext.Principal principal) {
@@ -69,7 +67,7 @@ public final class MemoryScopes {
         return type + ":" + id;
     }
 
-    /** 对照 Go {@code strings.TrimSpace}（{@code unicode.IsSpace} 的前后裁剪）。 */
+    /** 前后裁剪 Unicode White_Space 空白。 */
     static String trimSpace(String s) {
         if (s == null || s.isEmpty()) {
             return "";
@@ -85,7 +83,7 @@ public final class MemoryScopes {
         return s.substring(start, end);
     }
 
-    /** 对照 Go {@code unicode.IsSpace}。 */
+    /** Unicode White_Space 语义的空白判定。 */
     private static boolean isGoSpace(int cp) {
         if (Character.isSpaceChar(cp)) {
             return true;

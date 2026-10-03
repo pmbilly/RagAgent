@@ -5,7 +5,7 @@ import com.ragagent.llm.provider.OpenAIProvider;
 import com.ragagent.llm.provider.ProviderName;
 
 /**
- * 单次生成的补全预算（对照 Go internal/models/chat/completion_budget.go）。
+ * 单次生成的补全预算。
  *
  * 核心契约：**一个内部预算，出站恰好一个字段**。OpenAI 视 max_tokens 与
  * max_completion_tokens 为互斥；火山 Ark 之类的网关会直接拒绝同时携带两者的请求
@@ -29,8 +29,7 @@ public enum CompletionBudget {
     }
 
     /**
-     * 为本 provider+model 选出 Chat Completions JSON 的键名
-     * （对照 Go wireCompletionTokenField）。
+     * 为本 provider+model 选出 Chat Completions JSON 的键名。
      *
      * 默认 max_completion_tokens（OpenAI Chat Completions / Azure / Ark）。
      * 只有文档（或 Pi 目录）使用旧名的 provider 留在 max_tokens；
@@ -59,7 +58,7 @@ public enum CompletionBudget {
         };
     }
 
-    /** 把预算写进请求体；budget<=0 时不动（对照 Go applyCompletionBudget）。 */
+    /** 把预算写进请求体；budget<=0 时不动。 */
     public void apply(ObjectNode body, int budget) {
         if (body == null || budget <= 0) {
             return;

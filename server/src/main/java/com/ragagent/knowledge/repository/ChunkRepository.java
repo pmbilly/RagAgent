@@ -145,12 +145,13 @@ public class ChunkRepository implements ChunkSearchGateway {
     }
 
     /**
-     * *
-     *                     是调用方算好的值，本层不做钳位）
-     *                     展开成 {@code IN (NULL)} 匹配零行，这里同样短路）
+     * 分页列出知识下的 chunk 并统计总数。offset/limit
+     * 是调用方算好的值，本层不做钳位；chunkTypes 为空集时短路成零行条件
+     * （不展开成 {@code IN (NULL)}）。
      * @param tagIds       非空时追加 {@code tag_id IN}
-     * @param isEnabled    非空时追加 {@code is_enabled =}
-     *                     差 U+00A0/U+0085，显式复刻）；空串不加搜索条件。knowledgeType
+     * @param isEnabled    非空时追加 {@code is_enabled = ?}
+     * @param keyword      先 trimSpace（空白集比 Java 默认多收 U+00A0/U+0085）；空串不加搜索条件。
+     *                     knowledgeType
      *                     ≠ "faq" 只搜 {@code content LIKE}；"faq" 按 searchField 切四条
      *                     JSON 路径（PG 用 {@code ->> + ILIKE}，非 PG 分支是 MySQL 语法）
      * @param knowledgeType "faq" 决定排序键与搜索面
@@ -243,11 +244,9 @@ public class ChunkRepository implements ChunkSearchGateway {
     // ── 写 ──────────────────────────────────────────────────────────────────
 
     /**
-     * {@code Omit("SeqID").Save(chunk)} =
-     * 全字段 UPDATE（零值也写）+ updated_at 刷成 now 并回写实体；软删行不可见
-     * 。
-     * <p>影响行数为 0 时不回退插入——调用方总是先查后存，
-     * HTTP 面不可达，未复刻（见类 Javadoc）。</p>
+     * 全字段 UPDATE（seq_id 除外，零值也写）+ updated_at 刷成 now 并回写实体；
+     * 软删行不可见。
+     * <p>影响行数为 0 时不回退插入——调用方总是先查后存，HTTP 面不可达该分支。</p>
      */
     public void updateChunk(Chunk chunk) {
         // updated_at 覆盖为 now 且回写传入实体（updateChunk 契约）

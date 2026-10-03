@@ -36,10 +36,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * MCP 服务 HTTP 层（对照 Go internal/handler/mcp_service.go 的 MCPServiceHandler，
- * 以及 mcp_metadata.go 与 mcp_usage_instructions.go 的方法）。
+ * MCP 服务 HTTP 层。
  *
- * <p><b>路由与所需角色</b>（主会话在 WebConfig 里注册，与 Go routes_infra.go:136-200 一致）：</p>
+ * <p><b>路由与所需角色</b>（主会话在 WebConfig 里注册）：</p>
  * <pre>
  * POST   /api/v1/mcp-services                              Admin+
  * GET    /api/v1/mcp-services                              Viewer+
@@ -56,11 +55,11 @@ import org.springframework.web.bind.annotation.RestController;
  * PUT    /api/v1/mcp-services/{id}/tool-approvals/{tool_name}  Admin+
  * </pre>
  * <p>凭据子资源见 {@link McpCredentialsController}；{@code /agent/tool-approvals/{pending_id}}
- * 见 {@link AgentToolApprovalController}（Go 里该方法也在 mcp_service.go，但挂在 /agent 组）。</p>
+ * 见 {@link AgentToolApprovalController}（挂在 /agent 组）。</p>
  *
- * <p><b>响应形态（§14.9n M1 换锚后）</b>：服务资源面（create/list/get/update/delete/test/
- * tools/resources/metadata/usage-instructions）返回**裸对象或裸数组**（§2.1），创建 201、
- * 删除 204；仅**工具审批面**仍带 {@code {data,success}} 信封（属 M4 批次）。</p>
+ * <p><b>响应形态</b>：服务资源面（create/list/get/update/delete/test/
+ * tools/resources/metadata/usage-instructions）返回<b>裸对象或裸数组</b>，创建 201、
+ * 删除 204；仅<b>工具审批面</b>仍带 {@code {data,success}} 信封。</p>
  */
 @RestController
 @RequestMapping("/api/v1/mcp-services")
@@ -77,10 +76,10 @@ public class McpServiceController {
     final ConcurrencyGovernor concurrencyGovernor;
     final Optional<OllamaService> ollamaService;
 
-    /** 使用说明生成协作者（对照 Go mcp_usage_instructions.go 段）。 */
+    /** 使用说明生成协作者。 */
     final McpUsageInstructionsOps usageOps;
 
-    /** MCP 服务 CRUD 协作者（对照 Go 服务面端点）。 */
+    /** MCP 服务 CRUD 协作者。 */
     final McpServiceCrudOps crudOps;
 
     public McpServiceController(McpServiceService mcpServiceService,
@@ -145,7 +144,7 @@ public class McpServiceController {
     }
 
 
-    // ── 目录快照（mcp_metadata.go） ───────────────────────────────────────
+    // ── 目录快照 ─────────────────────────────────────────────────────────
 
     /** 对照 GetMCPMetadata — Viewer+；只读数据库，不连接上游 */
     @GetMapping("/{id}/metadata")
@@ -169,7 +168,7 @@ public class McpServiceController {
         String serviceId = sanitize(id);
 
         // ⚠️ 服务存在性校验与 Admin 门禁必须**在**重映射 try 之外：
-        // Go 在这两处直接 c.Error(...) 后 return，不经过 mcpMetadataAppError。
+        // 这两处直接抛业务异常后返回，不经过 mcpMetadataAppError。
         // 若把它们放进 try，自己抛出的 403 会被 default 分支改写成 400。
         if (refresh) {
             McpService service;
@@ -195,15 +194,15 @@ public class McpServiceController {
                     serviceId, e);
             throw mcpMetadataAppError(e, refresh);
         }
-        // 从未同步 → 裸 JSON null（§2.1；Spring 对 null body 会发空正文，故显式给 NullNode）
+        // 从未同步 → 裸 JSON null（Spring 对 null body 会发空正文，故显式给 NullNode）
         return ResponseEntity.ok(snapshot == null
                 ? com.fasterxml.jackson.databind.node.NullNode.getInstance() : snapshot);
     }
 
     /**
-     * 对照 Go {@code mayWriteSharedMCPMetadata}：静态鉴权目录的额外门禁。
+     * 静态鉴权目录的额外门禁。
      *
-     * <p>API key 已经过了 manage-MCP 能力校验（Go 直接放行）；Java 阶段 1 没有 API key
+     * <p>API key 已经过了 manage-MCP 能力校验（直接放行）；Java 目前没有 API key
      * 主体，故只剩「系统管理员」与「Admin+ 角色」两条——这是**收紧**，不会放行更多。</p>
      */
     private static boolean mayWriteSharedMCPMetadata() {
@@ -213,7 +212,7 @@ public class McpServiceController {
         return RoleVisibility.roleFromContext().hasPermission(TenantRole.ADMIN);
     }
 
-    /** 对照 Go {@code mcpMetadataAppError}：哨兵 error → AppError 的映射 */
+    /** 目录快照异常 → AppError 的映射 */
     static BizException mcpMetadataAppError(RuntimeException err, boolean refresh) {
         if (err instanceof McpMetadataException me) {
             return switch (me.kind()) {
@@ -273,7 +272,7 @@ public class McpServiceController {
             log.error("Failed to list MCP tool approvals, service_id={}", serviceId, e);
             throw BizException.internal(rawMessage(e));
         }
-        // §2.1：列表裸数组（不再是 {data:[...],success:true}）
+        // 列表返回裸数组（不再是 {data:[...],success:true}）
         return ResponseEntity.ok(rows);
     }
 
@@ -292,8 +291,8 @@ public class McpServiceController {
         if (body == null) {
             throw BizException.badRequest("EOF");
         }
-        // Gin 已对路径参数做过 URL 解码；这里不要再解一次，
-        // 否则名字里带字面 "%" 的工具名会被破坏（对照 Go 注释）。
+        // 路径参数已由框架做过 URL 解码；这里不要再解一次，
+        // 否则名字里带字面 "%" 的工具名会被破坏。
         if (body.requireApproval() == null && body.enabled() == null) {
             throw BizException.badRequest("require_approval or enabled is required");
         }
@@ -306,14 +305,14 @@ public class McpServiceController {
             }
             throw BizException.internal(rawMessage(e));
         }
-        // 策略写入是无响应体的受理回执 → 204（§14.9n M4）
+        // 策略写入是无响应体的受理回执 → 204
         return ResponseEntity.noContent().build();
     }
 
     // ── 工具方法 ─────────────────────────────────────────────────────────
 
 
-    /** 对照 Go 各 handler 的 {@code c.GetUint64(TenantIDContextKey)} + 0 校验 */
+    /** 租户 ID 缺失或为 0 时抛 400 */
     static long requireTenant() {
         Long tenantId = TenantContext.currentTenantId();
         long value = tenantId == null ? 0L : tenantId;
@@ -331,7 +330,7 @@ public class McpServiceController {
         return service.getAuthConfig() != null && service.getAuthConfig().isOAuth();
     }
 
-    /** 对照 Go handler 里 {@code err.Error()}：取业务文案而非 Java 的包装串 */
+    /** 取业务文案而非包装串 */
     static String rawMessage(RuntimeException e) {
         if (e instanceof BizException be) {
             return be.appError().message();
@@ -339,7 +338,7 @@ public class McpServiceController {
         return e.getMessage() == null ? "" : e.getMessage();
     }
 
-    /** 对照 Go {@code strings.Contains(err.Error(), "not found")} 的判别 */
+    /** 判别"服务不存在"类错误 */
     private static boolean isNotFound(RuntimeException e) {
         if (e instanceof BizException be) {
             return be.appError().httpCode() == 404;
@@ -349,7 +348,7 @@ public class McpServiceController {
 
 
 
-    /** 成功响应：HTTP 200 + 裸资源（§2.1）。 */
+    /** 成功响应：HTTP 200 + 裸资源。 */
     static ResponseEntity<?> ok(Object body) {
         return ResponseEntity.ok(body);
     }

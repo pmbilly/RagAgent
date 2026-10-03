@@ -11,35 +11,31 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 事件总线（对照 Go {@code event.EventBus}，internal/event/event.go:107-267，逐方法翻译）。
+ * 事件总线。
  *
- * <h2>语义（全部有 /tmp Go 实录钉住，见 EventBusTest）</h2>
+ * <h2>语义（行为均有测试钉住，见 EventBusTest）</h2>
  * <ul>
  *   <li><b>同步模式（默认，{@code new EventBus()}）</b>：按注册顺序执行；任一 handler
  *       抛异常 → 立即中断链，抛 {@link EventBusException}
- *       （{@code event handler failed for <type>: <原因>}），后续 handler 不再执行
- *       （实录：h3 未被调用）。无订阅者时静默成功（Go 返回 nil）。</li>
+ *       （{@code event handler failed for <type>: <原因>}），后续 handler 不再执行。
+ *       无订阅者时静默成功。</li>
  *   <li><b>ID 自动生成是值语义</b>：发射在 {@link Event#shallowCopy()} 上进行——
- *       handler 看到补出的 UUID，调用方的 Event 对象不被写回（实录：callerStillEmpty=true）；
- *       显式传入的 ID 原样保留。metadata map 跨拷贝共享（Go 结构体拷贝语义）。</li>
- *   <li><b>同步 panic</b>：Go 的同步 Emit 不 recover，panic 冒到调用方。Java 侧把
- *       {@link Error} 视为 Go panic 等价物原样冒出；handler 的 Exception 一律按 Go 的
- *       error 返回值处理（包装并中断）。这是 Go panic/error 二元性在 Java 异常体系下的
- *       最贴近映射，见 {@link EventHandler} 注释。</li>
+ *       handler 看到补出的 UUID，调用方的 Event 对象不被写回；
+ *       显式传入的 ID 原样保留。metadata map 跨拷贝共享。</li>
+ *   <li><b>同步 panic</b>：{@link Error} 原样冒到调用方；handler 的 Exception
+ *       一律视为处理失败（包装并中断链）。这是"处理失败 / panic"二元性在 Java
+ *       异常体系下的映射，见 {@link EventHandler} 注释。</li>
  *   <li><b>异步模式（{@link #EventBus(boolean)} async=true）</b>：每个 handler 一个
- *       虚拟线程并发执行，发射立即返回；Throwable 一律隔离并记日志（Go：recover 后
- *       Errorf；error 被 {@code _ =} 丢弃——两者在 goroutine 里都不外泄，Java 合并处理）。
- *       跨线程经 {@link TenantContextSnapshot} 显式传值。</li>
- *   <li><b>{@link #emitAndWait}</b>：两模式下都并发执行全部 handler 并等齐（实录：
- *       barrier 证明三个 handler 并发）；单 handler 的 panic 转 error
- *       （{@code event handler panic (type=...): ...}），最终包成
- *       {@code event handler failed for ...}（实录文案逐字）。多个错误时取其一（Go 按
- *       channel 到达序，本身非确定）。</li>
+ *       虚拟线程并发执行，发射立即返回；Exception 静默丢弃，其余 Throwable 记日志，
+ *       两者都不外泄到调用方。跨线程经 {@link TenantContextSnapshot} 显式传值。</li>
+ *   <li><b>{@link #emitAndWait}</b>：两模式下都并发执行全部 handler 并等齐；单 handler
+ *       的 panic 包装为 {@code event handler panic (type=...): ...}，最终包成
+ *       {@code event handler failed for ...}。多个错误时取其一（完成序，本身非确定）。</li>
  * </ul>
  *
- * <p>Go 的 {@code sync.RWMutex} → {@link ReentrantReadWriteLock}（§1 技术栈映射）；
- * goroutine → 虚拟线程（{@code Thread.ofVirtual()}）。无 {@code context.Context} 参数
- * （约定 §5）；同步模式 handler 跑在调用线程，TenantContext 天然可见。</p>
+ * <p>并发实现：{@link ReentrantReadWriteLock} 保护订阅表，异步 handler 跑在虚拟线程
+ * （{@code Thread.ofVirtual()}）上。无 context 参数；同步模式 handler 跑在调用线程，
+ * TenantContext 天然可见。</p>
  */
 public class EventBus {
 
@@ -49,19 +45,18 @@ public class EventBus {
     private final Map<String, List<EventHandler>> handlers = new java.util.HashMap<>();
     private final boolean asyncMode;
 
-    /** 对照 Go {@code NewEventBus}：同步模式。 */
+    /** 创建同步模式总线。 */
     public EventBus() {
         this(false);
     }
 
-    /** 对照 Go {@code NewAsyncEventBus}（async=true）/ {@code NewEventBus}（async=false）。 */
+    /** async=true 为异步模式，false 为同步模式。 */
     public EventBus(boolean async) {
         this.asyncMode = async;
     }
 
     /**
-     * 注册 handler；同一事件类型可注册多个，按注册顺序执行
-     * （对照 Go {@code On}，event.go:132-137）。
+     * 注册 handler；同一事件类型可注册多个，按注册顺序执行。
      */
     public void on(String eventType, EventHandler handler) {
         mu.writeLock().lock();
@@ -72,7 +67,7 @@ public class EventBus {
         }
     }
 
-    /** 移除该事件类型的全部 handler（对照 Go {@code Off}，event.go:140-145）。 */
+    /** 移除该事件类型的全部 handler。 */
     public void off(String eventType) {
         mu.writeLock().lock();
         try {
@@ -83,13 +78,13 @@ public class EventBus {
     }
 
     /**
-     * 发布事件（对照 Go {@code Emit}，event.go:150-189）。
+     * 发布事件。
      *
      * <p>ID 为空时在浅拷贝上补 UUID；无订阅者静默返回；同步模式顺序执行、失败即断链；
-     * 异步模式立即返回。失败抛 {@link EventBusException}（Go：返回 error）。</p>
+     * 异步模式立即返回。失败抛 {@link EventBusException}。</p>
      */
     public void emit(Event event) {
-        // Go 值语义：补 ID 的写入不落回调用方
+        // 补 ID 的写入不落回调用方
         Event copy = event == null ? new Event() : event.shallowCopy();
         if (copy.getId().isEmpty()) {
             copy.setId(Event.newUuid());
@@ -103,13 +98,13 @@ public class EventBus {
             mu.readLock().unlock();
         }
         if (list == null || list.isEmpty()) {
-            return; // 无订阅者：Go 返回 nil
+            return; // 无订阅者：静默成功
         }
-        // 快照一份，避免持锁回调（Go 在 RLock 下取 slice 后即解锁）
+        // 快照一份，避免持锁回调
         List<EventHandler> snapshot = List.copyOf(list);
 
         if (asyncMode) {
-            // Async mode: fire and forget（Go event.go:165-179）
+            // Async mode: fire and forget
             TenantContextSnapshot ctx = TenantContextSnapshot.capture();
             for (EventHandler handler : snapshot) {
                 Thread.ofVirtual().start(() -> {
@@ -118,9 +113,9 @@ public class EventBus {
                 try {
                     handler.handle(copy);
                 } catch (Exception e) {
-                    // Go：`_ = h(ctx, event)`——异步模式下 error 被静默丢弃（event.go:175）
+                    // 异步模式下处理失败（Exception）被静默丢弃
                 } catch (Throwable t) {
-                    // Go：recover → logger.Errorf（panic 路径，event.go:170-174）
+                    // panic 路径：记日志，不外泄
                     log.error("event handler panic recovered (type={}): {}", copy.getType(),
                             t.toString(), t);
                 } finally {
@@ -131,20 +126,19 @@ public class EventBus {
             return;
         }
 
-        // Sync mode: execute handlers sequentially（Go event.go:182-186）
+        // Sync mode: execute handlers sequentially
         for (EventHandler handler : snapshot) {
             try {
                 handler.handle(copy);
             } catch (Exception e) {
                 throw EventBusException.wrap(copy.getType(), e);
             }
-            // Error 及其他非 Exception 的 Throwable 原样冒出——对照 Go 同步路径
-            // 不 recover panic 的行为
+            // Error 及其他非 Exception 的 Throwable 原样冒出，不当作处理失败捕获
         }
     }
 
     /**
-     * 发布事件并等待全部 handler 完成（对照 Go {@code EmitAndWait}，event.go:194-239）。
+     * 发布事件并等待全部 handler 完成。
      * 两种模式下 handler 都<b>并发</b>执行（每个一个虚拟线程）。
      */
     public void emitAndWait(Event event) {
@@ -165,10 +159,8 @@ public class EventBus {
         }
         List<EventHandler> snapshot = List.copyOf(list);
 
-        // Go：sync.WaitGroup + buffered errChan（event.go:208-229）。
-        // Go 区分两条失败路径：handler 返回 error（原样入 channel）与 panic
-        // （recover 后转 "event handler panic (type=...)" 再入 channel）。Java 侧以
-        // Exception ↔ Go error、Error/其他 Throwable ↔ Go panic 对应。
+        // 两条失败路径分开记录：Exception 视为处理失败原样保存；Error/其他
+        // Throwable 视为 panic，包装为 "event handler panic (type=...)" 后保存。
         CountDownLatch done = new CountDownLatch(snapshot.size());
         List<Failure> failures = new CopyOnWriteArrayList<>();
         TenantContextSnapshot ctx = TenantContextSnapshot.capture();
@@ -209,11 +201,11 @@ public class EventBus {
         }
     }
 
-    /** EmitAndWait 的一条失败记录（panic 标记区分 Go 的 panic/error 两条路径）。 */
+    /** EmitAndWait 的一条失败记录（panic 标记区分处理失败/panic 两条路径）。 */
     private record Failure(Throwable cause, boolean panic) {
     }
 
-    /** 是否存在该事件类型的订阅（对照 Go {@code HasHandlers}，event.go:242-248）。 */
+    /** 是否存在该事件类型的订阅。 */
     public boolean hasHandlers(String eventType) {
         mu.readLock().lock();
         try {
@@ -224,7 +216,7 @@ public class EventBus {
         }
     }
 
-    /** 该事件类型的 handler 数（对照 Go {@code GetHandlerCount}，event.go:251-259）。 */
+    /** 该事件类型的 handler 数。 */
     public int getHandlerCount(String eventType) {
         mu.readLock().lock();
         try {
@@ -235,7 +227,7 @@ public class EventBus {
         }
     }
 
-    /** 清空全部 handler（对照 Go {@code Clear}，event.go:262-267）。 */
+    /** 清空全部 handler。 */
     public void clear() {
         mu.writeLock().lock();
         try {
@@ -246,8 +238,7 @@ public class EventBus {
     }
 
     /**
-     * 对照 Go {@code EventBus.AsEventBusInterface()}（adapter.go:57-59）：
-     * 以 {@code types.EventBusInterface} 的形状暴露本总线。见 {@link EventBusAdapter}。
+     * 以最小接口 {@link EventBusInterface} 的形状暴露本总线。见 {@link EventBusAdapter}。
      */
     public EventBusInterface asEventBusInterface() {
         return new EventBusAdapter(this);

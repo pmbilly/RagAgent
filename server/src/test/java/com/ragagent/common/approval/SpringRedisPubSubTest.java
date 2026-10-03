@@ -125,7 +125,7 @@ class SpringRedisPubSubTest {
             assertTrue(sub.awaitSubscribed(Duration.ofSeconds(5)), "订阅必须被 Redis 确认");
             assertEquals(1L, pubsub.publish(channel, "{\"hello\":1}"));
             assertEquals("{\"hello\":1}", sub.receiveMessage(Duration.ofSeconds(5)));
-            // 超时返回 null（对照 Go ReceiveMessage 的 ctx 超时）
+            // 超时返回 null
             assertNull(sub.receiveMessage(Duration.ofMillis(200)));
         }
     }

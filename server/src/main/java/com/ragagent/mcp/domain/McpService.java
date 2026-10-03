@@ -10,18 +10,18 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
- * MCP 服务配置实体（对照 Go types.MCPService，internal/types/mcp.go:25-45）。
+ * MCP 服务配置实体。
  *
- * GORM 隐式行为清单（约定 §3）：
+ * 落库行为清单：
  * - 软删除 → 显式 isNull("deleted_at")
- * - 钩子 BeforeCreate：ID 为空时生成 UUID（Java 由 service 生成，语义等价）
- * - 表名靠默认复数化（Go 无 TableName()）→ 显式 @TableName("mcp_services")
- * - GORM tag 里的 uniqueIndex:idx_tenant_name 在**磁盘上并不存在**对应的唯一索引
- *   （迁移里没有）——Go 标签与 SQL 有偏差，**以 SQL 为准**，Java 不加唯一约束
+ * - 插入前：ID 为空时生成 UUID（Java 由 service 生成，语义等价）
+ * - 表名显式声明为 @TableName("mcp_services")
+ * - 标签里声明的 uniqueIndex:idx_tenant_name 在**磁盘上并不存在**对应的唯一索引
+ *   （迁移里没有）——**以 SQL 为准**，Java 不加唯一约束
  * - jsonb 列：headers / auth_config / advanced_config / stdio_config / env_vars
  *
  * **密钥处理**：authConfig 内的 apiKey/token 落库加密、读回宽容解密，全部由
- * {@link McpAuthConfigTypeHandler} 承担（对照 Go 的 driver.Valuer/sql.Scanner）。
+ * {@link McpAuthConfigTypeHandler} 承担。
  * 主资源响应**不走本实体**——走 dto.McpServiceResponse，构造期就没有秘密字段。
  */
 @TableName(value = "mcp_services", autoResultMap = true)
@@ -37,7 +37,7 @@ public class McpService {
     /** 可选：SSE / HTTP Streamable 时必填 */
     private String url;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
+    // jsonb 序列化对 map 键按字节序排序（PgJsonTypeHandler）——多键 map 的字节形态保持稳定
 
     private Map<String, String> headers;
     @TableField(typeHandler = McpAuthConfigTypeHandler.class)
@@ -47,7 +47,7 @@ public class McpService {
     @TableField(typeHandler = PgJsonTypeHandler.class)
     private McpStdioConfig stdioConfig;
     @TableField(typeHandler = PgJsonTypeHandler.class)
-    // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
+    // jsonb 序列化对 map 键按字节序排序（PgJsonTypeHandler）——多键 map 的字节形态保持稳定
 
     private Map<String, String> envVars;
     /** 是否为内置服务（对所有工作空间可见） */
@@ -59,8 +59,7 @@ public class McpService {
     private OffsetDateTime deletedAt;
 
     /**
-     * 保留历史服务上的文档，直到它们通过单一 usage-instructions 字段被编辑
-     * （对照 Go EffectiveUsageInstructions）。
+     * 保留历史服务上的文档，直到它们通过单一 usage-instructions 字段被编辑。
      */
     public String effectiveUsageInstructions() {
         String text = usageInstructions == null ? "" : usageInstructions.trim();

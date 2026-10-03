@@ -10,8 +10,8 @@ import com.ragagent.session.dto.QaRequests.CreateKnowledgeQARequest;
 import com.ragagent.session.dto.QaRequests.SearchKnowledgeRequest;
 
 /**
- * QA 请求面绑定契约（§14.9l S4）：键名＝Java 字段名（camelCase），旧 snake 键静默失效；
- * 绑定错误文案**保持 Go 措辞**（错误形态统一是独立批次）。
+ * QA 请求面绑定契约：键名＝Java 字段名（camelCase），旧 snake 键静默失效；
+ * 绑定错误文案**沿用历史措辞**。
  *
  * <p>纯绑定单测（不起 Spring）：HTTP 层的连通性由真实服务冒烟覆盖；这里钉住的是
  * "哪些键会被读到"这条契约——它没有别的守卫，写错了整条问答链路会静默丢作用域。</p>
@@ -113,7 +113,7 @@ class QaRequestBindingTest {
         assertThat(req.suggestionAttribution).isNull();
     }
 
-    /** 必填校验文案仍是 Go 措辞（`Key: '<结构体>.<字段>' … on the 'required' tag`）。 */
+    /** 必填校验文案仍是历史措辞（`Key: '<结构体>.<字段>' … on the 'required' tag`）。 */
     @Test
     void requiredErrorKeepsGoWording() {
         assertThatThrownBy(() -> QaRequestBinder.bindQaRequest("{\"query\":\"\"}"))
@@ -125,7 +125,7 @@ class QaRequestBindingTest {
                 .hasMessageContaining("Key: 'SearchKnowledgeRequest.Query'");
     }
 
-    /** 字段级类型错误里的 json 名随之变成 camelCase（值类型仍是 Go 的 uint64）。 */
+    /** 字段级类型错误里的 json 名随之变成 camelCase（值类型在文案里仍是 uint64）。 */
     @Test
     void fieldTypeErrorUsesCamelCaseJsonName() {
         assertThatThrownBy(() -> QaRequestBinder.bindQaRequest(
@@ -136,8 +136,8 @@ class QaRequestBindingTest {
     }
 
     /**
-     * 畸形 body 的措辞沿用 GoJsonBindError（报文层文案未动）：
-     * 空体 → Go 的 {@code EOF}；深层结构坏掉 → 按既定口径回落 Jackson 措辞
+     * 畸形 body 的措辞沿用 {@code GoJsonBindError}（报文层文案未动）：
+     * 空体 → {@code EOF}；深层结构坏掉 → 回落 Jackson 措辞
      * （已知差异，见 GoJsonBindError 类注释）。
      */
     @Test

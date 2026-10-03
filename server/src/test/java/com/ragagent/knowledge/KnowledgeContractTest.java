@@ -35,7 +35,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
- * 阶段 3 契约测试：KB CRUD + 文档 CRUD，对照 golden 逐字节比对。
+ * 契约测试：KB CRUD + 文档 CRUD，对照 golden 逐字节比对。
  *
  * golden 录制序：probe-kb → golden-kb(录) → list(录) → get(录) → 404(录) → {}(不录)
  * → update(录) → pin(录) → move-targets(录)；文档序：upload(录) → list/get(结构断言，
@@ -281,7 +281,7 @@ class KnowledgeContractTest {
             .andReturn();
         assertGolden(gb3, "doc-not-found.json");
 
-        // 4. folders → 静态 golden（录制时仅上传文档 1 篇；Go 只排除 deleting，draft 计入）
+        // 4. folders → 静态 golden（录制时仅上传文档 1 篇；只排除 deleting，draft 计入）
         MvcResult gb4 = mockMvc.perform(get("/api/v1/knowledge-bases/" + kbId + "/knowledge/folders")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -367,7 +367,7 @@ class KnowledgeContractTest {
     }
 
     /** 与 golden 比对前的统一掩码 */
-    // ── 金片对比（B2 统一基建：语义归一 + strip + -Dcontract.refresh 重录） ──
+    // ── 金片对比（语义归一 + strip + -Dcontract.refresh 重录） ──
 
     private static void assertGolden(org.springframework.test.web.servlet.MvcResult r,
             String name) throws Exception {

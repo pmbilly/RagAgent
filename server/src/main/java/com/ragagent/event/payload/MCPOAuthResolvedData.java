@@ -5,12 +5,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 会话内 OAuth 提示结果（authorized / timeout / cancel）确认事件体
- * （对照 Go {@code event.MCPOAuthResolvedData}，internal/event/event_data.go:300-307）。
- * emit 点：agent/approval/gate.go:506（{@code <pendingID>-mcp-oauth-resolved}），见包注释 emit 表 #13。
+ * 会话内 OAuth 提示结果（authorized / timeout / cancel）确认事件体。
+ * emit 点：common/approval/Gate（{@code <pendingID>-mcp-oauth-resolved}），见包注释 emit 表 #13。
  *
- * <p>实录锚点：零值输出 {@code {"pending_id":"","service_id":"","authorized":false}}；
- * {@code reason}/{@code timed_out}/{@code canceled} 带 omitempty。</p>
+ * <p>零值输出 {@code {"pending_id":"","service_id":"","authorized":false}}；
+ * {@code reason}/{@code timed_out}/{@code canceled} 空则省略。</p>
  */
 @JsonPropertyOrder({"pending_id", "service_id", "authorized", "reason", "timed_out", "canceled"})
 public class MCPOAuthResolvedData {
@@ -21,21 +20,21 @@ public class MCPOAuthResolvedData {
     @JsonProperty("service_id")
     private String serviceId = "";
 
-    /** 无 omitempty：false 恒输出 */
+    /** false 恒输出 */
     @JsonProperty("authorized")
     private boolean authorized;
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("reason")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String reason = "";
 
-    /** Go omitempty */
+    /** false 省略 */
     @JsonProperty("timed_out")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean timedOut;
 
-    /** Go omitempty */
+    /** false 省略 */
     @JsonProperty("canceled")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean canceled;

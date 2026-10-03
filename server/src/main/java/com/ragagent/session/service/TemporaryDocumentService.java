@@ -24,7 +24,7 @@ import com.ragagent.session.domain.TemporaryDocument;
 import com.ragagent.session.mapper.TemporaryDocumentRepository;
 
 /**
- * 会话附件服务（对照 Go internal/application/service/temporary_document.go）。
+ * 会话附件服务。
  *
  * 落地：Create（文件名校验/扩展白名单/大小限制/落盘/建行/异步投递）、
  * Get/List/Delete/OpenFile、Process（纯文本直读 + docreader → chunker
@@ -33,9 +33,9 @@ import com.ragagent.session.mapper.TemporaryDocumentRepository;
  * <p>提示词渲染（ResolveForPrompt 的预算选块 + 图片 URL 选取）已拆至
  * {@link TemporaryDocumentPromptResolver}（§14 步骤 2），本类保留公开入口并薄委托。</p>
  *
- * 已知差异（随对应波次收口）：任务队列用进程内 executor（asynq 随波 4）；
- * 扩展白名单静态表（ListEngines 未翻译）；agent_id 门控随波 5；
- * VLM 图片理解 / ASR 依赖运行时模型工厂（阶段 7），OCR/caption 降级跳过。
+ * 已知差异：任务队列用进程内单线程 executor；
+ * 扩展白名单为静态表（未接解析引擎的动态列表）；
+ * VLM 图片理解 / ASR 依赖运行时模型工厂，缺模型时 OCR/caption 降级跳过。
  */
 @Service
 public class TemporaryDocumentService {
@@ -45,7 +45,7 @@ public class TemporaryDocumentService {
     static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    /** 对照 Go temporaryDocumentExtensions（L84-90，带点——service 的 ext 不去点）。 */
+    /** 附件扩展名白名单（带点——service 的 ext 不去点）。 */
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of(
             ".docx", ".doc", ".pdf", ".ppt", ".pptx", ".epub", ".mhtml",
             ".xlsx", ".xls",
@@ -55,11 +55,11 @@ public class TemporaryDocumentService {
 
     private static final long DEFAULT_TTL_HOURS = 24;
 
-    /** 对照 Go {@code types.MaxTemporaryAttachmentsPerMessage}。 */
+    /** 每条消息最多附件数。 */
     public static final int MAX_ATTACHMENTS_PER_MESSAGE = 5;
 
 
-    /** 对照 Go {@code docparser.imageFormats}（builtin_converter.go L20-24，无点形态）。 */
+    /** 图片扩展名（无点形态）。 */
     private static final Set<String> IMAGE_EXTENSIONS =
             Set.of("jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp");
 
@@ -73,7 +73,7 @@ public class TemporaryDocumentService {
     /** 提示词渲染切片（§14 步骤 2：ResolveForPrompt 的选块与图片 URL 选取）。 */
     private final TemporaryDocumentPromptResolver promptResolver;
 
-    /** 对照 container.go L1776 的 10 分钟 ticker 周期。 */
+    /** 过期回收周期。 */
     static final java.time.Duration CLEANUP_INTERVAL = java.time.Duration.ofMinutes(10);
 
     private volatile boolean cleanupStopped;
@@ -92,9 +92,9 @@ public class TemporaryDocumentService {
     }
 
     /**
-     * 对照 Go {@code CleanupExpired}（temporary_document.go L757-784）：批 100 扫
+     * 批 100 扫
      * 过期文档并逐个删除（失败 WARN 继续），直到扫空。由启动 ticker 周期调用
-     * （见 {@link #startCleanupTicker}）；durable 的 expires_at 是真源，ticker 只
+     * （见 {@link #startCleanupTicker}）；持久化的 expires_at 是真源，ticker 只
      * 决定存储回收的速度。
      */
     public void cleanupExpired() {
@@ -119,7 +119,6 @@ public class TemporaryDocumentService {
     }
 
     /**
-     * 对照 Go container.go L1769-1790 的 {@code startTemporaryDocumentCleanup}：
      * 10 分钟周期的后台回收循环（守护虚拟线程）。
      */
     @org.springframework.context.event.EventListener(
@@ -149,9 +148,8 @@ public class TemporaryDocumentService {
 
 
     /**
-     * 对照 Go {@code types.TemporaryDocumentCreateOptions}（temporary_document.go L94-110）：
      * ResourceTenantID 是经验证的共享 agent 来源空间（解析依赖范围）；文档行本身仍属
-     * 上传方 TenantID。jsonb 键序照 Go struct 声明序、omitempty 零值省略。
+     * 上传方租户。jsonb 键序＝声明序、零值省略。
      */
     public record CreateOptions(String parserEngine, long resourceTenantId, String asrModelId,
                                 String vlmModelId, boolean imageUnderstanding, int ocrMaxPages) {
@@ -268,8 +266,7 @@ public class TemporaryDocumentService {
         document.setErrorMessage("");
         document.setTokenCount(0);
         document.setChunkCount(0);
-        // Go 的 created_at/updated_at 由 GORM RETURNING 回填 DB 默认值（UTC 墙钟，
-        // golden 实测 …Z 形态）——Java 无 RETURNING 回填，显式按同一语义赋值
+        // created_at/updated_at 显式按 UTC 墙钟赋值（与 DB 默认值同语义，Z 后缀形态）
         document.setCreatedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
         document.setUpdatedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC));
         try {
@@ -282,14 +279,13 @@ public class TemporaryDocumentService {
         return document;
     }
 
-    /** 对照 Go supportsExtension：静态白名单（ListEngines 未翻译，见类注释）。 */
+    /** 静态扩展名白名单（见类注释）。 */
     private boolean supportsExtension(String ext) {
         return SUPPORTED_EXTENSIONS.contains(ext);
     }
 
     /**
-     * 内联 base64 图片（QA 请求 images[].data）的落盘（对照 Go saveImageAttachments
-     * 的本地盘 dev 形态）：按魔数嗅探扩展名后存入附件存储，返回 {@code local://} 引用。
+     * 内联 base64 图片（QA 请求 images[].data）的落盘：按魔数嗅探扩展名后存入附件存储，返回 {@code local://} 引用。
      * 引用由 ImageResolver 直接解析成字节进 vision，也随用户消息落库供历史渲染。
      */
     public String saveInlineImageBytes(long tenantId, byte[] data) {
@@ -331,7 +327,7 @@ public class TemporaryDocumentService {
         return documents == null ? List.of() : documents;
     }
 
-    /** 对照 Go Delete（L267-277）：图片引用文件 + 源文件 + 行。 */
+    /** 删除附件：图片引用文件 + 源文件 + 行。 */
     public void delete(long tenantId, String sessionId, String documentId) {
         TemporaryDocument document = repo.getScoped(tenantId, sessionId, documentId);
         if (document == null) {
@@ -347,7 +343,7 @@ public class TemporaryDocumentService {
         repo.deleteScoped(tenantId, sessionId, documentId);
     }
 
-    /** 对照 Go OpenFile（L248-261）：返回文件字节与原始文件名。 */
+    /** 打开的附件：文件字节与原始文件名。 */
     public record OpenedFile(byte[] data, String fileName) {
     }
 
@@ -363,25 +359,25 @@ public class TemporaryDocumentService {
     public static class AttachmentNotFoundException extends RuntimeException {
     }
 
-    // ── 异步解析（对照 Go Process，L279-348 + parse L350-449） ─────────────
+    // ── 异步解析 ─────────────
 
 
 
 
 
-    // ── 辅助（对照 Go 的包级函数） ──────────────────────────────
+    // ── 辅助 ──────────────────────────────
 
 
 
 
 
-    // ══ 图片落地（对照 Go ImageResolver.ResolveAndStore 的 docreader 直出分支） ══
+    // ══ 图片落地（docreader 直出分支） ══
 
 
 
 
 
-    /** 对照 Go {@code docparser.IsImageFormat}（builtin_converter.go L108-110）。 */
+    /** 文件类型是否图片格式（无点/带点均可）。 */
     static boolean isImageFormat(String fileType) {
         if (fileType == null) {
             return false;
@@ -393,32 +389,25 @@ public class TemporaryDocumentService {
         return IMAGE_EXTENSIONS.contains(t);
     }
 
-    // ══ ResolveForPrompt（对照 Go temporary_document.go L597-644） ══
+    // ══ ResolveForPrompt ══
 
-    /** 对照 Go {@code types.TemporaryDocumentPromptResult}。 */
+    /** 提示词附件列表 + 给 vision 模型的图片 URL。 */
     public record PromptResult(List<MessageAttachment> attachments, List<String> imageUrls) {
     }
 
-    /** ResolveForPrompt 的失败（对照 Go 的 error 返回；调用方 warn 后跳过注入）。 */
+    /** ResolveForPrompt 的失败；调用方 warn 后跳过注入。 */
     public static class AttachmentResolveException extends RuntimeException {
         public AttachmentResolveException(String message) {
             super(message);
         }
     }
 
-    /**
-     * 对照 Go {@code ResolveForPrompt}：把 ready 的临时附件按预算选内容，产出
-     * 提示词附件列表 + 给 vision 模型的图片 URL（≤ 4 个）。
-     *
-     * <p>实现已拆至 {@link TemporaryDocumentPromptResolver}（§14 步骤 2），本方法只做薄委托；
-     * 错误语义照 Go：文档缺失 / failed / 未 ready 都是 error（调用方记 warn 并
-     * 放弃本轮附件注入，不让回合失败）。</p>
-     */
-    /** 同步跑一次解析（对照 {@code ProcessNow}；流程契约测试的驱动口，实现见 {@link TemporaryDocumentProcessor}）。 */
+    /** 同步跑一次解析（流程契约测试的驱动口，实现见 {@link TemporaryDocumentProcessor}）。 */
     public void processNow(long tenantId, String documentId) {
         processor.processNow(tenantId, documentId);
     }
 
+    /** 把 ready 的临时附件按预算选内容；薄委托至 {@link TemporaryDocumentPromptResolver}（错误语义见彼处）。 */
     public PromptResult resolveForPrompt(long tenantId, String sessionId,
             List<String> documentIds, String query) {
         return promptResolver.resolveForPrompt(tenantId, sessionId, documentIds, query);
@@ -454,14 +443,14 @@ public class TemporaryDocumentService {
         return DEFAULT_TTL_HOURS;
     }
 
-    /** 对照 Go service 的 ext：filepath.Ext 结果只 Lower 不去点（".txt"）。 */
+    /** 扩展名：小写、带点（".txt"）。 */
     static String extOf(String fileName) {
         String lower = fileName.toLowerCase(java.util.Locale.ROOT);
         int idx = lower.lastIndexOf('.');
         return idx < 0 ? "" : lower.substring(idx);
     }
 
-    /** 对照 Go ValidateInput（security.go L81-106）：控制字符 + XSS 模式。 */
+    /** 文件名校验结果（校验规则：控制字符 + XSS 模式）。 */
     private record ValidatedName(String value, boolean valid) {
     }
 
@@ -482,7 +471,7 @@ public class TemporaryDocumentService {
         return new ValidatedName(input.trim(), true);
     }
 
-    /** 对照 Go xssPatterns（security.go L29-42）。 */
+    /** XSS 模式表。 */
     private static final List<java.util.regex.Pattern> XSS_PATTERNS = List.of(
             java.util.regex.Pattern.compile("(?i)<script[^>]*>.*?</script>"),
             java.util.regex.Pattern.compile("(?i)<iframe[^>]*>.*?</iframe>"),

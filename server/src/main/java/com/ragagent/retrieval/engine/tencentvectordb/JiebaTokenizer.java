@@ -19,68 +19,67 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 腾讯 VectorDB 稀疏向量的默认分词器——照 Go 侧 {@code go-ego/gse v0.80.3} 的
- * <b>实际行为</b>逐 token 复刻（W5γ5.7）。
+ * 腾讯 VectorDB 稀疏向量的默认分词器——对齐腾讯 SDK（tcvdbtext）内置 jieba 分词的
+ * <b>实际行为</b>（逐 token 等价）。
  *
- * <h2>Go 侧到底跑了什么（勘察结论，反直觉但已被实证）</h2>
+ * <h2>SDK 侧到底跑了什么（实测结论，反直觉但已被实证）</h2>
  *
- * <p>SDK 的默认构造是 {@code NewJiebaTokenizer(nil)}（{@code tcvdbtext/encoder/bm25_encoder.go:83}），
+ * <p>SDK 的默认构造是 {@code NewJiebaTokenizer(nil)}，
  * 它做的三件事是：{@code seg.LoadNoFreq = true}、{@code seg.LoadStop(default_stopwords.txt)}、
- * {@code seg.LoadDict("")}（{@code tcvdbtext/tokenizer/jieba_tokenizer.go:41-64}）。</p>
+ * {@code seg.LoadDict("")}。</p>
  *
- * <p><b>而 {@code LoadDict("")} 什么词典都不加载</b>：Go 侧传的是<b>非空 varargs</b>
+ * <p><b>而 {@code LoadDict("")} 什么词典都不加载</b>：SDK 传的是<b>非空 varargs</b>
  * （{@code files = [""]}）→ 走 {@code len(files) > 0} 分支 → {@code DictPaths(dictDir, "")} 返回 nil
- * → 日志打出 {@code Warning: dict files is nil.}，且 {@code len(files) == 0} 的兜底分支也不会走
- * （{@code dict_util.go:150-218}）。实证：{@code seg.Dict.TotalFreq() == 0 && NumTokens() == 0}，
+ * → 日志打出 {@code Warning: dict files is nil.}，且 {@code len(files) == 0} 的兜底分支也不会走。
+ * 实证：{@code seg.Dict.TotalFreq() == 0 && NumTokens() == 0}，
  * {@code Find("向量")} → {@code (0, "", false)}（基准见 {@code jieba_baseline.json} 的 {@code dict} 字段）。</p>
  *
  * <p>词典为空 ⇒ {@code calc()} 的 DAG 全是自环（{@code dag[k] == [k]}）⇒ {@code cutDAG} 把所有
  * 单字累积进 buf，最后一次 {@code seg.hmm(bufString, buf)}：{@code Find} 必失败 ⇒ 直接在<b>整串</b>上
- * 跑 HMM Viterbi（{@code dag.go:203-215, 342-373}）。所以本仓不需要 jieba 词典，也不需要 HMM 之外的
- * 词典路径——gse 内嵌的那 8.3MB {@code zh/{s_1,t_1}.txt} 在 SDK 路径下<b>是死重量</b>。</p>
+ * 跑 HMM Viterbi。所以本仓不需要 jieba 词典，也不需要 HMM 之外的
+ * 词典路径——SDK 内嵌的那 8.3MB 词典文件在该路径下<b>是死重量</b>。</p>
  *
- * <h2>复刻的三段</h2>
+ * <h2>对齐的三段</h2>
  *
  * <ol>
- *   <li><b>小写化</b>：gse 的 {@code var ToLower = true}（{@code dict_util.go:32-35}）⇒ {@code cutDAG}
- *       入口整串 {@code strings.ToLower}（{@code dag.go:221}）。Java 用逐码点
- *       {@link Character#toLowerCase(int)}（与 Go 的 {@code unicode.ToLower} 同为简单映射）。</li>
- *   <li><b>HMM 切分</b>：{@code hmm.Cut}（{@code hmm/hmm_seg.go:87-131}）——{@code \p{Han}+} 的每段连字
- *       走 Viterbi 定 B/M/E/S（{@code internalCut}，{@code hmm_seg.go:47-73}）；非连字段用
- *       {@code (\d+\.\d+|[a-zA-Z0-9]+)} 整段直出；两者之间的填充文本按"就近切"整块吐（{@code locJudge}）。</li>
- *   <li><b>停用词过滤</b>：SDK 的 {@code Tokenize} 尾部（{@code jieba_tokenizer.go:126-133}）——
- *       {@code len(word)==0 || word==" " || IsStop(word)} 丢弃；{@code IsStop} 只读 {@code StopWordMap}
- *       （{@code stop.go:69-73}，文件行原样入 map、不 trim）。</li>
+ *   <li><b>小写化</b>：SDK 侧 {@code ToLower = true} 恒开 ⇒ {@code cutDAG}
+ *       入口整串小写化。Java 用逐码点 {@link Character#toLowerCase(int)}（简单映射，
+ *       与 jieba 的逐字符小写化语义一致）。</li>
+ *   <li><b>HMM 切分</b>：{@code \p{Han}+} 的每段连字
+ *       走 Viterbi 定 B/M/E/S；非连字段用
+ *       {@code (\d+\.\d+|[a-zA-Z0-9]+)} 整段直出；两者之间的填充文本按"就近切"整块吐。</li>
+ *   <li><b>停用词过滤</b>：SDK {@code Tokenize} 尾部——
+ *       {@code len(word)==0 || word==" " || IsStop(word)} 丢弃；{@code IsStop} 只读停用词表
+ *       （文件行原样入表、不 trim）。</li>
  * </ol>
  *
  * <h2>Viterbi 的等价点（易错处）</h2>
  *
  * <ul>
- *   <li>发射/转移缺失时取 {@code minFloat = -3.14e100}（{@code viterbi.go:22, 74-78, 115-127}）；</li>
- *   <li>状态转移是 jieba 的 {@code prevStatus}（B←{E,S}、M←{M,B}、S←{S,E}、E←{B,M}，
- *       {@code viterbi.go:30-33}），<b>不是</b>朴素 HMM 的全连接；</li>
- *   <li>并列时按 <b>状态字节降序</b>取胜者：Go 用 {@code sort.Sort(sort.Reverse(...))}，比较序是
- *       {@code (prob, state byte)} 升序再反转（{@code viterbi.go:56-61, 91, 106}）——即
+ *   <li>发射/转移缺失时取 {@code minFloat = -3.14e100}；</li>
+ *   <li>状态转移是 jieba 的 {@code prevStatus}（B←{E,S}、M←{M,B}、S←{S,E}、E←{B,M}），
+ *       <b>不是</b>朴素 HMM 的全连接；</li>
+ *   <li>并列时按 <b>状态字节降序</b>取胜者（{@code (prob, state byte)} 升序再反转）——即
  *       {@code S(0x53) > M(0x4D) > E(0x45) > B(0x42)}；末尾只在 {@code E}/{@code S} 之间选。</li>
  * </ul>
  *
  * <h2>回归来源</h2>
  *
- * <p>逐 token 基线由 {@code scripts/jieba-diff-probe/}（Go，同参数）生成，落在
+ * <p>逐 token 基线由 {@code scripts/jieba-diff-probe/}（同参数）生成，落在
  * {@code server/src/test/resources/jieba/jieba_baseline.json}；回归测试
  * {@code JiebaTokenizerDiffTest} 对 {@code cutHmmOn}（裸切分）与 {@code sdkTokenize}（含停用词）
- * 两份基准逐句逐 token 断言。HMM 表由 {@code scripts/gen-jieba-hmm.py} 从 gse 源码机械提取成
- * {@code resources/jieba/hmm_model.json}（gse 的 {@code probEmit} 等是包内非导出变量，源码是唯一权威表示）。</p>
+ * 两份基准逐句逐 token 断言。HMM 表由 {@code scripts/gen-jieba-hmm.py} 从上游 jieba 分词库源码机械提取成
+ * {@code resources/jieba/hmm_model.json}（发射概率等是上游包内非导出变量，源码是唯一权威表示）。</p>
  */
 final class JiebaTokenizer implements TencentVectorDbBm25.Tokenizer {
 
     private static final Logger log = LoggerFactory.getLogger(JiebaTokenizer.class);
 
-    /** Go {@code hmm.Cut} 的两条正则（{@code hmm/hmm_seg.go:24-27}）；索引语义与字节/字符无关，只作切点。 */
+    /** 分词的两条正则；索引语义与字节/字符无关，只作切点。 */
     private static final Pattern REG_HAN = Pattern.compile("\\p{IsHan}+");
     private static final Pattern REG_SKIP = Pattern.compile("(\\d+\\.\\d+|[a-zA-Z0-9]+)");
 
-    /** Go 的 {@code states} 入参顺序（{@code hmm_seg.go:51}：{@code []byte{'B','M','E','S'}}）。 */
+    /** 状态序（B/M/E/S，与 jieba 约定一致）。 */
     private static final char[] STATES = {'B', 'M', 'E', 'S'};
     private static final int I_B = 0;
     private static final int I_M = 1;
@@ -100,7 +99,7 @@ final class JiebaTokenizer implements TencentVectorDbBm25.Tokenizer {
         }
         List<String> out = new ArrayList<>();
         for (String word : cut(text)) {
-            // 照 SDK jieba_tokenizer.go:133：空串 / 单空格 / 停用词丢弃（IsStop 只查 StopWordMap）
+            // 与 SDK 一致：空串 / 单空格 / 停用词丢弃（只查停用词表）
             if (word.isEmpty() || word.equals(" ") || stopWords.contains(word)) {
                 continue;
             }
@@ -110,7 +109,7 @@ final class JiebaTokenizer implements TencentVectorDbBm25.Tokenizer {
     }
 
     /**
-     * 裸切分，等价 Go 的 {@code seg.Cut(sentence, true)}——含小写化，<b>不含</b>停用词过滤。
+     * 裸切分，等价 SDK 的 {@code seg.Cut(sentence, true)}——含小写化，<b>不含</b>停用词过滤。
      * 供差分测试与排障使用。
      */
     List<String> cut(String text) {
@@ -119,14 +118,14 @@ final class JiebaTokenizer implements TencentVectorDbBm25.Tokenizer {
         }
         String lowered = goToLower(text);
         int[] codePoints = lowered.codePoints().toArray();
-        // 空词典时 cutDAG 的两个出口：单 rune 直接原样（dag.go:361-367），多 rune 整串进 HMM（dag.go:203-215）
+        // 空词典时 cutDAG 的两个出口：单字符直接原样，多字符整串进 HMM
         if (codePoints.length <= 1) {
             return List.of(lowered);
         }
         return hmmCut(lowered);
     }
 
-    /** Go {@code strings.ToLower}（逐 rune 简单映射；{@code ToLower=true} 恒开）。 */
+    /** 逐码点小写化（简单映射；与 SDK 的 ToLower 恒开一致）。 */
     private static String goToLower(String s) {
         StringBuilder sb = new StringBuilder(s.length());
         for (int i = 0; i < s.length(); ) {
@@ -137,7 +136,7 @@ final class JiebaTokenizer implements TencentVectorDbBm25.Tokenizer {
         return sb.toString();
     }
 
-    /** Go {@code hmm.Cut(text)}（{@code hmm/hmm_seg.go:87-131}，无自定义 reg）。 */
+    /** HMM 切分（无自定义 reg）。 */
     private static List<String> hmmCut(String text) {
         List<String> result = new ArrayList<>();
         String rest = text;
@@ -179,7 +178,7 @@ final class JiebaTokenizer implements TencentVectorDbBm25.Tokenizer {
         return matcher.find() ? new int[] {matcher.start(), matcher.end()} : null;
     }
 
-    /** Go {@code locJudge}（{@code hmm/hmm_seg.go:133-147}）：两边都没有 → nil（调用方吐剩余整块）。 */
+    /** 就近切判定：两边都没有 → null（调用方吐剩余整块）。 */
     private static int[] locJudge(String str, int[] cutLoc, int[] nonCutLoc) {
         if (cutLoc == null && nonCutLoc == null) {
             return null;
@@ -193,7 +192,7 @@ final class JiebaTokenizer implements TencentVectorDbBm25.Tokenizer {
         return nonCutLoc;
     }
 
-    /** Go {@code internalCut}：一段连字 → Viterbi 定 B/M/E/S → 按 B/E/S 切词（{@code hmm_seg.go:47-73}）。 */
+    /** 一段连字 → Viterbi 定 B/M/E/S → 按 B/E/S 切词。 */
     private static List<String> internalCut(String text) {
         int[] codePoints = text.codePoints().toArray();
         byte[] posList = viterbi(codePoints);
@@ -218,7 +217,7 @@ final class JiebaTokenizer implements TencentVectorDbBm25.Tokenizer {
         return result;
     }
 
-    /** Go {@code hmm.Viterbi}（{@code viterbi.go:68-110}）——含并列取胜规则（prob 降序，再状态字节降序）。 */
+    /** Viterbi 解码（含并列取胜规则：prob 降序，再状态字节降序）。 */
     private static byte[] viterbi(int[] obs) {
         Model model = model();
         int n = obs.length;
@@ -280,7 +279,7 @@ final class JiebaTokenizer implements TencentVectorDbBm25.Tokenizer {
         return ModelHolder.INSTANCE;
     }
 
-    /** HMM 模型（gse {@code hmm} 包数据，见 {@code scripts/gen-jieba-hmm.py}）。 */
+    /** HMM 模型（由 {@code scripts/gen-jieba-hmm.py} 提取，见类注释"回归来源"）。 */
     private static final class Model {
 
         private final double minFloat;

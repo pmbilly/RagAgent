@@ -1,8 +1,7 @@
 package com.ragagent.memory.domain;
 
 /**
- * 一次记忆操作所属的（工作区, 主体）对
- * （对照 Go {@code interfaces.MemoryScope}，internal/types/interfaces/memory.go L14-21）。
+ * 一次记忆操作所属的（工作区, 主体）对。
  *
  * <p><b>它总是从请求上下文推导出来，绝不来自客户端传的 id</b>——这就是整套隔离模型：
  * 不存在任何一条"客户端可以用 id 选中别人的记忆空间"的代码路径，所以每个端点都不必
@@ -12,7 +11,7 @@ package com.ragagent.memory.domain;
 public record MemoryScope(long tenantId, String subjectId) {
 
     /**
-     * 对照 Go {@code MemoryScope.Valid()}：租户 > 0 **且** subject 非空。
+     * 有效范围：租户 > 0 **且** subject 非空。
      *
      * <p>注意 {@code MemoryVectorQuery} 的两条查询路径都用它做前置判断，
      * 所以这个方法不能放宽。</p>

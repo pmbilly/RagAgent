@@ -15,12 +15,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 后台 LLM 调用的按模型并发闸门装饰器（对照 Go chat.concurrencyChat，
- * internal/models/chat/concurrency_wrapper.go:27-72）。
+ * 后台 LLM 调用的按模型并发闸门装饰器。
  *
- * 设计意图（照抄 Go 注释）：模型侧配额是所有 LLM 后台阶段（摘要/问题生成/图谱/
+ * 设计意图：模型侧配额是所有 LLM 后台阶段（摘要/问题生成/图谱/
  * 多模态富化）共享的真正瓶颈，它们都打同一个模型。把闸门放在**客户端层**——
- * 唯一能看到全部任务类型的地方——而不是 asynq 队列层（那里的权重是调度优先级，
+ * 唯一能看到全部任务类型的地方——而不是任务队列层（那里的权重是调度优先级，
  * 不是限流）。
  *
  * 只有后台（worker）调用被节流；交互式聊天不受影响（见
@@ -40,7 +39,7 @@ public class ConcurrencyChatClient implements LlmChatClient {
      */
     private static final long DEFAULT_ABANDON_TIMEOUT_SECONDS = 120;
 
-    /** 首个 done 之后等待尾巴事件的窗口（秒）：对照 Go channel close 的模拟。 */
+    /** 首个 done 之后等待尾巴事件的窗口（秒）。 */
     private static final long TAIL_POLL_TIMEOUT_SECONDS = 2;
 
     /** 尾巴事件的转发等待上限（毫秒）：消费者已收束时快速放弃，不占放弃阈值。 */
@@ -66,9 +65,8 @@ public class ConcurrencyChatClient implements LlmChatClient {
     }
 
     /**
-     * 对照 Go {@code GateNamedN} 的 {@code l == nil} 分支：未装配 governor 时返回 noop
-     * （fail open，永不 panic）。2026-09-25 install E2E 抓回：安装器路径未注入 governor，
-     * 旧实现直接解引用 → 第一次 LLM 调用即 NPE（{@code this.governor is null}）。
+     * 未装配 governor 时返回 noop（fail open）：安装等路径可能没有注入 governor，
+     * 直接解引用会在第一次 LLM 调用时 NPE。
      */
     private Release gate() {
         if (governor == null) {
@@ -103,11 +101,9 @@ public class ConcurrencyChatClient implements LlmChatClient {
         }
         // 持有信号量直到流完全排干再释放。
         // 若消费者放弃读取（不再从 out 取），我们会永远阻塞在发送上、永不释放信号量——
-        // Go 用 select + ctx.Done() 解决，Java 侧改用 offer 超时判定放弃，
-        // 放弃后后台排干内层队列，让上游生产者也能退出（对照 Go 的
-        // `go func(){ for range ch {} }()`）。
+        // 用 offer 超时判定放弃，放弃后后台排干内层队列，让上游生产者也能退出。
         //
-        // out 必须是 SynchronousQueue（= Go 的无缓冲 channel）：有界队列会让 offer
+        // out 必须是 SynchronousQueue（无缓冲语义）：有界队列会让 offer
         // 在消费者不读时仍然成功，放弃检测就永远不触发。
         BlockingQueue<StreamResponse> out = new java.util.concurrent.SynchronousQueue<>();
         Thread.ofVirtual().name("llm-concurrency-" + delegate.getModelId()).start(() -> {
@@ -131,11 +127,10 @@ public class ConcurrencyChatClient implements LlmChatClient {
                         return;
                     }
                     if (resp.isDone()) {
-                        // 对照 Go `for resp := range ch`：channel 关闭前 done 之后还可能
-                        // 有终态后续事件（如带 usage 的终态 answer，RemoteApiChat 在
-                        // [DONE]/EOF 时补发）。Java 队列无 close 语义，用短窗口 poll
-                        // 模拟；尾巴事件用短超时 offer 转发——仍在读的消费者（模型调试
-                        // 等 range 语义）照单全收，已在首个 done 收束的消费者
+                        // 首个 done 之后还可能有终态后续事件（如带 usage 的终态
+                        // answer，RemoteApiChat 在 [DONE]/EOF 时补发），用短窗口
+                        // poll 读取；尾巴事件用短超时 offer 转发——仍在读的消费者
+                        // （模型调试等）照单全收，已在首个 done 收束的消费者
                         // （SSE/agent）最多占 TAIL_OFFER_TIMEOUT_MS 即释放，
                         // 不触发 120s 放弃阈值。
                         forwardTail(inner, out);
@@ -156,9 +151,9 @@ public class ConcurrencyChatClient implements LlmChatClient {
     }
 
     /**
-     * 转发首个 done 之后的尾巴事件（对照 Go range-over-channel 的自然收束）。
+     * 转发首个 done 之后的尾巴事件。
      *
-     * <p>poll 超时视为「channel 关闭」；offer 失败视为消费者已收束，排干内层后返回。</p>
+     * <p>poll 超时视为流结束；offer 失败视为消费者已收束，排干内层后返回。</p>
      */
     private void forwardTail(BlockingQueue<StreamResponse> inner, BlockingQueue<StreamResponse> out) {
         for (;;) {

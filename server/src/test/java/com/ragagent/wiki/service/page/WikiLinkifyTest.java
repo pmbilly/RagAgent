@@ -11,11 +11,10 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.wiki.service.page.WikiCrossLinker.LinkRef;
 
 /**
- * {@link WikiLinkify} 的对等测试（对照 Go
- * internal/application/service/wiki_linkify_test.go，285 行，<b>全部用例逐条翻译</b>）。
+ * {@link WikiLinkify} 的表驱动测试。
  *
- * <p>Go 的表驱动子测试用 JUnit 5 的 {@link Nested} / {@link Test} 展开，
- * 保持用例名与断言内容可逐条对照。</p>
+ * <p>用 JUnit 5 的 {@link Nested} / {@link Test} 展开子测试，
+ * 用例名与断言内容逐条对应。</p>
  */
 class WikiLinkifyTest {
 

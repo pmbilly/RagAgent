@@ -60,22 +60,22 @@ import com.ragagent.model.service.ModelRuntimeConfigs;
 import com.ragagent.chatpipeline.PipelinePorts;
 
 /**
- * chat 管线 + QA 面装配（波 4.6d；docs/known-issues/05-wave-4.md 原 §9「波 4.6c 补充」的 11 seam 清单）。
+ * chat 管线 + QA 面装配（docs/known-issues/05-wave-4.md 的 11 seam 清单）。
  *
  * <p>全部 adapter 是<b>纯新增</b>文件里的静态/内部类，不改既有 service。占位 seam
  * （TenantService/SessionService/WebSearchStateService/WebSearchProviderRepository）
- * Go 侧只判 nil 或存而不读——Java 传 null 等价。</p>
+ * 仅判空或存而不读——Java 传 null 等价。</p>
  *
  * <h2>已知差异（备案）</h2>
  * <ul>
- *   <li><b>HybridSearch 执行面（检索引擎批 2026-09-22 已接入）</b>：adapter 委托
+ *   <li><b>HybridSearch 执行面</b>：adapter 委托
  *       {@code HybridSearchService}（pgvector + ParadeDB BM25 + RRF 融合 +
- *       FAQ 迭代/负例过滤 + 富化装配，对照 knowledgebase_search*.go 全族）。
+ *       FAQ 迭代/负例过滤 + 富化装配）。
  *       外部向量店（ES/milvus/…）绑定仍按 2201 unavailable 同形拒绝（provider 批）。</li>
- *   <li><b>RetrieveGraphRepository（D 批已接线）</b>：注入 {@code Neo4jGraphConfig} 提供的
+ *   <li><b>RetrieveGraphRepository（已接线）</b>：注入 {@code Neo4jGraphConfig} 提供的
  *       {@code Neo4jGraphRepository}——NEO4J_ENABLE 未启用时其 driver 为 null，检索返回
- *       null（Go 的 nil driver 分支；ExtractEntity/SearchEntity 同样有 neo4jEnabled 闸门）。</li>
- *   <li><b>WebSearchStateService / WebSearchProviderRepository</b>：Go 当前存而不读，
+ *       null（nil driver 分支；ExtractEntity/SearchEntity 同样有 neo4jEnabled 闸门）。</li>
+ *   <li><b>WebSearchStateService / WebSearchProviderRepository</b>：存而不读，
  *       传 null。</li>
  * </ul>
  */
@@ -89,7 +89,7 @@ public class QaWiring {
     public QaWiring() {
     }
 
-    // ── conversation 配置（对照 Go config.yaml 的 conversation 段） ────────────
+    // ── conversation 配置 ────────────
     // ConversationProperties 自 2026-09-28 起由 @ConfigurationPropertiesScan 注册
     // （yml conversation.* 真正绑定进实例），模板回填在其 @PostConstruct 完成；
     // 此处的手工 @Bean 会让绑定面变成死键，已删除。
@@ -169,8 +169,7 @@ public class QaWiring {
             public KnowledgeBase getKnowledgeBaseByIdOnly(String id) {
                 KnowledgeBase kb = kbService.getAllTenantById(id);
                 if (kb == null) {
-                    // 对照 Go：插件取 KB 元数据失败 → BizError(1003) → 管线 500 信封
-                    // （错误文案与 BizException.getMessage 的 Go AppError 形态一致）
+                    // 插件取 KB 元数据失败 → BizError(1003) → 管线 500 信封
                     throw new PipelinePorts.PipelinePortException(
                             "error code: 1003, error message: knowledge base not found");
                 }
@@ -347,15 +346,15 @@ public class QaWiring {
         };
     }
 
-    // ── EventManager（对照 container.go L379-397 的插件注册序） ───────────────
+    // ── EventManager（插件注册序） ───────────────
 
     @Bean
     public PipelineConfig chatPipelineConfig(ConversationProperties conv) {
         PipelineConfig config = new PipelineConfig();
         config.setRewritePromptSystem(conv.getRewritePromptSystem());
         config.setRewritePromptUser(conv.getRewritePromptUser());
-        // intent prompts：intent_prompts.yaml 的 id→content（Go config.go L1024-1027）。
-        // 空表时 query_understand 走缺省意图提示——两侧 dev 缺省一致。
+        // intent prompts：intent_prompts.yaml 的 id→content。
+        // 空表时 query_understand 走缺省意图提示。
         config.setIntentSystemPrompts(loadIntentPrompts());
         // ExtractEntity 的结构化模板：neo4j 未启用时插件在入口直通，模板留空。
         return config;
@@ -408,11 +407,11 @@ public class QaWiring {
             PipelineConfig config) {
 
         EventManager mgr = new EventManager();
-        // neo4j 未翻译 → extractEntity 关闭（Go 的 neo4jEnabled=false 同样直通）
+        // neo4j 未启用 → extractEntity 关闭（neo4jEnabled=false 直通）
         boolean neo4jEnabled = false;
         var extractEntityTemplate = new PipelineConfig.PromptTemplateStructured();
 
-        // 对照 container.go L380-396 的 Invoke 顺序（注册序=执行链序）
+        // 插件注册顺序即执行链顺序
         mgr.register(new com.ragagent.chatpipeline.plugin.PluginSearch(knowledgeBaseService, knowledgeService,
                 null, config, webSearch, tenantService, null, null, null));
         mgr.register(new PluginRerank(modelService));

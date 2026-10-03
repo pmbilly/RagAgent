@@ -16,42 +16,30 @@ import org.springframework.stereotype.Component;
 /**
  * {@link WikiActivityAudit} 的生产实现——把 Wiki 的埋点真正落进 audit_logs。
  *
- * <p>对照 Go {@code internal/application/service/kb_activity.go} 的
- * {@code RecordWikiContentActivity} → {@code recordKBActivity}
- * （kb_activity.go L162-181 / L85-151）。</p>
- *
  * <p>Wiki 侧 6 处埋点（{@code WikiPageController.recordManualWikiActivity} 的
  * manual_create / manual_edit / manual_delete / revert / auto-fix 等，
  * 以及 {@code WikiIngestBatchHandler} 的 ingest / retract 批量摘要）此前因为没有实现
  * bean 而退化成 debug 日志；本类补上后它们才会真正落库。</p>
  *
- * <h2>与 Go 的逐字段对应</h2>
+ * <h2>写入口径</h2>
  * <ul>
  *   <li>Action = {@code wiki.content_changed}，ScopeType = {@code knowledge_base}，
  *       ScopeID = TargetID = kbID，TargetType = {@code wiki}，Outcome = {@code success}；</li>
- *   <li>Details = {@code {"count": N, "actions": {...}}}；count 为 0 时<b>不写</b>
- *       （对照 Go {@code if count == 0 { return }}）；</li>
- *   <li>ActorUserID = 上下文用户；仅在非空时才带 ActorRole
- *       （对照 Go {@code if actorID != "" { actorRole = auditActorRole(ctx) }}）；</li>
- *   <li>tenantId 传 0 时回落到上下文租户；仍为 0 则不写
- *       （对照 Go {@code if tenantID == 0 { tenantID, _ = types.TenantIDFromContext(ctx) } ... }）。</li>
+ *   <li>Details = {@code {"count": N, "actions": {...}}}；count 为 0 时<b>不写</b>；</li>
+ *   <li>ActorUserID = 上下文用户；仅在非空时才带 ActorRole；</li>
+ *   <li>tenantId 传 0 时回落到上下文租户；仍为 0 则不写。</li>
  * </ul>
  *
  * <p><b>记账是尽力而为</b>：绝不能让埋点失败反过来让编辑失败
  * （{@link AuditLogService#logBestEffort}）。</p>
  *
- * <p><b>已知差异</b>：Go 的 {@code recordKBActivity} 还会从 worker 上下文补
- * {@code task_id} / {@code trigger} / {@code processing_status} 三个键
- * （{@code withKBActivityTask} 写入的 {@code kbActivityTaskContextKey}）。
- * Java 侧的 Wiki ingest 没有移植那套任务上下文，所以这三个键缺失——详情结构
- * 仍与 Go 一致（前端按可选字段读）。</p>
+ * <p><b>说明</b>：details 不写 {@code task_id} / {@code trigger} / {@code processing_status}
+ * 三个任务上下文键（Wiki ingest 侧无该上下文）；前端按可选字段读。</p>
  */
 @Component
 public class WikiActivityAuditRecorder implements WikiActivityAudit {
 
-    /** 对照 Go {@code auditScopeKnowledgeBase}。 */
     static final String SCOPE_KNOWLEDGE_BASE = "knowledge_base";
-    /** 对照 Go 调用点里的字面量 {@code "wiki"}。 */
     static final String TARGET_TYPE_WIKI = "wiki";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -72,11 +60,11 @@ public class WikiActivityAuditRecorder implements WikiActivityAudit {
                 }
             }
         }
-        // 对照 Go: count == 0 → 不写
+        // 无变化不写
         if (count == 0) {
             return;
         }
-        // 对照 Go recordKBActivity 的入参守卫：audit == nil || kbID == "" || action == ""
+        // kbID 为空时不写
         if (knowledgeBaseId == null || knowledgeBaseId.isEmpty()) {
             return;
         }
@@ -109,11 +97,11 @@ public class WikiActivityAuditRecorder implements WikiActivityAudit {
     }
 
     /**
-     * 对照 Go {@code map[string]any{"count": count, "actions": actions}}。
+     * details = {@code {"count": N, "actions": {...}}}。
      *
-     * <p>Go 的 {@code encoding/json} 对 map 键按<b>字母序</b>输出 → {@code actions} 先于
-     * {@code count}；内层 actions 也按动作名字母序。这里按同样顺序构造
-     * （落 PG jsonb 后还会被规范化成（长度,字节序），读取侧 PgJsonTypeHandler 复刻该行为）。</p>
+     * <p>键按<b>字母序</b>输出 → {@code actions} 先于 {@code count}；内层 actions
+     * 也按动作名字母序。落 PG jsonb 后还会被规范化成（长度,字节序），读取侧
+     * {@code PgJsonTypeHandler} 做同样的规范化。</p>
      */
     private static ObjectNode details(int count, Map<String, Integer> actions) {
         ObjectNode actionsNode = MAPPER.createObjectNode();

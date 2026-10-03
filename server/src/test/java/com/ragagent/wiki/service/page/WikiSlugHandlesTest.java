@@ -7,16 +7,14 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
- * 对照 Go internal/application/service/wiki_slug_handles_test.go（72 行）的 3 个用例。
+ * {@link WikiSlugHandles} 的 3 个用例。
  *
- * <p>纯内存测试，不需要 Spring 上下文。Go 的句柄表是
- * {@code modelcontext.HandleTable("ref-", 0, 1)}，Java 侧由
- * {@link WikiSlugHandles} 内部实现等价分配器。</p>
+ * <p>纯内存测试，不需要 Spring 上下文。句柄从 {@code ref-1} 起编号，
+ * 由 {@link WikiSlugHandles} 内部实现分配器。</p>
  */
 class WikiSlugHandlesTest {
 
     /**
-     * 对照 Go {@code TestWikiSlugHandles_RoundTripEscapesUUIDSlugs}：
      * 高熵 UUID 不再出现在模型看到的内容里，且往返解码必须<b>逐字节</b>还原。
      */
     @Test
@@ -32,7 +30,7 @@ class WikiSlugHandlesTest {
         assertThat(tSummary).isNotEqualTo(summarySlug);
         assertThat(tEntity).isNotEqualTo(entitySlug);
         assertThat(tSummary).doesNotContain("/");
-        // 对照 Go HandleTable(prefix="ref-", width=0, start=1)：ref-1 起编号
+        // ref-1 起编号
         assertThat(tSummary).isEqualTo("ref-1");
         assertThat(tEntity).isEqualTo("ref-2");
 
@@ -50,7 +48,6 @@ class WikiSlugHandlesTest {
     }
 
     /**
-     * 对照 Go {@code TestWikiSlugHandles_UnknownHandlesAndSlugsUntouched}：
      * 不在 {@code known} 里的 slug 不别名化；没有映射的句柄原样保留
      * （落到常规的死链清理路径）。
      */
@@ -69,7 +66,7 @@ class WikiSlugHandlesTest {
         assertThat(h.decodeContent(out)).isEqualTo(out);
     }
 
-    /** 对照 Go {@code TestWikiSlugHandles_EmptyIsNoop}：空表解码是 no-op */
+    /** 空表解码是 no-op */
     @Test
     void emptyIsNoop() {
         WikiSlugHandles h = new WikiSlugHandles();
@@ -84,7 +81,7 @@ class WikiSlugHandlesTest {
         assertThat(h.encodeContent(null, Set.of("a"))).isNull();
     }
 
-    /** 空 slug / 空句柄的边界（对照 Go {@code register} 的 {@code key == ""} 分支） */
+    /** 空 slug / 空句柄的边界 */
     @Test
     void blankInputsReturnBlank() {
         WikiSlugHandles h = new WikiSlugHandles();
@@ -95,7 +92,7 @@ class WikiSlugHandlesTest {
         assertThat(h.isEmpty()).as("空 slug 不占号").isTrue();
     }
 
-    /** 同一个 slug 重复 register 必须返回同一个句柄（Go 的 handleByKey 记忆） */
+    /** 同一个 slug 重复注册必须返回同一个句柄（按 slug 记忆） */
     @Test
     void handleIsStablePerSlug() {
         WikiSlugHandles h = new WikiSlugHandles();

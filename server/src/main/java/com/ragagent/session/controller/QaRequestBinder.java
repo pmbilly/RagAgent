@@ -9,11 +9,11 @@ import com.ragagent.session.dto.QaRequests.SearchKnowledgeRequest;
 import com.ragagent.session.controller.KnowledgeQaController.Base64Support;
 
 /**
- * {@code KnowledgeQaController} 的**静态解析助手簇**（§14.9c 刀 4a）：请求体绑定
+ * {@code KnowledgeQaController} 的**静态解析助手簇**：请求体绑定
  * （`ShouldBindJSON` 对应物，Go binding:required 文案逐字对齐）、绑定错误文案、附件上传的
  * 解码与校验、以及仅解析簇使用的列表助手。全部静态、参数化、零字段依赖。
  *
- * <p>共享项留控制器（按调用点核过，§11.26）：{@code stringListOf}（附件簇 1407 也在用）、
+ * <p>共享项留控制器：{@code stringListOf}（附件解析也在用）、
  * {@code tenantServiceField}/{@code currentTenant}（{@code executeQA} 720 在用）。</p>
  */
 final class QaRequestBinder {
@@ -44,7 +44,7 @@ final class QaRequestBinder {
         try {
             return BIND_JSON.readValue(rawBody, type);
         } catch (Exception e) {
-            // 字段级类型错误 → Go 的 unmarshal 措辞（golden 驱动登记，w5q-kch-badsource）
+            // 字段级类型错误 → 登记过的固定 unmarshal 措辞
             if (e instanceof com.fasterxml.jackson.databind.JsonMappingException jme
                     && !jme.getPath().isEmpty() && jme.getPath().get(0).getFieldName() != null) {
                 String field = jme.getPath().get(0).getFieldName();
@@ -74,7 +74,7 @@ final class QaRequestBinder {
         out.addAll(extra == null ? List.of() : extra);
         return out;
     }
-    /** 对照 decodeAndValidateAttachmentUploads（qa.go L431-457）的校验段。 */
+    /** 附件上传的解码与单文件/总量大小校验。 */
     static void decodeAndValidateAttachmentUploads(List<AttachmentUpload> uploads,
             int maxCount, long maxFileBytes, long maxTotalBytes) {
         if (uploads.size() > maxCount) {

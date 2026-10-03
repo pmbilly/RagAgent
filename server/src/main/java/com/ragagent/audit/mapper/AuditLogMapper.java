@@ -5,10 +5,9 @@ import com.ragagent.audit.domain.AuditLog;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * audit_logs 的 MyBatis-Plus 基础仓储（对照 Go
- * internal/application/repository/audit_log.go 的 {@code auditLogRepository} L16-137）。
+ * audit_logs 的 MyBatis-Plus 基础仓储。
  *
- * <p>之所以只用 {@link BaseMapper} 而不写自定义 SQL：Go 侧的全部查询都是等值 /
+ * <p>之所以只用 {@link BaseMapper} 而不写自定义 SQL：全部查询都是等值 /
  * 范围 / 排序 / LIMIT 的组合，MyBatis-Plus 的 {@code LambdaQueryWrapper} 能 1:1 表达，
  * 且 {@code @TableName(autoResultMap = true)} 会让 {@code details} 这个 jsonb 列
  * 自动走 {@code PgJsonTypeHandler}（写 setObject(OTHER) / 读规范化键序）。

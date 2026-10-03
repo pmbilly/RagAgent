@@ -5,9 +5,8 @@ import java.net.URI;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * SearxngBaseURL 的共享校验（对照 Go {@code ValidateSearxngBaseURL}——服务层参数
- * 校验与 provider 构造器共用，save/use 永不分歧）。四段拒绝文案 + SSRF 检查，
- * 全部逐字对照。
+ * SearxngBaseURL 的共享校验（服务层参数
+ * 校验与 provider 构造器共用，save/use 永不分歧）。四段拒绝文案 + SSRF 检查。
  */
 final class SearxngValidation {
 

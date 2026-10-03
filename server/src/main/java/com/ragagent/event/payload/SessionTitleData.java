@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 会话标题更新数据（对照 Go {@code event.SessionTitleData}，internal/event/event_data.go:241-244）。
- * 两字段全无 omitempty：零值恒输出 {@code {"session_id":"","title":""}}。
+ * 会话标题更新数据。
+ * 两字段全部恒输出：零值输出 {@code {"session_id":"","title":""}}。
  */
 @JsonPropertyOrder({"session_id", "title"})
 public class SessionTitleData {

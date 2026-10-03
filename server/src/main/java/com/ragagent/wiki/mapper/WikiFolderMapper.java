@@ -16,13 +16,13 @@ import org.apache.ibatis.annotations.Update;
 /**
  * wiki_folders 仓储语句。
  *
- * <p>原 ORM 隐式行为清单（约定 §3）：</p>
+ * <p>落库隐式行为清单：</p>
  * <ul>
  *   <li><b>软删除</b>：每条查询显式 {@code deleted_at IS NULL}。</li>
  *   <li><b>排序</b>：{@code listChildFolders → sort_order ASC, name ASC}、
  *       {@code listAllFolders → depth ASC, path ASC}，显式写出。</li>
  *   <li><b>原子删除</b>："空判"和软删放在同一条 UPDATE 里，
- *       避免 service 先检查、并发 move/create 插入后留下悬空 folder_id。照抄原实现。</li>
+ *       避免 service 先检查、并发 move/create 插入后留下悬空 folder_id。</li>
  * </ul>
  */
 @Mapper

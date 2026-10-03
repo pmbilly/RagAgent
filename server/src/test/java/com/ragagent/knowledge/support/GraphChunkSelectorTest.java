@@ -15,8 +15,9 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.knowledge.domain.ExtractChunkPayload;
 
 /**
- * 图抽取分块筛选测试（对照 Go {@code selectGraphChunks} / {@code chunkHasExtractableText}）
- * + 任务载荷的 JSON 形态（omitempty 与平铺 {@code lf_*} 键）。
+ * 图抽取分块筛选测试（{@code GraphChunkSelector.selectGraphChunks} /
+ * {@code chunkHasExtractableText}）
+ * + 任务载荷的 JSON 形态（空值省键与平铺 {@code lf_*} 键）。
  */
 class GraphChunkSelectorTest {
 

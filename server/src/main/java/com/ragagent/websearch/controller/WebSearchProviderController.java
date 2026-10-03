@@ -37,13 +37,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对照 Go {@code handler.WebSearchProviderHandler}（internal/handler/web_search_provider.go，
- * routes_infra.go L221-245 的 10 条路由；角色门：读 Viewer+ / 写 Admin+）。
+ * web 搜索 provider 管理面（10 条路由；角色门：读 Viewer+ / 写 Admin+）。
  *
- * <p>错误形态分层（§9「波 2 chunk」教训——逐端点照抄，不做统一映射）：</p>
+ * <p>错误形态分层（逐端点固定形态，不做统一映射）：</p>
  * <ul>
  *   <li>租户缺失 → 401 纯字符串 {@code {"success":false,"error":"unauthorized: workspace context missing"}}
- *       （gin.H 字母序 error &lt; success）；</li>
+ *       （键字母序 error &lt; success）；</li>
  *   <li>绑定失败 → 400 AppError 信封 code 1000（EOF / validator 原文，多字段按 struct 序
  *       {@code \n} 连接）；</li>
  *   <li>getOwned 404 → **纯字符串** {@code {"error":"web search provider not found","success":false}}；</li>
@@ -77,7 +76,7 @@ public class WebSearchProviderController {
 
     // ── POST /test（Admin+）：原始凭据连通性 ───────────────────────────
 
-    /** 对照 TestProviderRequest：provider required；parameters 可选 */
+    /** 请求体：provider required；parameters 可选 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record TestProviderRequest(
             String provider,
@@ -95,7 +94,7 @@ public class WebSearchProviderController {
 
     // ── CRUD ───────────────────────────────────────────────────────────
 
-    /** 对照 CreateProviderRequest：name/provider required（validator 多字段 struct 序拼接） */
+    /** 创建请求：name/provider required（校验失败按字段声明序用 \n 拼接） */
     @PostMapping
     public ResponseEntity<?> createProvider(@RequestBody(required = false) String rawBody) {
         long tenantId = requireTenant();
@@ -145,7 +144,7 @@ public class WebSearchProviderController {
         return ResponseEntity.ok(WebSearchProviderResponse.from(provider, canViewIntegrationSecrets()));
     }
 
-    /** 对照 UpdateProviderRequest：无 required 字段；merge 规则见下 */
+    /** 更新请求：无 required 字段；merge 规则见下 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record UpdateProviderRequest(
             String name,
@@ -157,7 +156,7 @@ public class WebSearchProviderController {
     public ResponseEntity<?> updateProvider(@PathVariable("id") String id,
             @RequestBody(required = false) String rawBody) {
         long tenantId = requireTenant();
-        // Go：ownership 检查先于 ShouldBindJSON（未知 id + 坏 body 都是 404）
+        // ownership 检查先于 body 反序列化（未知 id + 坏 body 都是 404）
         WebSearchProvider existing = owned(tenantId, id);
         UpdateProviderRequest req = bind(rawBody, UpdateProviderRequest.class, "UpdateProviderRequest");
 
@@ -166,7 +165,7 @@ public class WebSearchProviderController {
         WebSearchProviderParams existingParams =
                 existing.getParameters() == null ? new WebSearchProviderParams() : existing.getParameters();
         merged.setApiKey(existingParams.getApiKey());
-        // extra_config 为 nil（请求缺省）时保留存量
+        // extra_config 为 null（请求缺省）时保留存量
         if (merged.getExtraConfig() == null) {
             merged.setExtraConfig(existingParams.getExtraConfig());
         }
@@ -223,10 +222,9 @@ public class WebSearchProviderController {
     // ── 内部辅助 ───────────────────────────────────────────────────────
 
     /**
-     * 对照 doTestSearch（handler/web_search_provider.go L412-431 全量，2026-09-23
-     * 占位扫清）：CreateProvider → {@code search("test", 1, false)} → 空结果 →
+     * 连通性测试：创建 provider → {@code search("test", 1, false)} → 空结果 →
      * EmptyTestResultsError 文案；三支失败均以 200 纯字符串输出（{@link TestFailure}）。
-     * 真实出站受本部署 SSRF 白名单约束（与 Go 的 guard 同款——白名单外目标在触网前
+     * 真实出站受本部署 SSRF 白名单约束（白名单外目标在触网前
      * 即拒，错误原文经 TestFailure 200 输出）。
      */
     private void doTestSearch(String providerType, WebSearchProviderParams params) {
@@ -277,7 +275,7 @@ public class WebSearchProviderController {
         return provider;
     }
 
-    /** getOwned 的 404 是纯字符串形态（c.JSON 直写，非 AppError 信封） */
+    /** getOwned 的 404 是纯字符串形态（不走全局错误信封） */
     public static class PureNotFound extends RuntimeException {
         public PureNotFound(String message) {
             super(message);
@@ -296,11 +294,11 @@ public class WebSearchProviderController {
         return tenantId;
     }
 
-    /** 租户缺失：401 纯字符串（gin.H） */
+    /** 租户缺失：401 纯字符串（非全局错误信封） */
     public static class TenantMissing extends RuntimeException {
     }
 
-    /** 对照 dto.CanViewIntegrationSecrets：Admin+ 或（全量/管理租户设置能力的 API key） */
+    /** 可见凭据：Admin+，或持有全量/管理租户设置能力的 API key */
     static boolean canViewIntegrationSecrets() {
         if (TenantRole.fromString(TenantContext.currentRole()).hasPermission(TenantRole.ADMIN)) {
             return true;
@@ -342,7 +340,7 @@ public class WebSearchProviderController {
         return n != null && n.asBoolean(false);
     }
 
-    /** 对照 secutils.SanitizeForLog（换行/制表符→空格、去控制字符）——它同时是**存储值** */
+    /** 日志安全脱敏（换行/制表符→空格、去控制字符）——结果同时是**存储值** */
     static String sanitize(String input) {
         if (input == null || input.isEmpty()) {
             return input == null ? "" : "";
@@ -368,7 +366,7 @@ public class WebSearchProviderController {
         }
     }
 
-    /** 对照 go-playground/validator：多失败字段按 struct 序用 \n 连接（message 内） */
+    /** 校验错误形态：多失败字段按字段声明序用 \n 连接（message 内） */
     static BizException validatorError(String structName, String... fields) {
         StringBuilder sb = new StringBuilder();
         for (String field : fields) {
@@ -394,7 +392,7 @@ public class WebSearchProviderController {
         }
     }
 
-    /** gin.H：{"data":..., "success":true}（字母序 data < success） */
+    /** 响应体：{"data":..., "success":true}（键按字母序，data < success） */
     static Map<String, Object> envelopeData(Object data) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("data", data);
@@ -410,14 +408,14 @@ public class WebSearchProviderController {
         return body;
     }
 
-    /** 纯字符串错误体：{"error": msg}（不进全局信封，对照 Go handler 的 c.JSON 直写） */
+    /** 纯字符串错误体：{"error": msg}（不进全局信封） */
     public static Map<String, Object> errorEnvelope(String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", message);
         return body;
     }
 
-    // ── 本控制器私有的错误形态（对照 Go handler 的 c.JSON 直写，不进全局信封） ──
+    // ── 本控制器私有的错误形态（不进全局信封） ──
 
     @ExceptionHandler(PureNotFound.class)
     public ResponseEntity<?> handlePureNotFound(PureNotFound e) {

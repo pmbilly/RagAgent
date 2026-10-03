@@ -2,14 +2,13 @@ package com.ragagent.memory.domain;
 
 
 /**
- * 某个用户**已合并生效**的记忆状态（对照 Go {@code types.MemorySettings}，
- * internal/types/memory.go:975-990）。
+ * 某个用户**已合并生效**的记忆状态。
  *
  * <p>UI 直接渲染这个，而不是自己去合并"工作区设置 × 用户设置"——
  * 这样"我的记忆为什么是关的"只有一个答案。</p>
  *
- * <p>六个字段都**没有 omitempty**，恒输出（{@code GET /memory/settings} 的裸响应体；
- * 换锚后 JSON 字段名＝Java 字段名 camelCase）。</p>
+ * <p>六个字段恒输出（{@code GET /memory/settings} 的裸响应体；
+ * JSON 字段名＝Java 字段名 camelCase）。</p>
  */
 public class MemorySettings {
 

@@ -20,11 +20,10 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 import com.ragagent.embedding.Embedder;
 
 /**
- * KV 混合检索引擎服务（W5γ4.4a）对照 Go
- * {@code service/retriever/keywords_vector_hybrid_indexer.go}：嵌入映射一律按 SourceID、
+ * KV 混合检索引擎服务：嵌入映射一律按 SourceID、
  * 向量路分批 40/非向量路分批 10、退避 5 次（200ms 起翻倍）、净化（内联 base64 → [image] +
  * 按码点截断 20000）、迁移能力探测；并验证 EstimateStorageSize 的"按 SourceID 占位"
- * 修复（Go 用 ChunkID，生成问题估不到向量）。
+ * （按 ChunkID 落键会让生成问题估不到向量）。
  */
 class KeywordsVectorHybridRetrieveEngineServiceTest {
 
@@ -54,7 +53,7 @@ class KeywordsVectorHybridRetrieveEngineServiceTest {
 
         @Override
         public void batchSave(List<IndexInfo> indexInfoList, Map<String, Object> params) {
-            // 并发下两个 list 必须成对追加，否则下标错位（照 Go 的 errgroup 并发语义）
+            // 并发下两个 list 必须成对追加，否则下标错位
             synchronized (this) {
                 savedBatches.add(List.copyOf(indexInfoList));
                 batchParams.add(params);

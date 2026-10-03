@@ -10,14 +10,13 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ragagent.agent.management.mapper.JsonbRawStringTypeHandler;
 
 /**
- * IM 渠道会话：平台 (user×chat[×thread]) 组合 ↔ WeKnora 会话的映射
- * （对照 Go {@code im.ChannelSession}，internal/im/types.go L221-236）。
+ * IM 渠道会话：平台 (user×chat[×thread]) 组合 ↔ WeKnora 会话的映射。
  * IM 集成靠它维持会话连续性。
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库行为清单</h2>
  * <ul>
- *   <li>BeforeCreate（Go L242-250）：ID 空时 UUID；status 空兜底 "active"。</li>
- *   <li>软删除走显式 {@code deleted_at IS NULL}（约定 §9，不用 @TableLogic）。</li>
+ *   <li>入库时 ID 空则生成 UUID；status 空兜底 "active"。</li>
+ *   <li>软删除走显式 {@code deleted_at IS NULL}（不用 @TableLogic）。</li>
  *   <li>metadata 是 jsonb；Java 侧 raw 文本直通（im_channels 的 credentials 同款）。</li>
  * </ul>
  */

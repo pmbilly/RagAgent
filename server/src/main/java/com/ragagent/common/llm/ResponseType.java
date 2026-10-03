@@ -4,13 +4,13 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
- * 流式响应类型（对照 Go types.ResponseType，internal/types/chat.go:211-283，共 22 个）。
+ * 流式响应类型（共 22 个）。
  *
- * 阶段 4.0（chat 包）只产出 ANSWER / THINKING / TOOL_CALL / ERROR；
- * 其余由后续的 session/SSE（阶段 5）与 agent 引擎（阶段 7）产出——
+ * chat 包只产出 ANSWER / THINKING / TOOL_CALL / ERROR；
+ * 其余由 session/SSE 与 agent 引擎产出——
  * 常量在此集中定义，避免各模块各写一份字符串。
  *
- * 注意：这是**线上契约**（SSE event 的 response_type 字段），值必须与 Go 逐字一致。
+ * 注意：这是**线上契约**（SSE event 的 response_type 字段），取值字面量不可改动。
  */
 public enum ResponseType {
 
@@ -59,9 +59,8 @@ public enum ResponseType {
     /** skill 安装交给安装器 agent 的指令（仅安装流水线发出，且最先发出） */
     INSTALL_PROMPT("install_prompt"),
     /**
-     * 停止生成（对照 Go handler 里 {@code types.ResponseType(event.EventStop)} 的
-     * 字符串强转——"stop" 不在 Go 的 ResponseType 常量表里，但确实以该值落进
-     * StreamManager 的存储契约，见 SessionController.stopSession）。
+     * 停止生成。该值源自 StreamManager 的存储契约（"stop" 字面量），
+     * 见 SessionController.stopSession。
      */
     STOP("stop");
 

@@ -381,8 +381,7 @@ public class FaqEntryQueryService {
     }
 
     /**
-     * 优先级过滤时两级各自检索（原实现并发执行，Java
-     * 顺序执行——合并序固定为先 First 后 Second，结果序等价）；无过滤单次全量检索。
+     * 优先级过滤时两级各自检索（顺序执行，合并序固定为先 First 后 Second）；无过滤单次全量检索。
      * 参数逐字段对照：DisableKeywordsMatch=true（关键词在 messages/FAQ 自身层面）、
      */
     private List<SearchResult> searchFaqChunks(String kbId, String queryText,

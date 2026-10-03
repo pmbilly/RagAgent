@@ -21,8 +21,8 @@ import com.ragagent.wiki.service.page.WikiEditContext;
 import com.ragagent.wiki.service.page.WikiPageService;
 
 /**
- * {@code AgentToolBackends} 的**wiki 工具簇**（§14 步骤 2）：WikiPages 工具端口的实现与
- * wiki 实体 ↔ 工具视图的转换（页面 / 版本 / 问题 / 索引概览 / Go 时间文本）。
+ * {@code AgentToolBackends} 的**wiki 工具簇**：WikiPages 工具端口的实现与
+ * wiki 实体 ↔ 工具视图的转换（页面 / 版本 / 问题 / 索引概览 / 时间文本）。
  *
  * <p>为什么单独一类：这一簇只服务 wiki 类工具（读页、列版本、报问题、索引概览），
  * 与 KB 检索、web、datasource 各簇无交集；门面保留 {@code createWikiTool} 装配点与
@@ -38,19 +38,16 @@ final class AgentToolWikiBackends {
     }
 
     /**
-     * 对照 Go 注入 agentService 的 {@code s.wikiPageService}
-     * （interfaces.WikiPageService）——桥到 {@link WikiPageService} 的真实实现。
+     * 桥到 {@link WikiPageService} 的真实实现。
      *
-     * <p>三处契约翻译：</p>
+     * <p>三处契约转换：</p>
      * <ol>
-     *   <li>Go 的 {@code repository.ErrWikiPageNotFound} 在 Java 侧是
-     *       {@link WikiPageNotFoundException}，而接缝约定「返回 null = 页不存在」，
-     *       故 getPageBySlug 单独吞掉它、其余异常照抛（resolveUniqueWikiPage 会跳过
+     *   <li>{@link WikiPageNotFoundException} 对接接缝约定「返回 null = 页不存在」：
+     *       getPageBySlug 单独吞掉它、其余异常照抛（resolveUniqueWikiPage 会跳过
      *       null 但把异常当致命错误）。</li>
-     *   <li>Go 用 {@code types.WithWikiEditSource(ctx, …)} 挂上下文，Java 侧对应
-     *       {@link WikiEditContext#callWith}（service 落库时读取）。</li>
-     *   <li>Go 的 {@code time.Time} 直接进 {@code json.MarshalIndent}，RFC3339 文本；
-     *       IssueView 以字符串承载，故在此格式化（Go 读库得到 UTC location）。</li>
+     *   <li>编辑来源上下文对应 {@link WikiEditContext#callWith}（service 落库时读取）。</li>
+     *   <li>时间以 RFC3339 文本进视图；IssueView 以字符串承载，故在此格式化
+     *       （读库得到 UTC location）。</li>
      * </ol>
      */
     WikiPages wikiPages() {
@@ -68,9 +65,8 @@ final class AgentToolWikiBackends {
             @Override
             public PageView createPage(PageView page, String editSource) {
                 WikiPage entity = toEntity(page);
-                // Go 的两个调用点（wiki_write_page / wiki_rename_page）都用字段字面量建页，
-                // ID 恒为空串 → CreatePage 生成新 UUID。Java 工具经 PageView.copy()
-                // 会带来旧 ID，必须在接缝处清掉，否则与旧页撞主键。
+                // 工具经 PageView.copy() 会带来旧 ID，必须在接缝处清掉——
+                // 新建路径语义是"由 service 生成新 UUID"，否则与旧页撞主键。
                 entity.setId(null);
                 WikiPage created = WikiEditContext.callWith(editSource,
                         () -> wikiPageService.createPage(entity));
@@ -236,7 +232,7 @@ final class AgentToolWikiBackends {
         view.setDeletedAt(goTimeText(issue.getDeletedAt()));
         return view;
     }
-    /** 对照 types.WikiIndexResponse → 工具侧 overview 视图。 */
+    /** wiki 索引 → 工具侧 overview 视图。 */
     static IndexOverviewView toIndexOverviewView(WikiIndex.Response resp) {
         if (resp == null) {
             return null;
@@ -253,8 +249,7 @@ final class AgentToolWikiBackends {
         return new IndexOverviewView(resp.getIntro(), groups);
     }
     /**
-     * 对照 Go {@code json.Marshal(time.Time)}（格式串 {@code 2006-01-02T15:04:05.999999999Z07:00}）：
-     * GORM 读 timestamptz 得到 UTC location，故按 UTC 渲染；小数秒**尾零连同空小数点一起
+     * 时间的线格式：RFC3339 按 UTC 渲染；小数秒**尾零连同空小数点一起
      * 去掉**（Java 的 ISO_OFFSET_DATE_TIME 会补齐到 3/6/9 位）；零值写
      * {@code 0001-01-01T00:00:00Z}。
      */

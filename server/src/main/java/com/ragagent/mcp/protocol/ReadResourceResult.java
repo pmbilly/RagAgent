@@ -3,7 +3,7 @@ package com.ragagent.mcp.protocol;
 import java.util.List;
 
 /**
- * resources/read 结果（对照 Go internal/mcp/types.go 的 {@code ReadResourceResult}）。
+ * resources/read 结果。
  */
 public record ReadResourceResult(List<ResourceContent> contents) {
 

@@ -14,7 +14,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * GitLab API 的最小桩服务（对照 Go 测试里的 {@code httptest.NewServer}）。
+ * GitLab API 的最小桩服务。
  *
  * <p>绑 {@code 127.0.0.1}、端口 0 自动分配，通过
  * {@link #baseUrl()} 拿到 {@code http://127.0.0.1:<port>} 当 {@code base_url}
@@ -23,7 +23,7 @@ import com.sun.net.httpserver.HttpServer;
  * <h2>SSRF 白名单</h2>
  * <p>{@code ConnectorHttp} 的出站校验会拦掉直连 IP，所以每个用桩的测试类都要在
  * {@code @BeforeAll} 调 {@link #allowLocalServer()}
- * （对应 Go 的 {@code t.Setenv("SSRF_WHITELIST", "127.0.0.1,::1,localhost")}），
+ * （放行 {@code 127.0.0.1,::1,localhost}），
  * 并在 {@code @AfterAll} 调 {@link #restoreSsrfGuard()}。
  * <b>不要</b>在测试里写真实公网域名。</p>
  */
@@ -65,7 +65,7 @@ final class GitLabServerStub implements AutoCloseable {
         server.start();
     }
 
-    /** 对照 Go 的 {@code t.Setenv("SSRF_WHITELIST", "127.0.0.1,::1,localhost")}。 */
+    /** 放行本机回环，让桩服务器可达。 */
     static void allowLocalServer() {
         SsrfGuard guard = new SsrfGuard();
         guard.reloadWhitelist("127.0.0.1,::1,localhost");
@@ -87,7 +87,7 @@ final class GitLabServerStub implements AutoCloseable {
         ConnectorHttp.setSsrfGuard(guard);
     }
 
-    /** 对照 {@code SsrfGuard.mergeRaws(SSRF_WHITELIST, SSRF_WHITELIST_EXTRA)}。 */
+    /** 合并 {@code SSRF_WHITELIST} 与 {@code SSRF_WHITELIST_EXTRA}（与 {@code SsrfGuard.mergeRaws} 语义一致）。 */
     private static String envWhitelistRaw() {
         String primary = System.getenv("SSRF_WHITELIST");
         String extra = System.getenv("SSRF_WHITELIST_EXTRA");
@@ -140,7 +140,7 @@ final class GitLabServerStub implements AutoCloseable {
         respond(exchange, status, "text/plain", body);
     }
 
-    /** 只回状态行、无正文（对照 Go 的 {@code w.WriteHeader(...)} / {@code http.NotFound}）。 */
+    /** 只回状态行、无正文。 */
     static void status(HttpExchange exchange, int status) throws IOException {
         exchange.sendResponseHeaders(status, -1);
     }

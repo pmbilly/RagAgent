@@ -12,19 +12,17 @@ import org.junit.jupiter.api.Timeout;
 import com.ragagent.mcp.service.Adapter;
 
 /**
- * 对照 Go internal/agent/approval/tool_policy_test.go 的两个用例
- * （TestGateBatchPolicyScopesDefaultsAndFailures / TestGateBatchPolicyLegacyCheckerAndNoChecker）。
+ * 工具批量策略判定（{@code Gate} 与 {@code ToolPolicy} 的 enabledTools）。
  *
  * <p>覆盖点：批量只读一次、行按 (tenant, service) 过滤、只覆盖被请求的名字、
- * 身份缺失与 ctx 取消在**查询之前**短路、底层异常原样上抛、
+ * 身份缺失与取消信号在**查询之前**短路、底层异常原样上抛、
  * 以及不支持批量的旧 checker 退化为逐个查。</p>
  */
 @Timeout(20)
 class ToolPolicyTest {
 
     /**
-     * 对照 Go TestGateBatchPolicyScopesDefaultsAndFailures。
-     * 注意 Go 的 {@code batchPolicyService} 嵌入了 stubChecker（enabled == nil → true），
+     * {@code BatchPolicyService} 继承的 stubChecker 语义是 enabled == null → true，
      * 所以未被策略行覆盖的名字默认是启用。
      */
     @Test
@@ -54,14 +52,14 @@ class ToolPolicyTest {
                 () -> gate.enabledTools(canceled, 7, "svc", List.of("default")));
         assertEquals(1, svc.reads);
 
-        // 底层异常原样上抛（Go: require.ErrorIs(err, svc.listErr)）
+        // 底层异常原样上抛
         svc.listError = new IllegalStateException("database unavailable");
         IllegalStateException err = assertThrows(IllegalStateException.class,
                 () -> gate.enabledTools(Cancellation.none(), 7, "svc", List.of("default")));
         assertEquals("database unavailable", err.getMessage());
     }
 
-    /** 对照 Go TestGateBatchPolicyLegacyCheckerAndNoChecker */
+    /** 旧 checker 退化为逐个查；无 checker 全部保持启用。 */
     @Test
     void gateBatchPolicyLegacyCheckerAndNoChecker() {
         // 只实现单工具契约的旧 checker → 逐个查
@@ -82,7 +80,7 @@ class ToolPolicyTest {
         assertEquals(Map.of("a", true), adapter.enabledTools(Cancellation.none(), 7, "svc", List.of("a")));
     }
 
-    /** 补充用例：自由函数入口（对照 Go 的 package 级 EnabledTools）在 bulk checker 上走批量。 */
+    /** 补充用例：静态入口（{@code ToolPolicy.enabledTools}）在 bulk checker 上走批量。 */
     @Test
     void freeFunctionUsesBulkCheckerWhenAvailable() {
         StubChecker.BatchPolicyService svc = new StubChecker.BatchPolicyService();

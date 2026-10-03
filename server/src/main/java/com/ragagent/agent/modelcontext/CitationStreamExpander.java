@@ -1,8 +1,7 @@
 package com.ragagent.agent.modelcontext;
 
 /**
- * 防止私有的部分 <ref/> 标签漏进 SSE、同时保持其他内容正常流式输出
- * （对照 Go internal/modelcontext/citations.go 的 citationStreamExpander，全文移植）。
+ * 防止私有的部分 <ref/> 标签漏进 SSE、同时保持其他内容正常流式输出。
  */
 final class CitationStreamExpander {
 

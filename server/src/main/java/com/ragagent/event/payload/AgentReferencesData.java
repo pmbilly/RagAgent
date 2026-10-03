@@ -4,16 +4,16 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 知识引用数据（对照 Go {@code event.AgentReferencesData}，internal/event/event_data.go:183-186）。
+ * 知识引用数据。
  *
- * <p>实录锚点：{@code references} 无 omitempty——nil 输出 {@code "references":null}。
- * Go 的 {@code []*types.SearchResult} 为保持 event 包无 types 依赖而作 interface{}，
- * Java 同理（{@code retrieval.domain.SearchResult} 的列表）。</p>
+ * <p>{@code references} 恒输出——null 输出 {@code "references":null}。
+ * 为保持本包不依赖 retrieval 领域类型，元素以 Object 承载
+ * （{@code retrieval.domain.SearchResult} 的列表）。</p>
  */
 @JsonPropertyOrder({"references", "iteration"})
 public class AgentReferencesData {
 
-    /** 无 omitempty：null 恒输出 */
+    /** null 也输出 null */
     @JsonProperty("references")
     private Object references;
 

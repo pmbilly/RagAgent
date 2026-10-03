@@ -11,7 +11,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.stereotype.Component;
 
 /**
- * 对照 Go internal/utils/crypto.go：AES-256-GCM 加密 + enc:v1: 前缀。
+ * AES-256-GCM 加密 + enc:v1: 前缀。
  *
  * - GetAESKey：env SYSTEM_AES_KEY，必须恰好 32 字节，否则视为未配置（null）
  * - encrypt：plaintext 为空 / 已带前缀 / key 为 null → 原样返回；
@@ -27,7 +27,7 @@ public class CryptoService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     /**
-     * 密钥原始值（{@code SYSTEM_AES_KEY}）——**启动期快照**（B6 批 6）。
+     * 密钥原始值（{@code SYSTEM_AES_KEY}）——**启动期快照**。
      *
      * <p>本类在 MyBatis 类型处理器等处是手工 {@code new} 出来的（不经 Spring 注入），
      * 故值由 {@code config.RuntimeSnapshotWiring} 启动期写入一次；<b>只允许装配层调用 install</b>。</p>

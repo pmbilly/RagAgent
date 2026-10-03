@@ -11,14 +11,12 @@ import org.junit.jupiter.api.TestInstance;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatTool;
-import com.ragagent.llm.domain.ImageUrl;
 import com.ragagent.llm.domain.MessageContentPart;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * token 估算的 Go 实录断言（§9.1 方法：语料抄进 /tmp/wave42rec 的 Go 程序——
- * 原样内嵌 tiktoken-go/tokenizer 的 cl100k_base Estimator——跑出真值，
- * 再逐字节抄进断言）。覆盖：36 条字符串语料（英文/中文/日韩/混合/代码/JSON/
+ * token 估算的录制常量断言（期望值由录制程序对旧分词器跑出真值后逐字节抄入）。
+ * 覆盖：36 条字符串语料（英文/中文/日韩/混合/代码/JSON/
  * emoji/空白/URL/长词）+ 消息族（reasoning/图片/multimodal/工具调用/命名）+
  * EstimateMessages 尾部 + EstimateTools。
  */
@@ -104,7 +102,7 @@ class TokenEstimatorTest {
         tc.setId("c1");
         tc.setFunction(new com.ragagent.llm.domain.FunctionCall("knowledge_search", "{\"query\": \"test\"}"));
         toolCall.setToolCalls(List.of(tc));
-        // （Go: chat.ToolCall{Function: chat.FunctionCall{...}}，id/type 零值同构）
+        // id/type 取零值时与空消息同构
         assertThat(e.estimateMessage(toolCall)).isEqualTo(18);
 
         // m_reasoning / m_plain：reasoning 必须计数（130k 量成 26k 的回归）

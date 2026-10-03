@@ -40,7 +40,7 @@ final class MemoryExtractionLlm {
     }
 
     /**
-     * 对照 Go {@code buildExtractionPrompt}：渲染调用的用户侧——
+     * 渲染调用的用户侧——
      * 前置上下文、编号过的待抽取行、已知的东西、用户已经拒绝过的东西。
      */
     static String buildExtractionPrompt(MemoryExtractionService.TranscriptSegment segment, List<MemoryItem> existing,
@@ -137,7 +137,7 @@ final class MemoryExtractionLlm {
     }
 
     /**
-     * 对照 Go {@code relevantExisting}：加载这段对话**可能**与之有关的已存记忆
+     * 加载这段对话**可能**与之有关的已存记忆
      * ——给模型看的那些，好让它去更新或取代它们，而不是写一条几乎重复的。
      *
      * <p>选取是整个仓库上的一次语义查找。它以前会列出最重要的 200 条再在其中排序，
@@ -186,7 +186,7 @@ final class MemoryExtractionLlm {
         return relevant;
     }
 
-    /** 对照 Go {@code callExtractionModel}：写路径上唯一的一次 LLM 调用。 */
+    /** 写路径上唯一的一次 LLM 调用。 */
     ExtractionResponse callExtractionModel(MemoryConfig cfg, MemoryExtractPayload payload,
                                           MemoryExtractionService.TranscriptSegment segment, List<MemoryItem> existing,
                                           List<MemoryTombstone> forgotten,
@@ -239,7 +239,7 @@ final class MemoryExtractionLlm {
     }
 
     /**
-     * 对照 Go {@code completeExtraction}：发一次抽取调用。
+     * 发一次抽取调用。
      *
      * <p>思考是关掉的。这个代码库里其它每一次结构化输出调用都出于同样的理由关掉它：
      * 这是一个有固定 schema 的分类任务，推理什么都买不到，而在一个默认就会推理的模型上
@@ -264,7 +264,7 @@ final class MemoryExtractionLlm {
     }
 
     /**
-     * 对照 Go {@code isTruncated}：这次响应是不是还没说出任何有用的东西就把空间用完了。
+     * 这次响应是不是还没说出任何有用的东西就把空间用完了。
      * 空正文即便没有 finish reason 也算截断，因为有些 provider 两个都不报。
      */
     static boolean isTruncated(ChatResponse response) {
@@ -278,7 +278,7 @@ final class MemoryExtractionLlm {
     }
 
     /**
-     * 对照 Go {@code parseExtractionResponse}：容忍模型常见的包装——
+     * 容忍模型常见的包装——
      * 围栏代码块与对象周围的散文。
      */
     static ExtractionResponse parseExtractionResponse(String content) {
@@ -312,7 +312,7 @@ final class MemoryExtractionLlm {
     }
 
     /**
-     * 对照 Go {@code parseExpiry}：接受提示词要求的日期形式，别的一律忽略。
+     * 接受提示词要求的日期形式，别的一律忽略。
      *
      * <p>一个幻觉出来的、或者已经过去的日期会被丢掉而不是存下来——一条到达时就已经过期的
      * 条目会被写进去然后立刻归档。</p>
@@ -322,7 +322,7 @@ final class MemoryExtractionLlm {
         if (trimmed.isEmpty() || "null".equalsIgnoreCase(trimmed)) {
             return null;
         }
-        // 布局顺序照抄 Go：先 "2006-01-02"，再 RFC3339。
+        // 先试 "yyyy-MM-dd"，再试 RFC3339。
         try {
             LocalDate date = LocalDate.parse(trimmed);
             OffsetDateTime parsed = date.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
@@ -339,7 +339,7 @@ final class MemoryExtractionLlm {
     }
 
     /**
-     * 对照 Go {@code extractionDecision}：抽取模型给出的一条指令。
+     * 抽取模型给出的一条指令。
      *
      * <p>字段名是**驼峰**——这里不是 HTTP 契约，而是模型输出的 JSON，
      * 键名与提示词里写给模型的一字不差（{@code expires_at} 是唯一的蛇形，
@@ -373,7 +373,7 @@ final class MemoryExtractionLlm {
         boolean inferred;
 
         /**
-         * 对照 Go {@code resolveSource}：把一条决定映射回它来自的那条消息。
+         * 把一条决定映射回它来自的那条消息。
          * 行号缺失或越界时回落到片段的第一条消息，那仍然在同一段对话里。
          */
         MemoryExtractionService.TranscriptLine resolveSource(MemoryExtractionService.TranscriptSegment segment) {
@@ -387,7 +387,7 @@ final class MemoryExtractionLlm {
         }
     }
 
-    /** 对照 Go {@code extractionResponse}。 */
+    /** 抽取模型响应的外层（memories 列表）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     static final class ExtractionResponse {
         @JsonProperty("memories")

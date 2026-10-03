@@ -23,19 +23,19 @@ import com.ragagent.session.mapper.TemporaryDocumentRepository;
  */
 final class TemporaryDocumentPromptResolver {
 
-    /** 对照 Go {@code temporaryDocumentPromptBudget}。 */
+    /** 提示词总 token 预算。 */
     static final int PROMPT_BUDGET_TOKENS = 12_000;
 
-    /** 对照 Go {@code temporaryDocumentInlineTokens}：低于它直接给全文。 */
+    /** 低于该 token 数的文档直接给全文。 */
     static final int PROMPT_INLINE_TOKENS = 12_000;
 
-    /** 对照 Go {@code temporaryDocumentMaxPromptParts}。 */
+    /** 单文档提示词最多携带的块数。 */
     static final int MAX_PROMPT_PARTS = 16;
 
-    /** 对照 Go ResolveForPrompt 的硬编码上限 {@code len(result.ImageURLs) < 4}。 */
+    /** 给 vision 模型的图片 URL 数上限。 */
     static final int MAX_IMAGE_URLS = 4;
 
-    /** 对照 Go {@code isVisualDocumentQuery} 的标记词表。 */
+    /** 视觉意图问题的标记词表。 */
     private static final List<String> VISUAL_QUERY_MARKERS =
             List.of("图", "表格", "截图", "页面", "排版", "chart", "figure", "diagram", "image", "layout");
 
@@ -46,10 +46,10 @@ final class TemporaryDocumentPromptResolver {
     }
 
     /**
-     * 对照 Go {@code ResolveForPrompt}：把 ready 的临时附件按预算选内容，产出
+     * 把 ready 的临时附件按预算选内容，产出
      * 提示词附件列表 + 给 vision 模型的图片 URL（≤ {@value #MAX_IMAGE_URLS} 个）。
      *
-     * <p>错误语义照 Go：文档缺失 / failed / 未 ready 都是 error（调用方记 warn 并
+     * <p>错误语义：文档缺失 / failed / 未 ready 都是 error（调用方记 warn 并
      * 放弃本轮附件注入，不让回合失败）。</p>
      */
     TemporaryDocumentService.PromptResult resolveForPrompt(long tenantId, String sessionId,
@@ -100,7 +100,7 @@ final class TemporaryDocumentPromptResolver {
             att.setTotalChunks(selection.total());
             attachments.add(att);
             // 图片型附件恒暴露原图给 vision 模型；文本文档只在问题带视觉意图时附带
-            // 抽取图（对照 Go 注释：避免无谓的多模态时延）。
+            // 抽取图（避免无谓的多模态时延）。
             if (TemporaryDocumentService.isImageFormat(document.getFileType())
                     || isVisualDocumentQuery(query)) {
                 for (String url : imageUrlsOf(document.getImageRefs())) {
@@ -114,11 +114,11 @@ final class TemporaryDocumentPromptResolver {
         return new TemporaryDocumentService.PromptResult(attachments, imageUrls);
     }
 
-    /** selectContent 的三元返回（对照 Go 的 (content, selected, total)）。 */
+    /** selectContent 的三元返回。 */
     record ContentSelection(String content, int selected, int total) {
     }
 
-    /** 对照 Go TemporaryDocumentChunk（jsonb 元素形态）。 */
+    /** chunks jsonb 的元素形态。 */
     record DocumentChunk(int seq, String content, String contextHeader, int tokenCount) {
     }
 
@@ -134,7 +134,7 @@ final class TemporaryDocumentPromptResolver {
         return out;
     }
 
-    /** 对照 Go temporaryDocumentImageRefs：image_refs jsonb → 非空 URL 列表。 */
+    /** image_refs jsonb → 非空 URL 列表。 */
     static List<String> imageUrlsOf(String imageRefsJson) {
         List<String> out = new ArrayList<>();
         for (Map<?, ?> ref : TemporaryDocumentService.readJsonArray(imageRefsJson)) {
@@ -147,7 +147,7 @@ final class TemporaryDocumentPromptResolver {
     }
 
     /**
-     * 对照 Go {@code selectTemporaryDocumentContentWithBudget}（L650-705）：
+     * 选块策略：
      * 全文（chunks 空或 token 数不超阈值/预算），否则按查询词打分选块
      * （score = Σ 出现次数 × (1 + 词长/2)，降序稳定；按预算与 16 块上限装填，
      * 最后按 seq 升序用 {@code \n\n---\n\n} 拼装）。
@@ -209,7 +209,7 @@ final class TemporaryDocumentPromptResolver {
         return new ContentSelection(builder.toString(), selected.size(), chunks.size());
     }
 
-    /** 对照 Go temporaryDocumentQueryTerms（L715-739）：词元 + 相邻汉字二元组。 */
+    /** 查询词元：词 + 相邻汉字二元组。 */
     static List<String> queryTerms(String query) {
         String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         List<String> terms = new ArrayList<>();
@@ -238,7 +238,7 @@ final class TemporaryDocumentPromptResolver {
         return Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.HAN;
     }
 
-    /** 对照 Go isVisualDocumentQuery（L741-749）。 */
+    /** 问题是否带视觉意图（命中标记词表即视为带）。 */
     static boolean isVisualDocumentQuery(String query) {
         String lower = query == null ? "" : query.toLowerCase(Locale.ROOT);
         for (String marker : VISUAL_QUERY_MARKERS) {
@@ -249,7 +249,7 @@ final class TemporaryDocumentPromptResolver {
         return false;
     }
 
-    /** 对照 Go strings.Count（非重叠子串计数）。 */
+    /** 非重叠子串计数。 */
     static int countOccurrences(String text, String term) {
         if (text == null || term == null || term.isEmpty()) {
             return 0;

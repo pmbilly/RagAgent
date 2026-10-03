@@ -16,8 +16,8 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * fileops 的 Go 实录断言（/tmp/wave42rec：fileops.go 全文内嵌；场景 =
- * compaction/fileops_test.go 的五个用例 + 上限/裁剪/解析往返）。
+ * fileops 的录制常量断言（场景 =
+ * 五个标准用例 + 上限/裁剪/解析往返）。
  */
 class FileOpsTest {
 

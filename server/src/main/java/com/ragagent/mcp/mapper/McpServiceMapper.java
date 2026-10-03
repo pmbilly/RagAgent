@@ -15,17 +15,15 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * MCP 服务仓储（对照 Go internal/application/repository/mcp_service.go 的
- * mcpServiceRepository + mcp_metadata.go 挂在同一 struct 上的方法）。
+ * MCP 服务仓储。
  *
- * GORM 隐式行为清单（约定 §3）：
+ * 落库行为清单：
  * <ul>
- *   <li><b>软删除</b>：Go 的 {@code gorm.DeletedAt} 会自动给每条查询加
- *       {@code deleted_at IS NULL}——Java 侧**每个查询显式写出**（§9：不用 @TableLogic）</li>
+ *   <li><b>软删除</b>：**每个查询显式写出** {@code deleted_at IS NULL}（不用 @TableLogic）</li>
  *   <li><b>内置服务可见性</b>：{@code tenant_id = ? OR is_builtin = true} 的括号必须保留，
  *       否则 ListEnabled 的 AND enabled 会把内置行漏掉</li>
  *   <li><b>排序</b>：List/ListEnabled 显式 {@code ORDER BY created_at DESC}（repository L51/L66）</li>
- *   <li><b>Update 的部分列语义</b>：Go 用 map + Updates 绕开零值省略——见 {@link #updatePartial}</li>
+ *   <li><b>Update 的部分列语义</b>：未提供的字段不动——见 {@link #updatePartial}</li>
  *   <li>jsonb 列（headers/auth_config/advanced_config/stdio_config/env_vars）走 TypeHandler</li>
  * </ul>
  */
@@ -82,15 +80,15 @@ public interface McpServiceMapper extends BaseMapper<McpService> {
     List<McpService> listByIdsForTenant(@Param("tenantId") long tenantId, @Param("ids") List<String> ids);
 
     /**
-     * 对照 repository Update（mcp_service.go:98-140）：**部分列**更新。
+     * **部分列**更新。
      *
-     * Go 用 map + {@code Updates} 表达「未提供的字段不动」，Java 用 {@code <if>} 等价表达：
+     * 用 {@code <if>} 表达「未提供的字段不动」：
      * <ul>
      *   <li>恒写：updated_at（调用方赋值）、enabled、description、usage_instructions</li>
      *   <li>非空才写：name、transport_type</li>
      *   <li>非 nil 才写：url、stdio_config、env_vars、headers、auth_config、advanced_config</li>
      * </ul>
-     * 因此 <b>无法通过本方法把 url 置为 NULL</b>（Go 同样如此，置空只能写空串）。
+     * 因此 <b>无法通过本方法把 url 置为 NULL</b>（置空只能写空串）。
      *
      * <p>密钥语义：本方法会写 auth_config（若非 nil），但 **service 层保证
      * main PUT 路径不会把 apiKey/token 合进来**——见 {@code McpServiceService#updateMCPService}。</p>

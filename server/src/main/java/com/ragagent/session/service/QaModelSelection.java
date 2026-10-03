@@ -10,7 +10,7 @@ import com.ragagent.model.domain.Model;
 import com.ragagent.session.domain.Session;
 
 /**
- * {@code SessionQaResolution} 的**模型选择簇**（§14.9c 刀 8）：按请求/知识库/会话推导 chat 模型 id
+ * {@code SessionQaResolution} 的**模型选择簇**：按请求/知识库/会话推导 chat 模型 id
  * （findModel/selectChatModelId 内部实现）与 KB 查找（findKb/findKnowledgeBase）。
  *
  * <p>依赖只有 {@code SessionKnowledgeQaService service}（与宿主同款风格）；门面对**每个搬走的成员**留一行

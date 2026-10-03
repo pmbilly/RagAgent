@@ -22,10 +22,9 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.runtime.ReplyMessage;
 
 /**
- * Mattermost 适配器（outgoing webhook 入站 + REST 出站）——对照 Go
- * {@code internal/im/mattermost/adapter.go} L25-357。
+ * Mattermost 适配器（outgoing webhook 入站 + REST 出站）。
  *
- * <h2>照抄点</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>入站体双态：{@code application/json}（含 {@code +json} 后缀）直接解 JSON；
  *       {@code application/x-www-form-urlencoded} <b>或空 Content-Type</b> 走表单；
@@ -42,7 +41,7 @@ import com.ragagent.im.runtime.ReplyMessage;
  *       走 {@code POST /posts}（带 {@code root_id} 即线程内回复）；</li>
  *   <li>流式：StartStream 先发 "正在思考..." 的帖，stream ID = {@code <channel>:<post_id>}；
  *       更新走 {@code PUT /posts/{id}/patch}（失败只告警），EndStream 用累积内容再 patch 一次；
- *       <b>流表无回收</b>（照 Go 的 mmStreams 就地删，无 TTL 清扫）；</li>
+ *       <b>流表无回收</b>（条目就地删，无 TTL 清扫）；</li>
  *   <li>下载：先 {@code GET /files/{id}/info} 拿名字，名字三级回落
  *       （info.name → msg.fileName → fileKey），再取内容。</li>
  * </ul>
@@ -56,10 +55,10 @@ public class MattermostAdapter implements AdapterInterfaces.Adapter,
     static final String EXTRA_THREAD_ROOT = "thread_root_id";
     static final String EXTRA_CHANNEL_ID = "channel_id";
 
-    /** 流表（照 Go 的包级 mmStreams）。 */
+    /** 流表。 */
     static final Map<String, StreamState> STREAMS = new ConcurrentHashMap<>();
 
-    /** 一条流的状态（对照 Go {@code mmStreamState}）。 */
+    /** 一条流的状态。 */
     static final class StreamState {
         final Object lock = new Object();
         final StringBuilder content = new StringBuilder();
@@ -72,7 +71,7 @@ public class MattermostAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** outgoing webhook 载荷（对照 Go {@code outgoingPayload}）。 */
+    /** outgoing webhook 载荷。 */
     record OutgoingPayload(String token, String userId, String userName, String channelId,
                            String postId, String text, String rootId, JsonNode fileIdsRaw) {
     }
@@ -95,13 +94,13 @@ public class MattermostAdapter implements AdapterInterfaces.Adapter,
         return ImTypes.PLATFORM_MATTERMOST;
     }
 
-    /** 对照 Go：不走 URL 挑战。 */
+    /** 不走 URL 挑战。 */
     @Override
     public boolean handleURLVerification(CallbackExchange exchange) {
         return false;
     }
 
-    /** 对照 {@code VerifyCallback}：token 精确相等（未配则跳过）。 */
+    /** token 精确相等（未配则跳过）。 */
     @Override
     public Exception verifyCallback(CallbackExchange exchange) {
         OutgoingPayload payload;
@@ -118,7 +117,7 @@ public class MattermostAdapter implements AdapterInterfaces.Adapter,
         return null;
     }
 
-    /** 对照 {@code ParseCallback}：自环/空消息丢弃；线程根三级回落。 */
+    /** 自环/空消息丢弃；线程根三级回落。 */
     @Override
     public IncomingMessage parseCallback(CallbackExchange exchange) {
         OutgoingPayload payload = parseOutgoingBody(exchange.header("Content-Type"),
@@ -177,7 +176,7 @@ public class MattermostAdapter implements AdapterInterfaces.Adapter,
         return msg;
     }
 
-    /** 对照 {@code parseOutgoingBody}：JSON / 表单 / 兜底三支。 */
+    /** JSON / 表单 / 兜底三支。 */
     static OutgoingPayload parseOutgoingBody(String contentType, byte[] body) {
         String raw = contentType == null ? "" : contentType.trim();
         String ct = (raw.contains(";") ? raw.substring(0, raw.indexOf(';')) : raw)
@@ -253,7 +252,7 @@ public class MattermostAdapter implements AdapterInterfaces.Adapter,
                 fileIdsRaw);
     }
 
-    /** 对照 {@code parseFileIDs}：JSON 数组或逗号串两形态。 */
+    /** JSON 数组或逗号串两形态。 */
     static List<String> parseFileIds(JsonNode raw) {
         if (raw == null || raw.isNull() || raw.isMissingNode()) {
             return List.of();
@@ -272,7 +271,7 @@ public class MattermostAdapter implements AdapterInterfaces.Adapter,
         return text.isEmpty() ? List.of() : splitFileIds(text);
     }
 
-    /** 对照 {@code splitFileIDs}：逗号切分 + 去空白。 */
+    /** 逗号切分 + 去空白。 */
     static List<String> splitFileIds(String csv) {
         List<String> out = new ArrayList<>();
         for (String part : (csv == null ? "" : csv).split(",")) {

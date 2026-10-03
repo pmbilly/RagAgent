@@ -16,23 +16,21 @@ import org.springframework.stereotype.Component;
 import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
- * {@link MemoryModelResolver} 的默认实现：把 Go 的 {@code modelService.GetChatModel} /
- * {@code GetEmbeddingModel} 用 Java 侧已有的部件拼出来
+ * {@link MemoryModelResolver} 的默认实现：按模型 id 取运行时的聊天 / 嵌入模型实例
  * （与 {@code wiki.service.DefaultWikiModelResolver} 同款）。
  *
  * <p>两处已知差异，两处都与 wiki 的处置一致：</p>
  * <ol>
- *   <li><b>weknoracloud 的租户级凭据回落缺失</b>：Go 在 provider=weknoracloud 且租户未存
- *       app_id/app_secret 时会回落到租户级凭据；Java 的 {@code TenantService} 尚无该读取口。</li>
- *   <li><b>embedding 走 {@link EmbedderClient}</b>（最小 OpenAI 兼容客户端，对照
- *       {@code OpenAICompatibleEmbedder} 路径），不是 Go 的 {@code EmbedderPooler}。
+ *   <li><b>weknoracloud 的租户级凭据回落缺失</b>：provider=weknoracloud 且租户未存
+ *       app_id/app_secret 时，没有租户级凭据可回落（{@code TenantService} 尚无该读取口）。</li>
+ *   <li><b>embedding 走 {@link EmbedderClient}</b>（最小 OpenAI 兼容客户端）。
  *       单条嵌入用 {@code embedBatch} 包一层。</li>
  * </ol>
  */
 @Component
 public class DefaultMemoryModelResolver implements MemoryModelResolver {
 
-    /** 对照 Go {@code types.ModelTypeEmbedding}。 */
+    /** embedding 模型的 type 值。 */
     static final String MODEL_TYPE_EMBEDDING = "Embedding";
 
     private final ModelService modelService;
@@ -65,7 +63,7 @@ public class DefaultMemoryModelResolver implements MemoryModelResolver {
         Model model = modelService.getModelByID(modelId);
         String type = model.getType();
         if (!MODEL_TYPE_EMBEDDING.equals(type)) {
-            // 对照 Go GetEmbeddingModel 的类型闸门：非 embedding 模型直接报错，
+            // 类型闸门：非 embedding 模型直接报错，
             // 让调用方回落到字面匹配，而不是发一次注定失败的请求。
             throw new IllegalStateException(
                     "model " + modelId + " is not an embedding model (type=" + type + ")");

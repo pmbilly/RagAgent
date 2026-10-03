@@ -7,17 +7,16 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * 向量的编解码、pgvector 字面量与余弦相似度
- * （对照 Go internal/types/memory.go L1389-1451）。
+ * 向量的编解码、pgvector 字面量与余弦相似度。
  */
 public final class MemoryVectors {
 
     private MemoryVectors() {}
 
     /**
-     * 对照 Go {@code EncodeEmbedding}：把小端 float32 打包成字节串。
+     * 把小端 float32 打包成字节串。
      *
-     * <p>空向量回 {@code null}（Go 回 nil 切片 → 列写 SQL NULL）。</p>
+     * <p>空向量回 {@code null} → 列写 SQL NULL。</p>
      */
     public static byte[] encodeEmbedding(float[] vector) {
         if (vector == null || vector.length == 0) {
@@ -31,9 +30,9 @@ public final class MemoryVectors {
     }
 
     /**
-     * 对照 Go {@code DecodeEmbedding}：解开 {@link #encodeEmbedding} 写出的字节串。
+     * 解开 {@link #encodeEmbedding} 写出的字节串。
      *
-     * <p>{@code len(raw) < 4} 回 {@code null}（Go 回 nil）；
+     * <p>长度不足 4 字节回 {@code null}；
      * 尾部不足 4 字节的部分**被丢弃**（{@code len(raw)/4} 向下取整）。</p>
      */
     public static float[] decodeEmbedding(byte[] raw) {
@@ -50,15 +49,15 @@ public final class MemoryVectors {
     }
 
     /**
-     * 对照 Go {@code FormatEmbeddingLiteral}：按 pgvector 能解析的方式渲染向量，
+     * 按 pgvector 能解析的方式渲染向量，
      * 让数据库自己算距离，而不是把每条已存向量都搬到应用里打分。
      *
-     * <p><b>{@code strconv.FormatFloat(v, 'f', -1, 32)} 的 Java 等价物</b>：
-     * {@code 'f'} = 定点（**绝不**用指数），{@code -1} = 能唯一往返 float32 的最少位数。
+     * <p><b>格式口径</b>：定点记法（**绝不**用指数）、
+     * 能唯一往返 float32 的最少位数。
      * 具体做法见 {@link #formatFloat32(float)}——它比"直接调 {@code Float.toString}"
      * 多一层有效位数压缩，因为 Java 在次正规数上不给最短表示。</p>
      *
-     * <p>Go 实录（逐条对照）：</p>
+     * <p>pgvector 字面量的逐条形态：</p>
      * <pre>
      *   1.0        → [1]                                    （整数值不补 .0）
      *   0.5,-0.25  → [0.5,-0.25]
@@ -88,18 +87,16 @@ public final class MemoryVectors {
     }
 
     /**
-     * 对照 Go {@code strconv.FormatFloat(float64(v), 'f', -1, 32)}。
+     * 单精度浮点的定点、最短往返十进制渲染。
      *
      * <p>⚠️ <b>不能直接用 {@code Float.toString}</b>：Java 的最短表示在**次正规数**上
-     * 并不最短。实测（Go 实录）：</p>
+     * 并不最短：</p>
      * <pre>
-     *   Go   FormatFloat(1.4e-45, 'f', -1, 32) → "0.000000000000000000000000000000000000000000001"
+     *   期望（最短 1 位有效数字）: "0.000000000000000000000000000000000000000000001"
      *   Java Float.toString(1.4e-45f)          → "1.4E-45"
      * </pre>
-     * <p>Go 给的是 {@code 1e-45}（1 位有效数字），Java 给的是 {@code 1.4E-45}（2 位）。
-     * 这与 §9 记的 {@code GoDoubleSerializer} 是**同一个坑**，修法也一样：
-     * 在 Java 结果上再做一轮"有效位数递减"，用 {@code Float.parseFloat} 校验往返
-     * ——这只会朝 Go 移动。</p>
+     * <p>修法与 {@code GoDoubleSerializer} 同款（§9 记过）：
+     * 在 Java 结果上再做一轮"有效位数递减"，用 {@code Float.parseFloat} 校验往返。</p>
      */
     public static String formatFloat32(float value) {
         if (Float.isNaN(value)) {
@@ -109,7 +106,7 @@ public final class MemoryVectors {
             return value > 0 ? "+Inf" : "-Inf";
         }
         if (value == 0.0f) {
-            // -0.0 与 +0.0：Go 的 'f' 分别给 "-0" 与 "0"（Java 会多出 ".0"）
+            // -0.0 与 +0.0：定点记法分别给 "-0" 与 "0"（Java 会多出 ".0"）
             return Float.floatToRawIntBits(value) < 0 ? "-0" : "0";
         }
         return shortestRoundTrip(value).stripTrailingZeros().toPlainString();
@@ -138,7 +135,7 @@ public final class MemoryVectors {
     }
 
     /**
-     * 对照 Go {@code CosineSimilarity}：在 [-1, 1] 上给两个向量打分。
+     * 在 [-1, 1] 上给两个向量打分。
      *
      * <p>长度不一致就打 0 分：不同模型产生的向量不可比，猜比不回答更糟。</p>
      */

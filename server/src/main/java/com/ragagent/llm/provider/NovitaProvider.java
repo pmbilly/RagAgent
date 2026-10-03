@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.NovitaProvider（novita.go）：Novita AI。
+ * Novita AI。
  */
 public class NovitaProvider implements Provider {
 

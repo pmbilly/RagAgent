@@ -7,7 +7,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * 云之家回调签名——对照 Go {@code internal/im/yunzhijia/sign.go} L16-32。
+ * 云之家回调签名。
  *
  * <p>签名串 = 以逗号连接 {@code robotId,robotName,operatorOpenid,operatorName,time,msgId,content}
  * （{@code time} 用十进制整数），签名 = {@code Base64(HMAC-SHA1(secret, 签名串))}。</p>

@@ -5,8 +5,7 @@ import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.common.context.TenantContext;
 
 /**
- * {@code sessions.user_id} 的取值规则（对照 Go
- * {@code types/principal.go} 的 {@code SessionOwnerIDFromContext} 及其前缀常量）。
+ * {@code sessions.user_id} 的取值规则。
  *
  * <p>这一列同时承载四种主体，取哪一种由调用方身份决定：</p>
  * <ul>
@@ -15,18 +14,18 @@ import com.ragagent.common.context.TenantContext;
  *   <li>租户 API Key（无外部身份）→ {@code "api_tenant_key:<tenantID>:<keyID>"}（**按 Key 隔离**）</li>
  * </ul>
  *
- * <p>前缀常量必须与 Go 逐字一致：{@code QueryPaged} 是拿它们做 {@code LIKE '前缀%'} 来分
+ * <p>前缀常量必须逐字保持稳定：列表查询拿它们做 {@code LIKE '前缀%'} 来分
  * "api" 桶的，改一个字符就会让历史行落到错误的来源筛选里。</p>
  */
 public final class SessionOwnerIds {
 
-    /** 对照 Go {@code SessionOwnerAPITenantKeyPrefix}。 */
+    /** 租户 API-Key 主体的 owner 前缀（按 Key 隔离）。 */
     public static final String API_TENANT_KEY_PREFIX = "api_tenant_key:";
 
-    /** 对照 Go {@code SessionOwnerAPIExternalUserPrefix}（= {@code PrincipalAPIExternalUser + ":"}）。 */
+    /** API 外部用户主体的 owner 前缀。 */
     public static final String API_EXTERNAL_USER_PREFIX = "api_external_user:";
 
-    /** 对照 Go 里直接拼的 {@code PrincipalEmbedSession + ":"}。 */
+    /** embed 访客会话的 owner 前缀。 */
     public static final String EMBED_SESSION_PREFIX = "embed_session:";
 
     private SessionOwnerIds() {
@@ -35,7 +34,7 @@ public final class SessionOwnerIds {
     /**
      * 存下来的 owner 是否来自租户 API-Key 请求（带不带外部用户身份都算）。
      *
-     * <p>对照 Go {@code IsAPISessionOwnerID}：先 trim 再判前缀。</p>
+     * <p>先 trim 再判前缀。</p>
      */
     public static boolean isApiSessionOwnerId(String ownerId) {
         if (ownerId == null) {
@@ -46,7 +45,7 @@ public final class SessionOwnerIds {
     }
 
     /**
-     * 当前调用方的 {@code sessions.user_id}（对照 Go {@code SessionOwnerIDFromContext}）。
+     * 当前调用方的 {@code sessions.user_id}。
      *
      * <p>分支顺序有语义：主体类型的特判**先于**普通的 user id 回落，且 API-Key 那条
      * 需要同时拿得到 Key 作用域与租户 ID 才生效——缺任一个都会落到最后的 user id 分支。</p>
@@ -72,7 +71,7 @@ public final class SessionOwnerIds {
         return userId == null ? "" : userId;
     }
 
-    /** 对照 Go {@code Principal.Valid()}：trim 后两段都非空。 */
+    /** 主体有效：trim 后两段都非空。 */
     private static boolean isValid(TenantContext.Principal p) {
         return p != null
                 && p.type() != null && !p.type().trim().isEmpty()

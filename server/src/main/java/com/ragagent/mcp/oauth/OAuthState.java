@@ -5,13 +5,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ragagent.common.context.TenantContext;
 
 /**
- * 一次进行中的 OAuth 授权码流程所需的全部临时数据（对照 Go
- * internal/mcp/oauth_state.go:25-36 的 {@code OAuthState}）。
+ * 一次进行中的 OAuth 授权码流程所需的全部临时数据。
  *
- * <p><b>键名（§14.9p M5）</b>：本记录只序列化进 Redis/内存（同一份 JSON），键名＝组件名；
+ * <p><b>键名</b>：本记录只序列化进 Redis/内存（同一份 JSON），键名＝组件名；
  * 部署窗口内由 {@code OAuthStateStore} 的兼容读接住旧的下划线 blob。</p>
  *
- * <p><b>为什么必须服务端存储</b>（Go 注释原文精神）：本结构持有 PKCE 的
+ * <p><b>为什么必须服务端存储</b>：本结构持有 PKCE 的
  * {@code code_verifier}，那是<b>绝不能发往授权服务器</b>的秘密（授权请求里只发它的
  * SHA-256 摘要 code_challenge）。因此 state 参数只是一个不透明句柄，
  * 真正的数据存在服务端（Redis 多实例 / Lite 内存）。
@@ -43,7 +42,7 @@ public record OAuthState(
         return v == null ? "" : v;
     }
 
-    /** 对照 Go {@code types.Principal} 的结构内序列化形态（仅用于 Redis 往返）。 */
+    /** principal 的 (type, id) 序列化形态（仅用于 Redis 往返）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Principal(String type, String id) {
 

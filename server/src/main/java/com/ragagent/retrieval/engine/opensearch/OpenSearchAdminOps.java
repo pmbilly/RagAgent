@@ -33,7 +33,7 @@ final class OpenSearchAdminOps {
         this.service = service;
     }
 
-    /** 对照 ensureReady；dim 界 (0, 16000]（knn_vector 硬上限）。 */
+    /** 惰性建索引；dim 界 (0, 16000]（knn_vector 硬上限）。 */
     void ensureReady(int dim) {
         if (dim <= 0 || dim > 16000) {
             throw new OpenSearchDriverException(
@@ -50,8 +50,8 @@ final class OpenSearchAdminOps {
                     service.initErrs.remove(dim);
                 } catch (OpenSearchDriverException e) {
                     if (OpenSearchDriverException.isTransient(e)) {
-                        // 瞬时：不持久化，once 重置——下次调用重试（照 Go）。
-                        // ⚠️ 当次调用也不报错（Go 代码 initErr 未写即返回 nil）；
+                        // 瞬时：不持久化，once 重置——下次调用重试。
+                        // ⚠️ 当次调用也不报错（initErr 未写即返回）；
                         // 后续操作以 INDEX_NOT_FOUND 显形。
                         service.dimInits.remove(dim, state);
                     } else {
@@ -69,7 +69,7 @@ final class OpenSearchAdminOps {
     }
 
     /**
-     * 对照 createIndexAndAlias：alias 存在短路；already-exists → 指纹比对（漂移 →
+     * 建索引与别名：alias 存在短路；already-exists → 指纹比对（漂移 →
      * CONFIG_INVALID）；aliasPut 失败尽力删孤儿 _v1；实际建索引才发审计。
      */
     void createIndexAndAlias(int dim) {
@@ -119,7 +119,7 @@ final class OpenSearchAdminOps {
         }
     }
 
-    /** 对照 ensureKeywordsIndex：mutex+flag，transient 可重试。 */
+    /** keyword 专用索引懒初始化：mutex+flag，transient 可重试。 */
     void ensureKeywordsIndex() {
         synchronized (service.keywordsLock) {
             if (service.keywordsReady) {
@@ -161,7 +161,7 @@ final class OpenSearchAdminOps {
         }
     }
 
-    /** 对照 buildIndexMapping（字段/键序照 Go json.Marshal：map 字母序、struct 声明序）。 */
+    /** 索引 mapping（字段/键序：map 字母序、struct 声明序）。 */
     static byte[] buildIndexMapping(InternalCfg cfg, int dim) {
         Map<String, Object> index = new TreeMap<>();
         index.put("knn", true);
@@ -179,7 +179,7 @@ final class OpenSearchAdminOps {
         return json(body);
     }
 
-    /** 对照 buildKeywordsMapping：同上但无 embedding 字段、settings 无 knn/ef_search。 */
+    /** keywords 索引 mapping：同上但无 embedding 字段、settings 无 knn/ef_search。 */
     static byte[] buildKeywordsMapping(InternalCfg cfg) {
         Map<String, Object> index = new TreeMap<>();
         index.put("number_of_shards", cfg.shards);
@@ -251,7 +251,7 @@ final class OpenSearchAdminOps {
         }
     }
 
-    /** 对照 verifyMappingMatches：embedding 字段结构指纹（漂移 → CONFIG_INVALID）。 */
+    /** mapping 指纹校验：embedding 字段结构指纹（漂移 → CONFIG_INVALID）。 */
     void verifyMappingMatches(String index, byte[] expectedBody) {
         String expected = extractFingerprint(expectedBody);
         String response = service.send("GET", "/" + index + "/_mapping", null, "application/json",
@@ -307,7 +307,7 @@ final class OpenSearchAdminOps {
         return fingerprint(props);
     }
 
-    /** 对照 probeVersion。 */
+    /** 版本探针。 */
     void probeVersion() {
         String response = service.send("GET", "/", null, "application/json", 1L << 20);
         JsonNode version;
@@ -353,7 +353,7 @@ final class OpenSearchAdminOps {
                         + ": opensearch: cluster version unsupported");
     }
 
-    /** 对照 probeKNNPlugin：每节点都要有 opensearch-knn（缺节点列表 Go %v 形态）。 */
+    /** k-NN 插件探针：每节点都要有 opensearch-knn（缺节点列表渲染为 [a b c] 形态）。 */
     void probeKnnPlugin() {
         String response = service.send("GET", "/_cat/plugins", null, "application/json", 1L << 20);
         JsonNode rows;
@@ -427,7 +427,7 @@ final class OpenSearchAdminOps {
         }
     }
 
-    /** 对照 aliasPut：PUT /_aliases，body {"actions":[{"add":{...}}]}。 */
+    /** 别名切换：PUT /_aliases，body {"actions":[{"add":{...}}]}。 */
     void aliasPut(String index, String alias) {
         Map<String, Object> add = new TreeMap<>();
         add.put("index", index);

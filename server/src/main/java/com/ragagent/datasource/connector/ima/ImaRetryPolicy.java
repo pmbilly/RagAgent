@@ -4,29 +4,27 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * IMA 客户端的重试预算（对照 Go {@code ima/client.go} 里
- * {@code callAPIAt} 开头那三个常量与 {@code backoff} 切片）。
+ * IMA 客户端的重试预算。
  *
  * <h2>为什么要抽成参数</h2>
- * <p>Go 的退避是<b>硬编码</b>的（{@code 2s/4s/8s} 与 {@code retry5xxDelay=2s}），
- * Go 的测试因此只能绕着它走（yuque 那边甚至要靠 ctx 超时把 2 秒的 5xx 退避
- * "压掉"）。Java 侧把它做成可注入的构造参数，测试注入
+ * <p>退避默认<b>硬编码</b>（{@code 2s/4s/8s} 与 {@code retry5xxDelay=2s}），
+ * 把它做成可注入的构造参数后，测试注入
  * {@link #immediate()}（全零）就能在毫秒级跑完重试矩阵，
  * 而不是每个用例等 N×2 秒。</p>
  *
- * <p><b>默认值一字不改</b>：{@link #defaults()} 就是 Go 的那三个常量，
+ * <p><b>默认值一字不改</b>：{@link #defaults()} 就是那组既定常量，
  * 生产路径只用它。</p>
  *
- * @param maxRetries   可重试错误的总重试次数（Go 的 {@code maxRetries=3}）
- * @param max5xxRetries 5xx 的重试次数上限（Go 的 {@code max5xxRetries=1}）
- * @param retry5xxDelay 5xx 重试前的固定等待（Go 的 {@code retry5xxDelay=2s}）
- * @param backoff      退避序列（Go 的 {@code []time.Duration{2s,4s,8s}}）；
+ * @param maxRetries   可重试错误的总重试次数（默认 {@code 3}）
+ * @param max5xxRetries 5xx 的重试次数上限（默认 {@code 1}）
+ * @param retry5xxDelay 5xx 重试前的固定等待（默认 {@code 2s}）
+ * @param backoff      退避序列（默认 {@code [2s, 4s, 8s]}）；
  *                     429 与传输层失败按 {@code min(attempt, len-1)} 取
  */
 public record ImaRetryPolicy(int maxRetries, int max5xxRetries, Duration retry5xxDelay,
                              List<Duration> backoff) {
 
-    /** Go 的硬编码默认值。生产路径唯一使用的取值。 */
+    /** 硬编码的默认值。生产路径唯一使用的取值。 */
     public static ImaRetryPolicy defaults() {
         return new ImaRetryPolicy(3, 1, Duration.ofSeconds(2),
                 List.of(Duration.ofSeconds(2), Duration.ofSeconds(4), Duration.ofSeconds(8)));
@@ -43,7 +41,7 @@ public record ImaRetryPolicy(int maxRetries, int max5xxRetries, Duration retry5x
     }
 
     /**
-     * 对照 Go 的 {@code backoff[minInt(attempt, len(backoff)-1)]}：429 与业务限频
+     * 退避下标按 {@code min(attempt, len-1)} 夹取：429 与业务限频
      * 走的是**夹取后**的下标，所以第 4 次尝试用的是最后一档退避。
      */
     public Duration backoffAt(int attempt) {

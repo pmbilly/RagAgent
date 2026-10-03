@@ -3,7 +3,7 @@ package com.ragagent.common.tenant;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 对照 Go config.yaml 的 tenant 配置段（internal/config/config.go TenantConfig）。
+ * tenant 配置段（WEKNORA_TENANT_* env / application.yml）。
  *
  * - enableRbac：指针语义（Go *bool），null → 默认 true（对照 IsRBACEnforced：
  *   "operator did not opt out" 即为强制）。env: WEKNORA_TENANT_ENABLE_RBAC

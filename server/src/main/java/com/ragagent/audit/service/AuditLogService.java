@@ -18,19 +18,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * 审计日志服务（对照 Go internal/application/service/audit_log.go 整个文件）。
+ * 审计日志服务。
  *
  * <p>它是 {@link AuditLogRepository} 的高层包装，负责两件事：</p>
  * <ol>
  *   <li><b>时间戳兜底</b>：{@link #log} 在 CreatedAt 为空时填当前时间，
- *       免得每个调用方都要自己写（对照 Go 注释 "so callers don't have to"）。</li>
+ *       免得每个调用方都要自己写。</li>
  *   <li><b>1 分钟滑动窗口去重</b>：{@link #logDenied} 用它挡住探测型客户端
  *       把 audit_logs 表刷爆。</li>
  * </ol>
  *
- * <p>服务在消费侧是<b>可空容忍</b>的（Go 里 tenant_member service 把它当可选字段）。
- * Java 侧用 {@code ObjectProvider.getIfAvailable()} 达到同样效果——见
- * {@code RbacDeniedAuditorRegistrar} 与 {@code WikiActivityAuditRecorder}。</p>
+ * <p>服务在消费侧是<b>可空容忍</b>的：装配面用 {@code ObjectProvider.getIfAvailable()} 探测，
+ * 见 {@code RbacDeniedAuditorRegistrar} 与 {@code WikiActivityAuditRecorder}。</p>
  */
 @Service
 public class AuditLogService {
@@ -38,7 +37,7 @@ public class AuditLogService {
     private static final Logger log = LoggerFactory.getLogger(AuditLogService.class);
 
     /**
-     * 对照 Go {@code denyDedupWindow}（L42）：同一个
+     * 去重窗口：同一个
      * (tenant, actor, path, action) 元组最多每 1 分钟写一行。
      *
      * <p>1 分钟足够短：跨不同路径的突发请求仍会各自留痕（每路径每分钟一行）；
@@ -49,12 +48,12 @@ public class AuditLogService {
     private final AuditLogRepository repo;
 
     /**
-     * 时钟（对照 Go {@code now func() time.Time} 字段）：测试可注入确定性时钟，
+     * 时钟：测试可注入确定性时钟，
      * 在不 sleep 的前提下驱动去重窗口与保留期边界。
      */
     private final Clock clock;
 
-    /** Spring 装配用：系统默认时区时钟（对照 Go {@code time.Now} 的本地时区）。 */
+    /** Spring 装配用：系统默认时区时钟。 */
     @Autowired
     public AuditLogService(AuditLogRepository repo) {
         this(repo, Clock.systemDefaultZone());
@@ -66,7 +65,7 @@ public class AuditLogService {
         this.clock = clock;
     }
 
-    /** 对照 Go {@code s.now()}。 */
+    /** 当前时间（由注入时钟驱动）。 */
     private OffsetDateTime now() {
         return OffsetDateTime.now(clock);
     }
@@ -74,17 +73,16 @@ public class AuditLogService {
     // ── 写入 ─────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code Log}（L48-73）：规范写入路径。
+     * 规范写入路径。
      *
      * <p>仓储的 Create 在 SQL 层有 CreatedAt 默认值，但这里也填一次——
      * 好让测试与"刚刚 Log 完就读 entry.CreatedAt"的调用方无需往数据库跑一趟。</p>
      *
-     * <p><b>错误语义</b>：Go 返回 error 而生产调用方一律忽略（审计失败绝不能
-     * 拖垮被审计的业务操作）。Java 侧保持抛异常（等价于 Go 的 error 返回），
-     * 需要"尽力而为"的调用点请用 {@link #logBestEffort}——那才是 Go 调用方的实际行为。</p>
+     * <p><b>错误语义</b>：审计失败绝不能拖垮被审计的业务操作。本方法保持抛异常，
+     * 需要"尽力而为"的调用点请用 {@link #logBestEffort}。</p>
      *
      * @throws IllegalArgumentException entry 为 null 或 action 为空
-     * @throws RuntimeException         仓储写入失败（Go 版本记日志后原样返回 err）
+     * @throws RuntimeException         仓储写入失败（记日志后原样抛出）
      */
     public void log(AuditLog entry) {
         if (entry == null) {
@@ -110,10 +108,9 @@ public class AuditLogService {
     }
 
     /**
-     * 对照 Go 各调用点对 {@code Log} 返回值的实际处理（{@code _ = svc.Log(...)} 与
-     * {@code recordKBActivity} 的 best-effort 语义）：审计失败只记日志，绝不影响业务。
+     * best-effort 语义：审计失败只记日志，绝不影响业务。
      *
-     * <p>Java 没有"忽略返回值"这回事，所以单独开一个方法把等价语义显式化。</p>
+     * <p>单独开一个方法让调用方显式选择该语义。</p>
      */
     public void logBestEffort(AuditLog entry) {
         try {
@@ -125,7 +122,7 @@ public class AuditLogService {
     }
 
     /**
-     * 对照 Go {@code LogDenied}（L83-138）：记录一次中间件级拒绝。
+     * 记录一次中间件级拒绝。
      *
      * <p>按 (tenant_id, actor_user_id, action, request_path) 做 1 分钟滑动窗口去重，
      * 免得探测型客户端把表刷爆。</p>
@@ -138,14 +135,14 @@ public class AuditLogService {
      * {@code raw_path} 里供取证用，所以"探测了哪个资源"并没有丢。</p>
      *
      * @param tenantId      调用方活动空间；0 = system 作用域
-     * @param actorUserId   调用方用户 ID（对照 Go {@code types.UserIDFromContext}）
-     * @param actorRole     调用方角色字符串；Go 传 {@code string(role)}，未附加角色时为 ""
-     * @param requiredRole  被拒绝时要求的最低角色（Go 传 {@code string(min)}；
-     *                      RequireSystemAdmin 路径传字面量 {@code "system_admin"}）
-     * @param requestPath   路由<b>模板</b>（对照 gin 的 {@code c.FullPath()}）；
-     *                      为空时调用方应回落为原始 URL（对照 Go 的 dedupPath 回落）
-     * @param requestMethod HTTP 方法（对照 {@code c.Request.Method}）
-     * @param rawPath       原始 URL 路径（对照 {@code c.Request.URL.Path}），
+     * @param actorUserId   调用方用户 ID
+     * @param actorRole     调用方角色字符串；未附加角色时为 ""
+     * @param requiredRole  被拒绝时要求的最低角色
+     *                      （RequireSystemAdmin 路径传字面量 {@code "system_admin"}）
+     * @param requestPath   路由<b>模板</b>；
+     *                      为空时调用方应回落为原始 URL
+     * @param requestMethod HTTP 方法
+     * @param rawPath       原始 URL 路径，
      *                      与 requestPath 不同时才写进 Details
      */
     public void logDenied(long tenantId,
@@ -167,8 +164,7 @@ public class AuditLogService {
             alreadyRecorded = repo.countSinceForDedup(
                     tenantId, actor, AuditAction.ACCESS_DENIED, path, since) > 0;
         } catch (RuntimeException e) {
-            // 对照 Go: `if n, err := ...; err == nil && n > 0 { return nil }`
-            // ——err != nil 时继续往下走，照写不误。
+            // 探测失败不阻断：继续照写。
             log.warn("audit dedup probe failed, writing anyway: tenant={} path={} err={}",
                     tenantId, path, e.getMessage());
         }
@@ -176,7 +172,7 @@ public class AuditLogService {
             return;
         }
 
-        // Details 是 map[string]string：Go 的 encoding/json 对 map 键按**字母序**输出
+        // details 键按**字母序**输出
         // → raw_path（r-a）在 required_role（r-e）之前。PG jsonb 落库后还会按
         // （长度, 字节序）再规范化一次，Java 读取路径的 PgJsonTypeHandler 做同样的事，两端一致。
         ObjectNode details = AUDIT_DETAILS_MAPPER.createObjectNode();
@@ -189,7 +185,7 @@ public class AuditLogService {
                 path, requestMethod, AuditOutcome.DENIED, details));
     }
 
-    /** {@link #logDenied} 的便捷重载：路由模板缺省等于原始路径（对照 Go 的 dedupPath 回落）。 */
+    /** {@link #logDenied} 的便捷重载：路由模板缺省等于原始路径。 */
     public void logDenied(long tenantId, String actorUserId, String actorRole,
                           String requiredRole, String requestPath, String requestMethod) {
         logDenied(tenantId, actorUserId, actorRole, requiredRole,
@@ -199,7 +195,7 @@ public class AuditLogService {
     // ── 读取 ─────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code List}（L143-149）：代理到仓储。
+     * 代理到仓储。
      *
      * <p>handler 在到达这里之前已经做了 PathTenantMatch + Admin 守卫，
      * 所以这里<b>不</b>重复校验租户作用域。</p>
@@ -211,11 +207,11 @@ public class AuditLogService {
     // ── 保留期 ───────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code Purge}（L164-170）：删除 created_at 严格早于
+     * 删除 created_at 严格早于
      * {@code retentionDays} 天前的行。retentionDays &lt;= 0 直接短路——
      * 没配保留期的运维方零数据库往返。
      *
-     * <p>cutoff 用服务的时钟算（{@code s.now}），测试才能在不碰墙上时间的前提下
+     * <p>cutoff 用服务的时钟算（{@link #now}），测试才能在不碰墙上时间的前提下
      * 驱动确定性边界。</p>
      *
      * <p>刻意<b>不</b>分批 DELETE：审计表在 24h 窗口里现实能达到的体量下，
@@ -228,8 +224,7 @@ public class AuditLogService {
         if (retentionDays <= 0) {
             return 0L;
         }
-        // 对照 Go `-time.Duration(retentionDays) * 24 * time.Hour`：Duration.ofDays 是精确 86400s，
-        // 不受夏令时影响（与 Go 的绝对时长算术一致）。
+        // Duration.ofDays 是精确 86400s，不受夏令时影响。
         OffsetDateTime cutoff = now().minus(Duration.ofDays(retentionDays));
         return repo.deleteOlderThan(cutoff);
     }
@@ -239,7 +234,7 @@ public class AuditLogService {
     /** 纯 JDK 映射器（只用来造 details 的 ObjectNode，不读配置）。 */
     private static final ObjectMapper AUDIT_DETAILS_MAPPER = new ObjectMapper();
 
-    /** 组装一条审计行的样板（对照 Go 的 struct 字面量写法）。 */
+    /** 组装一条审计行的样板。 */
     static AuditLog newAuditLog(long tenantId, String actorUserId, String actorRole,
                                 String action, String requestPath, String requestMethod,
                                 String outcome, ObjectNode details) {

@@ -5,10 +5,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Anthropic 工具选择（对照 Go chat.anthropicToolChoice，
- * internal/models/chat/anthropic_tools.go:17-21）。
+ * Anthropic 工具选择。
  *
- * <p>取值映射（对照 Go anthropicToolOptions）：</p>
+ * <p>取值映射：</p>
  * <ul>
  *   <li>"" / "auto" → {@code auto}</li>
  *   <li>"required" → {@code any}（Anthropic 的"必须调用某个工具"）</li>
@@ -16,8 +15,8 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  *   <li>其它 → {@code tool} + name（指定工具名）</li>
  * </ul>
  *
- * <p>{@code disable_parallel_tool_use} 是 {@code *bool}：nil 省略，false 也照发
- * （正好与 OpenAI 的 parallel_tool_calls 语义相反，见 Go anthropicToolOptions 的注释）。</p>
+ * <p>{@code disable_parallel_tool_use} 是可空布尔：null 省略，false 也照发
+ * （正好与 OpenAI 的 parallel_tool_calls 语义相反）。</p>
  */
 @JsonPropertyOrder({"type", "name", "disable_parallel_tool_use"})
 public class AnthropicToolChoice {

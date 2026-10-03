@@ -9,9 +9,9 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * 属性抽取的四个纯函数（对照 Go connector.go L487-530 的 {@code extractTitle}
- * / {@code joinPlainText}，以及 L767-868 的 {@code propertyToString} /
- * {@code extractValue} / {@code extractLeafValue} / {@code extractPropertySchema}）。
+ * 属性抽取的四个纯函数（{@code extractTitle} / {@code joinPlainText} /
+ * {@code propertyToString} / {@code extractValue} / {@code extractLeafValue} /
+ * {@code extractPropertySchema}）。
  *
  * <h2>为什么它们"通用而不硬编码 22 种属性类型"</h2>
  * <p>Notion 的属性形状是"一个 {@code type} 字段 + 一个以 type 命名的内层对象"，
@@ -21,25 +21,17 @@ import com.fasterxml.jackson.databind.JsonNode;
  * → {@code start/end} → {@code expression} → 再按 type 递归）。</p>
  *
  * <h2>输入为什么是 {@link JsonNode} 而不是 {@code Map}</h2>
- * <p>Go 的输入是 {@code map[string]interface{}}（{@code json.Unmarshal} 的产物）。
- * Java 侧直接在 Jackson 的树上做，等价且少一次转换；关键是
- * <b>数字一律按 Go 的 {@code float64} 处理</b>（见
+ * <p>直接在 Jackson 的树上做，少一次转换；关键是
+ * <b>数字一律按双精度处理</b>（见
  * {@link NotionValues#jsonNumberToString}）——Jackson 会按需给
  * {@code IntNode}/{@code DoubleNode}，不能直接 {@code asText()}。</p>
  *
- * <h2>两处刻意保留的差异（都是"Java 更确定"）</h2>
+ * <h2>两处刻意保留的确定性（都是"结果更确定"）</h2>
  * <ol>
- *   <li><b>{@code extractTitle} 的顺序</b>：Go 遍历
- *       {@code map[string]json.RawMessage} 取**第一个** {@code type=="title"}
- *       且有内容的属性——map 迭代顺序在 Go 里是随机的，所以"一个页面有多个 title
- *       属性"时 Go 每次调用可能给出不同标题。Java 用 Jackson 的
- *       {@code ObjectNode}（底层是 {@code LinkedHashMap}，**保持 JSON 文档序**），
- *       结果确定且与 Notion 返回的字段顺序一致。</li>
- *   <li><b>{@code extractPropertySchema} 的排序</b>：Go 用 {@code sort.Strings}
- *       （**UTF-8 字节序**），Java 用 {@code String.compareTo}（UTF-16 码元序）。
- *       两者对 ASCII 完全一致；只在"增补平面字符与 U+E000–U+FFFF 混排"时分叉
- *       （UTF-16 里 U+10000 是 D800 DC00，排在 U+E000 **之前**；而按码点/UTF-8
- *       字节序它排在**之后**）。Notion 的属性名几乎不可能是这种字符。</li>
+ *   <li><b>{@code extractTitle} 的顺序</b>：取**文档序第一个** {@code type=="title"}
+ *       且有内容的属性。结果确定且与 Notion 返回的字段顺序一致。</li>
+ *   <li><b>{@code extractPropertySchema} 的排序</b>：用 {@code String.compareTo}
+ *       （UTF-16 码元序）。对 ASCII 属性名与码点序完全一致。</li>
  * </ol>
  */
 final class NotionProperties {
@@ -48,18 +40,18 @@ final class NotionProperties {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // 标题（Go client.go L487-530）
+    // 标题
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code extractTitle}：先按 {@code properties} 里第一个
+     * 先按 {@code properties} 里第一个
      * {@code type=="title"} 的属性拼 plain_text，再回落到顶层的 {@code title} 数组
      * （数据库对象走这条）。
      *
-     * <p>两个容易写错的地方：① Go 的判定是
-     * {@code prop.Type == "title" && len(prop.Title) > 0}——一个 type 是 title
+     * <p>两个容易写错的地方：① 判定是
+     * {@code type == "title" && title 数组非空}——一个 type 是 title
      * 但数组为**空**的属性**不会**让函数提前返回，循环继续往下找；
-     * ② {@code properties} 解不成 map（例如是数组或字符串）时**整段跳过**、
+     * ② {@code properties} 不是对象（例如是数组或字符串）时**整段跳过**、
      * 直接走顶层 title 回落。</p>
      */
     static String extractTitle(NotionPage page) {
@@ -94,7 +86,7 @@ final class NotionProperties {
         return "";
     }
 
-    /** 对照 Go {@code joinPlainText}：把每个片段的 {@code plain_text} 直接拼接。 */
+    /** 把每个片段的 {@code plain_text} 直接拼接。 */
     static String joinPlainText(JsonNode segments) {
         if (segments == null || !segments.isArray()) {
             return "";
@@ -113,18 +105,17 @@ final class NotionProperties {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // 属性 → 字符串（Go connector.go L767-844）
+    // 属性 → 字符串
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code propertyToString}：沿类型链通用地抽出一个字符串值。
+     * 沿类型链通用地抽出一个字符串值。
      *
      * <pre>
-     *   typeName := value["type"].(string)
-     *   if typeName == "" { return extractLeafValue(value) }
-     *   inner := value[typeName]
-     *   if 不存在 || inner == nil { return "" }
-     *   return extractValue(inner)
+     *   typeName = value["type"]（字符串）
+     *   typeName 为空        → extractLeafValue(value)
+     *   value[typeName] 缺席或为 null → ""
+     *   否则                  → extractValue(inner)
      * </pre>
      */
     static String propertyToString(JsonNode value) {
@@ -147,7 +138,7 @@ final class NotionProperties {
     }
 
     /**
-     * 对照 Go {@code extractValue}：按 JSON 值的**运行时类型**分派。
+     * 按 JSON 值的**运行时类型**分派。
      *
      * <p>顺序要点：数字走 {@link NotionValues#jsonNumberToString}（先试 {@code %d}
      * 再 {@code %g}）；数组是"逐个取、**丢掉空串**、用 {@code ", "} 连接"
@@ -180,13 +171,12 @@ final class NotionProperties {
             }
             return String.join(", ", parts);
         }
-        // Go 的 default 分支是 fmt.Sprint(v)——json 解码只产出上面六种，
-        // 这一支不可达（BinaryNode/PojoNode 等不会出现在 Notion 的响应里）。
+        // 其余节点类型不会出现在 Notion 的响应里，不可达。
         return "";
     }
 
     /**
-     * 对照 Go {@code extractLeafValue}：按**固定顺序**试探已知的叶子键。
+     * 按**固定顺序**试探已知的叶子键。
      *
      * <p>顺序有语义：{@code name} 先于 {@code content} 先于 {@code plain_text}
      * 先于 {@code start}/{@code end} 先于 {@code expression}，最后才按
@@ -233,20 +223,17 @@ final class NotionProperties {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // 属性名集合（Go connector.go L846-868）
+    // 属性名集合
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code extractPropertySchema}：抽出**除 title 之外**的属性名并排序。
+     * 抽出**除 title 之外**的属性名并排序。
      *
-     * <p>排序是刻意的（Go 的注释）：属性名来自 map 迭代，顺序随机，
-     * 不排序会让"数据库表格列序"每次都不同，进而在增量同步时造成
-     * **假的内容变更**。Java 侧同样排序。</p>
+     * <p>排序是刻意的：不排序会让"数据库表格列序"每次都不同，进而在增量同步时造成
+     * **假的内容变更**。</p>
      *
-     * <p>Go 对每个属性值单独 {@code json.Unmarshal} 进
-     * {@code struct{Type string}} 并<b>忽略错误</b>：只有"解成功且
-     * {@code type == "title"}"才被排除，其余（包括解失败的字符串/数字/数组、
-     * 以及 JSON {@code null}）一律收进结果。probe 实录：
+     * <p>只有"是对象且 {@code type == "title"}"的属性才被排除，其余
+     * （包括字符串/数字/数组值、以及 JSON {@code null}）一律收进结果。
      * {@code {"A":"str","B":{"type":"title"}} → ["A"]}。</p>
      */
     static List<String> extractPropertySchema(NotionPage record) {
@@ -255,7 +242,7 @@ final class NotionProperties {
         }
         JsonNode props = record.rawProperties;
         if (!props.isObject()) {
-            // Go: json.Unmarshal(record.RawProperties, &props) 失败 → return nil
+            // 整段不是对象 → 按"没有属性"处理
             return null;
         }
         List<String> propNames = new ArrayList<>();
@@ -270,25 +257,24 @@ final class NotionProperties {
                     type = typeNode.textValue();
                 }
             }
-            // ⚠️ Go 里 json.Unmarshal 的错误是**被忽略**的
-            // （`json.Unmarshal(propRaw, &prop); if prop.Type != "title"`）：
-            // 值是字符串/数字/数组时解失败、Type 留空串，**照样收进结果**；
-            // 只有"解成功且 type == title"才被排除。probe 实录：
+            // ⚠️ 值不是对象时（字符串/数字/数组）type 视为空串，
+            // **照样收进结果**；
+            // 只有"是对象且 type == title"才被排除。
             // {"A":"str","B":{"type":"title"}} → ["A"]。
             if (!"title".equals(type)) {
                 propNames.add(entry.getKey());
             }
         }
         Collections.sort(propNames);
-        // Go 的具名返回值是 nil 起步的切片：**一个都没收到**时回 nil（probe 里
-        // 序列化成 null），而不是空切片。range 之下两者等价，但契约上要一致。
+        // **一个都没收到**时回 null（序列化成 null），而不是空列表——调用方靠它区分
+        // "没有属性"与"属性全为 title"。
         return propNames.isEmpty() ? null : propNames;
     }
 
     /**
-     * Go 的 {@code nil} 切片与空切片在"range"下等价，Java 侧对 {@code null}
-     * 不做隐式处理，故每个调用点显式走这里——保留 {@code extractPropertySchema}
-     * 返回 {@code null} 的原始语义（probe 里它序列化成 {@code null}）。
+     * {@code null} 的兜底视图：每个调用点显式走这里——保留
+     * {@link #extractPropertySchema} 返回 {@code null} 的语义
+     * （它序列化成 {@code null}）。
      */
     static List<String> orEmpty(List<String> propNames) {
         return propNames == null ? List.of() : propNames;

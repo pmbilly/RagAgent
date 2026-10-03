@@ -11,14 +11,12 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.stream.StreamEvent;
 
 /**
- * 把流事件翻成 SSE 响应体（对照 Go {@code internal/handler/session/helpers.go:189-233}
- * 的 {@code buildStreamResponse} 与 {@code searchResultFromMap}）。
+ * 把流事件翻成 SSE 响应体。
  *
  * <h2>这是本项目最关键的 emit 点</h2>
- * <p>约定 §6 要求：翻译任何涉及 SSE 的代码前，先把 Go 侧所有 emit 点列成表。
- * 本类是 {@code StreamEvent → StreamResponse} 的唯一转换点，下游的
- * {@code c.SSEvent("message", response)}（阶段 5.2 步 4）只是把它写到线缆上。
- * 因此<b>这里决定了字节</b>，逐个字段对照：</p>
+ * <p>本类是 {@code StreamEvent → StreamResponse} 的唯一转换点，下游的
+ * 帧写出只是把它写到线缆上。
+ * 因此<b>这里决定了字节</b>，逐个字段如下：</p>
  *
  * <table border="1">
  *   <caption>buildStreamResponse 的字段映射</caption>
@@ -27,7 +25,7 @@ import com.ragagent.stream.StreamEvent;
  *   <tr><td>{@code response_type}</td><td>{@code evt.type}</td><td>恒输出</td></tr>
  *   <tr><td>{@code content}</td><td>{@code evt.content}</td><td>恒输出</td></tr>
  *   <tr><td>{@code done}</td><td>{@code evt.done}</td><td>恒输出</td></tr>
- *   <tr><td>{@code data}</td><td>{@code evt.data}</td><td><b>同一引用</b>，不拷贝（Go 如此）</td></tr>
+ *   <tr><td>{@code data}</td><td>{@code evt.data}</td><td><b>同一引用</b>，不拷贝</td></tr>
  *   <tr><td>{@code usage}</td><td>{@code evt.usage}</td><td>omitempty</td></tr>
  *   <tr><td>{@code session_id}</td><td>{@code evt.data["session_id"]}</td>
  *       <td><b>仅</b> {@code response_type == agent_query} 时取，且必须是字符串类型</td></tr>
@@ -36,10 +34,10 @@ import com.ragagent.stream.StreamEvent;
  *   <tr><td>{@code knowledge_references}</td><td>{@code evt.data["references"]}</td>
  *       <td><b>仅</b> {@code response_type == references} 时取，见下</td></tr>
  *   <tr><td>{@code tool_calls} / {@code finish_reason}</td>
- *       <td>—</td><td>{@code buildStreamResponse} <b>从不设置</b>（照抄 Go）</td></tr>
+ *       <td>—</td><td><b>从不设置</b></td></tr>
  * </table>
  *
- * <h2>{@code references} 事件的三态（Go 的类型断言链，逐条照搬）</h2>
+ * <h2>{@code references} 事件的三态</h2>
  * <ol>
  *   <li>{@code data["references"]} 缺席 / {@code null} → <b>不设</b>该字段（omitempty → 整键省略）。</li>
  *   <li>值是 {@code []*SearchResult}（活路径，本进程内刚构建）→ 原样赋上。</li>
@@ -51,19 +49,19 @@ import com.ragagent.stream.StreamEvent;
  * {@code StreamJson} 落进 Redis 再读回来，静态类型已经丢了，只剩 map。</p>
  *
  * <h2>为什么 {@code searchResultFromMap} 只填部分字段</h2>
- * <p>Go 的实现只恢复 17 个字段，{@code match_type} / {@code sub_chunk_id} /
+ * <p>只恢复 17 个字段，{@code match_type} / {@code sub_chunk_id} /
  * {@code metadata} / {@code chunk_metadata} / {@code matched_content} /
  * {@code knowledge_custom_metadata} 都不恢复（除 {@code metadata} 外）。
  * 于是重建出来的结果里：{@code match_type} 是 {@code 0}、
- * {@code sub_chunk_id} 是 {@code null}、omitempty 的那几个键直接消失。
- * <b>这是 Go 的实际行为，照抄，不要"顺手补全"</b>——补了字节就不一样了。</p>
+ * {@code sub_chunk_id} 是 {@code null}、为空即省略的那几个键直接消失。
+ * <b>这是既定行为，不要"顺手补全"</b>——补了字节就不一样了。</p>
  */
 public final class StreamResponseBuilder {
 
     private StreamResponseBuilder() {
     }
 
-    /** 对照 Go {@code buildStreamResponse(evt interfaces.StreamEvent, requestID string)}。 */
+    /** 事件 → 响应体的字段映射（见类注释的字段表）。 */
     public static StreamResponse build(StreamEvent evt, String requestId) {
         StreamResponse response = new StreamResponse();
         response.setId(requestId);
@@ -112,7 +110,7 @@ public final class StreamResponseBuilder {
                 } else if (ref instanceof Map<?, ?> refMap) {
                     results.add(searchResultFromMap(refMap));
                 }
-                // 其余元素跳过：Go 的 `if refMap, ok := ref.(map[string]interface{}); ok` 就是如此。
+                // 其余元素直接跳过，不报错。
             }
             return results;
         }
@@ -120,10 +118,10 @@ public final class StreamResponseBuilder {
     }
 
     /**
-     * 对照 Go {@code searchResultFromMap}——从"过了 JSON 的类型擦除"的 map 重建检索结果。
+     * 从"过了 JSON 序列化往返"的 map 重建检索结果。
      *
-     * <p>只有 {@code metadata} 的存在性被保留（Go 先断言 {@code map[string]interface{}} 再逐个取
-     * string 值，非 string 的值被丢弃）；其余未列出的字段一律留在零值上，见类注释。</p>
+     * <p>只有 {@code metadata} 的存在性被保留（且只收 string→string 的键值对，
+     * 非 string 的值被丢弃）；其余未列出的字段一律留在零值上，见类注释。</p>
      */
     private static SearchResult searchResultFromMap(Map<?, ?> refMap) {
         SearchResult sr = new SearchResult();
@@ -156,19 +154,17 @@ public final class StreamResponseBuilder {
         return sr;
     }
 
-    /** 对照 Go {@code getString}：类型不符或缺席一律给 {@code ""}。 */
+    /** 类型不符或缺席一律给 {@code ""}。 */
     private static String getString(Map<?, ?> m, String key) {
         Object val = m.get(key);
         return val instanceof String s ? s : "";
     }
 
     /**
-     * 对照 Go {@code getFloat64}：认不出来就给 {@code 0.0}。
+     * 认不出来就给 {@code 0.0}。
      *
-     * <p>Go 只显式处理 {@code float64} 与 {@code int}（前者是 {@code json.Unmarshal} 到
-     * {@code interface{}} 后的唯一形态，后者是手工构造 map 的情形）。Java 侧 Jackson
-     * 会按大小给出 {@code Integer}/{@code Long}/{@code Double}，故统一按 {@link Number} 收，
-     * 覆盖两种来源。</p>
+     * <p>Jackson 反序列化会按大小给出 {@code Integer}/{@code Long}/{@code Double}，
+     * 故统一按 {@link Number} 收，覆盖全部数值形态。</p>
      */
     private static double getFloat64(Map<?, ?> m, String key) {
         Object val = m.get(key);

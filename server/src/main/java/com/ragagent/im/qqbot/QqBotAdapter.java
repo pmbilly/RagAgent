@@ -13,12 +13,12 @@ import com.ragagent.im.runtime.ReplyMessage;
 import com.ragagent.im.runtime.ThinkDisplay;
 
 /**
- * QQ 机器人适配器（对照 Go {@code internal/im/qqbot/adapter.go} L16-127）。
+ * QQ 机器人适配器。
  *
- * <p>只有 {@code Adapter} 一面（Go 的编译期断言也只有它）：<b>不验签</b>
- * （{@code VerifyCallback} 恒 nil）、没有 URL 挑战、也没有流式与文件下载。
+ * <p>只有 {@code Adapter} 一面：<b>不验签</b>
+ * （{@code verifyCallback} 恒返回 null）、没有 URL 挑战、也没有流式与文件下载。
  * 发送按 {@code chat_kind} 分 C2C / 群两条路径，文本取
- * {@code FormatIMDisplayContent(..., Final)} 并 trim，空则不发（照 Go）。</p>
+ * {@code formatIMDisplayContent(..., Final)} 并 trim，空则不发。</p>
  */
 public class QqBotAdapter implements AdapterInterfaces.Adapter {
 
@@ -41,13 +41,13 @@ public class QqBotAdapter implements AdapterInterfaces.Adapter {
         return ImTypes.PLATFORM_QQBOT;
     }
 
-    /** 对照 Go：QQBot 没有 URL verification 挑战。 */
+    /** QQBot 没有 URL verification 挑战。 */
     @Override
     public boolean handleURLVerification(CallbackExchange exchange) {
         return false;
     }
 
-    /** 对照 Go：不做验签（恒通过）。 */
+    /** 不做验签（恒通过）。 */
     @Override
     public Exception verifyCallback(CallbackExchange exchange) {
         return null;
@@ -79,7 +79,7 @@ public class QqBotAdapter implements AdapterInterfaces.Adapter {
 
     // ── 解析（也供网关 WS 复用） ───────────────────────────────────────────
 
-    /** 对照 {@code parseGatewayPayload}：非 dispatch（op≠0）或未知事件类型 → null。 */
+    /** 非 dispatch（op≠0）或未知事件类型 → null。 */
     static IncomingMessage parseGatewayPayload(JsonNode payload) throws Exception {
         if (payload == null || payload.isMissingNode() || payload.isNull()) {
             return null;
@@ -98,7 +98,7 @@ public class QqBotAdapter implements AdapterInterfaces.Adapter {
         return null;
     }
 
-    /** 对照 {@code parseC2CMessage}：user_id 取 user_openid 优先。 */
+    /** user_id 取 user_openid 优先。 */
     static IncomingMessage parseC2CMessage(JsonNode event) {
         JsonNode author = event.path("author");
         String userId = firstNonEmpty(author.path("user_openid").asText(""),
@@ -119,7 +119,7 @@ public class QqBotAdapter implements AdapterInterfaces.Adapter {
         return msg;
     }
 
-    /** 对照 {@code parseGroupMessage}：user_id 取 member_openid → user_openid → id。 */
+    /** user_id 取 member_openid → user_openid → id。 */
     static IncomingMessage parseGroupMessage(JsonNode event) {
         JsonNode author = event.path("author");
         IncomingMessage msg = new IncomingMessage();
@@ -139,7 +139,7 @@ public class QqBotAdapter implements AdapterInterfaces.Adapter {
         return msg;
     }
 
-    /** 对照 {@code firstNonEmpty}：取第一个 trim 后非空的值。 */
+    /** 取第一个 trim 后非空的值。 */
     static String firstNonEmpty(String... values) {
         for (String value : values) {
             if (value != null && !value.trim().isEmpty()) {

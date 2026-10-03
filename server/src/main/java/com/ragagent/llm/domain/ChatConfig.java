@@ -3,9 +3,9 @@ package com.ragagent.llm.domain;
 import java.util.Map;
 
 /**
- * 聊天实例配置（对照 Go chat.ChatConfig，internal/models/chat/chat.go:127-142）。
+ * 聊天实例配置。
  *
- * 构造入口统一走 {@link #fromModel}（对照 Go ConfigFromModel）：
+ * 构造入口统一走 {@link #fromModel}：
  * 生产路径（service 层按 DB 模型配置拉起实例）与测试路径（handler 层按前端表单
  * 临时拉起实例）必须走完全相同的字段映射，避免重复样板。
  */
@@ -57,7 +57,7 @@ public class ChatConfig {
     public String getAppSecret() { return appSecret; }
     public void setAppSecret(String v) { appSecret = v; }
 
-    /** extraConfig 取值，缺省空串（对照 Go map 读取的零值语义）。 */
+    /** extraConfig 取值，缺省空串。 */
     public String extra(String key) {
         if (extraConfig == null) {
             return "";

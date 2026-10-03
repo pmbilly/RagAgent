@@ -1,8 +1,7 @@
 package com.ragagent.common.pipeline;
 
 /**
- * Chunk 类型常量（对照 Go {@code types.ChunkType} string 别名族，internal/types/chunk.go:12-39）。
- * Java 侧已有零散字面量，这里集中为常量表（值逐字符一致）。
+ * Chunk 类型常量：集中管理线上的 chunk 类型字面量。
  */
 public final class ChunkTypes {
 

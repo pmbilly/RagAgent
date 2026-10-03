@@ -1,7 +1,7 @@
 package com.ragagent.common.tenant;
 
 /**
- * 租户角色（对照 Go types/tenant_member.go TenantRole）。
+ * 租户角色。
  *
  * 等级间距 10 以便未来插入新角色；未知角色 level=0（严格低于任何定义角色，
  * 对应 Go Level() 的 "Unknown roles return 0"）。

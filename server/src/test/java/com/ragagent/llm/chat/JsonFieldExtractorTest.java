@@ -7,14 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 /**
- * 对照 Go internal/models/chat/json_field_extractor_test.go 全文（11 个用例逐条移植）。
+/**
+ * {@code JsonFieldExtractor} 全分支用例（11 个用例）。
  *
  * <p>额外补了多字节 UTF-8 边界一例（见 {@link #multibyteSplitAcrossChunks}），
  * 覆盖 Java 侧"停在字符边界前"的取舍。</p>
  */
 class JsonFieldExtractorTest {
 
-    /** 对照 Go TestJSONFieldExtractor_Basic */
     @Test
     void basic() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");
@@ -29,7 +29,6 @@ class JsonFieldExtractorTest {
         assertTrue(e.isDone(), "expected extractor to be done");
     }
 
-    /** 对照 Go TestJSONFieldExtractor_WithEscapes */
     @Test
     void withEscapes() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");
@@ -42,7 +41,6 @@ class JsonFieldExtractorTest {
         assertEquals("line1\nline2 and \"quoted\"", got);
     }
 
-    /** 对照 Go TestJSONFieldExtractor_OneChunk */
     @Test
     void oneChunk() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");
@@ -53,7 +51,7 @@ class JsonFieldExtractorTest {
         assertTrue(e.isDone(), "expected extractor to be done");
     }
 
-    /** 对照 Go TestJSONFieldExtractor_SmallChunks：逐字符喂 */
+    /** 逐字符喂 */
     @Test
     void smallChunks() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");
@@ -67,7 +65,6 @@ class JsonFieldExtractorTest {
         assertEquals("Hi", got);
     }
 
-    /** 对照 Go TestJSONFieldExtractor_Markdown */
     @Test
     void markdown() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");
@@ -82,7 +79,6 @@ class JsonFieldExtractorTest {
         assertEquals("# Title\n\nThis is **bold** and *italic* text.\n\n- item 1\n- item 2", got);
     }
 
-    /** 对照 Go TestJSONFieldExtractor_UnicodeEscape */
     @Test
     void unicodeEscape() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");
@@ -94,7 +90,7 @@ class JsonFieldExtractorTest {
         assertEquals("Hello 世界", got);
     }
 
-    /** 对照 Go TestJSONFieldExtractor_IncompleteEscapeAtBoundary：转义序列跨分片 */
+    /** 转义序列跨分片 */
     @Test
     void incompleteEscapeAtBoundary() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");
@@ -106,7 +102,6 @@ class JsonFieldExtractorTest {
         assertEquals("before\nafter", got);
     }
 
-    /** 对照 Go TestJSONFieldExtractor_WhitespaceInJSON */
     @Test
     void whitespaceInJson() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");
@@ -114,7 +109,6 @@ class JsonFieldExtractorTest {
         assertEquals("content here", e.feed("{ \"answer\" : \"content here\" }"));
     }
 
-    /** 对照 Go TestJSONFieldExtractor_EmptyAnswer */
     @Test
     void emptyAnswer() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");
@@ -123,7 +117,7 @@ class JsonFieldExtractorTest {
         assertTrue(e.isDone(), "expected extractor to be done");
     }
 
-    /** 对照 Go TestJSONFieldExtractor_ThoughtField：extracting "thought"（thinking 工具用） */
+    /** extracting "thought"（thinking 工具用） */
     @Test
     void thoughtField() {
         JsonFieldExtractor e = new JsonFieldExtractor("thought");
@@ -137,7 +131,6 @@ class JsonFieldExtractorTest {
         assertTrue(e.isDone(), "expected extractor to be done");
     }
 
-    /** 对照 Go TestJSONFieldExtractor_ThoughtFieldWithEscapes */
     @Test
     void thoughtFieldWithEscapes() {
         JsonFieldExtractor e = new JsonFieldExtractor("thought");
@@ -167,7 +160,7 @@ class JsonFieldExtractorTest {
         assertTrue(e.isDone());
     }
 
-    /** 未找到字段或还没到值的开引号时不产出（对照 Go 的 valueStart<0 短路）。 */
+    /** 未找到字段或还没到值的开引号时不产出（字段名未命中即短路）。 */
     @Test
     void waitsForValueStart() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");
@@ -178,7 +171,7 @@ class JsonFieldExtractorTest {
         assertEquals("v", e.feed("\"v\""));
     }
 
-    /** 值结束后的额外 feed 一律返回空串（对照 Go 的 done 短路）。 */
+    /** 值结束后的额外 feed 一律返回空串（终态短路）。 */
     @Test
     void feedAfterDoneReturnsEmpty() {
         JsonFieldExtractor e = new JsonFieldExtractor("answer");

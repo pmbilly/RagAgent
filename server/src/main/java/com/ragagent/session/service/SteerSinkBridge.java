@@ -17,16 +17,15 @@ import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;
 
 /**
- * handler 侧的 steer back half（对照 Go internal/handler/session/steer.go 的
- * {@code steerSink}，qa.go 在 setupSSEStream 里 per-run 构造并经 SetSteerSink
- * 交给引擎）。
+ * steer 的 handler 侧后半段：每轮 QA 在建立 SSE 流时构造一个实例，
+ * 经 {@code setSteerSink} 交给引擎。
  *
  * <p>通过共享 StreamManager 读 steer 子列表、把接受的消息按运行请求 ID 落成
  * user 角色行。消费标记 {@code consumed} 挂在事件本身上（不存进程内存），
  * 这样每个副本对"还有哪些待处理"结论一致。</p>
  *
- * <p>Java 侧差异：Go 的方法带 ctx；Java 的 {@link SteerSink} 接口无 ctx——
- * 构造期捕获 {@link TenantContextSnapshot}，每个入口 replay（finally clear）。</p>
+ * <p>{@link SteerSink} 接口方法不带租户上下文——
+ * 构造期捕获 {@link TenantContextSnapshot}，每个入口先 replay、finally 恢复调用方原上下文。</p>
  */
 public final class SteerSinkBridge implements SteerSink {
 
@@ -54,7 +53,7 @@ public final class SteerSinkBridge implements SteerSink {
         this.tenant = tenant;
     }
 
-    // ── 对照 PollSteer（steer.go L98-132） ──────────────────────────────────
+    // ── pollSteer：drain 待注入的 steer 事件 ────────────────────────────────
 
     @Override
     public List<Map<String, Object>> pollSteer(String sid, String messageId, int lastOffset) {
@@ -99,7 +98,7 @@ public final class SteerSinkBridge implements SteerSink {
         return out;
     }
 
-    /** 对照 steerEventToRaw（steer.go L184-200）。 */
+    /** 事件 → 引擎侧 raw map（id/content/mentioned_items/channel/delivery）。 */
     private static Map<String, Object> steerEventToRaw(StreamEvent evt) {
         Map<String, Object> raw = new LinkedHashMap<>();
         raw.put("id", evt.getId());
@@ -149,21 +148,21 @@ public final class SteerSinkBridge implements SteerSink {
         }
     }
 
-    /** 对照 InjectedIDs（steer.go L165-174）：引擎已消费的 steer 事件 ID 副本。 */
+    /** 引擎已消费的 steer 事件 ID 副本。 */
     public Set<String> injectedIds() {
         synchronized (mu) {
             return new LinkedHashSet<>(injectedIDs);
         }
     }
 
-    /** 对照 DrainedOffset（steer.go L178-182）。 */
+    /** 当前 drain 偏移。 */
     public int drainedOffset() {
         synchronized (mu) {
             return drainedOffset;
         }
     }
 
-    // ── 对照 PersistSteerMessage（steer.go L211-276） ────────────────────────
+    // ── persistSteerMessage：接受的 steer 消息落成 user 行 ───────────────────
 
     @Override
     public String persistSteerMessage(String sid, String messageId, String steerId,
@@ -219,7 +218,7 @@ public final class SteerSinkBridge implements SteerSink {
         } catch (RuntimeException e) {
             log.warn("steer consume flag failed for session {} steer {}: {}",
                     sessionId, steerId, e.toString());
-            updated = true; // Go 的 err 分支只记日志继续
+            updated = true; // 标记失败只记日志，不回滚
         }
         if (!updated) {
             // Deleted concurrently, or the CAS gave up. The user row must not
@@ -246,7 +245,7 @@ public final class SteerSinkBridge implements SteerSink {
         return created.getId();
     }
 
-    /** 对照 persistedUserMessageID（steer.go L278-292）。 */
+    /** 查该 steer 事件已落库的 user 消息 id（没有则空串）。 */
     private String persistedUserMessageId(String sid, String messageId, String steerId) {
         if (streamManager == null || QaSupport.isEmpty(steerId)) {
             return "";
@@ -264,7 +263,7 @@ public final class SteerSinkBridge implements SteerSink {
         return "";
     }
 
-    /** 对照 LastPersistedUserMessageID（steer.go L296-300）。 */
+    /** 最近一次落库的 user 消息 id。 */
     public String lastPersistedUserMessageId() {
         synchronized (mu) {
             return lastUserMessageID;

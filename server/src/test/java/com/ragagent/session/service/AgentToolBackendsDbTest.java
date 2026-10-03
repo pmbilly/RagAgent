@@ -86,7 +86,7 @@ class AgentToolBackendsDbTest {
         assertThat(rows).allSatisfy(r -> assertThat(r.totalChunkCount).isEqualTo(1));
     }
 
-    /** 无有效 scope（kbTenantMap 缺租户对）→ 空表（对照 Go 两处 early return）。 */
+    /** 无有效 scope（kbTenantMap 缺租户对）→ 空表（两处入口都早退）。 */
     @Test
     void grepSearchWithoutValidScopeReturnsEmpty() {
         assertThat(backends.grepChunkSearch().search(

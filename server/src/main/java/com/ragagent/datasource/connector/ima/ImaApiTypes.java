@@ -8,9 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * IMA OpenAPI 的请求/响应形状（对照 Go {@code ima/types.go} 的
- * {@code apiEnvelope} / {@code knowledgeBaseInfo} / {@code folderInfo} /
- * {@code getKnowledgeListResp} 等一整组类型）。
+ * IMA OpenAPI 的请求/响应形状。
  *
  * <h2>⚠️ 内部 API 形状，不是契约</h2>
  * <p>这些类型只用于**解码 IMA 的响应**与在连接器内部传递数据：它们既不作
@@ -23,8 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  *
  * <h2>{@code knowledge_list} 是混合数组</h2>
  * <p>IMA 把文件夹与知识条目塞进同一个数组（见 {@code getKnowledgeListResp}），
- * Go 用 {@code []json.RawMessage} 承接再逐项探测 {@code folder_id}/{@code media_id}。
- * Java 侧用 {@code List<JsonNode>}，探测逻辑一字不差地照抄（约定 §9「内部 API DTO」）。</p>
+ * 解码用 {@code List<JsonNode>} 承接，再逐项探测 {@code folder_id}/{@code media_id}。</p>
  */
 public final class ImaApiTypes {
 
@@ -34,14 +31,14 @@ public final class ImaApiTypes {
     // ── 信封 ──────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code apiEnvelope}：IMA 的统一响应包装 {@code { code, msg, data }}。
+     * IMA 的统一响应包装 {@code { code, msg, data }}。
      * 非零 code 是业务错误，必须透给用户。
      *
      * <p>部分公开的 IMA 资料把同一信封写成 {@code { retcode, errmsg }}。
      * 两种拼法都接受不花什么代价，却能避免"拼错的那个让 Code 留在零值、
      * 于是每个 API 错误都被静默当成成功"这种故障。</p>
      *
-     * <p>{@link #statusCode()} 与 {@link #message()} 是对照 Go 的**方法**，
+     * <p>{@link #statusCode()} 与 {@link #message()} 是派生访问器，
      * 名字不带 {@code get}/{@code is} 前缀，Jackson 不会把它们当属性——
      * 而本类型也只用于解码，不写出。</p>
      */
@@ -104,7 +101,7 @@ public final class ImaApiTypes {
         }
 
         /**
-         * 对照 Go {@code apiEnvelope.statusCode}：两种拼法下的业务状态码。
+         * 两种拼法下的业务状态码。
          * {@code Code != 0} 优先；否则看指针形式的 {@code retcode} 是否存在。
          */
         public int statusCode() {
@@ -117,7 +114,7 @@ public final class ImaApiTypes {
             return 0;
         }
 
-        /** 对照 Go {@code apiEnvelope.message}：{@code msg} 非空优先，否则 {@code errmsg}。 */
+        /** {@code msg} 非空优先，否则 {@code errmsg}。 */
         public String message() {
             if (msg != null && !msg.isEmpty()) {
                 return msg;
@@ -128,7 +125,7 @@ public final class ImaApiTypes {
 
     // ── 知识库 ────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code knowledgeBaseInfo}（{@code get_knowledge_base} 的条目）。 */
+    /** {@code get_knowledge_base} 的条目。 */
     public static class KnowledgeBaseInfo {
 
         @JsonProperty("id")
@@ -187,7 +184,7 @@ public final class ImaApiTypes {
         }
     }
 
-    /** 对照 Go {@code searchedKnowledgeBaseInfo}：{@code search_knowledge_base} 返回的字段更少。 */
+    /** {@code search_knowledge_base} 返回的条目（字段更少）。 */
     public static class SearchedKnowledgeBaseInfo {
 
         @JsonProperty("id")
@@ -224,7 +221,7 @@ public final class ImaApiTypes {
         }
     }
 
-    /** 对照 Go {@code searchKnowledgeBaseResp}。 */
+    /** {@code search_knowledge_base} 的响应。 */
     public static class SearchKnowledgeBaseResp {
 
         @JsonProperty("info_list")
@@ -261,7 +258,7 @@ public final class ImaApiTypes {
         }
     }
 
-    /** 对照 Go {@code addableKnowledgeBaseInfo}：只有 id + name（没有 cover_url）。 */
+    /** 可写入知识库条目：只有 id + name（没有 cover_url）。 */
     public static class AddableKnowledgeBaseInfo {
 
         @JsonProperty("id")
@@ -288,7 +285,7 @@ public final class ImaApiTypes {
     }
 
     /**
-     * 对照 Go {@code getAddableKnowledgeBaseListResp}。
+     * {@code get_addable_knowledge_base_list} 的响应。
      *
      * <p>JSON 键是 {@code addable_knowledge_base_list}，<b>不是</b>
      * {@code info_list}——两个端点的形状刻意不同，别顺手统一。</p>
@@ -329,7 +326,7 @@ public final class ImaApiTypes {
         }
     }
 
-    /** 对照 Go {@code getKnowledgeBaseResp}：按 id 建索引的 map。 */
+    /** {@code get_knowledge_base} 的响应：按 id 建索引的 map。 */
     public static class GetKnowledgeBaseResp {
 
         @JsonProperty("infos")
@@ -347,12 +344,11 @@ public final class ImaApiTypes {
     // ── 知识条目 / 文件夹 ────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code knowledgeInfo}。
+     * 列表里的一个知识条目。
      *
      * <p><b>IMA 的列表响应不暴露 {@code media_type}</b>——只能靠
      * {@code get_media_info} 才知道；文件夹则靠"非空 {@code folder_id}"区分
-     * （见 {@code folderInfo}）。{@code media_type} 的 tag 带 omitempty，
-     * 所以 0 时省略（本类型只用于解码，这条只为形状对齐）。</p>
+     * （见 {@code folderInfo}）。写出时 {@code media_type=0} 会被省略。</p>
      */
     public static class KnowledgeInfo {
 
@@ -403,13 +399,12 @@ public final class ImaApiTypes {
     }
 
     /**
-     * 对照 Go {@code folderInfo}。
+     * 一个文件夹条目。
      *
-     * <p>{@code file_number} / {@code folder_number} 在 Go 里是
-     * {@code json.Number}——能同时吃 JSON 数字与字符串，且 {@code Int64()}
-     * 解析失败时回 0。Java 侧用 {@link String} 承接（Jackson 对数字→字符串的
-     * 强制转换是默认开启的），转换语义在 {@link #fileCount()} /
-     * {@link #folderCount()} 里照抄。</p>
+     * <p>{@code file_number} / {@code folder_number} 可能是 JSON 数字也可能是字符串，
+     * 用 {@link String} 承接（Jackson 对数字→字符串的
+     * 强制转换是默认开启的），解析在 {@link #fileCount()} /
+     * {@link #folderCount()} 里做。</p>
      */
     public static class FolderInfo {
 
@@ -429,9 +424,9 @@ public final class ImaApiTypes {
         private String parentFolderId = "";
 
         /**
-         * 字段名去掉 {@code is} 前缀（对照 Go 的 {@code IsTop}）——否则
-         * Jackson 会给字段与 getter 生成两个不同的隐式属性名（约定 §9
-         * 「同族的第二种形态」）。本类型不写出，但保持一致以免后续被复用成契约。
+         * 字段名不带 {@code is} 前缀——否则
+         * Jackson 会给字段与 getter 生成两个不同的隐式属性名。
+         * 本类型不写出，但保持一致以免后续被复用成契约。
          */
         @JsonProperty("is_top")
         private boolean top;
@@ -484,12 +479,12 @@ public final class ImaApiTypes {
             top = v;
         }
 
-        /** 对照 Go {@code folderInfo.FileCount}：空串或非法一律回 0。 */
+        /** 空串或非法一律回 0。 */
         public long fileCount() {
             return parseIntOrZero(fileNumber);
         }
 
-        /** 对照 Go {@code folderInfo.FolderCount}：空串或非法一律回 0。 */
+        /** 空串或非法一律回 0。 */
         public long folderCount() {
             return parseIntOrZero(folderNumber);
         }
@@ -507,7 +502,7 @@ public final class ImaApiTypes {
     }
 
     /**
-     * 对照 Go {@code getKnowledgeListResp}：{@code knowledge_list} 是
+     * {@code get_knowledge_list} 的响应：{@code knowledge_list} 是
      * <b>文件夹与知识条目混在一起</b>的松散数组，所以用 {@link JsonNode} 承接。
      */
     public static class GetKnowledgeListResp {
@@ -559,7 +554,7 @@ public final class ImaApiTypes {
 
     // ── 媒体信息 / 笔记正文 ──────────────────────────────────────────────
 
-    /** 对照 Go {@code urlInfo}：URL 形式的媒体才带它。 */
+    /** URL 形式的媒体才带它。 */
     public static class UrlInfo {
 
         @JsonProperty("url")
@@ -585,7 +580,7 @@ public final class ImaApiTypes {
         }
     }
 
-    /** 对照 Go {@code notebookExtInfo}：笔记（{@code media_type=11}）上才设置。 */
+    /** 笔记（{@code media_type=11}）上才设置。 */
     public static class NotebookExtInfo {
 
         @JsonProperty("notebook_id")
@@ -601,10 +596,9 @@ public final class ImaApiTypes {
     }
 
     /**
-     * 对照 Go {@code getMediaInfoResp}。
+     * {@code get_media_info} 的响应。
      *
-     * <p>Go 的 {@code URLInfo} / {@code NotebookExtInfo} 是**值类型**——缺字段
-     * 就是零值结构体，不是 null。Java 侧同理在字段上初始化，避免调用方到处判空。</p>
+     * <p>嵌套对象缺字段时保持非 null（字段上直接初始化），避免调用方到处判空。</p>
      */
     public static class GetMediaInfoResp {
 
@@ -643,7 +637,7 @@ public final class ImaApiTypes {
     }
 
     /**
-     * 对照 Go {@code getDocContentResp}：{@code get_doc_content} 的正文。
+     * {@code get_doc_content} 的正文。
      * 带 {@code target_content_format=0} 时是纯文本。
      */
     public static class GetDocContentResp {
@@ -661,8 +655,8 @@ public final class ImaApiTypes {
     }
 
     /**
-     * 对照 Go {@code walkedFile}：解析完文件夹位置之后的内部条目表示
-     * （Go 用**内嵌** {@code knowledgeInfo} 做字段提升，Java 用继承表达）。
+     * 解析完文件夹位置之后的内部条目表示
+     * （继承 {@link KnowledgeInfo}）。
      */
     public static class WalkedFile extends KnowledgeInfo {
 

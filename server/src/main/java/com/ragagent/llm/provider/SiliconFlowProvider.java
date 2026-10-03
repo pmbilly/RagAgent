@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.SiliconFlowProvider（siliconflow.go）：硅基流动。
+ * 硅基流动。
  */
 public class SiliconFlowProvider implements Provider {
 

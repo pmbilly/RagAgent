@@ -26,11 +26,11 @@ import org.junit.jupiter.api.Test;
  * <ol>
  *   <li>代码体内不得内联全限定类名（**任何**包，含 {@code java.*} / {@code com.fasterxml.*} / {@code jakarta.*} —— 一律走 import）；</li>
  *   <li>不得出现空 JavaDoc（{@code /** *​/}）；</li>
- *   <li>注释不得残留移植期黑话（golden / 波 N / 对照 Go）；</li>
+ *   <li>注释不得残留历史黑话（golden 字样、波次编号、Go 出处指针）；</li>
  *   <li>controller 包不得依赖 mapper 包（分层纪律）；</li>
  *   <li>controller 包不得自行开线程（后台任务走 KnowledgeTaskExecutor）；</li>
  *   <li>不得自行 new JdbcTemplate（用容器提供的 bean）。</li>
- *   <li>不得引入 {@code @JsonInclude} 与逐字段 {@code @JsonProperty}（Go 期遗留已两批清理，勿回流）。</li>
+ *   <li>不得引入 {@code @JsonInclude} 与逐字段 {@code @JsonProperty}（历史遗留已清理，勿回流）。</li>
  * </ol>
  */
 class KnowledgeCodeConventionsTest {
@@ -42,7 +42,7 @@ class KnowledgeCodeConventionsTest {
     private static final Pattern FQN = Pattern.compile("(?:[a-z][\\w]*\\.){2,}[A-Z]\\w*");
     private static final Pattern EMPTY_JAVADOC = Pattern.compile("/\\*\\*\\s*\\*/");
     private static final Pattern JARGON = Pattern.compile("golden|波\\s*\\d|对照\\s*Go");
-    /** Go 期序列化注解（@JsonPropertyOrder 不匹配：\b 跟在 JsonProperty 后仍是字母）。 */
+    /** 禁用的序列化注解（@JsonPropertyOrder 不匹配：\b 跟在 JsonProperty 后仍是字母）。 */
     private static final Pattern GO_ERA_ANNOTATION = Pattern.compile("@JsonInclude\\b|@JsonProperty\\b");
 
     private static final Pattern THREAD_START =
@@ -132,7 +132,7 @@ class KnowledgeCodeConventionsTest {
                 for (int i = 0; i < lines.size(); i++) {
                     String line = lines.get(i);
                     String trimmed = line.trim();
-                    // 异常类型（mapper 包中的 XxxException）允许 controller 捕获并翻译成 HTTP 错误，
+                    // 异常类型（mapper 包中的 XxxException）允许 controller 捕获并转换成 HTTP 错误，
                     // 这里只拦真正的数据访问类型（*Mapper / *Repository）
                     if (trimmed.startsWith("import com.ragagent.knowledge.mapper")
                             && (trimmed.endsWith("Mapper;") || trimmed.endsWith("Repository;"))) {

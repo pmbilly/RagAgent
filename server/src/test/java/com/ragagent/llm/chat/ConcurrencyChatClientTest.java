@@ -23,7 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * 并发装饰器的验收基准（对照 Go internal/models/chat/concurrency_wrapper_test.go 的 2 个测试）。
+ * 并发装饰器的验收基准（两条硬契约）。
  *
  * 这两条是并发语义的硬契约：
  * 1. 交互式调用完全绕过 governor（即使 limit=1 也不排队）——用户延迟不排在信号量后面
@@ -36,7 +36,7 @@ class ConcurrencyChatClientTest {
         BackgroundTaskContext.clear();
     }
 
-    /** 流式持续产出直到被放弃的最小 fake（对照 Go fakeChat）。 */
+    /** 流式持续产出直到被放弃的最小 fake。 */
     private static class FakeChat implements LlmChatClient {
         private final String id;
         private final boolean streamForever;
@@ -83,7 +83,7 @@ class ConcurrencyChatClientTest {
         }
     }
 
-    /** 对照 Go TestConcurrencyChatInteractiveNotGated：交互式调用在 limit=1 下也不被节流。 */
+    /** 交互式调用在 limit=1 下也不被节流。 */
     @Test
     void interactiveCallsAreNotGated() {
         ConcurrencyGovernor governor = new ConcurrencyGovernor();
@@ -98,10 +98,9 @@ class ConcurrencyChatClientTest {
     }
 
     /**
-     * 对照 Go TestConcurrencyChatStreamReleasesOnAbandon：消费者停止读取后，
-     * 持有的槽位必须释放。
+     * 消费者停止读取后，持有的槽位必须释放。
      *
-     * Go 用 ctx cancel 触发；Java 侧对应"发送阻塞超过放弃阈值"（测试里设成 1 秒）。
+     * 释放由"发送阻塞超过放弃阈值"触发（测试里设成 1 秒）。
      */
     @Test
     void streamReleasesSlotOnAbandon() throws Exception {
@@ -118,7 +117,7 @@ class ConcurrencyChatClientTest {
         // 消费一块，让转发线程跑起来并持有槽位
         assertTrue(out.poll(5, TimeUnit.SECONDS) != null, "应能取到第一块");
 
-        // 槽位已被持有：后台获取必须阻塞（对照 Go 的 50ms select）
+        // 槽位已被持有：后台获取必须阻塞
         CountDownLatch acquired = new CountDownLatch(1);
         Thread.ofVirtual().start(() -> {
             try (BackgroundTaskContext.Scope ignored = BackgroundTaskContext.mark()) {

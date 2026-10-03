@@ -19,11 +19,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.im.runtime.IncomingMessage;
 
 /**
- * Telegram 长轮询入站客户端（对照 Go {@code internal/im/telegram/longconn.go} L19-120）。
+ * Telegram 长轮询入站客户端。
  *
  * <p>getUpdates（offset/timeout=30/allowed_updates=["message"]）→ 逐条交 handler；
  * 出错退避 3 秒后重试；{@link #stop()} 后循环退出。{@code mode=websocket} 的
- * Telegram 渠道走本客户端（Go 的默认模式就是它）。</p>
+ * Telegram 渠道走本客户端（Telegram 的缺省接入形态）。</p>
  */
 public class TelegramLongPollingClient {
 
@@ -59,12 +59,12 @@ public class TelegramLongPollingClient {
                 .build();
     }
 
-    /** 停止循环（对照 Go 的 ctx cancel）。 */
+    /** 停止循环。 */
     public void stop() {
         running = false;
     }
 
-    /** 阻塞轮询循环（对照 Go 的 {@code Start}）；由工厂放进守护线程跑。 */
+    /** 阻塞轮询循环；由工厂放进守护线程跑。 */
     public void start() {
         log.info("[IM] Telegram long polling connecting...");
         while (running) {

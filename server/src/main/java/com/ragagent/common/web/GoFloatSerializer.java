@@ -8,20 +8,20 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 
 /**
- * 让 {@code float}（float32）的输出字节与 Go 的 {@code encoding/json} 一致——
+ * 让 {@code float}（float32）的输出字节与 Go {@code encoding/json} 的 float32 编码一致——
  * {@link GoDoubleSerializer} 的 float32 变体。
  *
  * <p>差异点与 double 版相同（整数值的 {@code .0}、指数写法），但「最短能往返」
  * 的语义必须按 <b>float32</b> 取：{@code Float.toString} 给的正是 float32 最短
- * 往返表示（JDK 21），与 Go 的 {@code AppendFloat(..., -1, 32)} 同语义。
+ * 往返表示（JDK 21）。
  * 不能把 float 提升成 double 再格式化——0.1f 提升后是 0.10000000149011612，
- * 而 Go 输出 0.1。</p>
+ * 而正确输出是 0.1。</p>
  *
  * <p>首个消费点：models/{id}/debug 的 embedding raw_response（{@code []float32}）。</p>
  */
 public class GoFloatSerializer extends JsonSerializer<Float> {
 
-    /** Go 的 'e' 形态切换阈值（floatEncoder 对 float32 与 float64 用同一对阈值）。 */
+    /** 'e' 形态切换阈值（与 double 版共用同一对）。 */
     private static final double SCIENTIFIC_LOWER = 1e-6;
     private static final double SCIENTIFIC_UPPER = 1e21;
 
@@ -34,7 +34,7 @@ public class GoFloatSerializer extends JsonSerializer<Float> {
         gen.writeNumber(format(value));
     }
 
-    /** 按 Go floatEncoder 规则格式化 float32。 */
+    /** 按类注释所述的浮点编码规则格式化 float32。 */
     public static String format(float value) {
         String sign = "";
         if (value < 0 || (value == 0 && Float.floatToRawIntBits(value) != 0)) {
@@ -52,7 +52,7 @@ public class GoFloatSerializer extends JsonSerializer<Float> {
         return sign + shortest.toPlainString();
     }
 
-    /** Go 的 'e' 形态：d[.ddd]e[+|-]exp（指数带符号、不补零）。 */
+    /** 'e' 形态：d[.ddd]e[+|-]exp（指数带符号、不补零）。 */
     private static String scientific(BigDecimal shortest) {
         String digits = shortest.unscaledValue().abs().toString();
         int exponent = (digits.length() - 1) - shortest.scale();

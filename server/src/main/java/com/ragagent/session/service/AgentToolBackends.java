@@ -58,8 +58,7 @@ import com.ragagent.wiki.service.page.WikiPageService;
  * <p>agent/tools 下的工具类走窄 seam（{@code KnowledgeSearchBackend} /
  * {@code GrepChunkSearch} / {@code GraphSearch} / {@code KnowledgeInfoReader} /
  * {@code PagedChunks} / {@code ImageInfoCollector} / {@code ImageEnricher}），
- * 本类把这些 seam 桥到真实服务——每个方法对照的工具侧 Javadoc 与 Go 原实现
- * （agent_service.go L1030-1137 的构造点）逐条映射。</p>
+ * 本类把这些 seam 桥到真实服务——每个方法对应一个工具的构造点。</p>
  *
  * <p>装配入口：{@link SessionAgentQaService#registerTools}（allowedTools 命中即构造）。</p>
  */
@@ -74,10 +73,10 @@ public class AgentToolBackends {
     private final ChunkRepository chunkRepository;
     private final HybridSearchService hybridSearchService;
 
-    /** 知识库检索簇（§14 步骤 2：KB 检索/grep/图谱/chunk 列举等工具后端）。 */
+    /** 知识库检索簇：KB 检索/grep/图谱/chunk 列举等工具后端。 */
     private final AgentToolKbBackends kbBackends;
 
-    /** wiki 工具簇（§14 步骤 2：WikiPages 端口实现与视图转换）。 */
+    /** wiki 工具簇：WikiPages 端口实现与视图转换。 */
     private final AgentToolWikiBackends wikiBackends;
     private final ConversationProperties conversation;
     private final MessageService messageService;
@@ -161,16 +160,14 @@ public class AgentToolBackends {
                 yield tool;
             }
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_DATA_ANALYSIS ->
-                // 对照 Go NewDataAnalysisTool(knowledgeService, fileService, db, sessionID)
-                // + WithSearchTargets：三个 seam 的生产实现（2026-09-28 评审接线——
-                // 此前 UI 可选但 switch 无 case，工具永远注册不上）
+                // data_analysis 工具构造：三个 seam 的生产实现
                 createDataAnalysisTool(targets, sessionId);
             default -> null;
         };
     }
 
     /**
-     * data_analysis 工具的构造面（对照 agent_service.go 的 data_analysis 构造点）：
+     * data_analysis 工具的构造面：
      * KnowledgeLoader = GetKnowledgeByIDOnly（无租户过滤，scope 由 WithSearchTargets
      * 把守）；Materializer = FileService.GetFile + 临时文件（扩展名取 file_path）；
      * DuckDB = 进程内共享内存连接。
@@ -198,7 +195,7 @@ public class AgentToolBackends {
         return tool;
     }
 
-    /** 对照 materializeKnowledgeFile：知识文件 → 带正确扩展名的本地临时文件（用后即删）。 */
+    /** 知识文件 → 带正确扩展名的本地临时文件（用后即删）。 */
     private java.nio.file.Path materializeKnowledgeFile(
             com.ragagent.agent.tools.data.DataAnalysisTool.KnowledgeData knowledge) {
         if (knowledge == null || knowledge.filePath() == null || knowledge.filePath().isEmpty()) {
@@ -217,7 +214,7 @@ public class AgentToolBackends {
         }
     }
 
-    /** wiki 工具簇的薄委托（实现见同包 {@link AgentToolWikiBackends}，§14 步骤 2）。 */
+    /** wiki 工具簇的薄委托（实现见同包 {@link AgentToolWikiBackends}）。 */
     public WikiPages wikiPages() {
         return wikiBackends.wikiPages();
     }
@@ -227,7 +224,7 @@ public class AgentToolBackends {
         return v == null ? "" : v;
     }
 
-    // ── 知识库检索簇的薄委托（实现见同包 AgentToolKbBackends，§14 步骤 2） ──────
+    // ── 知识库检索簇的薄委托（实现见同包 AgentToolKbBackends） ──────
 
     public KnowledgeSearchTool.SearchConfig searchConfig() {
         return kbBackends.searchConfig();
@@ -274,15 +271,15 @@ public class AgentToolBackends {
     }
 
     // ==================================================================
-    // wiki 工具族 10 件（切片 2c，对照 agent_service.go L1093-1116）
+    // wiki 工具族 10 件
     // ==================================================================
 
     /**
-     * Go {@code registerTools} 的 wiki 构造面。{@code scopes} 只给 wiki_read_page /
-     * wiki_search（Go 同款不对称：其余八件收扁平 kbIDs，内部用
+     * wiki 工具的构造面。{@code scopes} 只给 wiki_read_page /
+     * wiki_search（刻意不对称：其余八件收扁平 kbIDs，内部用
      * NewWikiScopesFromKBIDs 重建 scope，按设计丢失 doc/tag 窄化）。
      *
-     * @param routes 请求级共享的 slug→KB 路由记忆（Go L870 一个引擎一个实例）
+     * @param routes 请求级共享的 slug→KB 路由记忆（一个引擎一个实例）
      */
     public com.ragagent.agent.tools.AgentTool createWikiTool(String toolName,
             SearchTarget.SearchTargets targets, List<WikiScope> scopes,
@@ -296,8 +293,7 @@ public class AgentToolBackends {
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_WIKI_SEARCH ->
                     new WikiSearchTool(pages, scopeReader, scopes, routes);
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_WIKI_READ_SOURCE_DOC ->
-                    // Go：NewWikiReadSourceDocTool(knowledgeService, chunkService, searchTargets)
-                    // —— 不碰 wiki 服务，只用 chunk 面
+                    // 不碰 wiki 服务，只用 chunk 面
                     new WikiReadSourceDocTool(knowledgeInfoReader(), pagedChunks(),
                             imageInfoCollector(), targets);
             case com.ragagent.agent.tools.ToolDefinitions.TOOL_WIKI_FLAG_ISSUE ->
@@ -328,14 +324,14 @@ public class AgentToolBackends {
 
 
     // ==================================================================
-    // web_search / web_fetch（切片 2d，对照 agent_service.go L1071-1082）
+    // web_search / web_fetch
     // ==================================================================
 
     /**
-     * Go {@code registerTools} 的 web 构造面：web_search 收 agent 配置的
-     * maxResults/providerID（Go L1071-1078），web_fetch 直构造无参（Go L1079-1082）。
-     * 租户的 WebSearchConfig 在装配期捕获——Go 的 Execute 从 ctx 取 TenantInfo，
-     * 同一回合内取值等价；tenantID 留在执行期读（对照 TenantIDContextKey 的 ==0 拒绝）。
+     * web 工具的构造面：web_search 收 agent 配置的
+     * maxResults/providerID，web_fetch 直构造无参。
+     * 租户的 WebSearchConfig 在装配期捕获——执行期从上下文取租户 id，
+     * 同一回合内取值等价；tenantID 留在执行期读（==0 拒绝）。
      */
     public com.ragagent.agent.tools.AgentTool createWebTool(String toolName,
             int webSearchMaxResults, String webSearchProviderId) {
@@ -348,7 +344,7 @@ public class AgentToolBackends {
         };
     }
 
-    /** 对照 Tool.ConversationSearch 同款的执行期租户读取（engine 线程已 replay）。 */
+    /** 执行期租户读取（engine 线程已 replay）。 */
     public static LongSupplier currentTenantId() {
         return () -> {
             Long t = TenantContext.currentTenantId();
@@ -356,17 +352,17 @@ public class AgentToolBackends {
         };
     }
 
-    /** 对照 interfaces.WebSearchService.Search：执行配置直传（类型即 Go 的执行形状）。 */
+    /** 执行配置直传的检索后端。 */
     public WebSearchTool.WebSearchBackend webSearchBackend() {
         return (tenantId, providerId, config, query) ->
                 webSearchService.search(tenantId, providerId, config, query);
     }
 
     /**
-     * 对照 Go Execute 里的 {@code types.EffectiveWebSearchConfig(tenant.WebSearchConfig)}
-     * 打底拷贝：租户行缺失/无配置 → null（工具侧落 DefaultWebSearchConfig 缺省）。
-     * 归一化（applyEffective）与 Go 的 Effective 一致：maxResults≤0→10、
-     * blacklist nil→[]。
+     * 读租户的联网搜索配置并做有效性归一化：
+     * 租户行缺失/无配置 → null（工具侧落 DefaultWebSearchConfig 缺省）。
+     * 归一化（applyEffective）：maxResults≤0→10、
+     * blacklist null→[]。
      */
     private com.ragagent.websearch.service.WebSearchService.WebSearchConfig loadTenantWebSearchConfig() {
         Long tid = TenantContext.currentTenantId();
@@ -396,7 +392,7 @@ public class AgentToolBackends {
             out.proxyUrl = cfg.getProxyUrl();
             return out;
         } catch (RuntimeException | com.fasterxml.jackson.core.JacksonException e) {
-            // 对照 tenant == nil 分支：配置不可得即走缺省
+            // 租户/配置不可得即走缺省
             return null;
         }
     }
@@ -514,9 +510,8 @@ public class AgentToolBackends {
     }
 
     /**
-     * 值类型约定对齐 Go 的 {@code rows.Scan(interface{})} + {@code []byte→string}：
-     * 文本→String、整型→Long、浮点→Double、数值→BigDecimal、布尔→Boolean；
-     * PG 的 uuid/时间类型在 Go 侧同样经 []byte 落到 string，这里统一 toString。
+     * SQL 结果值的类型收敛：文本→String、整型→Long、浮点→Double、数值→BigDecimal、布尔→Boolean；
+     * uuid/时间类型统一 toString（与既有线格式一致）。
      */
     private static Object coerceSqlValue(Object v) {
         if (v == null) {
@@ -545,7 +540,7 @@ public class AgentToolBackends {
 
 
     // ==================================================================
-    // grep_chunks（对照 grep_chunks.go 的 searchChunks 整段查询）
+    // grep_chunks
     // ==================================================================
 
 

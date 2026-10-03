@@ -7,7 +7,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * 产物版本澄清纯函数（对照 Go types/artifact_versions.go 全文）。
+ * 产物版本澄清纯函数。
  * 匹配规则、中英文标签、markdown 转义、seen/content 去重逐条钉住。
  */
 class ArtifactVersionsTest {

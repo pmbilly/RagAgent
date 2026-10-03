@@ -3,11 +3,10 @@ package com.ragagent.common.settings;
 import java.util.List;
 
 /**
- * memory 模块的取值常量与预算（对照 Go internal/types/memory.go 的三段 const 块
- * L24-115 与零散常量）。
+ * memory 模块的取值常量与预算。
  *
- * <p><b>为什么这些放得进一个类</b>：Go 里它们是包级常量，Java 没有包级作用域，
- * 全部落在一个 final 类里最贴近原样，也便于后续模块按名字检索。</p>
+ * <p><b>为什么这些放得进一个类</b>：全部常量落在一个 final 类里，
+ * 便于按名字检索。</p>
  *
  * <p>{@code writeMode} 的两个取值刻意**不在这里**——它们已经落在
  * {@link MemoryConfig#WRITE_MODE_EXPLICIT_ONLY} / {@link MemoryConfig#WRITE_MODE_AUTO}，
@@ -38,12 +37,12 @@ public final class MemoryKinds {
      */
     public static final String KIND_INTEREST = "interest";
 
-    /** 对照 Go {@code MemoryKinds}：全部合法种类，**按常驻块的渲染顺序**。 */
+    /** 全部合法种类，**按常驻块的渲染顺序**。 */
     public static final List<String> ALL = List.of(
             KIND_PROFILE, KIND_PREFERENCE, KIND_FACT, KIND_TASK, KIND_INTEREST);
 
     /**
-     * 对照 Go {@code ResidentMemoryKinds}：构成"总是注入"那块内容的稳定特质。
+     * 构成"总是注入"那块内容的稳定特质。
      *
      * <p>interest **属于**这里，尽管它是推导出来的而不是被陈述的：它是一个人的固有属性，
      * 而且是"我在忙什么"这类**关于本人**的问题的答案——那类问题与兴趣本身的文本
@@ -52,12 +51,12 @@ public final class MemoryKinds {
     public static final List<String> RESIDENT = List.of(
             KIND_PROFILE, KIND_PREFERENCE, KIND_INTEREST);
 
-    /** 对照 Go {@code IsResidentMemoryKind}。 */
+    /** 是否属于常驻种类。 */
     public static boolean isResident(String kind) {
         return kind != null && RESIDENT.contains(kind);
     }
 
-    /** 对照 Go {@code IsValidMemoryKind}：校验来自 LLM 响应或 API 的 kind。 */
+    /** 校验来自 LLM 响应或 API 的 kind。 */
     public static boolean isValid(String kind) {
         return kind != null && ALL.contains(kind);
     }
@@ -114,15 +113,15 @@ public final class MemoryKinds {
 
     // ── 其它零散常量 ───────────────────────────────────────────────────────
 
-    /** 对照 Go {@code MaxMemoryPendingSessions}：**一批处理**的上限，不是持久队列的上限。 */
+    /** **一批处理**的上限，不是持久队列的上限。 */
     public static final int MAX_PENDING_SESSIONS = 32;
 
-    /** 对照 Go {@code MaxMemoryTombstones}：一个主体累积的拒绝条数上限，超出丢最旧的。 */
+    /** 一个主体累积的拒绝条数上限，超出丢最旧的。 */
     public static final int MAX_TOMBSTONES = 500;
 
-    /** 对照 Go {@code RedactedMemoryPlaceholder}：**刻意可见**，用户该看得出有东西被丢掉了。 */
+    /** **刻意可见**，用户该看得出有东西被丢掉了。 */
     public static final String REDACTED_PLACEHOLDER = "【已隐藏】";
 
-    /** 对照 Go {@code MaxMemoryExtractInstructionsRunes}。 */
+    /** 抽取指引的码点数上限。 */
     public static final int MAX_EXTRACT_INSTRUCTIONS_RUNES = 1000;
 }

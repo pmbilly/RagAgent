@@ -9,10 +9,9 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * 工具调用（同时对照 Go chat.ToolCall 与 types.LLMToolCall——两者 JSON 形状相同，
- * Java 侧合并为一个类型，不影响线上契约）。
+ * 工具调用。
  *
- * 字段序 = Go 声明序。provider_metadata 带 omitempty。
+ * JSON 字段序 = 声明序。provider_metadata 为空时省略。
  */
 @JsonPropertyOrder({"id", "type", "function", "provider_metadata"})
 public class ToolCall {
@@ -26,16 +25,15 @@ public class ToolCall {
     private FunctionCall function = new FunctionCall();
     /**
      * 厂商特有状态（如 Gemini 的 extra_content），必须随 assistant 工具调用原样往返，
-     * 以免把厂商字段教给核心 agent 代码。Go 类型为 map[string]json.RawMessage。
+     * 以免把厂商字段教给核心 agent 代码。序列化时 map 按键字母序输出，
+     * 保持与既有线格式一致。
      */
     @JsonProperty("provider_metadata")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    // Go 对 map 恒按字节序输出；Jackson 不排——不挂这个，多键 map 会与 Go 分叉
-
     private Map<String, JsonNode> providerMetadata;
 
     /**
-     * 以下为**请求内**观测状态（对照 types.LLMToolCall 的 ModelArguments 等）。
+     * 以下为**请求内**观测状态（不参与线上 JSON）。
      * ModelArguments 保留模型发出的原始 JSON，而 Function.Arguments 在工具执行前
      * 会被解码成持久的应用标识。这些字段**绝不可**回传 provider 或持久化进聊天历史。
      */
@@ -61,7 +59,7 @@ public class ToolCall {
     public java.util.List<String> getUnresolvedHandles() { return unresolvedHandles; }
     public void setUnresolvedHandles(java.util.List<String> v) { unresolvedHandles = v; }
 
-    /** 工具名（Go 侧到处用 tc.Function.Name 的快捷方式） */
+    /** 工具名 */
     @JsonIgnore
     public String getToolName() {
         return function == null ? "" : function.getName();

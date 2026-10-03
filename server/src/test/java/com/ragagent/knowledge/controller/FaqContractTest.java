@@ -26,10 +26,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
- * FAQ 模块契约测试（波 2 第四批，12+1 条路由）。golden：
- * scripts/record-faq-golden.sh（98 个 faq-* 文件，Go 实录）。
+ * FAQ 模块契约测试（12+1 条路由）。golden：
+ * scripts/record-faq-golden.sh（98 个 faq-* 文件）。
  *
- * <p>种子严格复刻录制脚本（KB 均为固定 hex id 的 SQL 直插——录制侧 KB 经 API 建出
+ * <p>种子与录制脚本一致（KB 均为固定 hex id 的 SQL 直插——录制侧 KB 经 API 建出
  * 随机 id，掩码归一）：FKB1（faq + indexMode=question_only）/FKB2（faq 空库）/
  * FKB3（faq 无容器导入结果）/FKB4（document 类型）/FKB5（导入专用）；FK1 容器带
  * last_faq_import_result、FT1/FT2 标签（seq 965001/965002）、FE1..FE4（seq 970001..970004）。</p>
@@ -37,8 +37,8 @@ import org.springframework.test.web.servlet.MvcResult;
  * <p><b>录制顺序影响状态</b>（UpdateEntry / similar-questions / fields / tags 先后改写
  * FE1..FE3 的 metadata）：每个 @Test 从同一播种出发，按录制顺序串完自己段落的前置变更
  * 再比对（与 KnowledgeOperationsContractTest 同款纪律）。{@code faq-upsert-running}
- * 不比（Go 的 asynq 重试窗口里 running key 被占数分钟，Java 直落 failed 终态并释放——
- * 约定 §9 已记录的中间态差异，该文件仅作 Go 行为存档）。</p>
+ * 不比：Java 实现直接落 failed 终态并释放 running key，而录制侧的中间态 running
+ * 会持续数分钟（约定 §9 已记录的中间态差异），该文件仅作存档。</p>
  */
 @SpringBootTest
 @AutoConfigureMockMvc

@@ -26,24 +26,24 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 对照 Go TenantInvitationService（internal/application/service/tenant_invitation.go）。
+ * 邀请域的 service。
  *
  * <p>状态机（迁移 000048 注释原文）：pending → accepted | declined | revoked | expired，
  * 终态只进不出；terminal 行留作审计痕迹。所有 List/Accept/Decline/Count 读路径先跑
  * {@link #sweep}（惰性清扫过期 pending 行），清扫失败只记日志绝不阻塞收件箱。</p>
  *
- * <p><b>事务边界照抄 Go 的取舍</b>：Accept 的"邀请行翻转 + 成员行写入"**不在**
+ * <p><b>事务边界</b>：Accept 的"邀请行翻转 + 成员行写入"**不在**
  * 同一个 DB 事务里——成员行的插入失败（唯一索引冲突=已是成员）折叠成幂等成功，
  * 其余失败表现为"邀请已 accepted 但没进成员表"，再次 Accept 得 409 not-pending。
- * Java 逐语义复刻，包括 {@code ErrMembershipAlreadyExists → 返回既有成员行} 的分支。</p>
+ * 包括 {@code 已是成员 → 返回既有成员行} 的分支。</p>
  *
  * <p><b>share-link token 是明文一次生成、多次消费</b>：32 字节 SecureRandom →
  * base64url 无填充（43 字符），落库明文（管理端要"复制链接"），消费不改行、只增
  * {@code accepted_count}。不存在哈希存储——威胁模型由短 TTL + 可撤销 + 单空间授权兜住
- * （Go 注释原文语义，照抄别"加固"）。</p>
+ * （刻意维持，别"加固"）。</p>
  *
- * <p><b>已知简化（记录在类注释）</b>：① Create 的 pending 唯一性以事务内预检查实现，
- * 并发双击的索引兜底路径不复刻（单实例语义一致）；② {@code tenant.auto_accept_invitation}
+ * <p><b>已知简化</b>：① Create 的 pending 唯一性以事务内预检查实现，
+ * 并发双击的索引兜底路径未建（单实例语义一致）；② {@code tenant.auto_accept_invitation}
  * 只读 env 层（{@link #autoAcceptInvitationEnabled()}），system_settings DB 层随系统设置
  * 模块收口（同 {@code TenantAPIKeyBootstrap} 的既有取舍）。</p>
  */
@@ -54,9 +54,9 @@ public class TenantInvitationService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    /** 对照 defaultInvitationTTL：7 天。env 覆盖见 {@link #invitationTtl()} */
+    /** 邀请有效期缺省 7 天。env 覆盖见 {@link #invitationTtl()} */
     private static final Duration DEFAULT_TTL = Duration.ofDays(7);
-    /** 对照 invitationTokenBytes：32 字节 → base64url 43 字符 */
+    /** token 字节数：32 字节 → base64url 43 字符 */
     private static final int TOKEN_BYTES = 32;
 
     public static final String STATUS_PENDING = "pending";
@@ -80,7 +80,7 @@ public class TenantInvitationService {
     // ── TTL / 开关 ─────────────────────────────────────────────────────────
 
     /**
-     * 对照 invitationTTL：WEKNORA_INVITATION_TTL 支持 Go duration（"168h"）与
+     * 邀请 TTL：WEKNORA_INVITATION_TTL 支持 duration 写法（"168h"）与
      * 裸秒数（"604800"）两种写法；解析失败或非正值回落默认。
      */
     static Duration invitationTtl() {
@@ -103,7 +103,7 @@ public class TenantInvitationService {
         return DEFAULT_TTL;
     }
 
-    /** Go duration 子集解析（h/m/s 组合，够 env 覆盖用；不是完整实现） */
+    /** duration 子集解析（"168h" 这类 h/m/s 组合，够 env 覆盖用；不是完整实现） */
     private static Duration parseGoDuration(String raw) {
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("^((\\d+)h)?((\\d+)m)?((\\d+)s)?$").matcher(raw.trim());
@@ -124,10 +124,10 @@ public class TenantInvitationService {
     }
 
     /**
-     * 对照 CreateInvitation 的 auto-accept 开关判定
+     * auto-accept 开关判定
      * （{@code tenant.auto_accept_invitation} / {@code WEKNORA_TENANT_AUTO_ACCEPT_INVITATION}）。
-     * 已知差异：Go 走 SystemSettingService 的 DB&gt;env&gt;false 三层；Java 尚无
-     * SystemSettingService，只保留 env 层（默认 false），DB 层随系统设置模块收口。
+     * 已知差异：完整实现是 SystemSettingService 的 DB&gt;env&gt;false 三层；当前
+     * 只保留 env 层（默认 false），DB 层随系统设置模块收口。
      */
     public static boolean autoAcceptInvitationEnabled() {
         String raw = AppEnvLookup.get("WEKNORA_TENANT_AUTO_ACCEPT_INVITATION");
@@ -143,7 +143,7 @@ public class TenantInvitationService {
 
     // ── 读路径（全部先 sweep） ─────────────────────────────────────────────
 
-    /** 对照 GetByID：无 sweep 的窄查询，找不到返回 null */
+    /** 按 id 窄查询（无 sweep），找不到返回 null */
     public TenantInvitation getById(long id) {
         return invitationMapper.selectOne(new LambdaQueryWrapper<TenantInvitation>()
                 .eq(TenantInvitation::getId, id)
@@ -151,7 +151,7 @@ public class TenantInvitationService {
                 .last("LIMIT 1"));
     }
 
-    /** 对照 ListTenantInvitationsPage：id DESC + pending 过滤（include_terminal=false） */
+    /** 租户侧邀请分页：id DESC + pending 过滤（include_terminal=false） */
     public InvitationPage listTenantInvitationsPage(long tenantId, boolean includeTerminal, int page, int pageSize) {
         sweep();
         if (page < 1) {
@@ -186,7 +186,7 @@ public class TenantInvitationService {
     public record InvitationPage(List<TenantInvitation> invitations, long total) {
     }
 
-    /** 对照 ListByInvitee：跨空间收件箱，id DESC，无分页 */
+    /** 跨空间收件箱：id DESC，无分页 */
     public List<TenantInvitation> listByInvitee(String inviteeUserId, boolean includeTerminal) {
         sweep();
         LambdaQueryWrapper<TenantInvitation> q = new LambdaQueryWrapper<TenantInvitation>()
@@ -199,7 +199,7 @@ public class TenantInvitationService {
         return invitationMapper.selectList(q);
     }
 
-    /** 对照 CountPendingByInvitee */
+    /** 收件箱 pending 计数 */
     public long countPendingByInvitee(String inviteeUserId) {
         sweep();
         Long count = invitationMapper.selectCount(new LambdaQueryWrapper<TenantInvitation>()
@@ -212,7 +212,7 @@ public class TenantInvitationService {
     // ── 创建 ───────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Create：已注册成员拒发（ErrAlreadyMember）、pending 唯一（预检查），
+     * 创建邀请：已注册成员拒发、pending 唯一（预检查），
      * TTL 在创建时刻定型（expires_at 为**内存值**——响应里渲染调用方本地时区形态）。
      */
     public TenantInvitation create(long tenantId, String inviteeUserId, TenantRole role,
@@ -273,7 +273,7 @@ public class TenantInvitationService {
         inv.setCreatedAt(dbNow);
         inv.setUpdatedAt(dbNow);
         invitationMapper.insert(inv);
-        // TargetUserID 刻意为空——share-link 还没有 invitee（Go 注释原文）
+        // TargetUserID 刻意为空——share-link 还没有 invitee
         emitAudit(tenantId, AuditAction.INVITATION_SENT, String.valueOf(inv.getId()), "", inv.getRole());
         return inv;
     }
@@ -281,9 +281,9 @@ public class TenantInvitationService {
     // ── 状态机 ─────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Accept：pending → accepted（原子翻转）+ 写成员行（跨服务、无共事务）。
+     * Accept：pending → accepted（原子翻转）+ 写成员行（跨服务、无共事务）。
      * "已是成员"折叠为幂等成功（返回既有行）。首页采纳默认空间在 controller
-     * （对照 Go：TenantID 只补 login/navigation 默认）。
+     * （TenantID 只补 login/navigation 默认）。
      */
     public TenantMember accept(long invId, String callerUserId) {
         sweep();
@@ -439,14 +439,14 @@ public class TenantInvitationService {
                 log.warn("share-link {} accepted_count bump failed: row missing", id);
             }
         } catch (RuntimeException e) {
-            // 对照 Go：计数只服务于管理端展示；失败不撤销已获得的成员资格
+            // 计数只服务于管理端展示；失败不撤销已获得的成员资格
             log.warn("share-link {} accepted_count bump failed (membership still created): {}", id, e.getMessage());
         }
     }
 
     // ── 内部 ───────────────────────────────────────────────────────────────
 
-    /** 对照 GetPendingByPair：partial unique index 保证 ≤1 行 */
+    /** pending 唯一性查询：partial unique index 保证 ≤1 行 */
     private TenantInvitation getPendingByPair(long tenantId, String inviteeUserId) {
         return invitationMapper.selectOne(new LambdaQueryWrapper<TenantInvitation>()
                 .eq(TenantInvitation::getTenantId, tenantId)
@@ -498,8 +498,8 @@ public class TenantInvitationService {
     }
 
     /**
-     * 对照 sweep：把 expires_at 已过的 pending 行批量翻成 expired（responded_at=now）。
-     * 刻意不给清扫行发逐行审计（Go 注释：清扫可能一次翻掉大量行，审计扇出失控）。
+     * 惰性清扫：把 expires_at 已过的 pending 行批量翻成 expired（responded_at=now）。
+     * 刻意不给清扫行发逐行审计（清扫可能一次翻掉大量行，审计扇出失控）。
      * 失败只记日志——下次读路径会再试。
      */
     private void sweep() {

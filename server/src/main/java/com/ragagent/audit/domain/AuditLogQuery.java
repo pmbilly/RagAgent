@@ -1,8 +1,7 @@
 package com.ragagent.audit.domain;
 
 /**
- * 审计日志列表的游标 + 过滤条件（对照 Go
- * internal/types/interfaces/audit_log.go 的 {@code AuditLogQuery} L17-26）。
+ * 审计日志列表的游标 + 过滤条件。
  *
  * <p>{@code afterId} 是上一页最后一条的 id（返回 id &lt; afterId 的行，最新在前），
  * 0 表示"从最新开始"。{@code limit} 无论调用方传什么，仓储层都会截到 100 以内——
@@ -30,12 +29,12 @@ public record AuditLogQuery(
         String scopeId,
         boolean unscopedOnly) {
 
-    /** 对照 Go 空查询的零值：全部过滤器为空、游标 0、limit 交给仓储取默认。 */
+    /** 空查询：全部过滤器为空、游标 0、limit 交给仓储取默认。 */
     public static AuditLogQuery empty() {
         return new AuditLogQuery(0, 0, "", "", "", "", "", false);
     }
 
-    /** 空过滤器归一：null 与 "" 等价（Go 的 string 零值语义）。 */
+    /** 空过滤器归一：null 与 "" 等价。 */
     private static boolean has(String v) {
         return v != null && !v.isEmpty();
     }

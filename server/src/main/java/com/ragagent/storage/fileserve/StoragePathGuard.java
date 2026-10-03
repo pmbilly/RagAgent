@@ -6,19 +6,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 存储路径守卫与三态引用解析的**单一份实现**（③ local 双实现去重，W5γ5.1）。
+ * 存储路径守卫与三态引用解析的**单一份实现**（local 双实现去重）。
  *
- * <p>此前同一条 Go 语义在两处各写一遍：{@code knowledge.LocalStorageService.resolveUnderBase}
+ * <p>两个调用方共享本类：{@code knowledge.LocalStorageService.resolveUnderBase}
  * （{@code resource://} 契约、错误折 BizException 信封）与
  * {@code storage.fileserve.LocalFileContentService.safePathUnderBase}
- * （{@code local://} 契约、错误抛 IOException → 404）。本类收敛两段共享逻辑；
- * 两支**各自保留**引用形态、落盘布局与错误通道——<b>不合并两支</b>：Go 侧根本没有
- * 对应物（Go 是"单 {@code FileService} + {@code local.go} 单实现 + 装饰器 + filetransport
- * 出口"），合并会造成 ~125 个 golden 重录而行为零收益。理由与证据见
- * {@code docs/storage-a3-plan.md} §3。</p>
+ * （{@code local://} 契约、错误抛 IOException → 404）。
+ * 两支**各自保留**引用形态、落盘布局与错误通道——<b>不合并两支</b>，
+ * 合并会造成大量 golden 重录而行为零收益。</p>
  *
- * <p>语义照 Go：{@code filepath.Clean}（unix 规则）与
- * {@code internal/utils/security.go} 的 {@code SafePathUnderBase}。</p>
+ * <p>语义：unix 规则的路径 Clean（折叠多斜杠、消 {@code .}、解 {@code ..}）
+ * 与 base 逃逸守卫。</p>
  */
 public final class StoragePathGuard {
 
@@ -46,7 +44,7 @@ public final class StoragePathGuard {
     }
 
     /**
-     * 对照 Go {@code filepath.Clean}（unix 规则）：
+     * unix 规则的路径 Clean：
      * 折叠多斜杠、消 {@code .}、解 {@code ..}、根/空的特殊形态。
      */
     public static String cleanPath(String path) {
@@ -81,8 +79,8 @@ public final class StoragePathGuard {
     }
 
     /**
-     * 对照 Go {@code SafePathUnderBase}：返回规范化绝对路径，逃逸 base 时抛
-     * {@code IOException}（文案照 Go 原文）。调用方各自翻译成自己的错误通道。
+     * 返回规范化绝对路径，逃逸 base 时抛
+     * {@code IOException}（文案为固定线格式）。调用方各自折成自己的错误通道。
      */
     public static String safePathUnderBase(String baseDir, String filePath) throws IOException {
         if (baseDir.isEmpty() || filePath.isEmpty()) {

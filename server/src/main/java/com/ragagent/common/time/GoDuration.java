@@ -3,8 +3,8 @@ package com.ragagent.common.time;
 import java.time.Duration;
 
 /**
- * Go {@code time.Duration.String()} 的复刻（错误文案是契约的一部分）。
- * 原随沙箱工具族，Housekeeping 等非沙箱消费方也在用，落位 common。
+ * 时长格式化（{@code 1h2m3.5s} / {@code 500ms} / {@code 0s} 形态）。
+ * 错误文案是契约的一部分，格式不可改。
  */
 public final class GoDuration {
 

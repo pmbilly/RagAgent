@@ -1,7 +1,7 @@
 package com.ragagent.common.storage;
 
 /**
- * 存储静态工具的启动期 env 快照（B6 批 7）。
+ * 存储静态工具的启动期 env 快照。
  *
  * <p>存储的路径/类型解析是**纯静态工具**（{@code StoragePaths}、{@code TenantFileServiceResolver}），
  * 没有 Spring 装配点，故值由 {@code config.RuntimeSnapshotWiring} 启动期写入一次；

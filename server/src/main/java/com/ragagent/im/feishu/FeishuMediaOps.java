@@ -17,10 +17,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 飞书媒体协作者（对照 Go adapter.go 的图片/文件段，自 {@link FeishuAdapter} 机械搬出）：
- * 卡片 markdown 外链图下载→上传换 image_key（失败降级纯链接）、GetMessageResource
- * 文件下载。image_key 缓存（IMAGE_KEY_CACHE）与 MD 正则留门面（测试直摸/跨簇共用）。
- * 持门面回引取 appId/region/ssrfGuard/http/token。
+ * 飞书媒体协作者：卡片 markdown 外链图下载→上传换 image_key（失败降级纯链接）、
+ * GetMessageResource 文件下载。image_key 缓存（IMAGE_KEY_CACHE）与 MD 正则留门面
+ * （测试直摸/跨簇共用）。持门面回引取 appId/region/ssrfGuard/http/token。
  */
 final class FeishuMediaOps {
 
@@ -36,7 +35,7 @@ final class FeishuMediaOps {
     static final int MAX_IMAGE_BYTES = 10 << 20;
     // ── 卡片 markdown 图片 → image_key ──────────────────────────────────────
 
-    /** 对照 {@code resolveMarkdownImages}：失败降级为纯链接（不让整次更新失败）。 */
+    /** 失败降级为纯链接（不让整次更新失败）。 */
     String resolveMarkdownImages(String accessToken, String content) {
         if (content == null || !content.contains("![")) {
             return content;
@@ -66,7 +65,7 @@ final class FeishuMediaOps {
         return out.toString();
     }
 
-    /** 对照 {@code imageKeyForURL}：缓存按 app 作用域 + URL 去 query。 */
+    /** 缓存按 app 作用域 + URL 去 query。 */
     String imageKeyForUrl(String accessToken, String rawUrl) throws Exception {
         String key = service.appId + "\u0000" + imageCacheKey(rawUrl);
         String cached = FeishuAdapter.IMAGE_KEY_CACHE.get(key);
@@ -78,13 +77,13 @@ final class FeishuMediaOps {
         return imageKey;
     }
 
-    /** 对照 {@code imageCacheKey}：去掉 query（签名 URL 的签名每次都变）。 */
+    /** 去掉 query（签名 URL 的签名每次都变）。 */
     static String imageCacheKey(String rawUrl) {
         int idx = rawUrl.indexOf('?');
         return idx >= 0 ? rawUrl.substring(0, idx) : rawUrl;
     }
 
-    /** 对照 {@code uploadImageFromURL}：下载（限 10MB）→ multipart 上传 → image_key。 */
+    /** 下载（限 10MB）→ multipart 上传 → image_key。 */
     String uploadImageFromUrl(String accessToken, String rawUrl) throws Exception {
         if (service.ssrfGuard != null) {
             service.ssrfGuard.validateURLForSSRF(rawUrl);

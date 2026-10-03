@@ -4,16 +4,14 @@ import java.sql.SQLException;
 import java.util.List;
 
 /**
- * Doris SQL 执行口（本仓测试接缝）——对照 Go 侧的 {@code *sql.DB}（database/sql）用法面：
- * {@code ExecContext / QueryContext / QueryRowContext.Scan}。
+ * Doris SQL 执行口（测试接缝）——抽象"执行 / 查询 / 标量"三种用法形态。
  *
- * <p>Go 直接对着 {@code *sql.DB} 写；Java 若直接持 JDBC 对象，SQL 文本与结果扫描路径
+ * <p>若直接持 JDBC 对象，SQL 文本与结果扫描路径
  * 就无法在单测里被钉住（Doris 方言 SQL 也没有本地可用的等价数据库）。这里抽一个窄口，
  * 生产实现是 {@link JdbcDorisSqlExecutor}（Hikari 池 + MySQL 协议），测试实现是记账用的
  * 假执行器——SQL 文本 / 参数序 / 扫描分支因此都能逐条断言。</p>
  *
- * <p>与 Go 的差异（备案）：Go 的 {@code ctx} 与 {@code error} 在 Java 里分别落成
- * 无 ctx（同其它店驱动）与 {@link SQLException}（受检，与 Go 的 error 语义对齐）。</p>
+ * <p>失败以受检 {@link SQLException} 表达。</p>
  */
 public interface DorisSqlExecutor extends AutoCloseable {
 
@@ -39,13 +37,13 @@ public interface DorisSqlExecutor extends AutoCloseable {
         T map(Row row) throws SQLException;
     }
 
-    /** 对照 {@code ExecContext}：返回影响行数（上游不消费）。 */
+    /** 执行更新，返回影响行数（上游不消费）。 */
     int execute(String sql, List<Object> args) throws SQLException;
 
-    /** 对照 {@code QueryContext}：把全部行映射成列表。 */
+    /** 查询，把全部行映射成列表。 */
     <T> List<T> query(String sql, List<Object> args, RowMapper<T> mapper) throws SQLException;
 
-    /** 对照 {@code QueryRowContext(...).Scan(&v)}：首行首列；无行返回 null。 */
+    /** 标量查询：首行首列；无行返回 null。 */
     Object scalar(String sql, List<Object> args) throws SQLException;
 
     @Override

@@ -10,9 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
- * 原始文件代理路由（{@code /files} 与 KB 作用域的图片代理）的 API-Key 专用守卫
- * ——对照 Go {@code middleware.AllowFileServeAPIKey()}
- * （internal/middleware/api_key_gate.go L174-203）。
+ * 原始文件代理路由（{@code /files} 与 KB 作用域的图片代理）的 API-Key 专用守卫。
  *
  * <h2>为什么这些路由需要单独的守卫，而不是一条普通策略</h2>
  * <p>这些路由服务的是**任意存储路径**，路径里只带一个租户段，

@@ -1,13 +1,13 @@
 package com.ragagent.datasource.connector.gitlab;
 
 /**
- * Go {@code path.Clean} / {@code path.Join} 的复刻。
+ * 按 Go 标准库 {@code path.Clean} / {@code path.Join} 语义实现的路径工具。
  *
  * <h2>为什么不能用 {@code java.nio.file.Path.normalize()}</h2>
  * <p>两者在<b>很多</b>输入上给出不同答案，而 {@code normalizePath} 的接受/拒绝判定
  * 直接建立在 {@code path.Clean(v) != v} 上——用错实现会<b>放行或拒绝完全不同的路径集合</b>：</p>
  * <pre>
- *   {@code path.Clean} 的行为（Go，纯字符串、永远是正斜杠）：
+ *   {@code path.Clean} 的行为（Go 语义，纯字符串、永远是正斜杠）：
  *     "docs//guide" → "docs/guide"    （折叠重复斜杠）
  *     "docs/./a"    → "docs/a"        （吃掉 .）
  *     "docs/"       → "docs"          （去尾斜杠）
@@ -29,8 +29,8 @@ package com.ragagent.datasource.connector.gitlab;
  *
  * <h2>字符处理与字节处理等价</h2>
  * <p>{@code Clean} 只对 {@code /} 与 {@code .} 做判断，这两个都是 ASCII，
- * 而 UTF-8 的续字节恒 &ge; 0x80，不会伪装成它们。所以按 Java 的
- * {@code char} 遍历与 Go 的按字节遍历结果一致（{@code gitlabFilePathEscape} 则<b>必须</b>
+ * 而 UTF-8 的续字节恒 &ge; 0x80，不会伪装成它们。所以按
+ * {@code char} 遍历与按字节遍历结果一致（{@code gitlabFilePathEscape} 则<b>必须</b>
  * 按字节，因为它的规则是"非 a-zA-Z0-9-_ 的每个字节都转义"）。</p>
  *
  * <p><b>内部工具，不是契约</b>：服务的是配置解析与 KB 相对路径生成，不落 jsonb、不进响应体。</p>
@@ -40,7 +40,7 @@ final class GoPath {
     private GoPath() {
     }
 
-    /** 对照 Go {@code path.Clean}（含 {@code "" → "."} 与 {@code "a/.." → "."}）。 */
+    /** 路径清洗（含 {@code "" → "."} 与 {@code "a/.." → "."}）。 */
     static String clean(String path) {
         if (path == null || path.isEmpty()) {
             return ".";
@@ -70,7 +70,7 @@ final class GoPath {
                 // ".." 元素：回退到上一个 '/'
                 r += 2;
                 if (out.length() > dotdot) {
-                    // ⚠️ Go 的 out.index(out.w) 读的是<b>逻辑游标处</b>的字符（该字符此刻
+                    // ⚠️ index(w) 读的是<b>逻辑游标处</b>的字符（该字符此刻
                     // 已不在输出里），不是"当前输出的最后一个字符"。写成
                     // `charAt(length-1)` 会少退一格——见 LazyBuf 的说明。
                     out.unwrite();
@@ -105,12 +105,12 @@ final class GoPath {
     }
 
     /**
-     * 对照 Go {@code path.lazybuf}——<b>不是一个普通的 StringBuilder</b>，
+     * 内部缓冲——<b>不是一个普通的 StringBuilder</b>，
      * 它有一个"逻辑游标" {@code w}，而 {@code index(i)} 可以读到 {@code w} 之后的
      * 陈旧内容（未物化时更是直接读源串）。
      *
      * <p>这个区别是真实缺陷级的：{@code Clean("docs-main/a/../b.md")} 在
-     * {@code ".."} 回退时，Go 先 {@code w--}（11→10）再判 {@code index(10)}——读的是
+     * {@code ".."} 回退时，先 {@code w--}（11→10）再判 {@code index(10)}——读的是
      * <b>刚被排除掉的那个 'a'</b>（{'!='}{@code '/'}）于是继续退到 {@code w=9}（停在
      * {@code '/'} 上）。若按"看当前输出最后一个字符"来写，{@code w=10} 时最后一个字符
      * 已经是 {@code '/'}，循环立刻停下，结果多留一个 {@code '/'}：
@@ -132,11 +132,10 @@ final class GoPath {
         }
 
         /**
-         * 对照 Go {@code lazybuf.append}：<b>物化后是"改写"而不是"追加"</b>——
-         * 写入位置是逻辑游标 {@code w}，不是缓冲末尾（Go 是
-         * {@code b.buf[b.w] = c}，缓冲长度恒为 {@code len(s)}）。
+         * 追加语义：<b>物化后是"改写"而不是"追加"</b>——
+         * 写入位置是逻辑游标 {@code w}，不是缓冲末尾（缓冲长度恒为 {@code len(s)}）。
          * 用 {@code StringBuilder.append} 会让游标之后的陈旧内容留在前面，
-         * {@code "a//b//../c"} 这种输入就会拼出 {@code "a/b"}（Go 给 {@code "a/c"}）。
+         * {@code "a//b//../c"} 这种输入就会拼出 {@code "a/b"}（正确结果是 {@code "a/c"}）。
          */
         void append(char c) {
             if (buf == null) {
@@ -144,7 +143,7 @@ final class GoPath {
                     w++;
                     return;
                 }
-                // 物化：整串拷一份（Go 只拷前 w 个字节，其余留零；
+                // 物化：整串拷一份（标准库只拷前 w 个字节，其余留零；
                 // 但 index() 只在 i < w 时被调，两种做法在可达路径上等价）
                 buf = source.toCharArray();
             }
@@ -152,12 +151,12 @@ final class GoPath {
             w++;
         }
 
-        /** 对照 Go 的 {@code out.w--}（只挪逻辑游标，不真的删字符）。 */
+        /** 只挪逻辑游标，不真的删字符。 */
         void unwrite() {
             w--;
         }
 
-        /** 对照 Go 的 {@code lazybuf.index(i)}：物化前读源串，物化后读缓冲（可越过游标）。 */
+        /** 物化前读源串，物化后读缓冲（可越过游标）。 */
         char index(int i) {
             return buf == null ? source.charAt(i) : buf[i];
         }
@@ -166,16 +165,16 @@ final class GoPath {
             return w;
         }
 
-        /** 对照 Go 的 {@code lazybuf.string()}：只取游标之前的部分。 */
+        /** 只取游标之前的部分。 */
         String string() {
             return buf == null ? source.substring(0, w) : new String(buf, 0, w);
         }
     }
 
     /**
-     * 对照 Go {@code path.Join}：用 {@code /} 连接后 {@code Clean}。
+     * 用 {@code /} 连接后 {@link #clean}。
      *
-     * <p>空元素<b>不</b>被丢弃（Go 是"只在 buf 非空时补分隔符，然后照样 append"），
+     * <p>空元素<b>不</b>被丢弃（只在已有内容时补分隔符，然后照样 append），
      * 但这不影响结果——{@code Clean} 会把多出来的斜杠折叠掉。
      * {@code knowledgeRelativePath} 依赖这个性质：{@code projectName} 或
      * {@code ref} 为空串时根名会退化成 {@code "-"} / {@code "docs-"}。</p>
@@ -186,7 +185,7 @@ final class GoPath {
             size += e == null ? 0 : e.length();
         }
         if (size == 0) {
-            // 对照 Go：全部元素为空串时返回 ""（不是 Clean 出来的 "."）
+            // 全部元素为空串时返回 ""（不是 clean 出来的 "."）
             return "";
         }
         StringBuilder b = new StringBuilder(size + elem.length);

@@ -32,7 +32,6 @@ public class ParsedChunk {
 
     /**
      * 送入 embedding 模型的文本：contextHeader（若有）+ "\n\n" + trimSpace(content)。
-     * chunker.Chunk.EmbeddingContent（splitter.go:43）。
      */
     public String embeddingContent() {
         String body = content.strip();

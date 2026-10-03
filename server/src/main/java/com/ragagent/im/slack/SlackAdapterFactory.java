@@ -12,11 +12,10 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.service.ImService;
 
 /**
- * Slack 渠道工厂（对照 Go {@code internal/im/slack/factory.go}）。
+ * Slack 渠道工厂。
  *
  * <p>凭据：{@code bot_token}（两种模式都要）+ {@code signing_secret}（webhook 验签）+
- * {@code app_token}（socket mode 握手）。模式缺省 {@code websocket}（照 Go 的
- * {@code ResolveMode(channel, "websocket")}）。</p>
+ * {@code app_token}（socket mode 握手）。模式缺省 {@code websocket}。</p>
  */
 @Component
 public class SlackAdapterFactory implements ImService.AdapterFactory {
@@ -42,7 +41,7 @@ public class SlackAdapterFactory implements ImService.AdapterFactory {
                 thread.setDaemon(true);
                 thread.start();
                 // Socket Mode 的入站走 WS，出站仍是 REST（同 webhook 的 api 面）——
-                // 但验签只对 HTTP 回调有意义，故传空 secret（照 Go 的 NewAdapter 分支）。
+                // 但验签只对 HTTP 回调有意义，故传空 secret。
                 return new ImService.AdapterRegistration(new SlackAdapter(botToken, ""),
                         client::stop);
             }

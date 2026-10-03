@@ -9,11 +9,10 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * Ollama Cloud 搜索 provider（对照 Go {@code web_search/ollama.go} 全文）。
+ * Ollama Cloud 搜索 provider。
  *
  * <p>POST {@code https://ollama.com/api/web_search}（硬编码防 SSRF）；请求体
- * map 形态（Go 的 map[string]interface{} → json.Marshal 按键字母序输出：
- * {@code max_results} 在 {@code query} 之前）；Bearer 鉴权 + 桌面 UA；
+ * 键按字母序输出：{@code max_results} 在 {@code query} 之前）；Bearer 鉴权 + 桌面 UA；
  * maxResults 缺省 5、封顶 10。</p>
  */
 public final class OllamaProvider implements WebSearchProvider {
@@ -50,7 +49,7 @@ public final class OllamaProvider implements WebSearchProvider {
         if (maxResults > MAX_RESULTS) {
             maxResults = MAX_RESULTS;
         }
-        // Go map 字母序：max_results 先于 query
+        // 请求体键按字母序：max_results 先于 query
         var body = GoJson.object();
         body.put("max_results", maxResults);
         body.put("query", query);

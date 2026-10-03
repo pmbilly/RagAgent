@@ -9,14 +9,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 管线结构化日志（对照 Go {@code common.PipelineLog/PipelineInfo/PipelineWarn/PipelineError}，
- * internal/common/tools.go:213-266）。
+ * 管线结构化日志。
  *
  * <p>行格式：{@code [PIPELINE] stage=X action=Y k1=v1 k2=v2}，字段按 key 字母序；
- * string 值走 strconv.Quote（Java 侧用 JSON 风格引号转义，两者对可见 ASCII 等价），
- * 值截到 300 rune 追加 "..."， SanitizeForLog 把 \n\r\t 折成空格。
- * 日志不是字节契约，但保持形状便于跨语言排障。ctx 在 Java 侧无对应物（TenantContext
- * 由 MDC/ThreadLocal 承担），故签名少 ctx 参数。</p>
+ * string 值做 JSON 风格引号转义，值截到 300 个 Unicode 码点追加 "..."，
+ * sanitizeForLog 把 \n\r\t 折成空格。日志不是字节契约，但保持固定形状便于排障。
+ * 签名不含 ctx 参数（上下文由 TenantContext/MDC/ThreadLocal 承担）。</p>
  */
 public final class PipelineLog {
 
@@ -30,7 +28,7 @@ public final class PipelineLog {
 
     private PipelineLog() {}
 
-    /** 构建 log 行（对照 PipelineLog）。 */
+    /** 构建 log 行。 */
     public static String format(String stage, String action, Map<String, Object> fields) {
         String st = stage == null || stage.isEmpty() ? DEFAULT_STAGE : stage;
         String ac = action == null || action.isEmpty() ? DEFAULT_ACTION : action;
@@ -58,7 +56,7 @@ public final class PipelineLog {
         LOG.error(format(stage, action, fields));
     }
 
-    /** 对照 formatPipelineLogValue（string → quote+截断；其余走 %v 形态）。 */
+    /** string 值转义+截断；其余转字符串形态。 */
     private static String formatValue(Object value) {
         if (value instanceof String s) {
             return quote(truncate(s));
@@ -73,7 +71,7 @@ public final class PipelineLog {
         return value == null ? "<nil>" : String.valueOf(value);
     }
 
-    /** 对照 truncatePipelineValue：换行转字面 \\n，300 rune 截断。 */
+    /** 换行转字面 \\n，300 码点截断。 */
     private static String truncate(String content) {
         String c = content.replace("\n", "\\n");
         if (runeLength(c) <= VALUE_MAX_RUNE) {
@@ -82,7 +80,7 @@ public final class PipelineLog {
         return runeSubstring(c, VALUE_MAX_RUNE) + ELLIPSIS;
     }
 
-    /** strconv.Quote 的可见 ASCII 等价形态（非字节契约）。 */
+    /** JSON 风格引号转义（控制符转 \\uXXXX，非字节契约）。 */
     private static String quote(String s) {
         StringBuilder sb = new StringBuilder(s.length() + 2);
         sb.append('"');
@@ -103,7 +101,7 @@ public final class PipelineLog {
         return sb.append('"').toString();
     }
 
-    /** 对照 utils.SanitizeForLog：\n\r\t → 空格、其余 C0 控制符移除。 */
+    /** \n\r\t → 空格、其余 C0 控制符移除。 */
     private static String sanitizeForLog(String input) {
         if (input == null || input.isEmpty()) {
             return "";

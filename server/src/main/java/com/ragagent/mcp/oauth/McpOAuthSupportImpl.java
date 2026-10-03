@@ -19,16 +19,14 @@ import com.ragagent.mcp.protocol.McpProtocol;
 import com.ragagent.mcp.protocol.McpTransport;
 
 /**
- * {@link McpOAuthSupport} 的生产实现——<b>这就是"接上协议层注入点"的那一段</b>
- * （对照 Go {@code buildOAuthConfig} + {@code NewOAuth*Client} + {@code newOAuthRuntime}，
- * internal/mcp/client.go:184-249、258-283）。
+ * {@link McpOAuthSupport} 的生产实现——<b>这就是"接上协议层注入点"的那一段</b>。
  *
- * <p>三个动作与 Go 的对应：</p>
+ * <p>三个动作：</p>
  * <ol>
  *   <li>{@link #resolvePrincipal}：归一化 principal，principal 无效时回落到
  *       {@code (web_user, userId)}，再无效就报
  *       {@code "principal context is required to connect to an OAuth MCP service"}
- *       （文案逐字对照 Go）；</li>
+ *       （固定文案）；</li>
  *   <li>{@link #createTransport}：构造带 Bearer 注入的 {@link OAuthTransport}，
  *       token 用 <b>{@link ManagedTokenStore}</b>——不自行刷新；</li>
  *   <li>{@link #createRuntime}：构造 {@link OAuthRuntime} 做协调过的刷新
@@ -36,7 +34,7 @@ import com.ragagent.mcp.protocol.McpTransport;
  * </ol>
  *
  * <p>两处都<b>不</b>调 {@code McpServiceUrls.validateServiceOutboundUrls}——那已经在
- * {@code McpClientFactory.createClient} 的开头做过一次了（Go 同：client.go 开头 + newHandler）。</p>
+ * {@code McpClientFactory.createClient} 的开头做过一次了。</p>
  */
 public class McpOAuthSupportImpl implements McpOAuthSupport {
 
@@ -52,9 +50,9 @@ public class McpOAuthSupportImpl implements McpOAuthSupport {
     }
 
     /**
-     * 对照 Go {@code buildOAuthConfig} 的 principal 解析段（client.go:266-273）。
+     * 解析并校验本次连接的 principal。
      *
-     * @throws McpException principal 缺失（文案与 Go 逐字一致）
+     * @throws McpException principal 缺失
      */
     @Override
     public TenantContext.Principal resolvePrincipal(McpClientConfig config, McpService service) {
@@ -72,7 +70,6 @@ public class McpOAuthSupportImpl implements McpOAuthSupport {
     }
 
     /**
-     * 对照 Go {@code client.NewOAuthSSEClient} / {@code NewOAuthStreamableHttpClient}：
      * 构造带 OAuth 的传输。headers 已由协议层注入好（CustomHeaders + 静态鉴权头，
      * OAuth 策略不产生静态头），这里只在其上补 {@code Authorization}。
      */
@@ -88,7 +85,7 @@ public class McpOAuthSupportImpl implements McpOAuthSupport {
     }
 
     /**
-     * 对照 Go {@code newOAuthRuntime}（client.go:240-249）：
+     * 构造运行期刷新协作者：
      * 与传输共享<b>同一份</b> OAuth 配置（因此也共享同一个 ManagedTokenStore 语义）。
      */
     @Override
@@ -99,7 +96,7 @@ public class McpOAuthSupportImpl implements McpOAuthSupport {
     }
 
     /**
-     * 对照 Go {@code buildOAuthConfig} 的配置装配段（client.go:275-283）。
+     * 装配 OAuth 配置。
      *
      * @param managed true = 运行期（{@link ManagedTokenStore}，隐藏过期、不自行刷新）；
      *                false = 授权流程用（{@link DbTokenStore}）
@@ -127,13 +124,13 @@ public class McpOAuthSupportImpl implements McpOAuthSupport {
         return cfg;
     }
 
-    /** 对照 Go {@code *config.Service.URL} 的入参（本类里由调用方直接给 url）。 */
+    /** 从客户端配置取租户 ID（null 按 0 处理）。 */
     static long tenantIdOf(McpClientConfig config) {
         return config.tenantId() == null ? 0L : config.tenantId();
     }
 
     /**
-     * 对照 Go {@code resolveTimeout}（client.go）：{@code AdvancedConfig.timeout > 0}
+     * 超时解析：{@code AdvancedConfig.timeout > 0}
      * 才覆盖，默认 30s。
      */
     static Duration resolveTimeout(McpService service) {

@@ -28,7 +28,6 @@ import com.ragagent.im.service.ImService.QaTask;
 /**
  * IM QA 执行编排：队列 worker 的租户上下文绑定与在途登记、full-output / 流式 /
  * 非流式三条发送路径、同步 runQA（事件收集 + 消息落库）。
- * 对照 Go executeQARequest（service.go L1927-2013）与 runQA（L2924-3115）。
  */
 final class ImQaRunner {
 
@@ -40,11 +39,10 @@ final class ImQaRunner {
         this.service = service;
     }
 
-    // ── QA 执行（executeQARequest，service.go L1927-2013） ────────────────
+    // ── QA 执行 ──────────────────────────────────────────────────────────
 
     void executeQARequest(QaTask task) {
-        // 队列 worker 是独立虚拟线程：租户上下文必须显式携带（约定 §5，对照 Go
-        // ctx 随 qaRequest.ctx 流转）。
+        // 队列 worker 是独立虚拟线程：租户上下文必须显式携带。
         TenantContext.set(task.tenantId(), new TenantContext.Principal(
                 TenantContext.PrincipalTypes.IM_USER, "system-" + task.tenantId()),
                 "viewer", false, "system-" + task.tenantId(), false);
@@ -147,7 +145,7 @@ final class ImQaRunner {
         service.sendReplyQuiet(attach.adapter(), attach.msg(), new ReplyMessage(display, false, true));
     }
 
-    // ── runQA（service.go L2924-3115）：事件收集 + 消息落库 ────────────────
+    // ── runQA：事件收集 + 消息落库 ────────────────────────────────────────
 
     QaOutcome runQA(QaAttach attach) {
         EventBus eventBus = new EventBus();
@@ -180,7 +178,7 @@ final class ImQaRunner {
             complete.countDown();
         });
         eventBus.on(EventType.EVENT_MCP_OAUTH_REQUIRED, evt -> {
-            // OAuth 待授权：IM 无法处理会话内提示 → 汇总成文末提示（γ2 精简为日志备案）。
+            // OAuth 待授权：IM 无法处理会话内提示 → 汇总成文末提示（此处仅记日志备案）。
             log.info("[IM] MCP OAuth required: {}", evt.getData());
         });
 
@@ -207,8 +205,8 @@ final class ImQaRunner {
             complete.countDown();
         });
 
-        // 租户上下文：IM 回调无 JWT——显式注入合成身份（Go withIMIdentity 的
-        // "system-<tenantID>" 对应 TenantContext.IM_USER principal）。
+        // 租户上下文：IM 回调无 JWT——显式注入合成身份
+        // （"system-<tenantID>" + TenantContext.IM_USER principal）。
         long imTenant = attach.channel().getTenantId();
         TenantContext.set(imTenant, new TenantContext.Principal(
                 TenantContext.PrincipalTypes.IM_USER, "system-" + imTenant), "viewer",
@@ -216,8 +214,7 @@ final class ImQaRunner {
         try {
             QaSupport.QaRequest qaReq = service.qaRequests.buildIMQARequest(session, attach.msg().content,
                     assistantMsg.getId(), userMsg.getId(), agent, attach.msg().quote);
-            // 同步执行（Go 是 goroutine + select 等待；Java 侧 QA 服务内部为
-            // 虚拟线程管线，事件经 eventBus 回流到上面的订阅）。
+            // 同步执行（QA 服务内部为虚拟线程管线，事件经 eventBus 回流到上面的订阅）。
             Exception runErr;
             try {
                 if (agent != null && service.qaRequests.isAgentMode(agent)) {
@@ -235,7 +232,7 @@ final class ImQaRunner {
                 complete.countDown();
             } else {
                 try {
-                    // 等待最终帧（对照 select done / waitForIMAgentComplete）。
+                    // 等待最终帧。
                     if (!done.await(10, java.util.concurrent.TimeUnit.MINUTES)) {
                         qaErr.compareAndSet(null, new java.util.concurrent.TimeoutException("IM QA wait"));
                     }

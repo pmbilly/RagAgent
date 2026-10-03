@@ -21,8 +21,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * 消息作用域的资源代理（收尾批 W5c，对照 Go router/files.go serveMessageScopedFiles +
- * newMessageScopedFileServeHandler + access.ResolveMessageFile）。
+ * 消息作用域的资源代理。
  *
  * <p>聊天渲染器加载 assistant 消息内嵌的资源用。消息服务先证明调用者拥有所在会话
  * （{@code MessageService.getMessage} 的 loadSessionForRead 可见性判定，含 Admin
@@ -30,11 +29,11 @@ import jakarta.servlet.http.HttpServletResponse;
  * knowledge_references / images / agent_steps[].tool_calls[].result 五处持久化字段，
  * MessageReferencesFile 的整 token 匹配）。</p>
  *
- * <p>Go 的中间件链：APIKeyGate（chat+fullAccess 策略，见 APIKeyRoutePolicies）
- * → g.Viewer()（RbacInterceptor 规则）→ handler。</p>
+ * <p>中间件链：APIKeyGate（chat+fullAccess 策略，见 APIKeyRoutePolicies）
+ * → RBAC viewer 规则（RbacInterceptor）→ handler。</p>
  *
  * <p><b>已知收紧</b>：跨租户消息文件的 shared-agent / org-shared KB 两条授予路径
- * 随波 5——owner ≠ caller 恒 403（Go 在 share 在位时放行），方向偏保守。</p>
+ * 未实现——owner ≠ caller 恒 403，方向偏保守。</p>
  */
 @RestController
 public class MessageFileProxyController {
@@ -50,7 +49,7 @@ public class MessageFileProxyController {
         this.proxy = proxy;
     }
 
-    /** Go 只注册了 GET：HEAD 落 gin NoRoute（见 FileProxyController 类注释）。 */
+    /** 只有 GET 注册了真实处理：HEAD 落 NoRoute 响应（见 FileProxyController 类注释）。 */
     @RequestMapping(value = "/api/v1/sessions/{id}/messages/{message_id}/files",
             method = RequestMethod.HEAD)
     public void filesHead(@PathVariable("id") String id,

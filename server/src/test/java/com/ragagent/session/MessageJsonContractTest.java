@@ -26,25 +26,25 @@ import com.ragagent.session.domain.UsedMemory;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link Message} 响应体的 JSON 键序、键集与"不该泄漏的字段"（§14.9l S2 换锚后：
- * 键名＝Java 字段名、键序＝声明序、全部键恒输出）。
+ * {@link Message} 响应体的 JSON 键序、键集与"不该泄漏的字段"（键名＝Java 字段名、
+ * 键序＝声明序、全部键恒输出）。
  *
  * <p>用 Jackson 的 {@code fieldNames()} 取**顶层**键序（而不是正则）：正则会把嵌套对象的键
- * 也一并捞进来，口径容易和 Go 那边对不齐，反而不稳。</p>
+ * 也一并捞进来，口径反而不稳。</p>
  */
 class MessageJsonContractTest {
 
     private static final OffsetDateTime TS =
             OffsetDateTime.of(2026, 9, 18, 10, 30, 0, 0, ZoneOffset.ofHours(8));
 
-    /** 23 个键、声明序（§14.9l S2 换锚后键名＝Java 字段名、全部恒输出）。 */
+    /** 23 个键、声明序（键名＝Java 字段名、全部恒输出）。 */
     private static final List<String> KEY_ORDER = List.of(
             "id", "sessionId", "requestId", "content", "role", "knowledgeReferences",
             "agentSteps", "mentionedItems", "images", "attachments", "artifacts",
             "completed", "fallback", "agentDurationMs", "usage", "channel", "agentId",
             "modelId", "knowledgeId", "usedMemories", "createdAt", "updatedAt", "deletedAt");
 
-    /** execution_context 的 12 个键、声明序（§14.9l S5 换锚后同样无条件输出）。 */
+    /** execution_context 的 12 个键、声明序（同样无条件输出）。 */
     private static final List<String> EXECUTION_CONTEXT_KEYS = List.of(
             "agentConfigHash", "questionSuggestions", "knowledgeBaseIds", "knowledgeIds",
             "tagIds", "tagScopes", "mcpServiceIds", "skillNames",
@@ -63,8 +63,8 @@ class MessageJsonContractTest {
 
     @Test
     void attachmentStorageUrlNeverLeaks() {
-        // MessageAttachment.url 是内部句柄（provider://path）。Go 的 tag 是 json:"-"，
-        // 且它的 Value() 也是 json.Marshal——所以这一个字段**响应和落库都不带**。
+        // MessageAttachment.url 是内部句柄（provider://path），@JsonIgnore 让
+        // 响应和落库都不带这个字段。
         // 外泄等于给出一个可跨会话下载的引用。
         String out = json(fullMessage());
         assertFalse(out.contains("secret://internal-handle"), "附件存储句柄泄漏到了 JSON: " + out);
@@ -72,18 +72,18 @@ class MessageJsonContractTest {
 
     @Test
     void renderedContentAndExecutionContextNeverLeak() {
-        // 这两个字段是 json:"-"，只落库不出响应
+        // 这两个字段带 @JsonIgnore，只落库不出响应
         String out = json(fullMessage());
         assertFalse(out.contains("RAG-augmented"), "rendered_content 泄漏: " + out);
         assertFalse(out.contains("exec-ctx"), "execution_context 泄漏: " + out);
     }
 
     /**
-     * {@code execution_context} 的**落库**键集（§14.9l S5 换锚）。
+     * {@code execution_context} 的**落库**键集。
      *
      * <p>这一列不出响应，所以没有任何 HTTP 夹具能守它——漏改不会报错，只会让追问建议之类的
      * 派生体验读不到当时的作用域（静默降级）。此处把键集与"旧下划线键不得出现"钉死，
-     * 存量行按 HANDOFF §14.9l S5 的 SQL 迁移。</p>
+     * 存量行由 SQL 迁移负责改名。</p>
      */
     @Test
     void executionContextJsonbKeysMatchFieldNames() {
@@ -103,7 +103,7 @@ class MessageJsonContractTest {
 
         String out = json(ctx);
         assertEquals(EXECUTION_CONTEXT_KEYS, fieldNames(out));
-        // 全空实例同样输出全部 12 个键（原先照抄 Go omitempty 的 @JsonInclude 已随 S5 摘除）
+        // 全空实例同样输出全部 12 个键（条件输出的 @JsonInclude 已摘除，键恒出现）
         assertEquals(EXECUTION_CONTEXT_KEYS, fieldNames(json(new MessageExecutionContext())));
         // 旧下划线键不得出现（否则等于旧行读不出来）
         assertFalse(out.contains("agent_config_hash"), out);

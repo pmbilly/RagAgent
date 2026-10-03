@@ -4,7 +4,7 @@ import java.util.List;
 
 
 /**
- * 测试 MCP 服务连接的结果（对照 Go types.MCPTestResult）。
+ * 测试 MCP 服务连接的结果。
  * success 恒输出，其余 omitempty。
  */
 public class McpTestResult {

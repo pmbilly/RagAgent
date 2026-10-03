@@ -3,13 +3,13 @@ package com.ragagent.wiki.prompt;
 import java.util.Map;
 
 /**
- * 极简 prompt 模板渲染器，语义对齐原实现的 {@code text/template}
+ * 极简 prompt 模板渲染器，语义对齐 {@code text/template} 模板语法
  * （取值 {@code {{.X}}} + 条件块 {@code {{if .X}}...{{end}}} 的确定性替换）。
  *
  * <p><b>为什么自己写而不用现成引擎</b>：本包的 prompt 模板只用到两个构造——
  * 取值 {@code {{.X}}} 与条件块 {@code {{if .X}}...{{end}}}——没有任何
  * {@code range} / {@code else} / 管道 / 函数调用。引入 Freemarker / Handlebars 只会
- * 带来"模板语义与原实现不完全一致"的风险（例如缺失变量分别渲染成空串、null、
+ * 带来"模板语义偏差"的风险（例如缺失变量分别渲染成空串、null、
  * 还是报错），而本项目对 prompt 字节级的保真要求远高于模板功能的丰富度。
  * 二十行的确定性替换反而是最容易对齐的做法。</p>
  *
@@ -146,7 +146,7 @@ public final class WikiPromptTemplate {
     /**
      * 校验 {@code {{.X}}} / {@code {{if .X}}} 里的变量名形态，并取出 {@code X}。
      *
-     * <p>模板字段名是标识符（原实现里首次大写）；这里只做"形如 {@code .Name}"的
+     * <p>模板字段名是标识符（首字母大写）；这里只做"形如 {@code .Name}"的
      * 基本校验，把真正的拼写错误留给测试去发现（调用方传的 map 缺键只会渲染成空串，
      * 不会报错——所以必须靠测试而不是运行时来守）。</p>
      */

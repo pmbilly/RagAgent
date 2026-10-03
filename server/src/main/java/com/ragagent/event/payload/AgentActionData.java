@@ -7,11 +7,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Agent 工具执行事件数据（对照 Go {@code event.AgentActionData}，internal/event/event_data.go:119-127）。
- * emit 点：act.go:359（{@code <toolCallID>-tool-exec}），见包注释 emit 表 #18。
+ * Agent 工具执行事件数据。
+ * emit 点：ActPhase（{@code <toolCallID>-tool-exec}），见包注释 emit 表 #18。
  *
- * <p>实录锚点：{@code tool_input} 无 omitempty——nil map 输出 {@code "tool_input":null}；
- * {@code error} 带 omitempty——成功路径整键省略。</p>
+ * <p>{@code tool_input} 恒输出——null map 也输出 {@code "tool_input":null}；
+ * {@code error} 空串省略——成功路径整键不出现。</p>
  */
 @JsonPropertyOrder({"iteration", "tool_name", "tool_input", "tool_output", "success",
         "error", "duration_ms"})
@@ -23,23 +23,23 @@ public class AgentActionData {
     @JsonProperty("tool_name")
     private String toolName = "";
 
-    /** 无 omitempty：null（Go nil map）恒输出 */
+    /** null map 也输出 null */
     @JsonProperty("tool_input")
     private Map<String, Object> toolInput;
 
     @JsonProperty("tool_output")
     private String toolOutput = "";
 
-    /** 无 omitempty：false 恒输出 */
+    /** false 恒输出 */
     @JsonProperty("success")
     private boolean success;
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("error")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String error = "";
 
-    /** 无 omitempty：0 恒输出 */
+    /** 0 恒输出 */
     @JsonProperty("duration_ms")
     private long durationMs;
 

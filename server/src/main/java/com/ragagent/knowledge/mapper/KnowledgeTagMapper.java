@@ -184,7 +184,7 @@ public interface KnowledgeTagMapper {
     long countByKB(long tenantId, String kbId,
                    @Param("escapedKeyword") String escapedKeyword);
 
-    /** 按主键整行覆写（含零值，照抄）。 */
+    /** 按主键整行覆写（含零值）。 */
     @Update("UPDATE knowledge_tags SET seq_id = #{t.seqId}, tenant_id = #{t.tenantId}, "
             + "knowledge_base_id = #{t.knowledgeBaseId}, name = #{t.name}, color = #{t.color}, "
             + "sort_order = #{t.sortOrder}, created_at = #{t.createdAt}, updated_at = #{t.updatedAt} "

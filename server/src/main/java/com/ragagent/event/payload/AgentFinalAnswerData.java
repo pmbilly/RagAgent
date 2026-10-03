@@ -5,13 +5,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 最终答案流式数据（对照 Go {@code event.AgentFinalAnswerData}，internal/event/event_data.go:196-200）。
- * 7 个 emit 点（think 324 / observe 385+394+441 / finalize 68+93 / engine 449），
- * 见包注释 emit 表——最高危的 SSE 时序事件：同一 id 的分片在客户端重组
- * （扣留键 = 类型 + NUL + 事件 id，§9.3）。
+ * 最终答案流式数据。
+ * 7 个 emit 点（ThinkPhase / ObservePhase / FinalizePhase，见包注释 emit 表）——
+ * 最高危的 SSE 时序事件：同一 id 的分片在客户端重组（扣留键 = 类型 + NUL + 事件 id）。
  *
- * <p>实录锚点：零值输出 {@code {"content":"","done":false}}；{@code is_fallback}
- * 带 omitempty——true 才输出（无知识库命中的兜底回答标记）。</p>
+ * <p>零值输出 {@code {"content":"","done":false}}；{@code is_fallback}
+ * 为 true 才输出（无知识库命中的兜底回答标记）。</p>
  */
 @JsonPropertyOrder({"content", "done", "is_fallback"})
 public class AgentFinalAnswerData {
@@ -19,11 +18,11 @@ public class AgentFinalAnswerData {
     @JsonProperty("content")
     private String content = "";
 
-    /** 无 omitempty：false 恒输出（Done:true 是收尾标记） */
+    /** false 恒输出（Done:true 是收尾标记） */
     @JsonProperty("done")
     private boolean done;
 
-    /** 兜底回答（无知识库命中）标记；Go omitempty */
+    /** 兜底回答（无知识库命中）标记；false 省略 */
     @JsonProperty("is_fallback")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean isFallback;

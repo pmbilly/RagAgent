@@ -19,44 +19,44 @@ import com.ragagent.datasource.domain.FetchedItem;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * wiki 与云盘<b>共用</b>的泛型流式同步引擎（对照 Go {@code core/engine.go} 全文）。
+ * wiki 与云盘<b>共用</b>的泛型流式同步引擎。
  *
  * <p>各连接器的差异（节点类型、列举 API、编辑时间字段、游标线格式、抓取派发、日志标签）
  * 全部隔离在 {@link NodeOps} 适配器后面。{@code fetchAll} / {@code fetchIncremental} 是
  * 同一引擎的薄封装：把 Emit 收进列表而不是流式外发。</p>
  *
- * <h2>三条刻意保留的行为（见 ADR-0005 / 设计 §2.4）</h2>
+ * <h2>三条刻意保留的行为</h2>
  * <ol>
  *   <li><b>续跑/增量快路径</b>：记录里的编辑时间与当前相同 → 跳过该节点，但<b>保留游标条目</b>。</li>
  *   <li><b>抓取失败不推进游标</b>：保留<b>旧的</b>编辑时间，下次跑 prev != current 于是重试该节点，
  *       而不是被"已同步"永久跳过（Tencent/WeKnora#2136）。这条对 FetchIncremental
- *       路径同样成立（Go 早先版本在抓取<b>之前</b>就推进游标，是个潜伏的 #2136 bug）。</li>
+ *       路径同样成立。</li>
  *   <li><b>删除检测只在完整列举时做</b>：部分列举没有枚举完整个子树，做删除检测会误报。</li>
  * </ol>
  *
- * <h2>ctx 的三个用途在 Java 侧的去处</h2>
+ * <h2>取消与检查点</h2>
  * <ul>
  *   <li>取消 → 线程中断（{@code emit}/{@code checkpoint} 抛异常即中止）；</li>
  *   <li>节点间隔检查点（{@code processed % N == 0}）→ {@link #checkpointInterval}；</li>
- *   <li>墙钟间隔检查点（{@code time.Since(lastCheckpoint) >= max}）→
+ *   <li>墙钟间隔检查点（距上次检查点超过 max）→
  *       {@link #checkpointMaxInterval}。</li>
  * </ul>
- * <p>后两个在 Go 里是<b>包级 var</b>（测试会改），Java 侧同样做成可覆盖的静态字段
- * ——任务书约束第 3 条：时间敏感项必须留出注入缝，不靠真实 sleep 推进。</p>
+ * <p>后两个做成<b>可覆盖的静态字段</b>：时间敏感项必须留出注入缝，
+ * 测试不靠真实 sleep 推进。</p>
  */
 public final class SyncEngine {
 
     private static final Logger log = LoggerFactory.getLogger(SyncEngine.class);
 
     /**
-     * 对照 Go {@code FeishuStreamCheckpointInterval}：流式抓取中每处理多少个节点打一次
+     * 流式抓取中每处理多少个节点打一次
      * 游标检查点。小到"一次超时的同步不会丢太多进度"，大到"检查点的持久化（一次 DB 写）
      * 不会喧宾夺主"。
      */
     public static volatile int checkpointInterval = 50;
 
     /**
-     * 对照 Go {@code FeishuStreamCheckpointMaxInterval}：检查点还受<b>墙钟时间</b>约束。
+     * 检查点还受<b>墙钟时间</b>约束。
      *
      * <p>没有它，一次"节点数少于 {@link #checkpointInterval}、但每个都很慢（被限流）"的
      * 同步可能一直到 2 小时任务超时都没打过检查点，于是每次重试都从头再来——
@@ -68,18 +68,18 @@ public final class SyncEngine {
     }
 
     /**
-     * 把某个连接器的节点类型适配到共享同步引擎（对照 Go {@code NodeOps[N]}）。
+     * 把某个连接器的节点类型适配到共享同步引擎。
      *
      * <p>每个方法都是纯访问器或薄封装——<b>引擎逻辑不在这里</b>。</p>
      */
     public interface NodeOps<N> {
 
         /**
-         * 对照 Go {@code List(ctx, client, resourceID) (nodes, partial, err)}。
+         * 列举一个资源下的全部节点。
          *
-         * <p>非 nil 的 {@code partial}（且 {@code err == null}）表示<b>部分列举</b>：
+         * <p>非 null 的 {@code partial}（且 {@code err == null}）表示<b>部分列举</b>：
          * nodes 仍然可用、同步继续，但调用方要经 {@link #listFailureItems} 把失败的子树
-         * 暴露出来。非 nil 的 {@code err} 是致命错误，直接中止同步。</p>
+         * 暴露出来。非 null 的 {@code err} 是致命错误，直接中止同步。</p>
          */
         ListResult<N> list(FeishuClient client, String resourceId);
 
@@ -94,12 +94,11 @@ public final class SyncEngine {
         String editTime(N node);
 
         /**
-         * 抓取一个节点的内容；返回空列表表示"不支持的类型，没有条目"
-         * （对照 Go 的 {@code (nil, nil)}）。
+         * 抓取一个节点的内容；返回空列表表示"不支持的类型，没有条目"。
          */
         List<FetchedItem> fetch(FeishuClient client, N node, String resourceId, boolean multimodal);
 
-        /** 把部分列举错误转成错误条目（对照 Go 的 {@code ListFailureItems}）。 */
+        /** 把部分列举错误转成错误条目。 */
         List<FetchedItem> listFailureItems(String resourceId, RuntimeException partial);
 
         /** 用户可见错误文案里的名词：{@code "nodes"} / {@code "files"}。 */
@@ -119,12 +118,11 @@ public final class SyncEngine {
 
         /**
          * 把引擎内部的 times 映射包装成连接器的线格式 {@code SyncCursor}
-         * （JSON 序列化以实现快照隔离，镜像 Go 的
-         * {@code FeishuCursor.toSyncCursor} / {@code FeishuDriveCursor.toSyncCursor}）。
+         * （JSON 序列化以实现快照隔离）。
          */
         SyncCursor encodeCursor(Map<String, Map<String, String>> times, OffsetDateTime lastSync);
 
-        /** 对照 Go 的三个返回值 {@code (nodes, partial, err)}。 */
+        /** 列举结果三元组：nodes / 部分失败 / 致命错误。 */
         record ListResult<N>(List<N> nodes, RuntimeException partial, RuntimeException err) {
 
             public static <N> ListResult<N> ok(List<N> nodes) {
@@ -142,8 +140,8 @@ public final class SyncEngine {
     }
 
     /**
-     * 对照 Go {@code CollectHandler}：{@code FetchAll} / {@code FetchIncremental} 用它
-     * 把每个 Emit 收进切片而不是流式外发。{@code Checkpoint} 是 no-op——那两条路径
+     * {@code FetchAll} / {@code FetchIncremental} 用它
+     * 把每条条目收进列表而不是流式外发。{@code Checkpoint} 是 no-op——那两条路径
      * 最后一次性返回单个游标。
      */
     public static final class CollectHandler implements StreamHandler {
@@ -157,7 +155,7 @@ public final class SyncEngine {
 
         @Override
         public void checkpoint(SyncCursor cursor) {
-            // no-op（对照 Go）
+            // no-op
         }
 
         public List<FetchedItem> items() {
@@ -166,7 +164,7 @@ public final class SyncEngine {
     }
 
     /**
-     * 对照 Go {@code runSync}：{@code FetchStream / FetchAll / FetchIncremental} 背后
+     * {@code FetchStream / FetchAll / FetchIncremental} 背后
      * 唯一的实现。{@code cursor == null} 时抓全部（全量）；有游标时跳过编辑时间未变的
      * 节点（增量 + 续跑）。{@code resourceIds} 由调用方给：{@code fetchStream} /
      * {@code fetchIncremental} 传 {@code config.resourceIds}（先做非空检查），
@@ -185,7 +183,7 @@ public final class SyncEngine {
 
         int processed = 0;
         Instant lastCheckpoint = Instant.now();
-        // Go 的 for range 打在 nil slice 上是一次都不跑：Java 侧同样把 null 当空。
+        // null 按空列表处理，一次都不跑。
         List<String> ids = resourceIds == null ? List.of() : resourceIds;
         for (String resourceId : ids) {
             NodeOps.ListResult<N> listed = ops.list(client, resourceId);
@@ -232,8 +230,8 @@ public final class SyncEngine {
                 // 续跑/增量快路径：记录里的编辑时间等于当前值 → 未变更（或本轮已同步过）——
                 // 保留记录，跳过重新抓取。
                 //
-                // ⚠️ Go 这里是 `continue`：**不**递增 processed、**也**不打检查点
-                // （照抄）。于是一次"全部未变更"的续跑不会打任何检查点，最终游标由
+                // ⚠️ 这条快路径**不**递增 processed、**也**不打检查点：
+                // 于是一次"全部未变更"的续跑不会打任何检查点，最终游标由
                 // runSync 的返回值给出。
                 if (hadPrev && java.util.Objects.equals(prevEdit, editTimeStr)) {
                     resourceTimes.put(tok, editTimeStr);
@@ -278,8 +276,8 @@ public final class SyncEngine {
                 }
 
                 processed++;
-                // Go 的 lastCheckpoint = time.Now() 在检查点**尝试之后**无条件刷新
-                // （即便 Checkpoint 返回错误也刷新）——照抄。
+                // lastCheckpoint 在检查点**尝试之后**无条件刷新
+                // （即便 checkpoint 抛错也刷新）。
                 if (checkpointIfDue(processed, lastCheckpoint, handler, ops, newTimes, lastSync)) {
                     lastCheckpoint = Instant.now();
                 }
@@ -312,8 +310,8 @@ public final class SyncEngine {
     }
 
     /**
-     * 打检查点（若到期）。返回是否真的打了，让调用方决定要不要刷新
-     * {@code lastCheckpoint}（对照 Go 里 {@code lastCheckpoint = time.Now()} 的位置）。
+     * 打检查点（若到期）。返回是否真的打了，让调用方据此刷新
+     * {@code lastCheckpoint}。
      */
     private static <N> boolean checkpointIfDue(int processed, Instant lastCheckpoint,
                                                StreamHandler handler, NodeOps<N> ops,
@@ -325,8 +323,8 @@ public final class SyncEngine {
         if (!dueByCount && !dueByTime) {
             return false;
         }
-        // Go 的 `processed%FeishuStreamCheckpointInterval == 0` 在 interval 为 0 时会 panic；
-        // Java 侧把 0 当作"不按数量触发"（见 dueByCount），只有时间条件生效。
+        // interval 为 0 时按数量触发会除零；
+        // 这里把 0 当作"不按数量触发"（见 dueByCount），只有时间条件生效。
         try {
             handler.checkpoint(ops.encodeCursor(newTimes, lastSync));
         } catch (RuntimeException cerr) {
@@ -336,7 +334,7 @@ public final class SyncEngine {
     }
 
     /**
-     * 对照 Go {@code FetchStreamEngine}：跑流式同步。{@code FetchStream} /
+     * 跑流式同步。{@code FetchStream} /
      * {@code FetchIncremental} 的外壳只差"传不传游标、怎么收集结果"，都路由到这里。
      */
     public static <N> SyncCursor fetchStreamEngine(FeishuClient client, DataSourceConfig config,
@@ -346,9 +344,9 @@ public final class SyncEngine {
     }
 
     /**
-     * 对照 Go {@code FetchAllEngine}：跑全量同步并把条目收进切片。它把调用方给的
-     * resourceIDs 原样透传、<b>不做</b>非空检查（镜像原 FetchAll——空列表被接受并
-     * 返回 0 条目）。出错时已收集的条目被丢弃（对照原行为：一次致命列举错误
+     * 跑全量同步并把条目收进列表。把调用方给的
+     * resourceIds 原样透传、<b>不做</b>非空检查（空列表被接受并
+     * 返回 0 条目）。出错时已收集的条目被丢弃（一次致命列举错误
      * 会把之前收集的全部丢掉）。
      */
     public static <N> List<FetchedItem> fetchAllEngine(FeishuClient client, DataSourceConfig config,
@@ -359,7 +357,7 @@ public final class SyncEngine {
     }
 
     /**
-     * 对照 Go {@code FetchIncrementalEngine}：对游标跑增量同步并收集条目。
+     * 对游标跑增量同步并收集条目。
      * resourceIDs 取自 {@code config.resourceIds}（非空检查是调用方的责任）。
      */
     public static <N> Connector.FetchIncrementalResult fetchIncrementalEngine(

@@ -10,13 +10,12 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 一条记忆的向量，单独一张表
- * （对照 Go {@code types.MemoryItemEmbedding}，internal/types/memory.go L1368-1385）。
+ * 一条记忆的向量，单独一张表。
  *
  * <p>**刻意**与 {@code memory_items} 分开：记忆管理器、常驻块和容量控制在不停地列条目，
  * 它们没有一个愿意顺带拖着每行几 KB 的 float。只有真正给相似度打分的那段代码才读它。</p>
  *
- * <h2>JSON 形态（§14.9k M2 换锚后：键名＝Java 字段名）</h2>
+ * <h2>JSON 形态（键名＝Java 字段名）</h2>
  * <pre>
  *   MemoryItemEmbedding{} →
  *   {"itemId":"","tenantId":0,"subjectId":"","modelId":"","dims":0,
@@ -24,16 +23,16 @@ import com.ragagent.common.web.GoTimeSerializer;
  * </pre>
  * <p>{@code sourceContent} / {@code sourceTopic} / {@code vector} 一个键都不出。</p>
  *
- * <h2>⚠️ 三个 {@code json:"-"} 的含义**不一样**，逐个看 Go 的 gorm tag</h2>
+ * <h2>⚠️ 三个不出 JSON 的字段含义**不一样**</h2>
  * <ul>
- *   <li>{@code SourceContent} / {@code SourceTopic}：{@code json:"-" gorm:"-"}——
+ *   <li>{@code sourceContent} / {@code sourceTopic}：
  *       既不出响应也**不落库**，是纯粹的"输入快照"（防止慢的 embedding 调用
  *       覆盖更新的编辑），所以 Java 侧要 {@code @TableField(exist=false)}。</li>
- *   <li>{@code Vector}：只有 {@code json:"-" gorm:"type:bytea"}——**不**出响应，
- *       但**要落库**（它是源真值）。Java 侧保留 {@code byte[] vector} 列。</li>
+ *   <li>{@code vector}：**不**出响应，
+ *       但**要落库**（它是源真值）。Java 侧保留 {@code byte[]} 列。</li>
  * </ul>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库隐式行为清单（约定 §3）</h2>
  * <ol>
  *   <li><b>自动时间戳</b>：{@code created_at}/{@code updated_at} 走字段名约定；
  *       {@code UpsertItemEmbedding} 还会显式写 {@code now}（并在 created 为零值时补上）。</li>
@@ -46,22 +45,22 @@ import com.ragagent.common.web.GoTimeSerializer;
  *       PG 上另有迁移 000095 条件创建的 {@code idx_mem_emb_search}
  *       {@code (tenant_id, subject_id, model_id, dims)} 与 pgvector 的 {@code embedding halfvec} 列。</li>
  *   <li><b>DEFAULT 列</b>：{@code model_id}（{@code default:''}）、{@code dims}（{@code default:0}）
- *       带字面量 default tag → GORM 实测仍显式写入。</li>
+ *       带字面量 default tag → 落库时仍显式写入。</li>
  * </ol>
  *
  * <p><b>{@code embedding} 列刻意不映射</b>：pgvector 的 {@code halfvec} 只在 PG 上存在，
- * 且 Go 只通过裸 SQL 写它（见 {@code writeVectorColumn}）。MyBatis-Plus 若映射它，
+ * 且只通过裸 SQL 写它（见 {@code writeVectorColumn}）。MyBatis-Plus 若映射它，
  * 在 H2 上就没有对应的列，实体一 insert 就炸。</p>
  */
 @TableName("memory_item_embeddings")
 public class MemoryItemEmbedding {
 
-    /** 输入快照，对照 Go {@code SourceContent json:"-" gorm:"-"}——**不落库**。 */
+    /** 输入快照——不出响应，**不落库**。 */
     @TableField(exist = false)
     @JsonIgnore
     private String sourceContent = "";
 
-    /** 输入快照，对照 Go {@code SourceTopic json:"-" gorm:"-"}——**不落库**。 */
+    /** 输入快照——不出响应，**不落库**。 */
     @TableField(exist = false)
     @JsonIgnore
     private String sourceTopic = "";
@@ -84,7 +83,7 @@ public class MemoryItemEmbedding {
     /**
      * little-endian float32。用 JSON 存会大四倍且毫无好处：除了本包没人读它。
      *
-     * <p>注意它只是 {@code json:"-"}——**仍然落库**（{@code gorm:"type:bytea"}）。</p>
+     * <p>注意它只是不出 JSON——**仍然落库**（bytea 列）。</p>
      */
     @JsonIgnore
     private byte[] vector;

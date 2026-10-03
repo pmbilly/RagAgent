@@ -22,25 +22,24 @@ import com.ragagent.common.session.PipelineMessageImageView;
 import com.ragagent.common.session.PipelineMessageView;
 
 /**
- * 管线共享工具（对照 Go chat_pipeline 的 common.go / chat_pipeline.go 包级函数）。
+ * 管线共享工具。
  *
- * <h2>备案（波 4.6b 同款）</h2>
+ * <h2>已知取舍</h2>
  * <ul>
- *   <li>{@code withPromptCacheMetadata}（PromptPrefixFingerprint + WithLLMCallMetadata）
- *       未翻——Java LlmChatClient 无 ctx 形参、无消费点，非行为面。</li>
- *   <li>虚拟线程 + TenantContext：RunParallel/ParallelMap 的任务里若要读租户，
- *       由调用方先 {@code TenantContextSnapshot.capture()} 再在任务里 replay（纪律 #1）。
+ *   <li>提示词缓存指纹元数据未接线：{@link LlmChatClient} 无 ctx 形参、无消费点，非行为面。</li>
+ *   <li>虚拟线程 + TenantContext：runParallel/parallelMap 的任务里若要读租户，
+ *       由调用方先 {@code TenantContextSnapshot.capture()} 再在任务里 replay。
  *       管线内部对 service 的调用一律显式传 tenantId/chatManage 值，不依赖 ThreadLocal。</li>
  * </ul>
  */
 public final class PipelineCommon {
 
-    /** 剥离 assistant 回答里 &lt;think&gt;…&lt;/think&gt; 的正则（对照 regThinkTags，(?s) 跨行）。 */
+    /** 剥离 assistant 回答里 &lt;think&gt;…&lt;/think&gt; 的正则（(?s) 跨行匹配）。 */
     private static final String THINK_TAGS = "(?s)<think>.*?</think>";
 
     private PipelineCommon() {}
 
-    // ----- 日志快捷方式（chat_pipeline.go:21-33 的 pipelineInfo/Warn/Error） -----
+    // ----- 日志快捷方式 -----
 
     static void info(String stage, String action, Map<String, Object> fields) {
         PipelineLog.info(stage, action, fields);
@@ -54,12 +53,12 @@ public final class PipelineCommon {
         PipelineLog.error(stage, action, fields);
     }
 
-    // ----- 模型准备（common.go:35-64 prepareChatModel） -----
+    // ----- 模型准备 -----
 
-    /** (chatModel, opt) 双返回（对照 Go 的 prepareChatModel 三值返回的等效形态）。 */
+    /** (chatModel, opt) 组合返回。 */
     public record PreparedChatModel(LlmChatClient chatModel, ChatOptions options) {}
 
-    /** 对照 prepareChatModel：取 chat 模型并从 SummaryConfig 组 ChatOptions。失败抛异常。 */
+    /** 取 chat 模型并从 SummaryConfig 组 ChatOptions。失败抛异常。 */
     public static PreparedChatModel prepareChatModel(PipelinePorts.ModelService modelService,
                                                      ChatManage chatManage) {
         LlmChatClient chatModel = modelService.getChatModel(chatManage.getChatModelId());
@@ -86,10 +85,10 @@ public final class PipelineCommon {
         return new PreparedChatModel(chatModel, opt);
     }
 
-    // ----- 消息组装（common.go:66-122） -----
+    // ----- 消息组装 -----
 
     /**
-     * 对照 prepareMessagesWithHistory：渲染系统提示词 + 历史 + 当前用户消息。
+     * 渲染系统提示词 + 历史 + 当前用户消息。
      * SystemPromptOverride 优先于 SummaryConfig.Prompt；记忆段落接在系统提示词最末。
      */
     public static List<ChatMessage> prepareMessagesWithHistory(ChatManage chatManage) {
@@ -121,7 +120,7 @@ public final class PipelineCommon {
         return chatMessages;
     }
 
-    /** 对照 AppendHistoryMessages：按时间序追加历史问答对。 */
+    /** 按时间序追加历史问答对。 */
     public static void appendHistoryMessages(List<ChatMessage> messages, List<History> history) {
         if (history == null) {
             return;
@@ -133,7 +132,7 @@ public final class PipelineCommon {
     }
 
     /**
-     * 对照 loadAndProcessHistory：取近期消息 → 按 requestID 分组成问答对 → 剥思考标签 →
+     * 取近期消息 → 按 requestID 分组成问答对 → 剥思考标签 →
      * 按时间倒序 → 截 maxRounds → 反转回正序。
      */
     public static List<History> loadAndProcessHistory(PipelinePorts.MessageService messageService,
@@ -195,7 +194,7 @@ public final class PipelineCommon {
         return historyList;
     }
 
-    /** 对照 extractImageCaptions：拼接消息图片的非空 Caption。 */
+    /** 拼接消息图片的非空 Caption。 */
     static String extractImageCaptions(List<PipelineMessageImageView> images) {
         List<String> parts = new ArrayList<>();
         if (images != null) {
@@ -208,18 +207,17 @@ public final class PipelineCommon {
         return String.join("\n", parts);
     }
 
-    // ----- 并发工具（common.go:198-257） -----
+    // ----- 并发工具 -----
 
-    /** 具名并发任务（对照 ParallelTask）。 */
+    /** 具名并发任务。 */
     public record ParallelTask(String name, java.util.function.Supplier<PluginError> run) {}
 
     /**
-     * 对照 RunParallel：并发执行任务，返回 name → 非nil错误的 map（无错任务不进 map）。
+     * 并发执行任务，返回 name → 非 null 错误的 map（无错任务不进 map）。
      * 任务跑在虚拟线程上。
      *
-     * <p>Go 的 ctx 值随 goroutine 捕获流转；Java ThreadLocal 不跨线程，这里在提交线程
-     * 快照 TenantContext、任务线程回放（约定 §5）——否则下游读 TenantContext 的代码
-     * （如 getModelByID → tenantId()=0）会静默拿到空上下文（走查疑点⑫抓回）。</p>
+     * <p>ThreadLocal 不跨线程，这里在提交线程快照 TenantContext、任务线程回放——
+     * 否则下游读 TenantContext 的代码（如 getModelByID → tenantId()=0）会静默拿到空上下文。</p>
      */
     public static Map<String, PluginError> runParallel(ParallelTask... tasks) {
         Map<String, PluginError> errs = new HashMap<>();
@@ -259,7 +257,7 @@ public final class PipelineCommon {
     }
 
     /**
-     * 对照 ParallelMap：并发映射，结果保持 items 顺序；maxWorkers ≤ 0 不限并发。
+     * 并发映射，结果保持 items 顺序；maxWorkers ≤ 0 不限并发。
      * 任务跑在虚拟线程上，用信号量封顶并发。
      */
     public static <T, R> List<R> parallelMap(List<T> items, int maxWorkers,
@@ -314,7 +312,7 @@ public final class PipelineCommon {
         }
     }
 
-    /** 附件提示词构建（对照 MessageAttachments.BuildPrompt；见 {@link MessageAttachmentsPrompt}）。 */
+    /** 附件提示词构建（见 {@link MessageAttachmentsPrompt}）。 */
     static String attachmentsPrompt(List<PipelineMessageAttachmentView> attachments) {
         return MessageAttachmentsPrompt.build(attachments);
     }

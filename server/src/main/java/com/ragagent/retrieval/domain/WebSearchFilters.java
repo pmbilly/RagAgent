@@ -5,12 +5,10 @@ import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
 /**
- * 网络搜索的国家/时效过滤（对照 Go {@code types.WebSearchFilters} 与
- * {@code Validate}，internal/types/web_search_filters.go 全文）。
+ * 网络搜索的国家/时效过滤。
  *
  * <p>country：空或 "ALL" 放行，其余必须两位大写字母；freshness：空 / pd / pw /
- * pm / py 放行，其余按 {@code YYYY-MM-DDtoYYYY-MM-DD} 解析且 start &lt;= end。
- * 文案逐字对照。</p>
+ * pm / py 放行，其余按 {@code YYYY-MM-DDtoYYYY-MM-DD} 解析且 start &lt;= end。</p>
  */
 public record WebSearchFilters(String country, String freshness) {
 
@@ -21,7 +19,7 @@ public record WebSearchFilters(String country, String freshness) {
 
     public static final WebSearchFilters EMPTY = new WebSearchFilters("", "");
 
-    /** 对照 Validate；失败抛 {@link IllegalArgumentException}（文案 = Go error 原文）。 */
+    /** 校验；失败抛 {@link IllegalArgumentException}。 */
     public void validate() {
         String c = country.toUpperCase(Locale.ROOT);
         if (!c.isEmpty() && !c.equals("ALL") && (c.length() != 2

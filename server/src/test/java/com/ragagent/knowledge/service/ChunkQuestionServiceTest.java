@@ -225,7 +225,7 @@ class ChunkQuestionServiceTest {
 
         GeneratedQuestion out = service.upsertGeneratedQuestion(c.getId(), "q1", "A2");
         assertThat(out.getQuestion()).isEqualTo("A2");
-        // 未知键在写入时被丢弃（Go 的 struct 序列化同款）
+        // 未知键在写入时被丢弃
         assertThat(json(metadataJson(c.getId())).has("future_key")).isFalse();
     }
 
@@ -299,7 +299,7 @@ class ChunkQuestionServiceTest {
                             .isEqualTo("no generated questions found for chunk " + c.getId());
                 });
 
-        // 嵌入模型未配置（KB 无 embedding_model_id）→ Go 的
+        // 嵌入模型未配置（KB 无 embedding_model_id）→
         // "failed to get embedding model: model ID cannot be empty"
         jdbc.update("UPDATE chunks SET metadata = ? WHERE id = ?",
                 json("{\"generatedQuestions\":[{\"id\":\"q1\",\"question\":\"A\"}]}").toString(), c.getId());
@@ -345,8 +345,8 @@ class ChunkQuestionServiceTest {
                             .isEqualTo("summary model is required for question generation");
                 });
 
-        // summary model 行存在 → 2026-09-22 走查批接线：真实出站（baseUrl=127.0.0.1:1
-        // 不可达）→ 失败按 Go err.Error() 包 400（不再是阶段占位文案）
+        // summary model 行存在 → 真实出站（baseUrl=127.0.0.1:1
+        // 不可达）→ 失败按上游错误原文包 400（不再是占位文案）
         model("chat-1");
         jdbc.update("UPDATE knowledge_bases SET summary_model_id = 'chat-1' WHERE id = ?", KB);
         assertThatThrownBy(() -> service.regenerateChunkQuestions(text.getId()))
@@ -374,7 +374,7 @@ class ChunkQuestionServiceTest {
         assertThat(ChunkQuestionService.parseGeneratedQuestions(output, 10))
                 .containsExactly("什么是知识库？", "如何配置嵌入模型", "支持哪些文件格式？",
                         "这是第五个问题吗？", "超出数量上限的问题");
-        // 非正 count / 空输出 → 空列表（对照 Go content=="" || count<=0 → nil）
+        // 非正 count / 空输出 → 空列表
         assertThat(ChunkQuestionService.parseGeneratedQuestions(output, 0)).isEmpty();
         assertThat(ChunkQuestionService.parseGeneratedQuestions(null, 3)).isEmpty();
     }

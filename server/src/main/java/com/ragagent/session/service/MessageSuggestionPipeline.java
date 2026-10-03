@@ -20,13 +20,13 @@ import com.ragagent.session.service.MessageSuggestionService.Evidence;
 import com.ragagent.session.service.MessageSuggestionService.GenerationContext;
 
 /**
- * {@code MessageSuggestionService} 的**无状态管道切片**（§14 步骤 2）：生成输入的上下文装配
+ * {@code MessageSuggestionService} 的**无状态管道切片**：生成输入的上下文装配
  * （轮次分组 → 历史渲染 → 证据抽取）与输出的解析 / 合并 / 相关性排序 / 文本规范化。
  *
  * <p>为什么单独一类：这些成员全是静态纯函数（唯一读实例字段的 {@code buildGenerationContext}
  * 留在门面，由它调用这里的 {@code buildSuggestionGenerationContext}），不碰仓储/模型/租户上下文，
  * 与门面只有单向调用。两个跨簇共享的 record（{@code GenerationContext} / {@code Evidence}）
- * 按 §14.9 先例留在门面，本类 import 其嵌套类型；检索模式词表 {@code MODE_HYBRID} 门面也在用，
+ * 留在门面，本类 import 其嵌套类型；检索模式词表 {@code MODE_HYBRID} 门面也在用，
  * 本类按类名引用。</p>
  */
 final class MessageSuggestionPipeline {
@@ -303,7 +303,7 @@ final class MessageSuggestionPipeline {
         return trimmed.isEmpty() ? "(none)" : trimmed;
     }
 
-    /** 对照 Go truncateRunes：按码点截断（不切断多字节字符）。 */
+    /** 按码点截断（不切断多字节字符）。 */
     static String truncateRunes(String s, int limit) {
         if (s == null) {
             return "";
@@ -447,20 +447,20 @@ final class MessageSuggestionPipeline {
         return s == null ? "" : s.trim();
     }
 
-    // ── 辅助（逐字对照 Go 的包级函数） ──────────────────────────────────────
+    // ── 辅助 ──────────────────────────────────────
 
-    /** 对照 Go {@code suggestionThinkBlock.ReplaceAllString}。 */
+    /** 剥离 <think> 块。 */
     static String stripThink(String content) {
         return content == null ? "" : content.replaceAll(THINK_BLOCK, "");
     }
 
-    /** 对照 Go {@code answerEndsWithQuestion}（L933-936）。 */
+    /** 答案是否以问句结尾。 */
     static boolean answerEndsWithQuestion(String answer) {
         String cleaned = answer.replaceAll(TRAILING_CITATIONS, "").trim();
         return cleaned.endsWith("?") || cleaned.endsWith("？");
     }
 
-    /** 对照 Go {@code containsSuggestionID}（L924-931）。 */
+    /** 文本里是否包含建议 ID。 */
     static boolean containsSuggestionId(List<SuggestionItem> items, String id) {
         if (items != null) {
             for (SuggestionItem item : items) {
@@ -472,7 +472,7 @@ final class MessageSuggestionPipeline {
         return false;
     }
 
-    /** 对照 Go {@code suggestionErrorCode}（L946-962）。 */
+    /** 生成失败时的 error code。 */
     static String suggestionErrorCode(Exception err) {
         if (err == null) {
             return "";
@@ -487,7 +487,7 @@ final class MessageSuggestionPipeline {
         return "generation_error";
     }
 
-    /** 对照 Go {@code normalizeSuggestionText}（L915-922）：去空白与标点、小写。 */
+    /** 建议文本规范化：去空白与标点、小写。 */
     static String normalizeSuggestionText(String value) {
         StringBuilder builder = new StringBuilder();
         for (int cp : value.trim().codePoints().toArray()) {
@@ -500,15 +500,13 @@ final class MessageSuggestionPipeline {
     }
 
     /**
-     * 对照 Go {@code ResolveLanguage}（context_helpers.go L313-321）。
-     * Language 中间件未翻译：message 带locale 用之，否则 DefaultLanguage
+     * 语言解析：message 带 locale 用之，否则默认语言
      * （WEKNORA_LANGUAGE env，缺省 zh-CN）。
      */
     static String resolveLanguage(String locale) {
         if (locale != null && !locale.trim().isEmpty()) {
             return locale;
         }
-        // 语言快照（批 6）已 trim；与 resolveLanguage 的 trim 口径一致（原实现返回未 trim 的原值）
         return WikiLanguageSupport.defaultLanguage();
     }
 }

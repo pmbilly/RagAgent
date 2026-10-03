@@ -7,9 +7,9 @@ import com.ragagent.auth.domain.User;
 import com.ragagent.auth.dto.Membership;
 
 /**
- * 登录结果（对照 Go types.LoginResponse，service 层形态）。
+ * 登录结果（service 层形态）。
  * 失败时 user/tenant/tokens 为 null、memberships 为 null
- * （Go 失败路径返回 &LoginResponse{Success, Message}，nil slice 序列化为 "memberships":null）。
+ * （失败路径序列化为 "memberships":null）。
  */
 public record LoginResult(
         boolean success,

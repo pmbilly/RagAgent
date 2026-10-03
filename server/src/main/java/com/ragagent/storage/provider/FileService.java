@@ -3,23 +3,20 @@ package com.ragagent.storage.provider;
 import java.io.InputStream;
 
 /**
- * 文件服务接口（对照 Go {@code interfaces.FileService}，internal/types/interfaces/file.go）：
- * 保存/读取/删除/复制 + 连通性自检 + 下载 URL。
+ * 文件服务接口：保存/读取/删除/复制 + 连通性自检 + 下载 URL。
  *
  * <p>路径一律是 <b>provider:// 形态</b>（如 {@code local://7/kb-1/1712.png}、{@code s3://…}）——
- * 由各后端自己解析；跨后端复制由各后端拒绝（{@link CrossBackendCopyException}），
- * 与 Go 的 {@code ErrCrossBackendCopy} 同义。</p>
+ * 由各后端自己解析；跨后端复制由各后端拒绝（{@link CrossBackendCopyException}）。</p>
  *
- * <p><b>错误通道</b>：Go 的 {@code error} 折叠为运行时异常（与 Java 侧既有端口约定一致）；
+ * <p><b>错误通道</b>：失败折叠为运行时异常（与 Java 侧既有端口约定一致）；
  * 跨后端复制用专门的 {@link CrossBackendCopyException} 以便调用方按类型判定。</p>
  */
 public interface FileService {
 
     /**
-     * 上传件的最小面（对照 Go {@code *multipart.FileHeader} 的 Filename/Size/Open/Header）。
+     * 上传件的最小面（文件名/大小/打开器/内容类型）。
      *
-     * <p>{@code contentType} 对应 Go 从 multipart 头部取的 {@code Content-Type}：
-     * 为空时各后端按扩展名推断（照 Go 的 {@code GetContentTypeByExt} 兜底）。</p>
+     * <p>{@code contentType} 为空时各后端按扩展名推断兜底。</p>
      */
     record UploadFile(String fileName, long size,
                       java.util.function.Supplier<InputStream> opener,
@@ -60,7 +57,7 @@ public interface FileService {
     /** 对照 {@code CopyFile}：复制到 {@code (tenantId, knowledgeId)} 名下的<b>新对象</b>。 */
     String copyFile(String srcPath, long tenantId, String knowledgeId);
 
-    /** 对照 Go 的 {@code ErrCrossBackendCopy}：源路径属于别的 provider。 */
+    /** 源路径属于别的 provider。 */
     class CrossBackendCopyException extends RuntimeException {
         public CrossBackendCopyException(String message) {
             super(message);

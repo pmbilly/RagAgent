@@ -15,15 +15,11 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * {@code memory_topic_stats} 的仓储（对照 Go internal/application/repository/memory.go
- * L608-836 的 {@code BumpTopic} / {@code RenameTopic} / {@code MarkTopicPromoted} /
- * {@code TopicByKey} / {@code TopTopics} / {@code TopicByID} /
- * {@code ListUnpromotedTopics} / {@code DeleteTopic} / {@code DeleteAllTopics}）。
+ * {@code memory_topic_stats} 的仓储。
  *
  * <h2>⚠️ {@code aliases} 是 jsonb，且**绝不能写 NULL**</h2>
- * <p>DDL 是 {@code aliases JSONB NOT NULL DEFAULT '[]'}。Go 的
- * {@code MemoryTopicAliases.Value()} 对 nil 与空切片都返回 {@code "[]"}，
- * 所以这一列在 Go 里从不 NULL。Java 侧因此三件事都要做到：</p>
+ * <p>DDL 是 {@code aliases JSONB NOT NULL DEFAULT '[]'}。落库语义对 null 与空列表
+ * 都写 {@code "[]"}，所以这一列**从不** NULL。三件事都要做到：</p>
  * <ol>
  *   <li>写入路径**必须带** {@code MemoryStringListTypeHandler}——包括
  *       {@code @Update} 里的 {@code #{aliases}}，以及 {@code BaseMapper.insert} 走的
@@ -39,7 +35,7 @@ public interface MemoryTopicStatMapper extends BaseMapper<MemoryTopicStat> {
      * 对照 {@code BumpTopic} 的第一步："先插入、再自增"——这个形状让两个并发轮次
      * 不会都认为这个话题是新的。
      *
-     * <p>插入的 {@code hits} 是 **0**（Go 也是 {@code Hits: 0}），
+     * <p>插入的 {@code hits} 是 **0**，
      * 真正的 1 来自紧随其后的自增。</p>
      *
      * @return 1 = 真的插入了；0 = 已存在

@@ -24,9 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 把"存储态的图片路径"翻译成各 LLM API 能消费的形态
- * （对照 Go internal/models/chat/image_resolve.go 全文，
- * 以及 ollama.go:59-85 的 {@code resolveImageForOllama}）。
+ * 把"存储态的图片路径"转换成各 LLM API 能消费的形态。
  *
  * <p>四类输入：</p>
  * <ul>
@@ -42,23 +40,22 @@ public final class ImageResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ImageResolver.class);
 
-    /** 对照 Go LOCAL_STORAGE_BASE_DIR 的默认值。 */
+    /** 本地存储根目录的默认值。 */
     public static final String DEFAULT_LOCAL_STORAGE_BASE_DIR = "/data/files";
 
-    /** 对照 Go ollama.go:78 的 io.LimitReader(resp.Body, 20*1024*1024)。 */
+    /** 远程图片读取上限（超出部分丢弃，不报错）。 */
     private static final int MAX_REMOTE_IMAGE_BYTES = 20 * 1024 * 1024;
 
-    /** 对照 Go ollama.go:70 的 Timeout: 30s。 */
+    /** 远程抓取超时。 */
     private static final Duration REMOTE_FETCH_TIMEOUT = Duration.ofSeconds(30);
 
-    /** 对照 Go ollama.go:71 的 MaxRedirects: 5。 */
+    /** 远程抓取重定向上限。 */
     private static final int REMOTE_FETCH_MAX_REDIRECTS = 5;
 
     /**
-     * 对照 Go 的 {@code var LocalImageResolver func(string) ([]byte, bool)}。
      * 由应用层在启动时装配：用归属租户的存储配置把 resource:// 或云存储 URL 解析成字节。
      *
-     * <p>返回 {@code null} 表示"未解析"（= Go 的 {@code ok=false}）；返回空数组是合法的
+     * <p>返回 {@code null} 表示"未解析"；返回空数组是合法的
      * "解析成功但内容为空"。</p>
      */
     @FunctionalInterface
@@ -71,17 +68,17 @@ public final class ImageResolver {
     private ImageResolver() {
     }
 
-    /** 装配应用层解析器（对照 Go 给 LocalImageResolver 赋值）。 */
+    /** 装配应用层解析器。 */
     public static void setLocalImageResolver(LocalImageResolver resolver) {
         localImageResolver = resolver;
     }
 
     // ------------------------------------------------------------------
-    // 对外解析（对照 image_resolve.go:13-54）
+    // 对外解析
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go resolveImageURLForLLM：把存储路径转成 LLM API 可消费的格式。
+     * 把存储路径转成 LLM API 可消费的格式。
      * data: URI 与 http(s):// URL 原样返回；resource:// 及各 provider 托管路径
      * 经应用解析器读成字节后转 base64 data URI。
      */
@@ -95,7 +92,7 @@ public final class ImageResolver {
         if (isApplicationStoredImage(imageUrl)) {
             byte[] data = readLocalStorageBytes(imageUrl);
             if (data != null) {
-                // 对照 Go http.DetectContentType：按内容嗅探 MIME，而不是信文件名
+                // 按内容嗅探 MIME，而不是信文件名
                 return "data:" + detectContentType(data) + ";base64," + Base64.getEncoder().encodeToString(data);
             }
         }
@@ -103,7 +100,7 @@ public final class ImageResolver {
     }
 
     /**
-     * 对照 Go resolveImageURLForOllama：把存储路径转成 Ollama API 要的原始字节。
+     * 把存储路径转成 Ollama API 要的原始字节。
      * 只认 data: URI 与应用托管路径；http(s) URL 返回 null
      * （远程抓取在 {@link #resolveImageForOllama} 里做，且必须过 SSRF 校验）。
      */
@@ -119,7 +116,7 @@ public final class ImageResolver {
             try {
                 return Base64.getDecoder().decode(imageUrl.substring(idx + 8));
             } catch (IllegalArgumentException e) {
-                return null; // 对照 Go：base64 解不开 → nil
+                return null; // base64 解不开
             }
         }
         if (isApplicationStoredImage(imageUrl)) {
@@ -129,15 +126,13 @@ public final class ImageResolver {
     }
 
     /**
-     * 对照 Go ollama.go 的 resolveImageForOllama：先走本地/内联解析，
+     * 先走本地/内联解析，
      * 再对 http(s) 做<b>带 SSRF 校验</b>的远程抓取（校验不过或抓取失败一律返回 null）。
      *
-     * <p>注意：与 Go 一样<b>不检查 HTTP 状态码</b>——4xx/5xx 的响应体同样会被当作图片字节返回
+     * <p>注意：<b>不检查 HTTP 状态码</b>——4xx/5xx 的响应体同样会被当作图片字节返回
      * （Ollama 侧后续会自行拒绝）。远程读取上限 20MB（超出部分丢弃，不报错）。</p>
      *
-     * <p>Go 侧该函数位于 ollama.go（不在本包翻译范围），但其 SSRF 分支的测试
-     * （ollama_test.go 的 TestResolveImageForOllama*）要求它存在，故在此实现；
-     * Ollama 客户端直接调用本方法即可。</p>
+     * <p>Ollama 客户端直接调用本方法即可。</p>
      */
     public static byte[] resolveImageForOllama(String imageUrl) {
         byte[] local = resolveImageUrlForOllama(imageUrl);
@@ -171,7 +166,7 @@ public final class ImageResolver {
         }
     }
 
-    /** 对照 Go isApplicationStoredImage：本应用的托管存储协议。 */
+    /** 本应用的托管存储协议。 */
     public static boolean isApplicationStoredImage(String imageUrl) {
         if (imageUrl == null) {
             return false;
@@ -182,7 +177,7 @@ public final class ImageResolver {
     }
 
     /**
-     * 对照 Go readLocalStorageBytes：把 local:// 存储路径解析成磁盘字节。
+     * 把 local:// 存储路径解析成磁盘字节。
      *
      * <p>先问应用解析器（它能带上租户配置的 PathPrefix——存储里的 local:// URL 是相对
      * 存储根目录的，不带租户前缀，单纯用环境变量拼路径会漏掉前缀）；没有解析器
@@ -210,8 +205,7 @@ public final class ImageResolver {
         }
         Path localPath;
         try {
-            // 对照 Go filepath.Join(baseDir, filepath.FromSlash(relPath))：
-            // 用字符串拼接再 normalize，避免 Java 的 Path.resolve 遇绝对路径直接替换掉 baseDir
+            // 用字符串拼接再 normalize，避免 Path.resolve 遇绝对路径直接替换掉 baseDir
             localPath = Paths.get(baseDir + File.separator
                     + relPath.replace('/', File.separatorChar)).normalize();
         } catch (InvalidPathException e) {
@@ -227,11 +221,11 @@ public final class ImageResolver {
     }
 
     // ------------------------------------------------------------------
-    // 多模态降级（对照 image_resolve.go:86-105）
+    // 多模态降级
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go isMultimodalNotSupportedError：错误信息是否表示模型不支持图片输入。
+     * 错误信息是否表示模型不支持图片输入。
      * 判定 = 命中 (multimodal|image|vision) 且命中 (not support|unsupported|400)。
      */
     public static boolean isMultimodalNotSupportedError(Throwable err) {
@@ -241,7 +235,7 @@ public final class ImageResolver {
         return isMultimodalNotSupportedMessage(err.getMessage());
     }
 
-    /** 对照 Go 的 err.Error() 分支（便于调用方只拿到消息字符串时使用）。 */
+    /** 便于调用方只拿到消息字符串时使用。 */
     public static boolean isMultimodalNotSupportedMessage(String errorMessage) {
         if (errorMessage == null) {
             return false;
@@ -253,8 +247,8 @@ public final class ImageResolver {
     }
 
     /**
-     * 对照 Go stripImagesFromMessages：返回一份剥掉全部图片的副本
-     * （原消息对象不变——Go 是结构体值拷贝，Java 必须显式复制）。
+     * 返回一份剥掉全部图片的副本
+     * （原消息对象不变，显式复制）。
      */
     public static List<ChatMessage> stripImagesFromMessages(List<ChatMessage> messages) {
         if (messages == null) {
@@ -269,26 +263,26 @@ public final class ImageResolver {
             copy.setToolCalls(msg.getToolCalls());
             copy.setReasoningContent(msg.getReasoningContent());
             copy.setKind(msg.getKind());
-            copy.setImages(null); // 对照 Go：cleaned[i].Images = nil
+            copy.setImages(null); // 剥掉图片
             cleaned.add(copy);
         }
         return cleaned;
     }
 
     // ------------------------------------------------------------------
-    // MIME 嗅探（对照 Go net/http.DetectContentType / sniff.go）
+    // MIME 嗅探
     // ------------------------------------------------------------------
 
-    /** 对照 Go sniffLen：最多看前 512 字节。 */
+    /** 最多看前 512 字节。 */
     public static final int SNIFF_LEN = 512;
 
     /**
-     * 对照 Go http.DetectContentType（= WHATWG mimesniff 第 6 节）：
+     * 按 WHATWG mimesniff 第 6 节的简化版做内容嗅探：
      * 永远返回一个合法 MIME；认不出来就 {@code application/octet-stream}。
      *
-     * <p>与 Go 的差异：只保留"用得上"的那部分签名表——图片、UTF BOM、"&lt;?" 开头的 XML、
-     * 以及 textSig/octet-stream 兜底；Go 的 htmlSig / PDF / 音频视频 / 字体 / 压缩包
-     * 签名未翻（图片解析路径不可能产出这些类型）。命中顺序与 Go 一致。</p>
+     * <p>只保留"用得上"的那部分签名表——图片、UTF BOM、"&lt;?" 开头的 XML、
+     * 以及 textSig/octet-stream 兜底（图片解析路径不会产出
+     * PDF / 音频视频 / 字体 / 压缩包等类型）。命中顺序即 {@link #SNIFF_SIGNATURES} 表内顺序。</p>
      */
     public static String detectContentType(byte[] input) {
         byte[] data = input == null ? new byte[0] : input;
@@ -308,17 +302,17 @@ public final class ImageResolver {
         return "application/octet-stream";
     }
 
-    /** 对照 Go isWS。 */
+    /** 嗅探用的空白字节判定。 */
     private static boolean isWs(byte b) {
         return b == '\t' || b == '\n' || b == 0x0c || b == '\r' || b == ' ';
     }
 
-    /** 对照 Go sniffSig。 */
+    /** 单条嗅探签名。 */
     private interface SniffSig {
         String match(byte[] data, int firstNonWs);
     }
 
-    /** 对照 Go exactSig。 */
+    /** 精确字节签名。 */
     private record ExactSig(byte[] sig, String ct) implements SniffSig {
         @Override
         public String match(byte[] data, int firstNonWs) {
@@ -334,7 +328,7 @@ public final class ImageResolver {
         }
     }
 
-    /** 对照 Go maskedSig（mask 为 0 的位被忽略；skipWS 时先把前导空白去掉）。 */
+    /** 带掩码的字节签名（mask 为 0 的位被忽略；skipWS 时先把前导空白去掉）。 */
     private record MaskedSig(byte[] mask, byte[] pat, boolean skipWs, String ct) implements SniffSig {
         @Override
         public String match(byte[] data, int firstNonWs) {
@@ -356,7 +350,7 @@ public final class ImageResolver {
         }
     }
 
-    /** 对照 Go textSig：前 512 字节内出现二进制控制字符就不算文本。 */
+    /** 前 512 字节内出现二进制控制字符就不算文本。 */
     private static final class TextSig implements SniffSig {
         @Override
         public String match(byte[] data, int firstNonWs) {
@@ -371,7 +365,7 @@ public final class ImageResolver {
     }
 
     private static final SniffSig[] SNIFF_SIGNATURES = {
-            // XML（Go 里 htmlSig 之后一条，htmlSig 未翻，见 detectContentType 注释）
+            // XML
             new MaskedSig(bytes(0xFF, 0xFF, 0xFF, 0xFF, 0xFF), bytes('<', '?', 'x', 'm', 'l'), true,
                     "text/xml; charset=utf-8"),
             // UTF BOM
@@ -381,7 +375,7 @@ public final class ImageResolver {
                     "text/plain; charset=utf-16le"),
             new MaskedSig(bytes(0xFF, 0xFF, 0xFF, 0x00), bytes(0xEF, 0xBB, 0xBF, 0x00), false,
                     "text/plain; charset=utf-8"),
-            // 图片（顺序照抄 Go）
+            // 图片
             new ExactSig(bytes(0x00, 0x00, 0x01, 0x00), "image/x-icon"),
             new ExactSig(bytes(0x00, 0x00, 0x02, 0x00), "image/x-icon"),
             new ExactSig(bytes('B', 'M'), "image/bmp"),

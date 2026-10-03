@@ -15,7 +15,7 @@ import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.domain.DataSourceConfig;
 
 /**
- * 对照 Go {@code gitlab/client_test.go}（除配置解析与流式部分，那两块在
+ * {@link GitLabClient} 的语义测试（配置解析与流式部分在
  * {@link GitLabConfigTest} / {@link GitLabConnectorTest}）。
  *
  * <p>全部走 {@link GitLabServerStub}，不依赖真实网络。</p>
@@ -36,7 +36,7 @@ class GitLabClientTest {
 
     // ── Validate ────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code TestConnectorValidateUsesDataSourceCredentials}。 */
+    /** validate 用的是数据源自带的凭据。 */
     @Test
     void validateUsesDataSourceCredentials() throws IOException {
         try (GitLabServerStub stub = new GitLabServerStub(exchange -> {
@@ -59,7 +59,7 @@ class GitLabClientTest {
         }
     }
 
-    /** 对照 Go {@code TestConnectorValidateReturnsGitLabAPIError}。 */
+    /** GitLab API 报错时 validate 原样上抛。 */
     @Test
     void validateReturnsGitLabApiError() throws IOException {
         try (GitLabServerStub stub = new GitLabServerStub(exchange -> {
@@ -80,7 +80,7 @@ class GitLabClientTest {
         }
     }
 
-    /** 对照 Go {@code TestConnectorValidateRejectsMissingCredentials}：不触网。 */
+    /** 缺凭据直接拒绝：不触网。 */
     @Test
     void validateRejectsMissingCredentials() {
         DataSourceConfig ds = new DataSourceConfig();
@@ -91,7 +91,7 @@ class GitLabClientTest {
                 .hasMessage("GitLab platform configuration is missing");
     }
 
-    /** 对照 Go {@code TestConnectorValidateRejectsMissingProjectsOnSave}。 */
+    /** 未配置 projects 时 validate 拒绝。 */
     @Test
     void validateRejectsMissingProjectsOnSave() throws IOException {
         try (GitLabServerStub stub = new GitLabServerStub(exchange -> {
@@ -110,7 +110,7 @@ class GitLabClientTest {
         }
     }
 
-    /** 对照 Go {@code TestConnectorConfiguredDoesNotReuseRegistryClient}。 */
+    /** configured() 不得复用注册表里的旧 client 实例。 */
     @Test
     void configuredDoesNotReuseRegistryClient() throws IOException {
         try (GitLabServerStub stub = new GitLabServerStub(exchange -> {
@@ -130,7 +130,7 @@ class GitLabClientTest {
 
     // ── newClient 归一 ──────────────────────────────────────────────────
 
-    /** 对照 Go {@code TestNewClientNormalizesAPIBaseURL}。 */
+    /** newClient 会把缺省 base_url 归一成带 {@code /api/v4} 的形式。 */
     @Test
     void newClientNormalizesApiBaseUrl() throws IOException {
         try (GitLabServerStub stub = new GitLabServerStub(exchange -> GitLabServerStub.status(exchange, 404))) {
@@ -140,10 +140,11 @@ class GitLabClientTest {
     }
 
     /**
-     * {@code newClient} 的五步归一顺序（期望值取自 Go 实录）。
+     * {@code newClient} 的五步归一顺序。
      *
-     * <p>刻意覆盖 {@code /api/v4extra} 这一格：Go 只判 {@code HasSuffix("/api/v4")}，
-     * 所以它会变成 {@code .../api/v4extra/api/v4}——"看着像 bug 但要照抄"的那一类。</p>
+     * <p>刻意覆盖 {@code /api/v4extra} 这一格：判定只看是否以后缀
+     * {@code "/api/v4"} 结尾，所以它会变成 {@code .../api/v4extra/api/v4}
+     * ——"看着像 bug 但刻意保留"的那一类。</p>
      */
     @Test
     void newClientNormalizationOrder() throws IOException {
@@ -177,7 +178,7 @@ class GitLabClientTest {
 
     // ── projectPath / gitlabFilePathEscape ──────────────────────────────
 
-    /** 对照 Go {@code TestProjectPathEncodesNamespaceWithoutDoubleEscaping} + Go 实录扩充。 */
+    /** projectPath 对 namespace 不二次转义，且各边界形态逐字钉死。 */
     @Test
     void projectPathEncodesNamespaceWithoutDoubleEscaping() {
         assertThat(GitLabClient.projectPath("12345")).isEqualTo("12345");
@@ -185,7 +186,7 @@ class GitLabClientTest {
         assertThat(GitLabClient.projectPath("group%2Fproject")).isEqualTo("group%2Fproject");
         assertThat(GitLabClient.projectPath("my group/my project")).isEqualTo("my%20group%2Fmy%20project");
 
-        // 以下期望值全部来自把 Go 源码原样抄进独立程序跑出的实录
+        // 以下期望值逐字钉死既有行为
         assertThat(GitLabClient.projectPath(" 123 ")).isEqualTo("123");
         assertThat(GitLabClient.projectPath("0")).isEqualTo("0");
         assertThat(GitLabClient.projectPath("-1")).isEqualTo("-1");
@@ -209,7 +210,7 @@ class GitLabClientTest {
     }
 
     /**
-     * 对照 Go {@code TestGitlabFilePathEscape}：只保留 {@code a-zA-Z0-9-_}，
+     * {@code filePathEscape}：只保留 {@code a-zA-Z0-9-_}，
      * 其余逐<b>字节</b>百分号转义、大写十六进制（所以 {@code .} 也要转义）。
      */
     @Test
@@ -217,7 +218,7 @@ class GitLabClientTest {
         assertThat(GitLabClient.filePathEscape("docs/internal/中文-file.md"))
                 .isEqualTo("docs%2Finternal%2F%E4%B8%AD%E6%96%87-file%2Emd");
 
-        // Go 实录
+        // 边界语料
         assertThat(GitLabClient.filePathEscape("a")).isEqualTo("a");
         assertThat(GitLabClient.filePathEscape("a.b")).isEqualTo("a%2Eb");
         assertThat(GitLabClient.filePathEscape("~/x")).isEqualTo("%7E%2Fx");
@@ -230,7 +231,7 @@ class GitLabClientTest {
 
     // ── tree 分页 ───────────────────────────────────────────────────────
 
-    /** 对照 Go {@code TestTreeFollowsGitLabPagination}：靠响应头 X-Next-Page 推进。 */
+    /** tree 分页：靠响应头 X-Next-Page 推进。 */
     @Test
     void treeFollowsGitLabPagination() throws IOException {
         try (GitLabServerStub stub = new GitLabServerStub(exchange -> {
@@ -256,18 +257,18 @@ class GitLabClientTest {
 
             assertThat(entries).hasSize(2);
             assertThat(entries.get(1).path()).isEqualTo("two.md");
-            // 请求顺序 = 1,2（Go 的 requestedPages 断言）
+            // 请求顺序 = 1,2
             assertThat(stub.requestPaths).hasSize(2);
             assertThat(stub.requestQueries.get(0)).contains("page=1");
             assertThat(stub.requestQueries.get(1)).contains("page=2");
-            // 逐页推进靠响应头；Go 侧同样只 Set 了 page
+            // 逐页推进只靠响应头里的 page 参数
             assertThat(stub.requestQueries.get(0)).contains("per_page=100").contains("ref=main");
         }
     }
 
     // ── raw 的 404 回落 ─────────────────────────────────────────────────
 
-    /** 对照 Go {@code TestRawFallsBackToBase64FileDetail}。 */
+    /** raw 404 时回落到 file detail 接口的 base64 内容。 */
     @Test
     void rawFallsBackToBase64FileDetail() throws IOException {
         String rawPath = "/api/v4/projects/18724/repository/files/docs%2Finternal%2Freadme%2Emd/raw";

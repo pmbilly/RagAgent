@@ -11,13 +11,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * 附件的本地文件存储（对照 Go localFileService 的 SaveBytes/GetFile/DeleteFile，
- * internal/application/service/file/local.go）。
+ * 附件的本地文件存储。
  *
- * <p>布局与 Go 逐字对齐：{LOCAL_STORAGE_BASE_DIR}/{tenantId}/exports/
+ * <p>布局沿用既有盘上数据：{LOCAL_STORAGE_BASE_DIR}/{tenantId}/exports/
  * {safeName}_{unixNano}{ext}，引用形态 {@code local://{tenantId}/exports/...}。
- * ref 是 json:"-"（不进响应），但 **A/B 跨服务互读**依赖两侧布局一致——
- * Go 上传的文件 Java 要能 preview，反之亦然。</p>
+ * ref 不进响应；**存量文件互读**依赖布局稳定——旧实现写入的文件要能继续 preview。</p>
  */
 @Component
 public class AttachmentFileStore {
@@ -35,7 +33,7 @@ public class AttachmentFileStore {
         this.baseDir = Path.of(baseDir).toAbsolutePath().normalize();
     }
 
-    /** 对照 Go SaveBytes（local.go L218-249）：temp 参数忽略（都写 exports/）。 */
+    /** 保存：统一写 exports/ 目录。 */
     public String saveBytes(byte[] data, long tenantId, String fileName) {
         String safeName = safeFileName(fileName);
         Path dir = baseDir.resolve(String.valueOf(tenantId)).resolve("exports");
@@ -52,7 +50,7 @@ public class AttachmentFileStore {
         }
     }
 
-    /** 对照 Go GetFile（local.go L111-132）：路径遍历防护后按字节读。 */
+    /** 路径遍历防护后按字节读。 */
     public byte[] getFile(String ref) {
         Path resolved = resolve(ref);
         if (resolved == null || !Files.exists(resolved)) {
@@ -65,7 +63,7 @@ public class AttachmentFileStore {
         }
     }
 
-    /** 对照 Go DeleteFile（local.go L137-155）：缺失时 Go 报错但调用方都忽略。 */
+    /** 删除；缺失时静默忽略。 */
     public void deleteFile(String ref) {
         try {
             Path resolved = resolve(ref);
@@ -77,7 +75,7 @@ public class AttachmentFileStore {
         }
     }
 
-    /** 对照 Go SafePathUnderBase：逃出 baseDir 的引用一律拒绝。 */
+    /** 逃出 baseDir 的引用一律拒绝。 */
     private Path resolve(String ref) {
         if (ref == null || ref.isEmpty()) {
             return null;
@@ -91,7 +89,7 @@ public class AttachmentFileStore {
         return resolved;
     }
 
-    /** 对照 Go SafeFileName（security.go L150-165）：base 名 + 防穿越。 */
+    /** 只取 base 名 + 防穿越。 */
     static String safeFileName(String fileName) {
         if (fileName == null || fileName.isEmpty()) {
             throw new IllegalArgumentException("fileName cannot be empty");

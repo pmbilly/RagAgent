@@ -1,11 +1,9 @@
 package com.ragagent.websearch.provider;
 
-import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -16,10 +14,10 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * Brave 搜索 provider（对照 Go {@code web_search/brave.go} 全文）。
+ * Brave 搜索 provider。
  *
- * <p>GET 官方端点 + {@code X-Subscription-Token}；<b>不跟随重定向</b>（对照
- * CheckRedirect → ErrUseLastResponse：订阅令牌绝不转发给重定向目的地）。
+ * <p>GET 官方端点 + {@code X-Subscription-Token}；<b>不跟随重定向</b>
+ * （订阅令牌绝不转发给重定向目的地）。
  * country 转大写后发送（缺省不发，显式 "ALL" 照发）；freshness 原样。
  * count 缺省 5、封顶 20。结果按 age（缺则 page_age）承载相对时间——
  * 不臆造精确发布时间。</p>
@@ -71,7 +69,7 @@ public final class BraveProvider implements WebSearchProvider {
         if (!filters.freshness().isEmpty()) {
             params.put("freshness", filters.freshness());
         }
-        // Go 的 url.Values.Encode() 按键字母序输出（count 先于 q）
+        // 查询串按键字母序输出（count 先于 q）
         StringBuilder qs = new StringBuilder();
         params.forEach((k, v) -> {
             if (qs.length() > 0) {
@@ -86,7 +84,7 @@ public final class BraveProvider implements WebSearchProvider {
                 .header("X-Subscription-Token", apiKey)
                 .GET()
                 .build();
-        // 不跟随重定向：3xx 原样返回后由状态码分支报错（对照 ErrUseLastResponse）
+        // 不跟随重定向：3xx 原样返回后由状态码分支报错
         SearchHttp.Result resp = SearchHttp.sendNoRedirect(req);
         if (resp.status() < 200 || resp.status() >= 300) {
             throw new SearchHttp.SearchHttpException("brave search returned HTTP " + resp.status());

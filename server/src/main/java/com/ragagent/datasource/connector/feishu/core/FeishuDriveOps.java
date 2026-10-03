@@ -32,7 +32,7 @@ final class FeishuDriveOps {
     }
 
     /**
-     * 对照 Go {@code listDriveFiles}：列一个云盘文件夹的直接子项（单页）。
+     * 列一个云盘文件夹的直接子项（单页）。
      *
      * <p>{@code folderToken == ""} 直接拒绝：根文件夹不可分页、也不返回快捷方式
      * （飞书 API 限制），静默放行会丢内容且可能产出无界响应。</p>
@@ -65,7 +65,7 @@ final class FeishuDriveOps {
     }
 
     /**
-     * 对照 Go {@code GetDriveFolderMeta}：取单个云盘文件夹的元数据（名字、所有者…）。
+     * 取单个云盘文件夹的元数据（名字、所有者…）。
      * 用来解析根文件夹的人类可读名字——列表 API 只返回子项，不返回它自己。
      */
     public DriveFolderMetaResponse getDriveFolderMeta(String folderToken) {
@@ -82,7 +82,7 @@ final class FeishuDriveOps {
         return resp;
     }
 
-    /** 对照 Go {@code ListDriveFilesAllPages}：翻页取完一个文件夹的全部直接子项。 */
+    /** 翻页取完一个文件夹的全部直接子项。 */
     public List<DriveFile> listDriveFilesAllPages(String folderToken) {
         List<DriveFile> all = new ArrayList<>();
         String pageToken = "";
@@ -98,7 +98,7 @@ final class FeishuDriveOps {
     }
 
     /**
-     * 对照 Go {@code ListDriveFilesRecursiveFrom}：深度优先走一个云盘文件夹子树，
+     * 深度优先走一个云盘文件夹子树，
      * 返回全部<b>非文件夹</b>文件。
      *
      * <ul>

@@ -9,10 +9,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * 对照 Go {@code core/connector_error_reason_test.go} 的 {@code TestFeishuFailure}，
- * 外加 {@code feishuErrorCode} 与 {@code FeishuErrorItemMeta} 的直接用例。
+ * {@code feishuFailure} 分类、外加 {@code feishuErrorCode} 与
+ * {@code FeishuErrorItemMeta} 的直接用例。
  *
- * <p>核心不变式（Go 注释里写死的）：分类结果里<b>绝不能</b>泄漏原始 status / JSON body /
+ * <p>核心不变式：分类结果里<b>绝不能</b>泄漏原始 status / JSON body /
  * log_id——那是给服务端日志的。测试用 {@code noLeak} 逐条钉住。</p>
  */
 class FeishuErrorsTest {
@@ -99,7 +99,7 @@ class FeishuErrorsTest {
     @Test
     @DisplayName("分支顺序：'download failed' 与 'permission' 同现时，鉴权分支先命中")
     void branchOrderMatters() {
-        // Go 的 switch 从上往下：auth/permission 分支在 api error 分支之前
+        // 分支判定顺序：auth/permission 分支在 api error 分支之前
         assertThat(FeishuErrors.feishuFailure(
                 new RuntimeException("download failed: permission denied")).code())
                 .isEqualTo("feishu_auth_or_permission");
@@ -145,7 +145,7 @@ class FeishuErrorsTest {
                 new RuntimeException("feishu rate limited: status=429"), null);
         assertThat(m).doesNotContainKey("error_reason_code_value");
         assertThat(m).containsEntry("error_reason_code", "feishu_rate_limited");
-        // 键序 = Go 的插入序（error, error_reason_code, error_reason）
+        // 键序 = 插入序（error, error_reason_code, error_reason）
         assertThat(m.keySet()).containsExactly("error", "error_reason_code", "error_reason");
     }
 

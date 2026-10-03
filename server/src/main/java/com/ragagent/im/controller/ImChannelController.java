@@ -24,18 +24,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * IM 渠道 CRUD + 微信扫码状态面（对照 Go internal/handler/im.go 的渠道段 +
- * wechat_qrcode.go + internal/router/routes_agent.go RegisterIMChannelRoutes）。
- *
- * <p><b>响应形态（golden 钉死）</b>：CRUD 的信封是 {@code {"data": …}}（**没有**
- * success 键）；删除是 {@code {"success": true}}；渠道行按 Go struct 字段声明序输出；
+ * IM 渠道 CRUD + 微信扫码状态面。
+
+ * <p><b>响应形态</b>：CRUD 的信封是 {@code {"data": …}}（**没有**
+ * success 键）；删除是 {@code {"success": true}}；渠道行按实体字段声明序输出；
  * 列表行按 IMChannelSummary / ChannelWithAgent 各自的字段序输出（三套键序并存）。</p>
  *
  * <p><b>接缝（不实现）</b>：{@code POST /wechat/qrcode} 的真实 iLink 出站（GetLoginQRCode）
- * 与 {@code /wechat/qrcode/status} 的轮询出站（PollQRCodeStatus）是外部微信集成——
- * 录制脚本明确不录（错误体含两侧 HTTP client 各异的消息，XDEP）。Java 侧绑定分支
- * （qrcode 必填 → 400 "qrcode is required"）与错误形态（500 固定文案）照 Go 落，
- * 外呼本身抛接缝异常；{@code /im/callback/:channel_id} 两条回调路由同批不实现。</p>
+ * 与 {@code /wechat/qrcode/status} 的轮询出站（PollQRCodeStatus）是外部微信集成，
+ * 本仓不实现外呼。Java 侧保留绑定分支（qrcode 必填 → 400 "qrcode is required"）
+ * 与错误形态（500 固定文案），外呼本身抛接缝异常；
+ * {@code /im/callback/:channel_id} 两条回调路由同样不实现。</p>
  */
 @RestController
 public class ImChannelController {
@@ -49,7 +48,7 @@ public class ImChannelController {
         this.service = service;
     }
 
-    // ═══════════════════ 请求体（对照 im.go 内联 struct） ═══════════════════
+    // ═══════════════════ 请求体 ═══════════════════
 
     record CreateRequest(
             String platform,
@@ -75,7 +74,7 @@ public class ImChannelController {
 
     // ═══════════════════ CRUD ═══════════════════
 
-    /** 创建渠道：201 + 裸资源行（§2.1）。 */
+    /** 创建渠道：201 + 裸资源行。 */
     @PostMapping("/api/v1/agents/{id}/im-channels")
     public ResponseEntity<Map<String, Object>> create(@PathVariable("id") String agentId,
                                                       @RequestBody(required = false) String rawBody) {
@@ -84,7 +83,7 @@ public class ImChannelController {
         }
         CreateRequest req = bindCreate(rawBody);
         if (req.platform() == null || req.platform().isEmpty()) {
-            // gin binding:"required" 的 validator 文案（struct 字段名，非 json tag）
+            // 400 文案为字段级校验格式（字段名 Platform，非 json 键名）
             return plain(400, "Key: 'Platform' Error:Field validation for 'Platform' "
                     + "failed on the 'required' tag");
         }
@@ -102,7 +101,7 @@ public class ImChannelController {
         channel.setKnowledgeBaseId(orEmpty(req.knowledgeBaseId()));
         channel.setCredentials(credentialsColumn(req.credentials()));
         channel.setEnabled(req.enabled() == null || req.enabled());
-        // WeChat 用长轮询 + 全量输出；其余平台缺省 websocket + stream（im.go L98-113）
+        // WeChat 用长轮询 + 全量输出；其余平台缺省 websocket + stream
         if ("wechat".equals(req.platform())) {
             channel.setMode("longpoll");
             channel.setOutputMode("full");
@@ -179,7 +178,7 @@ public class ImChannelController {
         return ResponseEntity.ok(data);
     }
 
-    /** 对照 UpdateIMChannel。 */
+    /** 更新渠道：成功 200 + 资源行。 */
     @PutMapping("/api/v1/im-channels/{id}")
     public ResponseEntity<Map<String, Object>> update(@PathVariable("id") String channelId,
                                                       @RequestBody(required = false) String rawBody) {
@@ -246,7 +245,7 @@ public class ImChannelController {
         return ResponseEntity.noContent().build();
     }
 
-    /** 对照 ToggleIMChannel：任何失败都落 500 "failed to toggle channel"。 */
+    /** 切换启用状态：任何失败都落 500 "failed to toggle channel"。 */
     @PostMapping("/api/v1/im-channels/{id}/toggle")
     public ResponseEntity<Map<String, Object>> toggle(@PathVariable("id") String channelId) {
         if (channelId == null || channelId.isEmpty()) {
@@ -264,8 +263,8 @@ public class ImChannelController {
     // ═══════════════════ 微信扫码（绑定分支 + 接缝） ═══════════════════
 
     /**
-     * 扫码出站（iLink）：{@code WechatQRCodeService} bean 缺位时保留 W5γ2 的接缝文案
-     * （不阻塞装配）；有 bean 则真调（对照 Go {@code qrcode.go}）。
+     * 扫码出站（iLink）：{@code WechatQRCodeService} bean 缺位时保留接缝文案
+     * （不阻塞装配）；有 bean 则真调。
      */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.ragagent.im.wechat.WechatQRCodeService wechatQRCodeService;
@@ -290,8 +289,8 @@ public class ImChannelController {
     }
 
     /**
-     * 对照 WeChatPollQRCodeStatus：qrcode 必填（一切 bind 失败都是固定文案）；
-     * {@code confirmed} 时才给 credentials（+ 非空 baseurl）——键按 gin.H 的字典序。
+     * qrcode 必填（一切绑定失败都是固定文案）；{@code confirmed} 时才给 credentials
+     * （+ 非空 baseurl）。响应键序固定：status、credentials、baseUrl。
      */
     @PostMapping("/api/v1/wechat/qrcode/status")
     public ResponseEntity<Map<String, Object>> wechatQrcodeStatus(
@@ -340,7 +339,7 @@ public class ImChannelController {
     record QrcodeRequest(String qrcode) {
     }
 
-    // ═══════════════════ 响应行（三套键序并存，对照 Go 三个 struct） ═══════════════════
+    // ═══════════════════ 响应行（三套键序并存） ═══════════════════
 
     /** 渠道行（create/update/toggle 的资源行），键名即字段名。 */
     private static Map<String, Object> channelRow(ImChannelEntity ch) {
@@ -383,13 +382,13 @@ public class ImChannelController {
         return m;
     }
 
-    /** 对照 imCredentialsConfigured：trim 后非 "" 且非 "{}"。 */
+    /** trim 后非 "" 且非 "{}"。 */
     private static boolean credentialsConfigured(String credentials) {
         String s = credentials == null ? "" : credentials.trim();
         return !s.isEmpty() && !"{}".equals(s);
     }
 
-    /** credentials 是任意 jsonb：坏 JSON 在 Go 的 bind 阶段已被拒，这里容错回 "{}"。 */
+    /** credentials 是任意 jsonb：坏 JSON 在绑定阶段已被拒，这里容错回 "{}"。 */
     private static Object rawJson(String raw) {
         if (raw == null || raw.isEmpty()) {
             return MAPPER.createObjectNode();
@@ -404,7 +403,7 @@ public class ImChannelController {
     // ═══════════════════ 工具 ═══════════════════
 
     /**
-     * 对照 types.JSON 的 UnmarshalJSON：显式 {@code null} 与缺键都等价于 nil
+     * credentials 列语义：显式 {@code null} 与缺键都等价于"无值"
      * （create 落 "{}"，update 视为"不改动"）。
      */
     private static String credentialsColumn(JsonNode node) {
@@ -434,11 +433,11 @@ public class ImChannelController {
         return s == null ? "" : s;
     }
 
-    /** 对照 create 的 ShouldBindJSON：空 body → platform 缺失的 validator 文案由上面补；
-     * 坏 JSON → Go 措辞。 */
+    /** 绑定语义：空 body → platform 缺失的校验文案由上面补；
+     * 坏 JSON → 走绑定错误兼容文案。 */
     private static CreateRequest bindCreate(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
-            // 空 body：Go 的 validator 在零值 struct 上报 Platform required
+            // 空 body：等价于零值请求，报 Platform required
             return new CreateRequest(null, null, null, null, null, null, null, null);
         }
         try {

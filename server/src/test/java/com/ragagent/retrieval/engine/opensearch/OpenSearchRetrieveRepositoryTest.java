@@ -22,12 +22,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.retrieval.engine.EngineTypes.IndexInfo;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
-import com.ragagent.vectorstore.domain.IndexConfig;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * OpenSearch k-NN 驱动（W5γ4.9）对照 Go {@code retriever/opensearch/} 全包：
+ * OpenSearch k-NN 驱动：
  * 构造期探针（版本分段 / 每节点 k-NN 插件）、惰性逐维建索引（mapping settings +
  * properties 形状、别名动作、drift 指纹）、Save/BatchSave 的 wire 形状（字母序键、
  * NDJSON 动作行、批量上限、混合维度）、knn/keyword 查询体（min_score 直通、
@@ -35,8 +34,8 @@ import com.sun.net.httpserver.HttpServer;
  * 完整性校验）、CopyIndices 的三态 SourceID 改写与目标 SourceID 向量回填、
  * 纯函数（parseMajorMinor / sanitizeIndexName / transformSourceId / effectiveTopK）。
  *
- * <p>桩是本地 OS 假服务：断言"发出去的 JSON 长什么样"（该批无 golden 面，逐请求
- * 断言即本批的字节契约——键序为 Go json.Marshal 的 map 字母序）。</p>
+ * <p>桩是本地 OS 假服务：断言"发出去的 JSON 长什么样"（该面无 golden fixture，逐请求
+ * 断言即字节契约——键序为字母序）。</p>
  */
 class OpenSearchRetrieveRepositoryTest {
 
@@ -251,7 +250,7 @@ class OpenSearchRetrieveRepositoryTest {
         assertThat(doc.path("chunk_id").asText()).isEqualTo("c1");
         assertThat(doc.path("is_enabled").asBoolean()).isFalse().as("chunk_enabled 覆写");
         assertThat(doc.path("embedding").get(0).asDouble()).isEqualTo(1.5);
-        // 键字母序（Go json.Marshal 的 map 语义）
+        // 键字母序
         List<String> keys = new ArrayList<>();
         doc.fieldNames().forEachRemaining(keys::add);
         assertThat(keys).isSorted();

@@ -6,18 +6,16 @@ import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.domain.DataSourceConfig;
 
 /**
- * Notion 连接器自己的配置（对照 Go {@code Config} + {@code parseNotionConfig}，
- * types.go L28-49）。
+ * Notion 连接器自己的配置。
  *
- * <h2>三条逐字照抄的错误语义</h2>
+ * <h2>三条错误语义</h2>
  * <ol>
- *   <li>config 为 {@code null} → <b>裸</b> {@code ErrInvalidConfig}
+ *   <li>config 为 {@code null} → <b>裸</b> {@code InvalidConfig}
  *       （{@code "invalid configuration"}，**不带细节**）。</li>
  *   <li>credentials 里没有 {@code api_key} 键 → {@code "invalid credentials: missing api_key"}。</li>
  *   <li>{@code api_key} 不是字符串、或是**空串** → 同一个哨兵、同一句
- *       {@code "invalid credentials: api_key must be a non-empty string"}。
- *       Go 用 {@code tokenVal.(string)} 的类型断言把"不是字符串"与"空串"合并成一条分支，
- *       Java 侧也一样（数字 42 与 {@code ""} 得到同一句话）。</li>
+ *       {@code "invalid credentials: api_key must be a non-empty string"}
+ *       （数字 42 与 {@code ""} 得到同一句话）。</li>
  * </ol>
  */
 public final class NotionConfig {
@@ -30,7 +28,7 @@ public final class NotionConfig {
     }
 
     /**
-     * 对照 Go {@code parseNotionConfig}。
+     * 解析并校验配置。
      *
      * @throws ConnectorException 详细语义见类注释
      */

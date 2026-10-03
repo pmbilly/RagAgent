@@ -15,7 +15,7 @@ import com.ragagent.llm.domain.MessageContentPart;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * 上下文诊断的 Go 实录断言（/tmp/wave42rec：context_debug.go 纯逻辑内嵌）。
+ * 上下文诊断的录制常量断言。
  * 覆盖：归因明细逐字段（text/reasoning/tool_results/tool_args/images/summaries/
  * tool_schemas/largest）、String() 逐字节、空输入、漂移百分比的分级边界。
  */
@@ -84,7 +84,7 @@ class ContextDiagnosticsTest {
 
     @Test
     void driftPercentGrading() {
-        // 对照 logContextDrift 的分级：< -25% 低估告警、> 50% 高估告警（实录 drift0..5）
+        // logContextDrift 的分级：< -25% 低估告警、> 50% 高估告警（录制常量 drift0..5）
         for (int i = 0; i < 6; i++) {
             int predicted = new int[] {1000, 1200, 600, 700, 740, 760}[i];
             int actual = 1000;

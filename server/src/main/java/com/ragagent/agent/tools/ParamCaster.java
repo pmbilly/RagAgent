@@ -20,13 +20,13 @@ import com.ragagent.common.web.GoDoubleSerializer;
  *   <li>array ← 字符串：先试 JSON 解析（{@code "[{...}]"} → 数组），失败退化为单元素字符串数组；</li>
  *   <li>boolean ← "true"/"1"/"yes"→true、"false"/"0"/"no"→false（大小写不敏感）；数字 0/1 → false/true；</li>
  *   <li>integer ← 整数字符串；整数值浮点（42.0 → 42）；</li>
- *   <li>number ← 可解析字符串（实录：{@code "1e21"} → 1e+21）；</li>
+ *   <li>number ← 可解析字符串（如 {@code "1e21"} → 1e+21）；</li>
  *   <li>string ← bool / 数字（浮点按最短 'f' 定点形态：{@code 123.5} → "123.5"）。</li>
  * </ul>
  *
  * <p>schema 缺失/不可解析/args 不可解析时原样返回。<b>发生任一转型后整棵 args 按
  * {@link GoJsonCodec}（键序重排 + HTML 转义）重新序列化</b>——序列化形态按既有
- * 行为钉死（实录 CAST 17/18），不是本类的选择。</p>
+ * 行为钉死，不是本类的选择。</p>
  */
 public final class ParamCaster {
 
@@ -171,7 +171,7 @@ public final class ParamCaster {
                     return F.textNode(val.booleanValue() ? "true" : "false");
                 }
                 if (val.isFloatingPointNumber()) {
-                    // 最短 'f' 定点形态（实录：123.5 → "123.5"、42.0 → "42"）
+                    // 最短 'f' 定点形态（123.5 → "123.5"、42.0 → "42"）
                     return F.textNode(goFormatFloat(val.doubleValue()));
                 }
                 if (val.isIntegralNumber()) {

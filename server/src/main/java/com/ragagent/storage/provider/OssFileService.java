@@ -25,19 +25,18 @@ import com.aliyun.oss.model.UploadPartRequest;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * 阿里云 OSS 后端（对照 Go {@code ossFileService}，file/oss.go 全文 366 行）。
+ * 阿里云 OSS 后端。
  *
- * <p>照抄的语义：对象名 {@code {pathPrefix}{tenantId}/{knowledgeId}/{uuid}{ext}}
+ * <p>语义：对象名 {@code {pathPrefix}{tenantId}/{knowledgeId}/{uuid}{ext}}
  * （pathPrefix 补尾斜杠）、SaveBytes 主桶 {@code {prefix}{tenantId}/exports/{uuid}{ext}} /
  * 临时桶 {@code exports/{tenantId}/{uuid}{ext}}、路径形态 {@code oss://{bucket}/{key}}、
  * 构造期确保桶存在（不存在则建，409 视为已存在）、预签名 24 小时、服务端 CopyObject、
  * 跨后端复制拒绝、取/删/签名时**按路径里的 bucket 选主/临时客户端**。</p>
  *
- * <p><b>大文件分片（W5γ4.20 已补，消掉原备案）</b>：照 Go 的
- * {@code Uploader}（{@code uo.PartSize = 10MB}、{@code uo.ParallelNum = 3}）——{@code >10MB}
+ * <p><b>大文件分片</b>：{@code >10MB}
  * 走 {@code initiateMultipartUpload → uploadPart ×N（3 并发）→ completeMultipartUpload}，
- * 失败时 {@code abortMultipartUpload} 清理（best-effort，照 Go SDK Uploader 的收尾）；
- * 小文件仍走单次 {@code putObject}。错误前缀照 Go：分片 {@code failed to upload file to
+ * 失败时 {@code abortMultipartUpload} 清理（best-effort）；
+ * 小文件仍走单次 {@code putObject}。错误前缀区分：分片 {@code failed to upload file to
  * OSS (multipart): …}、单次 {@code failed to upload file to OSS: …}。</p>
  */
 public class OssFileService implements FileService {
@@ -45,7 +44,7 @@ public class OssFileService implements FileService {
     private static final Logger log = LoggerFactory.getLogger(OssFileService.class);
 
     static final String SCHEME = "oss://";
-    /** 预签名有效期（对照 Go：{@code oss.PresignExpires(24*time.Hour)}）。 */
+    /** 预签名有效期：24h。 */
     static final long PRESIGN_TTL_MILLIS = 24L * 3600 * 1000;
 
     /** 分片阈值（照 Go {@code multipartThreshold = 10 * 1024 * 1024}）。 */
@@ -111,7 +110,7 @@ public class OssFileService implements FileService {
         // Java SDK 的 endpoint/region 语义：endpoint 已含 region 信息（如
         // https://oss-cn-hangzhou.aliyuncs.com），region 仅作备份与签名参考。
         // 裸域名（校验层允许）在 aliyun-sdk-java 下默认按 http:// 拨——AK/SK 与数据
-        // 走明文；Go 的 OSS SDK 同配置默认 Secure=true，这里补齐 https 前缀。
+        // 走明文；这里补齐 https 前缀。
         String normalized = endpoint == null ? "" : endpoint.trim();
         if (!normalized.isEmpty() && !normalized.contains("://")) {
             normalized = "https://" + normalized;
@@ -180,7 +179,7 @@ public class OssFileService implements FileService {
         return SCHEME + bucketName + "/" + objectName;
     }
 
-    /** 分片路径的失败标记（用于区分错误前缀；照 Go 的 {@code (multipart)} 分支）。 */
+    /** 分片路径的失败标记（用于区分 {@code (multipart)} 错误前缀）。 */
     private static final class MultipartFailure extends RuntimeException {
         MultipartFailure(String message, Throwable cause) {
             super(message, cause);
@@ -188,9 +187,9 @@ public class OssFileService implements FileService {
     }
 
     /**
-     * 照 Go 的 {@code Uploader.UploadFrom}：{@code initiateMultipartUpload} →
+     * {@code initiateMultipartUpload} →
      * {@code uploadPart}（10MB/片、**3 并发**、单遍读流）→ {@code completeMultipartUpload}；
-     * 任一步失败都 best-effort {@code abortMultipartUpload} 后抛错（照 Go SDK Uploader 收尾）。
+     * 任一步失败都 best-effort {@code abortMultipartUpload} 后抛错。
      */
     private void uploadMultipart(String objectName, String contentType, InputStream in) {
         ObjectMetadata metadata = new ObjectMetadata();

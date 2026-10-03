@@ -5,15 +5,15 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * 对照 Go {@code types.WebSearchProviderParameters}（internal/types/web_search_provider.go）。
+ * web 搜索 provider 的 parameters 载荷。
  *
  * <p>api_key 落库加密（AES-GCM，enc:v1: 前缀）由 {@link WebSearchParamsTypeHandler}
- * 在 Value/Scan 语义的位置处理；响应 DTO（{@code dto.WebSearchProviderResponse}）
- * 按构造摘除 api_key——密钥从不出现在响应里（Go 的 dto 层不变式）。</p>
+ * 在列读写时处理；响应 DTO（{@code dto.WebSearchProviderResponse}）
+ * 按构造摘除 api_key——密钥从不出现在响应里（不变式）。</p>
  *
- * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)}：Go 的 json.Unmarshal 默认
- * 忽略未知键；裸 SQL / 未来演进写入的 parameters 可能带本类不认识的键——
- * 没有它会整行读不出来（§9「波 2 FAQ 补充」教训，本批 config 列逐个挂）。</p>
+ * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)}：忽略未知键；
+ * 裸 SQL / 未来演进写入的 parameters 可能带本类不认识的键——
+ * 没有它会整行读不出来。</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class WebSearchProviderParams {

@@ -7,24 +7,23 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
 /**
- * Notion 连接器里的三个"Go 语义"纯函数：{@code strings.TrimSpace}、
- * {@code fmt.Sprintf("%d"/"%g")}、以及 {@code time.Time.MarshalJSON} 的字面量格式。
+ * Notion 连接器里的三个格式化纯函数：Unicode 空白判定、数字格式化
+ * （整数 / {@code %g} 语义）、RFC3339Nano 时间字面量。
  *
  * <h2>为什么不能直接用 Java 的同类 API</h2>
  * <ol>
- *   <li><b>{@code strings.TrimSpace} ≠ {@code String.strip()}</b>：Go 的
- *       {@code unicode.IsSpace} = 显式列举的 {@code \t \n \v \f \r 空格 U+0085 U+00A0}
- *       外加 {@code unicode.White_Space} 的其余成员。Java 的 {@code Character.isWhitespace}
+ *   <li><b>Unicode 空白判定 ≠ {@code String.strip()}</b>：这里需要的空白集合是
+ *       {@code \t \n \v \f \r 空格 U+0085 U+00A0} 外加 {@code unicode.White_Space}
+ *       的其余成员；而 {@code Character.isWhitespace}
  *       <b>不含</b> U+00A0 / U+2007 / U+202F，却<b>含</b> U+001C–U+001F——两个方向都不对。
- *       而 Notion 正文里出现 NBSP（U+00A0）是常事，
- *       {@code lines.TrimSpace(markdown) != ""} 这个"页面是否为空"的判定会因此分叉。
- *       （与约定 §9 memory 那条"Java 的 isWhitespace 不含 U+00A0"同族。）</li>
- *   <li><b>{@code fmt.Sprintf("%g")} ≠ {@code Double.toString}</b>：见 {@link #goFormatG}。</li>
- *   <li><b>{@code time.Time} 的 MarshalJSON 保留自己的时区偏移</b>，而项目的
+ *       Notion 正文里出现 NBSP（U+00A0）是常事，
+ *       "页面是否为空"的判定会因此分叉。</li>
+ *   <li><b>{@code %g} 格式 ≠ {@code Double.toString}</b>：见 {@link #goFormatG}。</li>
+ *   <li><b>时间字面量保留原偏移</b>：项目的
  *       {@code GoTimeSerializer} 会把时间归一化到 JVM 默认时区（那条规则服务的是
- *       落 jsonb 的领域对象）。连接器 cursor 里的 {@code page_edit_times} 是
- *       <b>Notion 原样给的 UTC 串</b>，归一化会写出 {@code +08:00}——
- *       与 Go 写出的 {@code …Z} 不同字节，故这里另写一份。</li>
+ *       落 jsonb 的领域对象），而 cursor 里的 {@code page_edit_times} 必须是
+ *       <b>Notion 原样给的 UTC 串</b>——归一化会把 {@code …Z} 写成 {@code +08:00}，
+ *       字面量就漂了，故这里另写一份。</li>
  * </ol>
  */
 final class NotionValues {
@@ -37,11 +36,10 @@ final class NotionValues {
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code unicode.IsSpace}。
+     * Unicode White_Space 空白判定。
      *
-     * <p>Go 的实现是"先枚举 ASCII/Latin-1 的 8 个，再查 {@code unicode.White_Space}
-     * 里 Latin-1 之外的部分"。Java 侧逐条照抄成显式集合，而不是去映射
-     * {@code Character.isWhitespace}（那个不等价）。</p>
+     * <p>实现为显式集合（先枚举 ASCII/Latin-1 的 8 个，再列 Latin-1 之外的成员），
+     * 不去映射 {@code Character.isWhitespace}（那个不等价）。</p>
      */
     static boolean isGoSpace(char c) {
         switch (c) {
@@ -67,7 +65,7 @@ final class NotionValues {
                 || c == 0x3000;
     }
 
-    /** 对照 Go {@code strings.TrimSpace}（两端的 Unicode 空白）。 */
+    /** 去掉两端的 Unicode 空白。 */
     static String trimSpace(String s) {
         if (s == null || s.isEmpty()) {
             return "";
@@ -88,18 +86,18 @@ final class NotionValues {
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code extractValue} 的 {@code float64} 分支：
+     * 数字 → 字符串：整数形态走整数输出，否则 {@code %g}：
      * <pre>
-     *   if val == float64(int64(val)) { return fmt.Sprintf("%d", int64(val)) }
-     *   return fmt.Sprintf("%g", val)
+     *   val == (double)(long) val → 整数十进制
+     *   否则                       → {@link #goFormatG}
      * </pre>
      *
-     * <p>Go 的 JSON 解码器把**所有**数字都变成 {@code float64}，Jackson 却会按需
+     * <p>这里先统一取 {@code doubleValue()} 再走整数分支——Jackson 会按需
      * 给出 {@code IntNode}/{@code LongNode}/{@code DoubleNode}/{@code BigIntegerNode}，
-     * 所以这里先统一取 {@code doubleValue()} 再走 Go 的分支——
+     * 不归一的话同一数值会走出不同形态——
      * 这是"看起来多此一举、实则必须"的一步。</p>
      *
-     * <p>越界转换（如 {@code 1e20}）在两侧都是"饱和到 long 边界"，
+     * <p>越界转换（如 {@code 1e20}）会饱和到 long 边界，
      * 于是比较必然失败、落到 {@code %g}，实测 {@code 1e20 → "1e+20"}。</p>
      */
     static String jsonNumberToString(double val) {
@@ -111,15 +109,14 @@ final class NotionValues {
     }
 
     /**
-     * 对照 Go {@code fmt.Sprintf("%g", v)}（即 {@code strconv.AppendFloat(buf, v, 'g', -1, 64)}）。
+     * {@code %g} 格式（最短可往返表示）。
      *
-     * <h2>与 encoding/json 的浮点编码器**不是**一回事</h2>
-     * <p>{@code GoDoubleSerializer} 复刻的是 {@code encoding/json} 的专用编码器
-     * （'f' 与 'e' 的分界在 {@code 1e-6 / 1e21}）。{@code %g} 走的是 strconv 的
-     * {@code formatDigits}：'e' 形态的分界是
-     * <b>{@code exp < -4 || exp >= 6}</b>（`shortest` 时 {@code eprec=6}），
+     * <h2>与 {@code GoDoubleSerializer} 的浮点编码**不是**一回事</h2>
+     * <p>{@code GoDoubleSerializer}（'f' 与 'e' 的分界在 {@code 1e-6 / 1e21}）
+     * 服务的是 jsonb 载荷；这里的 {@code %g} 分界是
+     * <b>{@code exp < -4 || exp >= 6}</b>，
      * 且指数**至少两位**（{@code 1e-05} 而不是 {@code 1e-5}）。</p>
-     * <p>实测（{@code /tmp/weknora-copy} 的 probe）：</p>
+     * <p>实测值：</p>
      * <pre>
      *   1000000  → 走 %d 分支 → "1000000"
      *   1234567.5 → "1.2345675e+06"
@@ -155,7 +152,7 @@ final class NotionValues {
             if (nd > 1) {
                 out.append('.').append(digits, 1, nd);
             }
-            // Go 的 fmtE：指数带符号，且**至少两位**（"1e+06" / "1e-05"）。
+            // 指数带符号，且**至少两位**（"1e+06" / "1e-05"）。
             out.append('e');
             int e = exp;
             if (e < 0) {
@@ -174,9 +171,8 @@ final class NotionValues {
     }
 
     /**
-     * 最短能唯一往返的十进制表示——与 {@code GoDoubleSerializer} 的做法相同
-     * （{@code Double.toString} 在次正规数上不是最短表示，故再压缩有效位数，
-     * 这只会朝 Go 移动）。
+     * 最短能唯一往返的十进制表示
+     * （{@code Double.toString} 在次正规数上不是最短表示，故再压缩有效位数）。
      */
     private static BigDecimal shortestRoundTrip(double abs) {
         BigDecimal stripped = new BigDecimal(Double.toString(abs)).stripTrailingZeros();
@@ -199,11 +195,10 @@ final class NotionValues {
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go 的 {@code time.Time.MarshalJSON}（{@code RFC3339Nano} 布局
-     * {@code 2006-01-02T15:04:05.999999999Z07:00}）：<b>保留时间自己的偏移</b>，
-     * 小数秒去掉尾随零、为零时整个小数部分省略。
+     * RFC3339Nano 字面量（秒的小数去尾随零、为零时整个小数省略）：
+     * <b>保留时间自己的偏移</b>。
      *
-     * <p>实测（probe 的 {@code cursor.json}）：</p>
+     * <p>实测值：</p>
      * <pre>
      *   2026-01-15T10:00:00Z（UTC）              → "2026-01-15T10:00:00Z"
      *   10:00:00.123 +0000                       → "2026-01-15T10:00:00.123Z"
@@ -261,7 +256,7 @@ final class NotionValues {
         }
     }
 
-    /** 供 cursor 构造用的"当前时间"（Go 的 {@code time.Now()}：本地时区）。 */
+    /** 供 cursor 构造用的"当前时间"（本地时区）。 */
     static OffsetDateTime now() {
         return OffsetDateTime.now();
     }

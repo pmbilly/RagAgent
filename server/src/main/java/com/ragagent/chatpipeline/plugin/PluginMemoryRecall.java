@@ -18,7 +18,7 @@ import com.ragagent.common.session.PipelineUsedMemoryView;
 import com.ragagent.retrieval.obs.RetrievalObs;
 
 /**
- * MEMORY_RECALL 阶段插件（对照 Go chat_pipeline/memory_recall.go）：
+ * MEMORY_RECALL 阶段插件：
  * 常驻块 + 情境条目注入本轮；无模型调用；记忆信封进 MemoryPrompt，
  * 结构化 UsedMemories 走 memory.usedMemoriesFromItems 投影并 emit memory_recalled 事件。
  */
@@ -87,7 +87,7 @@ public final class PluginMemoryRecall implements Plugin {
     }
 
     /**
-     * 对照 emitMemoryRecalled：尽力而为的事件（Emit 失败只告警不断流）。
+     * 尽力而为的事件（emit 失败只告警不断流）。
      * EventMemoryRecalled 的 Data = MemoryRecalledData{Memories}。
      */
     static void emitMemoryRecalled(com.ragagent.event.EventBusInterface bus, String sessionID,

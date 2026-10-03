@@ -10,15 +10,13 @@ import java.util.TreeMap;
 import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 
 /**
- * 逐路由 API-Key 策略注册表 + 授权判定（对照 Go
- * {@code middleware.APIKeyRouteAuthorizer}，internal/middleware/api_key_gate.go L56-153）。
+ * 逐路由 API-Key 策略注册表 + 授权判定。
  *
- * <p>注册发生在**应用启动期（单线程）**，请求期只读——天然无锁，与 Go 的
- * "populated at router-construction time, only read at request time" 一致。
+ * <p>注册发生在**应用启动期（单线程）**，请求期只读——天然无锁。
  * Java 侧再叠加一层不可变快照（{@link #freeze()}）供运行期只读查询。</p>
  *
  * <h2>路由键的形态：gin 模板 → Spring 模板</h2>
- * <p>Go 的键是 gin 的 {@code c.FullPath()}，例如
+ * <p>gin 形态的路由键，例如
  * {@code /api/v1/knowledge-bases/:id/knowledge/file}。</p>
  * <p>Java 侧等价物是 Spring MVC 的 <b>best-matching pattern</b>
  * （{@code HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE}），写法是
@@ -28,18 +26,17 @@ import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
  *   <li>gin {@code *wildcard} ↔ Spring {@code {*wildcard}}（路径尾部多段）
  *       —— 注意 gin 的 {@code *} 只能出现在路径末尾，Spring 亦同；
  *       wiki 的 {@code /pages/*slug} 在 Spring 里就是 {@code /pages/{*slug}}</li>
- *   <li>gin 的分组前导路径由 {@code path.Join(BasePath(), rel)} 拼出；
- *       Spring 的 pattern 是控制器的绝对映射，两者最终字符串形态一致</li>
+ *   <li>路由键统一是完整绝对路径；Spring 的 pattern 是控制器的绝对映射，
+ *       两种形态最终字符串一致</li>
  * </ul>
  * <p>为了少一次心智转换，{@link #registerGin(String, String, APIKeyRoutePolicy)}
- * 提供了按 gin 原文抄写策略表的入口：它把 {@code :x} / {@code *x} 就地转成
- * Spring 形态。{@link #normalizeRoutePath(String)} 本身的规则与 Go **逐字符一致**
- * （折叠重复斜杠、去掉尾斜杠），两种形态都适用。</p>
+ * 提供了按 gin 风格模板登记策略的入口：它把 {@code :x} / {@code *x} 就地转成
+ * Spring 形态。{@link #normalizeRoutePath(String)} 的归一规则（折叠重复斜杠、
+ * 去掉尾斜杠）对两种形态都适用。</p>
  *
  * <p><b>查表必须与注册用同一种归一化</b>，否则 {@code /api/v1/models/} 这类
- * "带尾斜杠的请求"会 miss 并静默 403——Go 的
- * {@code assertAPIKeyPoliciesMatchRoutes} 存在的意义就是把这种错配变成启动期崩溃。
- * Java 侧对应物是 {@link #declaredNodes()} + 启动自检（见任务报告）。</p>
+ * "带尾斜杠的请求"会 miss 并静默 403。Java 侧的自检手段是
+ * {@link #declaredNodes()} + 启动期对账（策略必须指向已注册的路由）。</p>
  */
 public final class APIKeyRouteAuthorizer {
 
@@ -56,7 +53,7 @@ public final class APIKeyRouteAuthorizer {
 
     /**
      * 按 gin 路由模板注册（{@code :param} / {@code *wildcard} 就地转 Spring 形态），
-     * 便于把 Go {@code router/*.go} 的策略表**原文**搬过来，避免手工转换出错。
+     * 便于按 gin 风格模板直接书写策略表，避免手工转换出错。
      */
     public void registerGin(String method, String ginFullPath, APIKeyRoutePolicy policy) {
         put(method, ginPathToSpringPath(ginFullPath), policy);
@@ -69,7 +66,7 @@ public final class APIKeyRouteAuthorizer {
     }
 
     /**
-     * 查策略（对照 {@code Lookup}）：未声明 → {@code null}（调用方 default-deny）。
+     * 查策略：未声明 → {@code null}（调用方 default-deny）。
      *
      * <p>返回值是 {@code null} 而不是空政策对象，是因为"没声明"与"声明了宽松策略"
      * 必须可区分——前者拒绝，后者放行。</p>
@@ -82,13 +79,13 @@ public final class APIKeyRouteAuthorizer {
         return byPath.get(normalizeRoutePath(fullPath));
     }
 
-    /** 该 (method, path) 是否已声明策略（对照 Go 的 {@code _, ok := Lookup(...)}）。 */
+    /** 该 (method, path) 是否已声明策略。 */
     public boolean isDeclared(String method, String fullPath) {
         return lookup(method, fullPath) != null;
     }
 
     /**
-     * 对照 {@code RegisteredRoutes}：方法 → 已声明的路径列表。
+     * 方法 → 已声明的路径列表。
      * 供启动自检检测"策略指向了不存在的路由"。
      */
     public Map<String, List<String>> registeredRoutes() {
@@ -111,8 +108,7 @@ public final class APIKeyRouteAuthorizer {
     }
 
     /**
-     * 授权判定——对照 Go {@code (APIKeyRouteAuthorizer).authorize}
-     * （internal/middleware/api_key_gate.go L130-153）。<b>逐句照抄，包括看起来多余的判断。</b>
+     * 授权判定。判定顺序即语义，<b>看似多余的判断也是刻意的，别删</b>。
      *
      * <ol>
      *   <li><b>无策略 → 拒绝</b>（default deny）；</li>
@@ -120,8 +116,7 @@ public final class APIKeyRouteAuthorizer {
      *       <b>哪怕它是 full-access</b>；</li>
      *   <li>{@code PlatformOnly && 策略无可能力} → 拒绝：
      *       "平台专用但没写明要求什么能力"被视为配置错误，fail-closed
-     *       （Go 测试 {@code TestGatePlatformOnlyPolicyRejectsTenantKeyBeforeFullAccess}
-     *       专门钉了"腐坏的平台 full-access Key 也过不去"）；</li>
+     *       （腐坏的平台 full-access Key 也过不去）；</li>
      *   <li>{@code scope.FullAccess} → 放行；</li>
      *   <li>策略能力 any-of 命中 scope 的能力 → 放行（空串能力被跳过）；</li>
      *   <li>既不要 full-access、也没有能力清单 → 放行（"对任何有效 Key 开放"）；</li>
@@ -158,7 +153,6 @@ public final class APIKeyRouteAuthorizer {
     // ── 路径与方法的归一化 ──
 
     /**
-     * 对照 Go {@code normalizeRoutePath}（api_key_gate.go L207-218）：
      * 折叠重复斜杠 + 去掉尾斜杠（长度 &gt; 1 时），让"分组拼接出来的路径"与
      * "框架上报的 full path" 严格相等。
      *
@@ -168,7 +162,7 @@ public final class APIKeyRouteAuthorizer {
      * "/"                → "/"          （长度 1，不裁剪）
      * </pre>
      *
-     * <p>Java 侧额外做一步 {@code null → ""} 的归一（Go 的 {@code ""} 分支），
+     * <p>额外做一步 {@code null → ""} 的归一，
      * 调用方不必先判空。</p>
      */
     public static String normalizeRoutePath(String p) {
@@ -178,7 +172,7 @@ public final class APIKeyRouteAuthorizer {
         while (p.contains("//")) {
             p = p.replace("//", "/");
         }
-        // 对照 Go 的 strings.TrimSuffix(p, "/")：只裁一个尾斜杠。
+        // 只裁一个尾斜杠。
         // 上面的折叠保证此时最多只剩一个。
         if (p.length() > 1 && p.endsWith("/")) {
             p = p.substring(0, p.length() - 1);
@@ -216,7 +210,7 @@ public final class APIKeyRouteAuthorizer {
         return sb.toString();
     }
 
-    /** 对照 Go：方法统一大写（{@code strings.ToUpper(method)}）。 */
+    /** 方法统一大写（先 trim 空白）。 */
     private static String normalizeMethod(String method) {
         return method == null ? "" : method.trim().toUpperCase(Locale.ROOT);
     }

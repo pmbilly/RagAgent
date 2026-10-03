@@ -5,9 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * 压缩设置的 Go 实录断言（/tmp/wave42rec：settings.go 内嵌；
- * 场景 = compaction_test.go 的 TestKeepRecentIsScaledDownOnSmallWindows /
- * TestThresholdAndShouldCompact + 预算公式边界）。
+ * 压缩设置的录制常量断言（场景 = 小窗口缩 keep-recent /
+ * 阈值与 should-compact + 预算公式边界）。
  */
 class CompactionSettingsTest {
 

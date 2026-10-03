@@ -27,7 +27,7 @@ import com.ragagent.rerank.Reranker;
 import com.ragagent.retrieval.HybridSearchService;
 
 /**
- * {@code AgentToolBackends} 的**知识库检索簇**（§14 步骤 2）：知识库检索 / chunk 列举 /
+ * {@code AgentToolBackends} 的**知识库检索簇**：知识库检索 / chunk 列举 /
  * grep / 知识图谱 / 图片富化 / rerank 模型适配等工具后端的装配与实现。
  *
  * <p>为什么单独一类：这一簇自成一条读链（KB 解析 → 混合检索 → chunk 视图 / 图谱搜索 →
@@ -37,7 +37,7 @@ import com.ragagent.retrieval.HybridSearchService;
  */
 final class AgentToolKbBackends {
 
-    /** 对照 ListPagedChunksByKnowledgeID 的 text+faq 类型过滤。 */
+    /** chunk 列举的 text+faq 类型过滤。 */
     private static final List<String> TEXT_FAQ_TYPES = List.of(
             com.ragagent.common.pipeline.ChunkTypes.TEXT, com.ragagent.common.pipeline.ChunkTypes.FAQ);
 
@@ -64,7 +64,7 @@ final class AgentToolKbBackends {
         this.jdbc = jdbc;
     }
 
-    /** 对照 NewKnowledgeSearchTool 的 cfg 参数（Conversation 检索段）。 */
+    /** 检索工具的阈值配置（Conversation 检索段）。 */
     public KnowledgeSearchTool.SearchConfig searchConfig() {
         return new KnowledgeSearchTool.SearchConfig(
                 conversation.getEmbeddingTopK(), conversation.getVectorThreshold(),
@@ -94,7 +94,7 @@ final class AgentToolKbBackends {
                             out.add(toKbView(kb));
                         }
                     } catch (RuntimeException ignored) {
-                        // 对照 Go GetKnowledgeBasesByIDsOnly：异常返回空表
+                        // 单个 KB 查询失败不拖垮整批：异常返回空表
                     }
                 }
                 return out;
@@ -256,7 +256,7 @@ final class AgentToolKbBackends {
             return results;
         };
     }
-    /** 对照 grep_chunks.go 的 scopeClause（OR 组合：knowledge_id IN / 标签 EXISTS / kb+tenant 对）。 */
+    /** grep 的范围子句（OR 组合：knowledge_id IN / 标签 EXISTS / kb+tenant 对）。 */
     private String grepScopeClause(List<String> kbIDs, List<String> knowledgeIDs,
                                    List<SearchTarget> tagTargets, Map<String, Long> kbTenantMap,
                                    List<Object> args) {
@@ -332,7 +332,7 @@ final class AgentToolKbBackends {
                 r.totalChunkCount = c == null ? 0 : c;
             }
         } catch (RuntimeException ignored) {
-            // 对照 Go：count 失败只 warn，跳过回填
+            // count 失败只 warn，跳过回填
         }
     }
     /**

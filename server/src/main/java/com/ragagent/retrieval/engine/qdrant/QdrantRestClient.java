@@ -13,16 +13,15 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * Qdrant REST 传输层——本仓的"协议决策"落地口径（Go 用 {@code qdrant/go-client} 走 gRPC，
- * 本仓照 ES/OpenSearch 先例自持 HTTP/JSON；语义逐条对照 gRPC 客户端调用点）。
+ * Qdrant REST 传输层——本仓自持 HTTP/JSON（语义逐条对照 gRPC 客户端调用点）。
  *
  * <p>信封约定：Qdrant 成功响应是 {@code {"result":…,"status":"ok"}}，失败是非 2xx +
  * {@code {"status":{"error":"…"}}}。本类把非 2xx 折叠成 {@link QdrantHttpException}
  * （status + 报文原文），成功时返回 {@code result} 节点（缺失时返回 {@code null}）。</p>
  *
- * <p><b>与 Go 的差异（备案）</b>：① 传输从 gRPC 换 REST（端点映射见各类方法注释；
+ * <p><b>实现说明</b>：① 传输为 REST（端点映射见各类方法注释；
  * 语义等价面：过滤 DSL、score_threshold、match any、text match、scroll offset）；
- * ② Go 的 SSRF 在 gRPC dialer 逐连接校验；本仓在构造期校验地址一次（同其它 Java 驱动），
+ * ② SSRF 在构造期校验地址一次（同其它 Java 驱动），
  * 且 api-key 只发往用户配置的 host；③ 超时无请求级 ctx（Java 驱动族同姿态）。</p>
  */
 public final class QdrantRestClient {
@@ -45,7 +44,7 @@ public final class QdrantRestClient {
                 .build();
     }
 
-    /** 建 Qdrant REST base URL：host[:port] + TLS 开关（端口缺省 6334，照 Go）。 */
+    /** 建 Qdrant REST base URL：host[:port] + TLS 开关（端口缺省 6334）。 */
     public static String buildBaseUrl(String host, int port, boolean useTls) {
         String h = host == null ? "" : host.trim();
         int p = port <= 0 ? 6334 : port;

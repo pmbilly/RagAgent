@@ -32,7 +32,7 @@ final class MemoryInsightOps {
     }
 
     /**
-     * 对照 Go {@code RetrievalContextFor}：返回记忆对**检索**的贡献。
+     * 返回记忆对**检索**的贡献。
      *
      * <p>与 {@code Recall} 一样，它不做模型调用：两次带索引的读加上字符串拼装，
      * 因为它跑在每一个检索回合的第一个 token 之前。</p>
@@ -111,7 +111,7 @@ final class MemoryInsightOps {
     }
 
     /**
-     * 对照 Go {@code topDocumentTitles}：把这个人答案通常取材自的词汇交给改写器。
+     * 把这个人答案通常取材自的词汇交给改写器。
      * 用标题而不是 id，因为改写器的任务是产出更好的检索文本，不是寻址文档。
      */
     List<String> topDocumentTitles(MemoryScope scope) {
@@ -139,7 +139,7 @@ final class MemoryInsightOps {
         return titles;
     }
 
-    /** 对照 Go {@code DocumentAffinity}：按这个人以前对它们的依赖给文档打分。 */
+    /** 按这个人以前对它们的依赖给文档打分。 */
     public Map<String, Integer> documentAffinity(List<String> knowledgeIds) {
         MemoryService.ScopeState state = service.enabledScope();
         if (!state.ok() || !state.cfg().retrievalConditioningEnabled()
@@ -155,7 +155,7 @@ final class MemoryInsightOps {
     }
 
     /**
-     * 对照 Go {@code RecordAnswerSources}：记下一个回答取材于哪些文档。
+     * 记下一个回答取材于哪些文档。
      *
      * <p>挂在回答上的引用是比显式点赞更弱的信号，但它是不问用户任何东西就能拿到的
      * 唯一一个，而且正是它让重排器能够偏爱这个人反复回来的材料。</p>
@@ -182,7 +182,7 @@ final class MemoryInsightOps {
     }
 
     /**
-     * 对照 Go {@code ObserveQuestionTopics}：统计一个人问过什么，
+     * 统计一个人问过什么，
      * 并在某个主体复现之后把它提升成记忆。返回本次提升出来的兴趣。
      */
     public List<String> observeQuestionTopics(List<String> topics) {
@@ -199,7 +199,7 @@ final class MemoryInsightOps {
     }
 
     /**
-     * 对照 Go {@code service.observeTopics}：显式传 scope 的形态。
+     * 显式传 scope 的形态。
      *
      * <p>蒸馏跑在一个没有主体的后台 worker 上——它的 scope 来自任务负载——
      * 所以蒸馏调用的任何东西都必须被**交给** scope，而不是从请求里重新推导。</p>
@@ -312,7 +312,7 @@ final class MemoryInsightOps {
     }
 
     /**
-     * 对照 Go {@code SearchMemory}：把这个用户存下的记忆对着一个任意查询排序。
+     * 把这个用户存下的记忆对着一个任意查询排序。
      *
      * <p>召回每轮跑一次、对着用户开场的那个问题，而且它放行什么被卡得很死：
      * 五条情境条目，600 rune 预算。有两类东西落在外面——一个已经跑了十轮、

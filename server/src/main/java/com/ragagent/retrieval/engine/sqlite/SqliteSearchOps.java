@@ -37,7 +37,7 @@ final class SqliteSearchOps {
         if (EngineTypes.RETRIEVER_VECTOR.equals(type) || type.isEmpty()) {
             results.addAll(vectorRetrieve(params));
         }
-        // 照 Go：未知类型<b>不报错</b>，返回空列表（其他店的"invalid retriever type"是特例）
+        // 未知类型不报错，返回空列表（其他店的"invalid retriever type"是特例）
         return results;
     }
 
@@ -84,8 +84,8 @@ final class SqliteSearchOps {
     }
 
     /**
-     * 照 Go 的 vec0 查询形状：<b>先取 k 近邻，再用 {@code rowid IN (过滤子查询)} 收窄</b>
-     * （因此结果可能少于 TopK——这是 Go 的既有语义，别"顺手"改成先过滤）；阈值在取回后于
+     * 向量查询形状：<b>先取 k 近邻，再用 {@code rowid IN (过滤子查询)} 收窄</b>
+     * （因此结果可能少于 TopK——既有语义，别"顺手"改成先过滤）；阈值在取回后于
      * 内存里衰减（{@code score < threshold → 跳过}）。
      */
     List<RetrieveResult> vectorRetrieve(RetrieveParams params) throws SQLException {
@@ -144,7 +144,7 @@ final class SqliteSearchOps {
                 EngineTypes.RETRIEVER_VECTOR));
     }
 
-    /** 行读取：{@code id} 用 rowid 的十进制串（照 Go 的 {@code fmt.Sprintf("%d", row.ID)}）。 */
+    /** 行读取：{@code id} 用 rowid 的十进制串。 */
     static IndexWithScore readIndex(ResultSet rs, boolean withRowid) throws SQLException {
         IndexWithScore item = new IndexWithScore();
         item.id = String.valueOf(withRowid ? rs.getLong("rowid") : rs.getLong("id"));
@@ -161,7 +161,7 @@ final class SqliteSearchOps {
         return item;
     }
 
-    // ── 过滤（照 buildFilterWhere：只有 KB/知识/标签三个 IN，无排除项） ────
+    // ── 过滤（只有 KB/知识/标签三个 IN，无排除项） ─────────────────────────
 
     record FilterWhere(String clause, List<Object> args) {
     }

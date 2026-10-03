@@ -20,8 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 追问建议仓储语义（H2）——对照 Go
- * internal/application/repository/message_suggestion.go。
+ * 追问建议仓储语义（H2）。
  *
  * <p>重点是 {@code AcquireGeneration} 的四条分支：唯一键抢占、复用 ready/suppressed 结果、
  * 别人租约未过期时让位、租约过期后抢过来重生成。</p>
@@ -64,7 +63,7 @@ class MessageSuggestionRepositoryTest {
         assertThat(result.acquired()).isTrue();
         assertThat(result.set().getId()).isNotBlank();
         assertThat(result.set().getStatus()).isEqualTo(MessageSuggestionSet.STATUS_GENERATING);
-        // 空列表写成 []（不是 NULL）——Go 的 SuggestionItems.Value() 对 nil 就是这么做的
+        // 空列表写成 []（不是 NULL）——null 集合在落库时就是这么序列化的
         assertThat(jdbc.queryForObject(
                 "SELECT questions FROM message_suggestion_sets WHERE id = ?",
                 String.class, result.set().getId())).isEqualTo("[]");

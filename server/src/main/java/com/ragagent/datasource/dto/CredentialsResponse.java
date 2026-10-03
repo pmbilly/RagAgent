@@ -5,11 +5,10 @@ import java.util.Map;
 
 
 /**
- * 凭据子资源的响应（对照 Go {@code dto.CredentialsResponse}，
- * internal/handler/dto/mcp.go L176-182）。
+ * 凭据子资源的响应。
  *
- * <p>{@code PUT /datasource/{id}/credentials} 返回
- * {@code {"success":true,"data":{"fields":{"credentials":{"configured":true}}}}}。</p>
+ * <p>{@code PUT /datasource/{id}/credentials} 返回裸对象
+ * {@code {"fields":{"credentials":{"configured":true}}}}。</p>
  *
  * <p>数据源只有一个逻辑字段 {@code "credentials"}——连接器凭据是一张按连接器而异的
  * <b>原子 map</b>（OAuth token 对、Confluence 的 email+token 组合……），
@@ -19,7 +18,7 @@ import java.util.Map;
 public record CredentialsResponse(
         Map<String, CredentialFieldMetadata> fields) {
 
-    /** Go 的 {@code map[string]dto.CredentialFieldMetadata{"credentials": {configured}}}。 */
+    /** 单字段形态：{@code {"credentials": {configured}}}。 */
     public static CredentialsResponse credentials(boolean configured) {
         Map<String, CredentialFieldMetadata> fields = new LinkedHashMap<>();
         fields.put("credentials", new CredentialFieldMetadata(configured));

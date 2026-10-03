@@ -28,10 +28,10 @@ import com.ragagent.stream.StreamManager;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * {@code KnowledgeQaController} 的**执行/落库簇**（§14.9c 刀 6b）：一整轮 QA 的编排（模式分派、
+ * {@code KnowledgeQaController} 的**执行/落库簇**：一整轮 QA 的编排（模式分派、
  * follow-up 交接与回滚、租户作用域）、轮次消息落库（用户消息构造/回滚）、并发守卫。
  *
- * <p>共享项处理（§11.26 判据）：{@code turnFinalizer}/{@code sseOrchestrator}/{@code attachmentResolver}
+ * <p>共享项处理：{@code turnFinalizer}/{@code sseOrchestrator}/{@code attachmentResolver}
  * 均为已建协作者，直接持有转发；{@code appendQuickAnswerReasoning} 是 static → 留控制器按类名引用。</p>
  */
 final class QaTurnExecutor {
@@ -67,7 +67,7 @@ final class QaTurnExecutor {
     }
     /**
      * @param asyncDone skipSSE 调用方（steer follow-up）的完成信号：异步 runner 收尾后
-     *                  complete；HTTP 调用方传 null。对照 Go 的 asyncDone channel。
+     *                  complete；HTTP 调用方传 null。
      */
     private void executeQA(QaRequestContext reqCtx, QaMode mode, boolean generateTitle,
             HttpServletResponse response, CompletableFuture<Void> asyncDone) throws IOException {
@@ -80,7 +80,7 @@ final class QaTurnExecutor {
                 com.ragagent.event.TenantContextSnapshot.capture();
         Thread.ofVirtual().start(() -> {
             memoTenant.replay();
-            // 派生线程同样按会话属主租户查（对照 Go 的 ctx 传播）
+            // 派生线程同样按会话属主租户查
             com.ragagent.session.service.SessionLookupScope.mark();
             try {
                 turnFinalizer.persistLastRequestState(reqCtx, mode);
@@ -98,9 +98,8 @@ final class QaTurnExecutor {
             }
         }
 
-        // agent 模式的 query 帧由 setupSSEStream 内的 writeAgentQueryEvent 直写流
-        // （helpers.go L418-440）。这里不再向空 EventBus 发事件：该实例无任何订阅者，
-        // 纯 no-op（Go 的 Emit(agent.query) 有 middleware 面才需要）。
+        // agent 模式的 query 帧由 setupSSEStream 内的 writeAgentQueryEvent 直写流。
+        // 这里不再向空 EventBus 发事件：该实例无任何订阅者，纯 no-op。
 
         boolean createdUser = reqCtx.userMessageID.isEmpty();
         boolean createdAssistant = reqCtx.assistantMessage == null || reqCtx.assistantMessage.getId().isEmpty();
@@ -176,8 +175,8 @@ final class QaTurnExecutor {
 
         // 异步执行（虚拟线程，Go L1209-1313 的 goroutine）。
         // 纪律 #1：TenantContext 是 ThreadLocal，跨虚拟线程必须显式 capture/replay。
-        // 对照 setupSSEStream（Go qa.go L661-675）：共享 agent → 异步段以源租户为
-        // 执行租户（模型/KB/MCP 解析范围；身份不变）；租户不存在则不切换（Go 同款守卫）。
+        // 共享 agent → 异步段以源租户为
+        // 执行租户（模型/KB/MCP 解析范围；身份不变）；租户不存在则不切换。
         final com.ragagent.event.TenantContextSnapshot requestTenant =
                 reqCtx.effectiveTenantId != 0
                         && tenantService.getTenantById(reqCtx.effectiveTenantId) != null
@@ -192,13 +191,13 @@ final class QaTurnExecutor {
         runner.start(() -> {
             try {
                 requestTenant.replay();
-                // 对照 Go L213（ctx 沿整条 QA 流传播）：本线程上的会话/消息查询按会话属主
+                // 本线程上的会话/消息查询按会话属主
                 // 租户范围——共享 agent 场景下当前主体不是属主，带 user 范围会查不到。
                 // 线程收尾处清理（见下方 finally 的 TenantContext.clear() 旁）。
                 com.ragagent.session.service.SessionLookupScope.mark();
                 attachmentResolver.resolveTemporaryAttachments(streamCtx, reqCtx);
                 QaSupport.QaRequest qaReq = reqCtx.buildQaRequest();
-                // 用户停止 → 引擎取消（Go 的 ctx 取消贯穿 think/act/审批等待三条路）：
+                // 用户停止 → 引擎取消（取消探针贯穿 think/act/审批等待三条路）：
                 // 探针读 streamCtx.cancelled（stop 处理器置位），语义 null=未取消。
                 qaReq.cancellationProbe = () -> streamCtx.cancelled ? "context canceled" : null;
                 if (mode == QaMode.NORMAL) {
@@ -212,12 +211,9 @@ final class QaTurnExecutor {
                 errEvt.setType(EventType.EVENT_ERROR);
                 errEvt.setSessionId(sessionId);
                 ErrorData errData = new ErrorData();
-                // Go 的 serviceErr.Error() **带** AppError 前缀（W5γ5.12 线上 A/B 实测，两种模式都实测过）：
-                // Go 管道返回的是 PluginError.Err 内层错误，而那个内层错误就是 AppError 本身，
-                // 其 Error() = "error code: N, error message: M"——**不是**裸 message。
-                // 旧实现在这里剥到 appError().message()，理由（"否则会带出 BizException 前缀"）把
-                // Java 的包装类名与 Go 的 AppError 文案混为一谈了：只要不吐 Java 异常类名即可，
-                // 前缀本身是契约（同 §known-issues/09 第三节）。
+                // 错误文案取 wireText：**带** "error code: N, error message: M" 前缀，
+                // 前缀本身是契约（见 docs/known-issues/09-e2e-observations.md 的记录），
+                // 不要剥成裸 message；只需保证不吐 Java 异常类名。
                 errData.setError(com.ragagent.common.error.BizException.wireText(serviceErr));
                 errData.setStage(mode == QaMode.NORMAL ? "knowledge_qa_execution" : "agent_execution");
                 errData.setSessionId(sessionId);
@@ -237,7 +233,6 @@ final class QaTurnExecutor {
                     // completeAssistantMessage 的异步索引/follow-up 快照因此丢了
                     // principal/userId，owner 推导成 ""，embed（owner=embed_session:…）
                     // 与平台（owner=<userId>）会话双双 SessionNotFound。
-                    // 对照 Go：defer 里的 ctx 值仍然完整，不存在这个顺序陷阱。
                     Long sessionTenant = reqCtx.session.getTenantId();
                     turnFinalizer.runWithTenant(sessionTenant, () -> {
                         if (streamCtx.cancelled) {
@@ -271,7 +266,7 @@ final class QaTurnExecutor {
         });
 
         // 主线程阻塞推 SSE（skipSSE 的 follow-up 无 HTTP 响应体：不推流，
-        // 由 executeQaInternal 的 asyncDone.join() 等异步段收尾，对照 Go L1315-1318）
+        // 由 executeQaInternal 的 asyncDone.join() 等异步段收尾）
         if (response == null) {
             return;
         }
@@ -281,7 +276,7 @@ final class QaTurnExecutor {
                 streamCtx, shouldWaitForTitle, reqCtx.resourceRewriter);
     }
     private void runFollowUp(QaRequestContext followUp) {
-        // follow-up 是 skipSSE 的服务端自启轮（Go 的 go executeQA(followUp, agent, false)）
+        // follow-up 是 skipSSE 的服务端自启轮（新虚拟线程执行）
         Thread.ofVirtual().start(() -> {
             try {
                 executeQaInternal(followUp, QaMode.AGENT, false, null);

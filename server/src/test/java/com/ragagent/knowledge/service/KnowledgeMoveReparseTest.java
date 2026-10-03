@@ -17,8 +17,8 @@ import com.ragagent.TestSchema;
 import com.ragagent.common.context.TenantContext;
 
 /**
- * move 的 reparse 模式（W5γ4.7 follow-up 收尾）的 H2 钉子。对照 Go
- * {@code moveKnowledgeReparse}（knowledge_clone_move.go L1382-1510）+ {@code enqueueMovedKnowledge}：
+ * move 的 reparse 模式的 H2 钉子。覆盖 {@link com.ragagent.knowledge.service.KnowledgeMoveService}
+ * 的 {@code moveKnowledgeReparse} + {@code enqueueMovedKnowledge}：
  *
  * <ol>
  *   <li>源侧资源清理——向量行、chunks 行、源图谱命名空间；</li>

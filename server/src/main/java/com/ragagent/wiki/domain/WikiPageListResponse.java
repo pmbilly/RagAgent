@@ -5,7 +5,7 @@ import java.util.List;
 
 
 /**
- * 分页的 wiki 页面列表响应。JSON 键为 snake（§11 登记边界，前端按此解析）。
+ * 分页的 wiki 页面列表响应。JSON 键为 snake（前端按此解析）。
  *
  * <p>{@code totalPages} 由 service 计算：{@code ceil(total / pageSize)}，
  * 页大小按 repository 归一化后的值（&lt;1 → 20）。</p>

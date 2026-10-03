@@ -18,27 +18,26 @@ import com.ragagent.common.web.GoJsonEscapes;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 事件 payload 进出 JSON 的唯一 ObjectMapper（对照 Go 里对 payload 直接调
- * {@code json.Marshal}——Go 只有一个编码器，这里集中对齐它的四条行为）。
+ * 事件 payload 进出 JSON 的唯一 ObjectMapper，集中定义四条序列化行为。
  *
  * <ol>
  *   <li><b>HTML 转义 + 小写十六进制控制字符</b>：{@link GoJsonEscapes}
- *       （{@code < → \u003c}、{@code & → \u0026}，Go 默认行为，实录确认）。</li>
+ *       （{@code < → \u003c}、{@code & → \u0026}）。</li>
  *   <li><b>map 键按字母序</b>：{@code ORDER_MAP_ENTRIES_BY_KEYS}。payload 的
  *       {@code extra}/{@code arguments}/{@code data}/{@code args} 装的是任意 JSON，
- *       Go 的 {@code json.Marshal} 对 map 恒排序（实录：extra 三键乱序插入、输出按字母序）。</li>
- *   <li><b>浮点按 Go 编码器输出</b>：{@link GoDoubleSerializer} 注册为 Double/Float 的
- *       序列化器。Go 的 float64 整数值不补 {@code .0}（实录：{@code "n":2}、{@code "attempt":2}），
- *       Jackson 默认 {@code 2.0}——分叉可见（这些 map 会经 toolApprovalDataToMap 进 SSE 帧）。
- *       只注册在<b>本 mapper</b>，不碰全局 HTTP mapper（约定 §9.2 的污染警告）。</li>
+ *       序列化时键恒按字母序输出。</li>
+ *   <li><b>浮点整数不补 {@code .0}</b>：{@link GoDoubleSerializer} 注册为 Double/Float 的
+ *       序列化器，整数值输出 {@code "n":2} 而非 Jackson 默认的 {@code 2.0}
+ *       （这些 map 会经 toolApprovalDataToMap 进 SSE 帧，差异对外可见）。
+ *       只注册在<b>本 mapper</b>，不碰全局 HTTP mapper，避免污染。</li>
  *   <li><b>时间 RFC3339Nano</b>：OffsetDateTime 转 JVM 默认时区后 ISO 输出（与
- *       {@code config.JacksonConfig} 一致）；Go 零值时间输出
- *       {@code "0001-01-01T00:00:00Z"}（{@link GoTimeSerializer}，实录确认 CommandOutputData
+ *       {@code config.JacksonConfig} 一致）；零值时间输出
+ *       {@code "0001-01-01T00:00:00Z"}（{@link GoTimeSerializer}，如 CommandOutputData
  *       的零值 {@code started_at}）。</li>
  * </ol>
  *
- * <p>读路径容忍未知属性（Go {@code json.Unmarshal} 默认忽略；旧事件里多出的字段
- * 不能让整条读不出来）。典型用途对照 Go {@code toolApprovalDataToMap}：
+ * <p>读路径容忍未知属性：旧事件里多出的字段不能让整条读不出来。
+ * 典型用途 {@code toolApprovalDataToMap}（见 AgentStreamBridge）：
  * {@code write(payload)} → {@code readToMap(json)}。</p>
  */
 public final class EventJson {
@@ -81,7 +80,7 @@ public final class EventJson {
         return MAPPER;
     }
 
-    /** 序列化 payload（对照 Go {@code json.Marshal(payload)}）。 */
+    /** 序列化 payload。 */
     public static String write(Object payload) {
         try {
             return MAPPER.writeValueAsString(payload);
@@ -90,7 +89,7 @@ public final class EventJson {
         }
     }
 
-    /** 反序列化 payload（容忍未知字段，对照 Go {@code json.Unmarshal}）。 */
+    /** 反序列化 payload（容忍未知字段）。 */
     public static <T> T read(String json, Class<T> type) {
         try {
             return MAPPER.readValue(json, type);
@@ -99,7 +98,7 @@ public final class EventJson {
         }
     }
 
-    /** 反序列化为 map（对照 Go {@code toolApprovalDataToMap} 的后半段）。 */
+    /** 反序列化为 map（toolApprovalDataToMap 的后半段）。 */
     @SuppressWarnings("unchecked")
     public static Map<String, Object> readToMap(String json) {
         try {

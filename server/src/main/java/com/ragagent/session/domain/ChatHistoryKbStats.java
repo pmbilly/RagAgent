@@ -2,7 +2,7 @@ package com.ragagent.session.domain;
 
 
 /**
- * 聊天历史知识库统计（对照 Go {@code types.ChatHistoryKBStats}，types/message.go L560-574）。
+ * 聊天历史知识库统计。
  *
  * <p>键序＝声明序、键名＝Java 字段名。六个键**全部恒输出**（§1.6）：空串写 {@code ""}、0/false 照写；
  * {@code enabled}、{@code indexed_message_count}、{@code has_indexed_messages} 恒输出——

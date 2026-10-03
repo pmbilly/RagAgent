@@ -33,7 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
- * 阶段 4.2 Wiki 契约测试。
+ * Wiki 契约测试。
  *
  * <p><b>Wiki 端点的响应形态与知识库/MCP 都不同</b>，这是本测试的核心价值：
  * <ul>
@@ -43,7 +43,7 @@ import org.springframework.test.web.servlet.MvcResult;
  *   <li>403 走路由守卫：{@code {"error":"Forbidden: must own the resource or have the required role"}}</li>
  * </ul>
  *
- * golden 录自 Go dev server（KB 启用了 wiki_enabled），掩码 UUID 与时间戳。
+ * golden 录自启用了 wiki_enabled 的真实 dev server，掩码 UUID 与时间戳。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -259,7 +259,7 @@ class WikiContractTest {
         assertTrue(issues.trim().startsWith("["), "issues 应为裸数组: " + issues);
     }
 
-    // ── 权限（Go 的路由守卫文案） ────────────────────────────────────────────
+    // ── 权限（路由守卫文案） ────────────────────────────────────────────
 
     @Test
     void viewerCannotCreatePage() throws Exception {
@@ -274,7 +274,7 @@ class WikiContractTest {
     }
 
     /**
-     * 不存在/跨租户的 KB：**404 + AppError 信封**（Go 实测，不是 403）。
+     * 不存在/跨租户的 KB：**404 + AppError 信封**（实测如此，不是 403）。
      * 与"资源存在但无权"区分开——后者才是守卫式 403。
      */
     @Test
@@ -314,7 +314,7 @@ class WikiContractTest {
     private static final com.fasterxml.jackson.databind.ObjectMapper GOLDEN_SEMANTIC_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
 
-    /** {@code -Dcontract.refresh=true} 时把掩码后的实际响应写回夹具（B3 重录用）。 */
+    /** {@code -Dcontract.refresh=true} 时把掩码后的实际响应写回夹具。 */
     private static final boolean REFRESH_FIXTURES = Boolean.getBoolean("contract.refresh");
 
     private static String goldenChecked(String name, String actualBody) throws Exception {
@@ -343,7 +343,7 @@ class WikiContractTest {
 
 
     /** 掩码：UUID（含任意位置的裸 UUID，如 recent_updates 里的 id）与时间戳 */
-    // ── 金片对比（B2 统一基建：语义归一 + strip + -Dcontract.refresh 重录） ──
+    // ── 金片对比（统一基建：语义归一 + strip + -Dcontract.refresh 重录） ──
 
     private static void assertGolden(org.springframework.test.web.servlet.MvcResult r,
             String name) throws Exception {

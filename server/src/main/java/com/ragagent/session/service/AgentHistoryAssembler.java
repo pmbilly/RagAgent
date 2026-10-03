@@ -14,7 +14,7 @@ import com.ragagent.session.domain.Message;
 import com.ragagent.session.support.PipelineViews;
 
 /**
- * {@code SessionAgentQaService} 的**历史/消息装配簇**（§14.9c 刀 1）：把落库的 {@code Message}
+ * {@code SessionAgentQaService} 的**历史/消息装配簇**：把落库的 {@code Message}
  * 行重建为引擎要的 {@code ChatMessage} 历史（轮次分组、steer 注入、agent step 回放、终答兜底、
  * 非终态工具调用过滤）。
  *
@@ -76,7 +76,6 @@ final class AgentHistoryAssembler {
         Message assistant;
         java.time.OffsetDateTime createdAt;
     }
-    /** buildTurnBodyMessages（agent_history.go L157-186）。 */
     private static List<ChatMessage> buildTurnBodyMessages(Message assistant, List<Message> midRunUsers) {
         if (midRunUsers.isEmpty()) {
             return buildAssistantHistoryMessages(assistant);
@@ -134,7 +133,6 @@ final class AgentHistoryAssembler {
         msg.setContent(steerMessageContent(msg.getContent()));
         return msg;
     }
-    /** buildUserHistoryMessage（agent_history.go L187-196）。 */
     private static ChatMessage buildUserHistoryMessage(Message m) {
         String content = m.getContent();
         if (m.getImages() != null) {
@@ -160,7 +158,6 @@ final class AgentHistoryAssembler {
         msg.setContent(content);
         return msg;
     }
-    /** buildAssistantHistoryMessages（agent_history.go L204-218）。 */
     private static List<ChatMessage> buildAssistantHistoryMessages(Message m) {
         List<ChatMessage> msgs = new ArrayList<>();
         if (m.getAgentSteps() != null) {
@@ -174,7 +171,6 @@ final class AgentHistoryAssembler {
         }
         return msgs;
     }
-    /** buildAgentStepMessages（agent_history.go L225-266）。 */
     private static List<ChatMessage> buildAgentStepMessages(AgentStep step) {
         List<com.ragagent.agent.domain.ToolCall> nonTerminalCalls = filterNonTerminalToolCalls(step.getToolCalls());
         if (nonTerminalCalls.isEmpty()) {
@@ -223,7 +219,6 @@ final class AgentHistoryAssembler {
             return "{}";
         }
     }
-    /** finalAnswerHistoryMessage（agent_history.go L272-289）。 */
     private static ChatMessage finalAnswerHistoryMessage(Message m) {
         String content = m.getContent() == null ? "" : m.getContent()
                 .replaceAll("(?s)<think>.*?</think>", "");
@@ -238,7 +233,6 @@ final class AgentHistoryAssembler {
         msg.setContent(content);
         return msg;
     }
-    /** filterNonTerminalToolCalls（agent_history.go L301-313）。 */
     private static List<com.ragagent.agent.domain.ToolCall> filterNonTerminalToolCalls(
             List<com.ragagent.agent.domain.ToolCall> calls) {
         List<com.ragagent.agent.domain.ToolCall> out = new ArrayList<>();

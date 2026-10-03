@@ -15,8 +15,7 @@ import com.ragagent.common.web.GoJsonCodec;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * 内建工具字段句柄策略的完整 allowlist（对照 Go internal/modelcontext/tool_policy.go，
- * 全文移植）。字段名本身刻意不够：动态 MCP 工具可能用同名而语义无关，必须保持不透明。
+ * 内建工具字段句柄策略的完整 allowlist。字段名本身刻意不够：动态 MCP 工具可能用同名而语义无关，必须保持不透明。
  */
 final class ToolPolicy {
 
@@ -27,7 +26,7 @@ final class ToolPolicy {
 
     private static final Pattern ISSUE_HANDLE_SHAPE = Pattern.compile("^i[1-9][0-9]*$");
 
-    /** source-handle 空间（Go sourceKeySpace）。 */
+    /** source-handle 空间。 */
     enum SourceKeySpace {
         CHUNK, DOCUMENT,
         /** "knowledgeID|title" 存储引用；只有 ID 是持久的。 */
@@ -35,8 +34,8 @@ final class ToolPolicy {
     }
 
     /**
-     * source 编解码认识的全部 ID 键表（对照 sourceKeySpaces）。它同时驱动句柄注册
-     * （registerSourceIDByKey）与 handle 形状值的解码闸（walkJSON）。
+     * source 编解码认识的全部 ID 键表。它同时驱动句柄注册
+     * 与 handle 形状值的解码闸。
      */
     static final Map<String, SourceKeySpace> SOURCE_KEY_SPACES = Map.ofEntries(
             Map.entry("chunk_id", SourceKeySpace.CHUNK), Map.entry("faq_id", SourceKeySpace.CHUNK),
@@ -49,14 +48,14 @@ final class ToolPolicy {
             Map.entry("kb_ids", SourceKeySpace.KNOWLEDGE_BASE),
             Map.entry("url", SourceKeySpace.WEB), Map.entry("urls", SourceKeySpace.WEB));
 
-    /** 兼容 Go 名 sourceKeySpaces 的包内访问（sources.go 用）。 */
+    /** 包内访问别名（SourceToolCodec 用）。 */
     static final Map<String, SourceKeySpace> sourceKeySpaces = SOURCE_KEY_SPACES;
 
     private static Set<String> keys(String... names) {
         return Set.of(names);
     }
 
-    /** 单个工具的句柄策略（Go toolHandlePolicy）。 */
+    /** 单个工具的句柄策略。 */
     private record ToolHandlePolicy(
             String mcpRoutingKey,
             boolean mcpDirectoryOutput,
@@ -84,7 +83,7 @@ final class ToolPolicy {
                 encodeKnownIssueIDs);
     }
 
-    /** 对照 Go toolHandlePolicies（键集与每个字段逐条对应）。 */
+    /** 字段句柄策略表（键集与每个字段逐条对应）。 */
     private static final Map<String, ToolHandlePolicy> TOOL_HANDLE_POLICIES = Map.ofEntries(
             Map.entry("discover_mcp_tools", policy("server_id", true, true, null, null, false, null, null, false)),
             Map.entry("call_mcp_tool", policy("tool_ref", false, true, null, null, false, null, null, false)),
@@ -123,7 +122,7 @@ final class ToolPolicy {
             Map.entry("write_skill_file", ToolHandlePolicy.EMPTY),
             Map.entry("edit_skill_file", ToolHandlePolicy.EMPTY));
 
-    /** 该工具是否有显式 model-handle 策略（对照 HasToolPolicy）。 */
+    /** 该工具是否有显式 model-handle 策略。 */
     static boolean hasToolPolicy(String toolName) {
         return TOOL_HANDLE_POLICIES.containsKey(toolName);
     }
@@ -167,11 +166,11 @@ final class ToolPolicy {
         return ISSUE_HANDLE_SHAPE.matcher(value).matches();
     }
 
-    // ---- 依赖 Registry 的策略逻辑（Go 里是 *Registry 方法，这里收拢为静态）----
+    // ---- 依赖 Registry 的策略逻辑（收拢为静态）----
 
     /**
      * 处理模型句柄内嵌在结构化文本、或属于工具私有身份空间的小集合参数
-     * （对照 Registry.decodeToolPolicies）。通用自由文本绝不改写。
+     * （由 {@link Registry} 同名方法委托）。通用自由文本绝不改写。
      */
     static void decodeToolPolicies(Registry registry, ToolCall call) {
         if (registry == null || call == null) {
@@ -281,7 +280,7 @@ final class ToolPolicy {
         return output;
     }
 
-    // ---- JSON 字符串值遍历（Go rewriteJSONStringValues / walkJSONStringValues）----
+    // ---- JSON 字符串值遍历（rewriteJSONStringValues / walkJSONStringValues）----
 
     static String rewriteJSONStringValues(String raw, java.util.function.BinaryOperator<String> rewrite) {
         JsonNode value = GoJsonValues.parse(raw);
@@ -313,7 +312,7 @@ final class ToolPolicy {
         return value;
     }
 
-    /** 仅供收集（不改写）的遍历；解析失败静默（对照 walkJSONStringValues 返回 err）。 */
+    /** 仅供收集（不改写）的遍历；解析失败静默。 */
     static void walkJSONStringValues(String raw, java.util.function.BinaryOperator<String> rewrite) {
         JsonNode value = GoJsonValues.parse(raw);
         if (value == null) {
@@ -325,8 +324,8 @@ final class ToolPolicy {
     // ---- 供 Registry 复用的其余包级函数 ----
 
     /**
-     * 有些 provider 会把 items 双重编码。只在 web_fetch 的数组上解包
-     * （对照 normalizeWebFetchItems）；ModelArguments 已保留 provider 原文。
+     * 有些 provider 会把 items 双重编码。只在 web_fetch 的数组上解包；
+     * ModelArguments 已保留 provider 原文。
      */
     static void normalizeWebFetchItems(List<ToolCall> calls) {
         for (ToolCall call : calls) {
@@ -344,7 +343,7 @@ final class ToolPolicy {
                 if (items == null || !items.isArray() || items.isEmpty()) {
                     return null;
                 }
-                // 替换为内层字符串的原文（Go: args["items"] = json.RawMessage(wrapped)）
+                // 替换为内层字符串的原文（保原始字节）
                 return new RawJson.Raw(wrapped);
             });
             if (rewritten != null) {
@@ -354,7 +353,7 @@ final class ToolPolicy {
     }
 
     /**
-     * 容忍 bridge 的 arguments envelope 被多编码一层（对照 normalizeMCPCallArguments）。
+     * 容忍 bridge 的 arguments envelope 被多编码一层。
      * 不是 JSON repair：不完整 JSON、null、数组与更深的字符串层都保持非法，
      * 远端业务字段绝不在此被强转。
      */
@@ -382,8 +381,7 @@ final class ToolPolicy {
     }
 
     /**
-     * 保留原始字节的顶层 JSON 对象（对照 Go 对 map[string]json.RawMessage 的
-     * Unmarshal/Marshal）：未触及的值原字节输出，触及的值替换后编码；键按字节序排序。
+     * 保留原始字节的顶层 JSON 对象：未触及的值原字节输出，触及的值替换后编码；键按字节序排序。
      */
     static final class RawJson {
 
@@ -400,8 +398,8 @@ final class ToolPolicy {
         }
 
         /**
-         * 解析顶层对象（键 → 原始值文本，重复键后写覆盖，对照 json.Unmarshal 进 map），
-         * 把 childKey 的原始值交给 rewriter；有替换时按 json.Marshal(map) 语义重组。
+         * 解析顶层对象（键 → 原始值文本，重复键后写覆盖），
+         * 把 childKey 的原始值交给 rewriter；有替换时按键序重组对象。
          * 解析失败 / 不是对象 / 缺键 / 无替换 → 返回 null（调用方保留原文）。
          */
         static String rewriteRawObject(String raw, String childKey, ValueRewriter rewriter) {
@@ -436,7 +434,7 @@ final class ToolPolicy {
             return sb.toString();
         }
 
-        /** json.Marshal(map[string]json.RawMessage) 的等价：键序排序、值原字节。 */
+        /** 顶层对象重组：键序排序、值原字节。 */
         static String marshalObject(Map<String, String> object) {
             List<String> sortedKeys = new ArrayList<>(object.keySet());
             java.util.Collections.sort(sortedKeys);
@@ -517,7 +515,7 @@ final class ToolPolicy {
         }
 
         /**
-         * 把顶层 JSON 数组扫描成元素原始文本序（对照 json.Unmarshal 进 []json.RawMessage）。
+         * 把顶层 JSON 数组扫描成元素原始文本序。
          * 不是数组或语法错误返回 null。
          */
         static List<String> scanTopLevelArray(String raw) {

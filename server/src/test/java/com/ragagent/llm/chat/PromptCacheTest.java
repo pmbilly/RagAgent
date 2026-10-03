@@ -24,12 +24,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 
 /**
- * 对照 Go internal/models/chat/prompt_cache_apply_test.go
- * （TestClampPromptCacheKey / TestApplyPromptCacheToJSONBody_* / TestAttachPromptCacheHeaders），
- * 并按 prompt_cache.go 补齐 Go 侧由 remote_api_test.go 覆盖的指纹与缓存账目断言。
+ * {@code PromptCache} 的契约测试（键截断 / 请求体改写 / 头注入 / 指纹与缓存账目）。
  *
- * <p>与 Go 测试的对应差异：Go 用 {@code openai.ChatCompletionRequest} 做入参再 marshal，
- * Java 直接构造等价的请求体 {@link ObjectNode}（同一份线格式）。</p>
+ * <p>入参直接构造请求体 {@link ObjectNode}（与线上同一份线格式）。</p>
  */
 class PromptCacheTest {
 
@@ -41,7 +38,6 @@ class PromptCacheTest {
         return body;
     }
 
-    /** 对照 Go TestClampPromptCacheKey */
     @Test
     void clampPromptCacheKey() {
         assertEquals("", PromptCache.clampPromptCacheKey(""));
@@ -52,7 +48,7 @@ class PromptCacheTest {
         assertEquals("a".repeat(64), got);
     }
 
-    /** 补测：截断按 rune（code point）而不是 UTF-16 char，多字节字符不能被劈成半个 */
+    /** 补测：截断按 code point 而不是 UTF-16 char，多字节字符不能被劈成半个 */
     @Test
     void clampPromptCacheKeyCountsRunes() {
         String cjk = "世".repeat(80);
@@ -68,7 +64,6 @@ class PromptCacheTest {
         assertEquals("🌏".repeat(64), emojiGot);
     }
 
-    /** 对照 Go TestApplyPromptCacheToJSONBody_OpenAIKey */
     @Test
     void applyPromptCacheToJsonBodyOpenAiKey() {
         ObjectNode body = body("gpt-4o");
@@ -84,7 +79,6 @@ class PromptCacheTest {
         assertFalse(body.has("prompt_cache_retention"));
     }
 
-    /** 对照 Go TestApplyPromptCacheToJSONBody_OpenAILongRetention */
     @Test
     void applyPromptCacheToJsonBodyOpenAiLongRetention() {
         ObjectNode body = body("gpt-4o");
@@ -95,7 +89,6 @@ class PromptCacheTest {
         assertEquals("24h", body.get("prompt_cache_retention").asText());
     }
 
-    /** 对照 Go TestApplyPromptCacheToJSONBody_NoneLeavesBodyUntouched */
     @Test
     void applyPromptCacheToJsonBodyNoneLeavesBodyUntouched() {
         ObjectNode body = body("gpt-4o");
@@ -103,14 +96,13 @@ class PromptCacheTest {
         boolean rewritten = PromptCache.applyPromptCacheToJSONBody(body, policy, "sess-abc", CacheRetention.NONE);
 
         assertFalse(rewritten);
-        // body 一字未动（Go 里返回原 body 对象本身）
+        // body 一字未动
         assertEquals("gpt-4o", body.get("model").asText());
         assertEquals(1, body.size());
         assertFalse(body.has("prompt_cache_key"));
     }
 
     /**
-     * 对照 Go TestApplyPromptCacheToJSONBody_AliyunCacheControlBreakpoints：
      * system 指令消息、最后一条对话消息、最后一个 tool 三处都要挂上 cache_control。
      */
     @Test
@@ -140,7 +132,7 @@ class PromptCacheTest {
         assertEquals("ephemeral", lastTool.get("cache_control").get("type").asText());
     }
 
-    /** LONG 保留期时，cache_control 带上 1h TTL（对照 Go cacheControlFor(retention, "1h")）。 */
+    /** LONG 保留期时，cache_control 带上 1h TTL。 */
     @Test
     void applyPromptCacheToJsonBodyLongRetentionAddsTtl() {
         ObjectNode body = body("qwen-plus");
@@ -172,7 +164,6 @@ class PromptCacheTest {
                 body.get("messages").get(0).get("content").get(2).get("cache_control").get("type").asText());
     }
 
-    /** 对照 Go TestAttachPromptCacheHeaders */
     @Test
     void attachPromptCacheHeaders() {
         HttpHeaders headers = new HttpHeaders();
@@ -215,7 +206,6 @@ class PromptCacheTest {
     }
 
     /**
-     * 对照 Go TestBuildOutbound_OpenAIPromptCacheKeyFromSession 的缓存部分：
      * 会话 ID 从调用上下文取出后注入 prompt_cache_key。
      */
     @Test
@@ -253,7 +243,7 @@ class PromptCacheTest {
 
     /**
      * 指纹：SHA-256 前 16 个 hex，逐段写入并各自带一个 NUL 分隔符。
-     * 黄金值由 Go 侧同源实现（crypto/sha256 + hex + [:16]）实算得出。
+     * 黄金值为实算定值。
      */
     @Test
     void fingerprintPromptPrefixGolden() {
@@ -272,7 +262,7 @@ class PromptCacheTest {
     void buildPromptCacheKeyShape() {
         String key = PromptCache.buildPromptCacheKey(1L, "gpt-4o", "chat", "0123456789abcdef");
         assertEquals("wk-dcbca2c9ac488a84", key);
-        // Go 的 uint64 语义：高位为 1 的租户 ID 必须按无符号十进制参与哈希，不能编码成负数
+        // 无符号语义：高位为 1 的租户 ID 必须按无符号十进制参与哈希，不能编码成负数
         assertEquals("wk-" + PromptCache.fingerprintPromptPrefix(
                         "18446744073709551615", "m", "p", "f"),
                 PromptCache.buildPromptCacheKey(-1L, "m", "p", "f"));
@@ -280,7 +270,7 @@ class PromptCacheTest {
 
     /**
      * PromptPrefixFingerprint 的序列化契约：只含开头的 system 消息与 tools，
-     * 字段序 system,tools，空集省略——黄金 JSON 取自 Go struct 的 marshal 结果。
+     * 字段序 system,tools，空集省略——黄金 JSON 即该线格式的序列化结果。
      */
     @Test
     void promptPrefixFingerprintSerializationContract() {
@@ -294,7 +284,7 @@ class PromptCacheTest {
                 PromptCache.promptPrefixFingerprint(List.of(system), new ChatOptions()));
         assertEquals("725c673c25d27d0c", PromptCache.promptPrefixFingerprint(List.of(system), new ChatOptions()));
 
-        // 带 tools 时字段序仍是 system,tools（黄金值同样由 Go 侧 marshal 后实算）
+        // 带 tools 时字段序仍是 system,tools（黄金值为实算定值）
         String withToolsJson = "{\"system\":[{\"role\":\"system\",\"content\":\"sys\"}],"
                 + "\"tools\":[{\"type\":\"function\",\"function\":"
                 + "{\"name\":\"search\",\"description\":\"d\",\"parameters\":{}}}]}";
@@ -311,7 +301,7 @@ class PromptCacheTest {
                 PromptCache.promptPrefixFingerprint(List.of(ChatMessage.user("hi")), new ChatOptions()));
     }
 
-    /** 对照 Go tokenUsageFromOpenAI 的三个分支。 */
+    /** tokenUsageFromOpenAI 的三个分支。 */
     @Test
     void tokenUsageFromOpenAi() {
         JsonNode withDetails = parse("""
@@ -334,13 +324,13 @@ class PromptCacheTest {
                 parse("{\"prompt_tokens\":5,\"total_tokens\":5}"), ProviderName.ZHIPU);
         assertEquals(PromptCacheStatus.UNSUPPORTED, unsupported.getCacheStatus());
 
-        // usage 缺失时按 Go 的零值 Usage 处理
+        // usage 缺失时按全零 usage 处理
         TokenUsage empty = PromptCache.tokenUsageFromOpenAI(null, ProviderName.OPENAI);
         assertEquals(0, empty.getPromptTokens());
         assertEquals(PromptCacheStatus.UNREPORTED, empty.getCacheStatus());
     }
 
-    /** 对照 Go cachedTokens 的 nil-safe 语义。 */
+    /** cachedTokens 的 null 安全语义。 */
     @Test
     void cachedTokensNilSafe() {
         assertEquals(0, PromptCache.cachedTokens(null));
@@ -348,7 +338,7 @@ class PromptCacheTest {
         assertEquals(1234, PromptCache.cachedTokens(parse("{\"cached_tokens\":1234}")));
     }
 
-    /** 对照 remote_api_test.go:526 的 DeepSeek hit/miss 抓取。 */
+    /** DeepSeek 的 hit/miss 字段抓取。 */
     @Test
     void applyRawPromptCacheUsageDeepSeek() {
         TokenUsage usage = new TokenUsage();
@@ -385,7 +375,7 @@ class PromptCacheTest {
         assertEquals(5, usage.getCacheWriteTokens());
         assertEquals(20, usage.getCacheMissTokens());
 
-        // 坏 JSON / 空串 / 无 usage → 静默返回，一个字段都不动（Go 的零值 status = ""）
+        // 坏 JSON / 空串 / 无 usage → 静默返回，一个字段都不动（status 保持 null）
         TokenUsage untouched = new TokenUsage();
         PromptCache.applyRawPromptCacheUsage("not json", untouched);
         PromptCache.applyRawPromptCacheUsage("", untouched);

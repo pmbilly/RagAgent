@@ -4,10 +4,9 @@ import java.time.OffsetDateTime;
 
 
 /**
- * 已保存 MCP 目录的**列表卡片视图**（对照 Go dto.MCPCatalogSummary，
- * internal/handler/dto/mcp.go:52-57）。
+ * 已保存 MCP 目录的**列表卡片视图**。
  *
- * <p>三个字段在 Go 里都无 omitempty → 恒输出。</p>
+ * <p>三个字段恒输出（无省略语义）。</p>
  */
 public record McpCatalogSummary( int toolCount, boolean stale, OffsetDateTime syncedAt) {
 }

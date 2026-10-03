@@ -4,7 +4,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -26,13 +25,13 @@ import com.ragagent.im.runtime.ImTypes;
 import com.ragagent.im.runtime.IncomingMessage;
 
 /**
- * 企业微信智能机器人长连接（对照 Go {@code internal/im/wecom/longconn.go} L129-836）。
+ * 企业微信智能机器人长连接。
  *
  * <p>协议：连 {@code wss://openws.work.weixin.qq.com} → 发 {@code aibot_subscribe}
  * （bot_id + secret）→ 收 {@code aibot_msg_callback}/{@code aibot_event_callback}
- * → 用 {@code aibot_respond_msg} 回帧 → 每 30s {@code ping} 心跳（照 Go）。</p>
+ * → 用 {@code aibot_respond_msg} 回帧 → 每 30s {@code ping} 心跳。</p>
  *
- * <p>照抄点：读超时 = 3×心跳（单次丢 pong 不误判）；心跳失败即关连接触发重连；
+ * <p>行为要点：读超时 = 3×心跳（单次丢 pong 不误判）；心跳失败即关连接触发重连；
  * 重连退避 1s·2^(n-1) 上限 30s，且"连接活过 30s"就重置退避；<b>流缓冲跨重连保留</b>
  * （WeCom 是替换语义，重连后下次 update 会把全量内容重发）；{@code EndStream} 失败
  * 重试 3 次 × 500ms；回复帧把 {@code req_id} 从消息 extra 带上；
@@ -70,7 +69,7 @@ public class WecomLongConnClient {
     private final BlockingQueue<String> inbox = new LinkedBlockingQueue<>();
     private final AtomicLong reqSeq = new AtomicLong();
 
-    /** 流缓冲（跨重连保留——对照 Go 的 streamBufs）。 */
+    /** 流缓冲（跨重连保留）。 */
     final Map<String, StringBuilder> streamBufs = new ConcurrentHashMap<>();
 
     private volatile WebSocket socket;
@@ -98,7 +97,7 @@ public class WecomLongConnClient {
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
     }
 
-    /** 对照 {@code reconnectDelay}：1s·2^(n-1)，上限 30s，n&lt;1 取基值。 */
+    /** 1s·2^(n-1)，上限 30s，n&lt;1 取基值。 */
     static long reconnectDelayMs(int attempt) {
         if (attempt < 1) {
             return RECONNECT_BASE_MS;
@@ -108,7 +107,7 @@ public class WecomLongConnClient {
         return Math.min(delay, RECONNECT_MAX_MS);
     }
 
-    /** 对照 {@code Stop}：置关闭标记并断开（读循环随即退出）。 */
+    /** 置关闭标记并断开（读循环随即退出）。 */
     public void stop() {
         closed = true;
         WebSocket ws = socket;
@@ -123,7 +122,7 @@ public class WecomLongConnClient {
         inbox.offer(CLOSED_SENTINEL);
     }
 
-    /** 阻塞重连循环（对照 {@code Start}）；由工厂放进守护线程跑。 */
+    /** 阻塞重连循环；由工厂放进守护线程跑。 */
     public void start() {
         log.info("[IM] WeCom WebSocket connecting (bot_id={})...", botId);
         int attempts = 0;
@@ -186,7 +185,7 @@ public class WecomLongConnClient {
         }
     }
 
-    /** 对照 {@code authenticate}：发 subscribe，10 秒内等下发的响应并查 errcode。 */
+    /** 发 subscribe，10 秒内等下发的响应并查 errcode。 */
     private void authenticate(WebSocket ws) throws Exception {
         ObjectNode body = MAPPER.createObjectNode();
         body.put("bot_id", botId);
@@ -209,7 +208,7 @@ public class WecomLongConnClient {
         }
     }
 
-    /** 对照 {@code heartbeatLoop}：每 30s 发 ping；失败即关连接触发重连。 */
+    /** 每 30s 发 ping；失败即关连接触发重连。 */
     private void heartbeatLoop(WebSocket ws) {
         while (!closed) {
             if (!sleep(HEARTBEAT_INTERVAL_MS)) {
@@ -237,7 +236,7 @@ public class WecomLongConnClient {
         }
         String cmd = frame.path("cmd").asText("");
         if (CMD_MSG_CALLBACK.equals(cmd) || CMD_EVENT_CALLBACK.equals(cmd)) {
-            // 照 Go：回调处理与连接生命周期解耦（重连不影响在飞消息）
+            // 回调处理与连接生命周期解耦（重连不影响在飞消息）
             Thread worker = new Thread(() -> handleCallback(frame),
                     "im-wecom-callback-" + channelId);
             worker.setDaemon(true);
@@ -246,7 +245,7 @@ public class WecomLongConnClient {
         // 其它（pong 等控制帧）忽略
     }
 
-    /** 对照 {@code handleCallback}：event 分流 + 五种消息类型 + 引用上下文。 */
+    /** event 分流 + 五种消息类型 + 引用上下文。 */
     void handleCallback(JsonNode frame) {
         IncomingMessage incoming = parseCallbackBody(frame);
         if (incoming == null) {
@@ -260,8 +259,8 @@ public class WecomLongConnClient {
     }
 
     /**
-     * 解析回调帧体（对照 {@code handleCallback} 的主体）——包内可见以便单测。
-     * 事件帧（如 {@code disconnected_event}）返回 null 并顺带关连接（照 Go）。
+     * 解析回调帧体——包内可见以便单测。
+     * 事件帧（如 {@code disconnected_event}）返回 null 并顺带关连接。
      */
     IncomingMessage parseCallbackBody(JsonNode frame) {
         JsonNode msg = frame.path("body");
@@ -352,7 +351,7 @@ public class WecomLongConnClient {
                                         String aesKey, String reqId) {
         IncomingMessage msg = baseMessage(userId, chatId, chatType, msgId, reqId);
         msg.messageType = messageType;
-        msg.fileKey = url; // 存加密下载 URL（照 Go）
+        msg.fileKey = url; // 存加密下载 URL
         msg.fileName = fileName;
         if (aesKey != null && !aesKey.isEmpty()) {
             msg.extra.put("aes_key", aesKey);
@@ -373,7 +372,7 @@ public class WecomLongConnClient {
         return msg;
     }
 
-    /** 对照 {@code convertMixedMessage}：有文本按文本（换行连接），纯图按图。 */
+    /** 有文本按文本（换行连接），纯图按图。 */
     IncomingMessage convertMixedMessage(JsonNode msg, String chatId, String chatType,
                                         String reqId) {
         boolean isGroup = ImTypes.CHAT_TYPE_GROUP.equals(chatType);
@@ -411,9 +410,9 @@ public class WecomLongConnClient {
         return null;
     }
 
-    // ── 引用上下文（对照 quote.go） ─────────────────────────────────────────
+    // ── 引用上下文 ─────────────────────────────────────────────────────────
 
-    /** 对照 {@code buildQuotedMessage}：非文本引用只给 NonTextType，不给占位内容。 */
+    /** 非文本引用只给 NonTextType，不给占位内容。 */
     static IncomingMessage.QuotedMessage buildQuotedMessage(JsonNode quote, String aiBotId) {
         if (quote == null || quote.isMissingNode() || quote.isNull()) {
             return null;
@@ -454,7 +453,7 @@ public class WecomLongConnClient {
 
     // ── 出站 ────────────────────────────────────────────────────────────────
 
-    /** 对照 {@code SendReply}：一次性流帧（finish=true）。 */
+    /** 一次性流帧（finish=true）。 */
     public void sendReply(IncomingMessage incoming, String content) throws Exception {
         String reqId = reqIdOf(incoming);
         if (reqId.isEmpty()) {
@@ -464,7 +463,7 @@ public class WecomLongConnClient {
         writeJson(buildStreamFrame(streamId, content, true, reqId));
     }
 
-    /** 对照 {@code StartStream}：只建缓冲，不发帧。 */
+    /** 只建缓冲，不发帧。 */
     public String startStream(IncomingMessage incoming) throws Exception {
         String reqId = reqIdOf(incoming);
         if (reqId.isEmpty()) {
@@ -475,7 +474,7 @@ public class WecomLongConnClient {
         return streamId;
     }
 
-    /** 对照 {@code UpdateStreamContent}：替换语义——发全量内容。 */
+    /** 替换语义：发全量内容。 */
     public void updateStreamContent(IncomingMessage incoming, String streamId, String fullContent)
             throws Exception {
         if (fullContent == null || fullContent.isEmpty()) {
@@ -490,13 +489,13 @@ public class WecomLongConnClient {
         writeJson(buildStreamFrame(streamId, fullContent, false, reqIdOf(incoming)));
     }
 
-    /** 对照 {@code FinalizeStream}：即 UpdateStreamContent。 */
+    /** 语义同 {@link #updateStreamContent}。 */
     public void finalizeStream(IncomingMessage incoming, String streamId, String finalContent)
             throws Exception {
         updateStreamContent(incoming, streamId, finalContent);
     }
 
-    /** 对照 {@code EndStream}：发收尾帧（带累积内容），失败重试 3 次 × 500ms。 */
+    /** 发收尾帧（带累积内容），失败重试 3 次 × 500ms。 */
     public void endStream(IncomingMessage incoming, String streamId) throws Exception {
         StringBuilder buffer = streamBufs.remove(streamId);
         String fullContent = buffer == null ? "" : buffer.toString();
@@ -521,7 +520,7 @@ public class WecomLongConnClient {
         throw last;
     }
 
-    /** 对照 {@code sendStreamFrame}：{@code aibot_respond_msg} + stream 体。 */
+    /** {@code aibot_respond_msg} + stream 体。 */
     static String buildStreamFrame(String streamId, String content, boolean finish, String reqId) {
         ObjectNode stream = MAPPER.createObjectNode();
         stream.put("id", streamId);
@@ -533,7 +532,7 @@ public class WecomLongConnClient {
         return buildFrame(CMD_RESPONSE, reqId, body);
     }
 
-    /** 组帧：{@code {cmd, headers:{req_id}, body}}（body 为对象，照 Go 的 RawMessage）。 */
+    /** 组帧：{@code {cmd, headers:{req_id}, body}}（body 为对象）。 */
     static String buildFrame(String cmd, String reqId, JsonNode body) {
         ObjectNode frame = MAPPER.createObjectNode();
         frame.put("cmd", cmd);
@@ -554,7 +553,7 @@ public class WecomLongConnClient {
         return reqId == null ? "" : reqId;
     }
 
-    /** 对照 {@code writeJSON}：连接不在即报错；写超时 10s。 */
+    /** 连接不在即报错；写超时 10s。 */
     private void writeJson(String payload) throws Exception {
         WebSocket ws = socket;
         if (ws == null || closed) {
@@ -565,7 +564,7 @@ public class WecomLongConnClient {
 
     // ── @提及剥离（有状态：会学机器人名） ───────────────────────────────────
 
-    /** 对照 {@code stripAtMention}：双空格（学名）→ 缓存名前缀 → 无状态兜底。 */
+    /** 双空格（学名）→ 缓存名前缀 → 无状态兜底。 */
     String stripAtMention(String content) {
         String value = content == null ? "" : content.trim();
         if (!value.startsWith("@")) {
@@ -591,7 +590,7 @@ public class WecomLongConnClient {
 
     // ── 连接管理 ────────────────────────────────────────────────────────────
 
-    /** 对照 {@code closeConnIf}：只关"仍是当前活跃"的那条连接。 */
+    /** 只关"仍是当前活跃"的那条连接。 */
     private void closeConnIf(WebSocket ws) {
         if (ws == null) {
             return;

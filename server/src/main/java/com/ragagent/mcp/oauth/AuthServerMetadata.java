@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * RFC 8414 授权服务器元数据（对照 mcp-go {@code transport.AuthServerMetadata}，oauth.go:144-167）。
+ * RFC 8414 授权服务器元数据。
  *
  * <p>只保留 WeKnora 流程真正消费或校验的字段：
  * <ul>

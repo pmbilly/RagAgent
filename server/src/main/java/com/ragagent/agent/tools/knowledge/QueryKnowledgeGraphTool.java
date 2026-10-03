@@ -27,7 +27,7 @@ import com.ragagent.agent.tools.ToolRequest;
 public class QueryKnowledgeGraphTool extends BaseTool {
 
     /**
-     * schema（2026-09-23 A/B 对拍修正：补 {@code additionalProperties:false} 与
+     * schema（补 {@code additionalProperties:false} 与
      * 可空数组类型 {@code ["null","array"]}；键序字母序）。
      */
     private static final String SCHEMA_JSON = """

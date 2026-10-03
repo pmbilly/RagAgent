@@ -8,7 +8,7 @@ import java.util.Map;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * provider 类型注册表（对照 Go {@code web_search/registry.go} 全文）。
+ * provider 类型注册表。
  *
  * <p>类型 ID（"bing"/"google"/...）→ 工厂；按租户参数即时创建实例。
  * 未注册类型报 {@code web search provider type %s not registered}（test 连接
@@ -17,7 +17,7 @@ import com.ragagent.websearch.domain.WebSearchProviderParams;
 @Component
 public class WebSearchProviderRegistry {
 
-    /** 对照 ProviderFactory：参数 → provider 实例（校验失败抛错）。 */
+    /** 参数 → provider 实例（校验失败抛错）。 */
     @FunctionalInterface
     public interface ProviderFactory {
         WebSearchProvider create(WebSearchProviderParams params);
@@ -41,12 +41,12 @@ public class WebSearchProviderRegistry {
         factories.put("bocha", BochaProvider::new);
     }
 
-    /** 对照 Register（初始化后追加工厂用；如测试注入 stub）。 */
+    /** 追加注册工厂（初始化后用；如测试注入 stub）。 */
     public void register(String id, ProviderFactory factory) {
         factories.put(id, factory);
     }
 
-    /** 对照 CreateProvider。 */
+    /** 按类型查工厂并创建 provider；未注册的类型报错。 */
     public WebSearchProvider createProvider(String providerType, WebSearchProviderParams params) {
         ProviderFactory factory = factories.get(providerType);
         if (factory == null) {

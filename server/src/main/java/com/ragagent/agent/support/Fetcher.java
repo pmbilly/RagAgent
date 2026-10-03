@@ -16,9 +16,9 @@ import java.util.regex.Pattern;
 import com.ragagent.llm.chat.LlmTransport;
 
 /**
- * 公网页面抓取器（对照 Go {@code internal/infrastructure/web_fetch/fetcher.go} 全文）。
+ * 公网页面抓取器。
  *
- * <h2>两个工厂（Go 语义逐条对照）</h2>
+ * <h2>两个工厂</h2>
  * <ul>
  *   <li>{@link #newFetcher()}（agent 用）：markdown 输出、2MB 上限、60s、带
  *       Chromium 渲染兜底。</li>
@@ -26,17 +26,16 @@ import com.ragagent.llm.chat.LlmTransport;
  *       上限、15s（重构前遗留值）、无浏览器。</li>
  * </ul>
  *
- * <h2>接缝与已知差异（报告同步列明）</h2>
+ * <h2>接缝与已知差异</h2>
  * <ol>
- *   <li><b>Chromium 渲染（chromedp）无 Java 等价物</b> → {@link BrowserRenderer}
- *       接缝，默认实现恒失败 = 走 Go 自己的 "browser unavailable" 分支（SPA 页面
- *       最终报 empty_content，Go 测试
- *       TestFetcherReturnsErrorWhenBrowserFallbackFailsOnSPA 即该路径）。真要恢复
+ *   <li><b>无头浏览器渲染无 Java 等价物</b> → {@link BrowserRenderer}
+ *       接缝，默认实现恒失败 = 走 "browser unavailable" 分支（SPA 页面
+ *       最终报 empty_content）。真要恢复
  *       无头浏览器只需提供实现。</li>
- *   <li><b>IP pinning</b>：Go 在 dial 层解析 DNS 后把连接钉到首个校验通过的 IP；
- *       JDK HttpClient 不能替换 dialer，Java 侧用「发送前 + 每跳重定向前的
+ *   <li><b>IP pinning</b>：dial 层「解析 DNS 后把连接钉到首个校验通过的 IP」
+ *       在 JDK HttpClient 不可行，Java 侧用「发送前 + 每跳重定向前的
  *       SSRF 校验（含 DNS 解析 IP 检查）」近似（LlmTransport 同款取舍）。</li>
- *   <li>超时：Go 的 client.Timeout 覆盖连接+读全响应；Java 挂 per-request timeout。</li>
+ *   <li>超时：per-request timeout 覆盖连接+读全响应。</li>
  * </ol>
  */
 public final class Fetcher {
@@ -58,25 +57,24 @@ public final class Fetcher {
         this.renderBrowser = renderBrowser;
     }
 
-    /** 对照 NewFetcher：生产 fetcher（markdown + 浏览器兜底接缝）。 */
+    /** 生产 fetcher（markdown + 浏览器兜底接缝）。 */
     public static Fetcher newFetcher() {
         return new Fetcher(true, FETCH_TIMEOUT, MAX_AGENT_BODY_SIZE,
                 BrowserRenderer.UNAVAILABLE);
     }
 
-    /** 对照 NewPipelineFetcher：HTTP-only、旧 15s 超时、无浏览器。 */
+    /** HTTP-only、旧 15s 超时、无浏览器。 */
     public static Fetcher newPipelineFetcher() {
         return new Fetcher(false, PIPELINE_FETCH_TIMEOUT, MAX_BODY_SIZE, null);
     }
 
-    /** 对照 FetchURLContent：chat 管线的包级 API 保留。 */
+    /** chat 管线的包级 API 保留。 */
     public static String fetchUrlContent(String rawUrl) {
         return newPipelineFetcher().fetch(rawUrl);
     }
 
     /**
-     * 对照 Fetch：下载页面并返回干净文本。所有失败抛 {@link FetchException}
-     * （Go 的 {@code (string, error)}）。
+     * 下载页面并返回干净文本。所有失败抛 {@link FetchException}。
      */
     public String fetch(String rawUrl) {
         if (rawUrl == null || rawUrl.trim().isEmpty()) {
@@ -102,7 +100,7 @@ public final class Fetcher {
         try {
             httpResult = fetchHttp(rawUrl, parsedUrl);
         } catch (FetchException httpErr) {
-            // 对照 Go：HTTP 失败后 403/empty-content 可尝试浏览器兜底，失败仍抛 httpErr
+            // HTTP 失败后 403/empty-content 可尝试浏览器兜底，失败仍抛 httpErr
             if (renderBrowser != null && canRenderAfterHttpError(httpErr)) {
                 try {
                     String rendered = renderBrowser.render(resolvePinnedTarget(rawUrl));
@@ -117,7 +115,7 @@ public final class Fetcher {
             }
             throw httpErr;
         }
-        // 对照 Go：parseErr 先于浏览器兜底判定；markdown 模式解析错误直接抛
+        // parseErr 先于浏览器兜底判定；markdown 模式解析错误直接抛
         String content = null;
         FetchException parseErr = null;
         try {
@@ -144,7 +142,7 @@ public final class Fetcher {
                     return browserContent;
                 }
             } catch (RuntimeException ignored) {
-                // Go：browser 失败回落
+                // browser 失败回落
             }
         }
         if (parseErr != null) {
@@ -223,12 +221,12 @@ public final class Fetcher {
         if (head.startsWith("{") || head.startsWith("[")) {
             return "text/plain; charset=utf-8";
         }
-        // 对照 DetectContentType 的默认：text/plain; charset=utf-8
+        // 无法识别的内容类型默认按纯文本：text/plain; charset=utf-8
         return "text/plain; charset=utf-8";
     }
 
     /**
-     * 对照 resolvePinnedTarget：浏览器渲染前的目标解析（端口/DNS/公网 IP 校验）。
+     * 浏览器渲染前的目标解析（端口/DNS/公网 IP 校验）。
      * 渲染本身走接缝，pin 在 Java 侧不成立（见类注释差异 2），返回校验后的 URL。
      */
     private String resolvePinnedTarget(String rawUrl) {
@@ -258,7 +256,7 @@ public final class Fetcher {
         return rawUrl;
     }
 
-    /** 对照 setBrowserHeaders：浏览器式请求头逐条对照。 */
+    /** 浏览器式请求头逐条设置。 */
     static void setBrowserHeaders(HttpRequest.Builder b, URI parsedUrl) {
         b.header("User-Agent",
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
@@ -279,7 +277,7 @@ public final class Fetcher {
         b.header("Referer", parsedUrl.getScheme() + "://" + parsedUrl.getHost() + "/");
     }
 
-    /** 对照 classifyHTTPStatus。 */
+    /** HTTP 状态码 → 失败（403 不可重试；429/5xx 可重试；其余按一般状态失败）。 */
     static FetchException classifyHttpStatus(int statusCode) {
         if (statusCode == 403) {
             return new FetchException(Code0.HTTP_403, false, "HTTP " + statusCode + " " + phrase(statusCode));
@@ -298,7 +296,7 @@ public final class Fetcher {
         return s.substring(String.valueOf(code).length()).trim();
     }
 
-    /** 对照 classifyValidationError：DNS 文案 → DNS 可重试；其余 SSRF 拒绝。 */
+    /** DNS 文案 → DNS 可重试；其余 SSRF 拒绝。 */
     static FetchException classifyValidationError(RuntimeException err) {
         String message = (err.getMessage() == null ? "" : err.getMessage()).toLowerCase(Locale.ROOT);
         if (message.contains("dns resolution failed") || message.contains("dns lookup failed")) {
@@ -307,7 +305,7 @@ public final class Fetcher {
         return new FetchException(Code0.SSRF_REJECTED, false, "URL rejected: " + err.getMessage());
     }
 
-    /** 对照 classifyRequestError：传输层异常 → 失败码。 */
+    /** 传输层异常 → 失败码。 */
     static FetchException classifyRequestError(Exception err) {
         if (err instanceof java.net.http.HttpTimeoutException) {
             return new FetchException(Code0.TIMEOUT, true, "fetch timed out: " + err.getMessage());
@@ -336,7 +334,7 @@ public final class Fetcher {
         return new FetchException(Code0.CONNECTION, true, "fetch failed: " + err.getMessage());
     }
 
-    /** 对照 needsBrowserFallback：SPA 症状判定。 */
+    /** SPA 症状判定：空内容/要求启用 JS/加载占位，或存在 app 根节点加脚本。 */
     static boolean needsBrowserFallback(String content, byte[] html) {
         String trimmed = content == null ? "" : content.trim().toLowerCase(Locale.ROOT);
         if (trimmed.isEmpty() || trimmed.contains("enable javascript") || trimmed.contains("loading...")) {
@@ -351,12 +349,12 @@ public final class Fetcher {
         return hasAppRoot && lowerHtml.contains("<script");
     }
 
-    /** 对照 canRenderAfterHTTPError。 */
+    /** HTTP 错误后仍可尝试浏览器渲染的判定（403 或空内容）。 */
     static boolean canRenderAfterHttpError(FetchException err) {
         return err.getCode() == Code0.HTTP_403 || err.getCode() == Code0.EMPTY_CONTENT;
     }
 
-    /** 对照 extractContent：按 content type 分派。 */
+    /** 按 content type 分派抽取方式。 */
     String extractContent(HttpResult result) {
         if (!markdown) {
             return htmlToText(new String(result.body(), StandardCharsets.UTF_8));
@@ -395,17 +393,16 @@ public final class Fetcher {
         return false;
     }
 
-    /** 对照 isHTMLContent。 */
+    /** Content-Type 是否 HTML。 */
     static boolean isHTMLContent(String contentType) {
         return contentType.equals("text/html") || contentType.equals("application/xhtml+xml");
     }
 
     /**
-     * 对照 htmlToText（goquery 路径的有界复刻）：剥 script/style/nav/footer/header/
+     * htmlToText：剥 script/style/nav/footer/header/
      * iframe/noscript/svg/img → 取 body → 剥标签 → 按行 trim → 拼非空行。
-     * <b>有界实现</b>：正则级剥除（无 DOM），属性内出现 "&gt;" 的病态 HTML 与
-     * goquery 有差——goquery 抽不出时会走 Go 自己的 stripTags 回退，本实现等于
-     * 恒走"剥标签"路径，输出对正常页面一致。
+     * <b>有界实现</b>：正则级剥除（无 DOM），属性内出现 "&gt;" 的病态 HTML
+     * 与 DOM 解析有差——本实现恒走"剥标签"路径，输出对正常页面一致。
      */
     static String htmlToText(String html) {
         String cleaned = HtmlStrip.removeBlocks(html);
@@ -447,7 +444,7 @@ public final class Fetcher {
         }
     }
 
-    /** HTTP 短语表（对照 Go resp.Status；RerankHttp 同款表的小副本）。 */
+    /** HTTP 短语表（{@link com.ragagent.rerank.RerankHttp} 同款表的小副本）。 */
     static final class RerankPhrase {
         private RerankPhrase() {
         }
@@ -504,7 +501,7 @@ public final class Fetcher {
                 char c = html.charAt(i);
                 if (c == '<') {
                     // html5 分词：'<' 后不是字母/斜杠/感叹号/问号时是字面文本
-                    //（"a < b" 保持原样——对照 goquery 的解析行为）
+                    //（"a < b" 保持原样）
                     char next = i + 1 < html.length() ? html.charAt(i + 1) : 0;
                     if (Character.isLetter(next) || next == '/' || next == '!' || next == '?') {
                         inTag = true;

@@ -20,22 +20,21 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 
 /**
- * 对照 Go middleware/rbac.go 的 RequireRole / RequireRoleOrSystemAdmin。
+ * 路由级 RBAC 拦截器（角色下限 / 系统管理员守卫 / 跨空间守卫）。
  *
- * 判定顺序（与 Go 严格一致）：
+ * 判定顺序：
  *  1. 角色达标（TenantRole level 比较）→ 放行
  *  2. 跨空间超管（EnableCrossTenantAccess && CanAccessAllTenants）→ 放行
  *  3. EnableRBAC=false（滚动窗口）→ 记日志放行
  *  4. 否则 403 {"error":"Forbidden: insufficient workspace role"}
  *
- * 阶段说明：Go 对 API-key 主体在 RequireRole 短路（由 APIKeyGate 全权判定），
- * Java 侧见下方的 {@code APIKeyScopeContext.present()} 分支；RequireSystemAdmin /
- * RequireOwnershipOrRole 随对应模块（system admin / KB / agent）翻译。
+ * API-key 主体在此短路放行（能力维度由 APIKeyGate 全权判定），
+ * 见下方的 {@code APIKeyScopeContext.present()} 分支；系统管理员与所有权守卫
+ * 随对应模块（system admin / KB / agent）落在各自入口。
  *
- * <p><b>拒绝审计已回补</b>（约定 §9 阶段 1 差异 #8 的正式收口）：拒绝分支会调用
+ * <p><b>拒绝审计</b>：拒绝分支会调用
  * {@link DeniedAuditor}，把拒绝落成一条 durable 的 {@code rbac.access_denied}
- * 审计行——对照 Go {@code middleware/rbac.go} L99-106 的
- * {@code AuditServiceFromContext(c) → svc.LogDenied(...)}。服务内部有 1 分钟
+ * 审计行。服务内部有 1 分钟
  * 滑动窗口去重，所以被打的端点不会以线速刷表。</p>
  */
 public class RbacInterceptor implements HandlerInterceptor {
@@ -48,17 +47,15 @@ public class RbacInterceptor implements HandlerInterceptor {
      * + 是否跨空间守卫。
      *
      * <p>后三者是不同语义，别混：{@code orSystemAdmin} 是"租户角色达标**或**系统管理员"（放行条件），
-     * {@code sysAdminOnly} 是"必须是系统管理员"（限定条件，对照 Go 的 {@code SystemAdmin()}）。
+     * {@code sysAdminOnly} 是"必须是系统管理员"（限定条件）。
      * 用前者表达后者会把租户 Owner 也放进来。
-     * （历史注记：{@code crossTenant} 曾对照 Go 的 RequireCrossTenantAccess；
-     * 随空间分享裁撤，无规则再置位，判定分支已移除。）</p>
+     * （注记：{@code crossTenant} 随空间分享裁撤已无规则置位，判定分支已移除。）</p>
      */
     public record Rule(String method, String pattern, TenantRole minRole, boolean orSystemAdmin,
                        boolean sysAdminOnly, boolean crossTenant) {}
 
     /**
-     * 拒绝审计回调（对照 Go 的 {@code interfaces.AuditLogService.LogDenied}，
-     * 参数顺序也照着 Go 的调用点来）。
+     * 拒绝审计回调。
      *
      * <p>{@code requestPath} 传<b>路由模板</b>——这是 Spring 侧对 gin {@code c.FullPath()}
      * 的等价物（用 {@code HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE}，拿不到时才回落到
@@ -66,10 +63,9 @@ public class RbacInterceptor implements HandlerInterceptor {
      * 绕过去重窗口）。{@code rawPath} 是原始 URI，只在与模板不同时才会被服务写进
      * Details 的 {@code raw_path}。</p>
      *
-     * <p>⚠️ 已知差异：Go 的模板用 {@code :param} 记法（实测
-     * {@code /api/v1/tenants/:id/audit-log}），Spring 用 {@code {id}} 记法
-     * （{@code /api/v1/tenants/{id}/audit-log}）——同一条路由，列里的字符串差一个符号。
-     * 去重键仍然稳定（同一路由恒得同一串），行为等价。</p>
+     * <p>⚠️ 路由模板用 Spring 的 {@code {id}} 记法
+     * （{@code /api/v1/tenants/{id}/audit-log}）。
+     * 去重键仍然稳定（同一路由恒得同一串）。</p>
      */
     @FunctionalInterface
     public interface DeniedAuditor {
@@ -77,15 +73,14 @@ public class RbacInterceptor implements HandlerInterceptor {
                        String requiredRole, String requestPath, String requestMethod, String rawPath);
     }
 
-    /** 无实现时的空操作（对照 Go: {@code if svc := AuditServiceFromContext(c); svc != nil}）。 */
+    /** 未注册审计实现时的空操作。 */
     private static final DeniedAuditor NOOP_AUDITOR =
             (tenantId, actorUserId, actorRole, requiredRole, requestPath, requestMethod, rawPath) -> {};
 
     /**
      * 进程级注册点。本拦截器由 {@code WebConfig} 直接 {@code new} 出来（不是 Spring bean），
      * 拿不到依赖注入，所以审计实现由 {@code com.ragagent.audit.service.RbacDeniedAuditorRegistrar}
-     * 在启动时注册进来——这与 Go 的 {@code middleware.AuditServiceProvider} 把服务
-     * 塞进请求上下文是同一类"进程级装配"手法。
+     * 在启动时注册进来。
      */
     private static volatile DeniedAuditor deniedAuditor = NOOP_AUDITOR;
 
@@ -110,7 +105,7 @@ public class RbacInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * 仅系统管理员可访问（对照 Go 的 {@code g := rbacGuards.SystemAdmin()}）。
+     * 仅系统管理员可访问。
      * 用于 {@code /api/v1/system/**} 这类平台级端点——租户角色再高也不放行。
      */
     public RbacInterceptor addSystemAdminRule(String method, String pattern) {
@@ -118,30 +113,25 @@ public class RbacInterceptor implements HandlerInterceptor {
         return this;
     }
 
-    /**
-     * 跨空间守卫（对照 Go 的 {@code g.CrossTenant()} → RequireCrossTenantAccess）。
-     * 用于 GET /tenants/all、GET /tenants/search：minRole 字段不适用（占位 VIEWER）。
-     */
-
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws IOException {
-        // 对照 Go 的组级中间件 RequirePathTenantMatch：URL 里的 :id 必须等于活动租户。
+        // URL 里的租户 id 必须等于活动租户。
         // 自动对所有 /api/v1/tenants/{id}/** 生效（漏配规则的代价是越权读取别人的审计/密钥列表）。
-        // 必须先于 API-Key 短路执行（Go 里它独立于 RequireRole，对 Key 主体同样生效）——
+        // 必须先于 API-Key 短路执行（对 Key 主体同样生效）——
         // 否则持有 A 空间 Key 的调用方可把 URL 里的 id 换成 B 空间去增删对方成员/邀请。
         if (!checkPathTenantMatch(request, response)) {
             return false;
         }
-        // 对照 Go：RequireRole 对 API-Key 主体直接放行——能力维度由 APIKeyGate 全权判定，
-        // 否则 full-access Key 会被这里的角色下限拦住（rbac_api_key_shortcircuit_test.go）
+        // API-Key 主体直接放行——能力维度由 APIKeyGate 全权判定，
+        // 否则 full-access Key 会被这里的角色下限拦住
         if (com.ragagent.auth.apikey.domain.APIKeyScopeContext.present()) {
             return true;
         }
 
         Rule rule = match(request.getMethod(), request.getRequestURI());
         if (rule == null) {
-            // 未声明路由：对照 Go 该组默认无守卫时不拦截（API-key default-deny 属 APIKeyGate，未翻译）
+            // 未声明路由：该组默认无守卫，不拦截（API-key default-deny 属 APIKeyGate）
             return true;
         }
         if (check(rule)) {
@@ -150,9 +140,9 @@ public class RbacInterceptor implements HandlerInterceptor {
         log.warn("[rbac] role insufficient: user={} have={} need={} path={}",
                 TenantContext.currentUserId(), TenantContext.currentRole(),
                 rule.minRole().value(), request.getRequestURI());
-        // 对照 Go middleware/rbac.go L99-106：拒绝时写一条 durable 审计行。
+        // 拒绝时写一条 durable 审计行。
         // 非持久化的告警行（上一行 log.warn）依然每次拒绝都打——去重只压制落库。
-        // 审计失败绝不能把一次 403 变成 500（Go 的 `_ = svc.LogDenied(...)` 同）。
+        // 审计失败绝不能把一次 403 变成 500。
         try {
             Long tenantId = TenantContext.currentTenantId();
             deniedAuditor.logDenied(
@@ -170,7 +160,7 @@ public class RbacInterceptor implements HandlerInterceptor {
         response.setStatus(403);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        // 两种守卫的文案不同（Go rbac.go L107-109 vs L182-184），golden 钉住：
+        // 两种守卫的文案不同，golden 钉住：
         // RequireRole → "Forbidden: insufficient workspace role"；
         // RequireSystemAdmin → "Forbidden: system administrator required"。
         response.getWriter().write(rule.sysAdminOnly()
@@ -206,10 +196,9 @@ public class RbacInterceptor implements HandlerInterceptor {
 
     /** 对照 RequireRole / RequireRoleOrSystemAdmin / RequireSystemAdmin 判定链 */
     private boolean check(Rule rule) {
-        // Go：API-key 主体由 APIKeyGate 全权判定（能力 + KB 白名单 + default-deny），
-        // 角色阶梯不适用于机器主体——RequireRole / RequireRoleOrSystemAdmin 短路放行
-        // （rbac.go L72-78 / L121-124）；RequireSystemAdmin 只放行平台 Key、
-        // 拒绝租户 Key（L155-164）。
+        // API-key 主体由 APIKeyGate 全权判定（能力 + KB 白名单 + default-deny），
+        // 角色阶梯不适用于机器主体——角色下限规则短路放行；
+        // sysAdminOnly 规则只放行平台 Key、拒绝租户 Key。
         com.ragagent.auth.apikey.domain.TenantAPIKeyScope apiKeyScope =
                 com.ragagent.auth.apikey.domain.APIKeyScopeContext.current();
         if (apiKeyScope != null) {
@@ -251,19 +240,17 @@ public class RbacInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * 对照 Go {@code middleware.RequirePathTenantMatch}（internal/middleware/access.go）：
      * 对 {@code /api/v1/tenants/{id}/**} 强制 URL 里的租户 == 调用方活动租户。
      *
-     * <p><b>门控修正（波 2 扫尾批 3）</b>：Go 里这个中间件只挂在 {@code /tenants/:id}
-     * 子组上——{@code /tenants/all}、{@code /tenants/search}、{@code /tenants/kv/:key}
-     * 都不经过它。此前 Java 对所有 {@code /api/v1/tenants/*} 首段强制数字解析，
-     * 会把 "all"/"kv" 误判成 400。现改为按 Spring 最佳匹配模板门控：仅当模板的
-     * 租户段是 {@code {...}} 占位符（形如 {@code /api/v1/tenants/{id}/...}）才执行。</p>
+     * <p><b>门控范围</b>：仅当最佳匹配模板的租户段是 {@code {...}} 占位符
+     * （形如 {@code /api/v1/tenants/{id}/...}）才执行；静态段路由
+     * （{@code /tenants/all}、{@code /tenants/search}、{@code /tenants/kv/{key}}）不查——
+     * 若对所有首段强制数字解析，会把 "all"/"kv" 误判成 400。</p>
      *
      * <p>没有这层时，租户 A 的 Owner 可以把 URL 里的 id 换成租户 B 去读对方的
      * 审计日志 / API Key 列表——角色下限（Owner）照样满足。</p>
      *
-     * <p>错误形态逐条对照 Go：空 → 400、非正整数 → 400、上下文无租户 → 401（fail closed）、
+     * <p>错误形态：空 → 400、非正整数 → 400、上下文无租户 → 401（fail closed）、
      * 不匹配 → 403；跨租户超管放行。</p>
      */
     private boolean checkPathTenantMatch(HttpServletRequest request, HttpServletResponse response)
@@ -274,7 +261,7 @@ public class RbacInterceptor implements HandlerInterceptor {
         }
         Object pattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
         if (!(pattern instanceof String p) || !p.startsWith("/api/v1/tenants/{")) {
-            // 静态段路由（/all、/search、/kv/{key}）或拿不到模板：对照 Go——不在 :id 组，不查
+            // 静态段路由（/all、/search、/kv/{key}）或拿不到模板：不在占位符组，不查
             return true;
         }
         String rest = uri.substring("/api/v1/tenants/".length());
@@ -303,7 +290,7 @@ public class RbacInterceptor implements HandlerInterceptor {
         if (pathTenantId == ctxTenantId) {
             return true;
         }
-        // 平台 Key 等价跨租户超管（对照 Go RequireSystemAdmin 对平台 Key 的放行形态）
+        // 平台 Key 等价跨租户超管，放行
         com.ragagent.auth.apikey.domain.TenantAPIKeyScope keyScope =
                 com.ragagent.auth.apikey.domain.APIKeyScopeContext.current();
         if (keyScope != null && keyScope.isPlatform()) {

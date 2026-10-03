@@ -7,13 +7,9 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * 平台验签核心（对照 Go internal/im/{slack,dingtalk,telegram,mattermost,qqbot}
- * 各 adapter.go 的 VerifyCallback，波 5 W5γ3 逐行翻译——确定性面；平台出站发送
- * 属 provider-XDEP）。
+ * 平台验签核心（确定性面；平台出站发送不在本类）。
  *
- * <p>字节契约：slack/dingtalk 签名向量录自独立 Go 程序（算法从 slack SDK
- * SecretsVerifier 与 dingtalk adapter 逐字抄录），fixture 在
- * {@code contracts/w5g3-im-adapter-signatures.tsv}。</p>
+ * <p>字节契约由测试 fixture（{@code contracts/w5g3-im-adapter-signatures.tsv}）钉住。</p>
  */
 public final class ImAdapterVerify {
 
@@ -43,9 +39,9 @@ public final class ImAdapterVerify {
     }
 
     /**
-     * Slack 验签（对照 slack.NewSecretsVerifier + Ensure）：基串
+     * Slack 验签：基串
      * {@code v0:<timestamp>:<body>}，HMAC-SHA256(signingSecret)，与
-     * {@code X-Slack-Signature}（"v0=" + hex）比较。secret 空 → 免验（Go 原文）。
+     * {@code X-Slack-Signature}（"v0=" + hex）比较。secret 空 → 免验。
      */
     public static String slackExpectedSignature(String signingSecret, String timestamp,
             byte[] body) {
@@ -57,7 +53,7 @@ public final class ImAdapterVerify {
     }
 
     /**
-     * DingTalk 验签（对照 dingtalk/adapter.go）：基串 {@code <timestamp>\n<secret>}，
+     * DingTalk 验签：基串 {@code <timestamp>\n<secret>}，
      * HMAC-SHA256 密钥=secret，Base64 输出。时间窗 ±1h 由调用方校验。
      */
     public static String dingtalkExpectedSignature(String clientSecret, String timestamp) {
@@ -67,15 +63,15 @@ public final class ImAdapterVerify {
                         stringToSign.getBytes(StandardCharsets.UTF_8)));
     }
 
-    /** Telegram：constant-time 比较语义（Go subtle.ConstantTimeCompare != 1 → fail）。 */
+    /** Telegram：constant-time 比较语义（不等即失败）。 */
     public static boolean telegramTokenMatches(String headerToken, String secretToken) {
         if (secretToken == null || secretToken.isEmpty()) {
-            return true; // Go：secret 为空免验
+            return true; // secret 为空免验
         }
         return constantTimeEquals(headerToken == null ? "" : headerToken, secretToken);
     }
 
-    /** 对照 subtle.ConstantTimeCompare 的常时比较。 */
+    /** 常时比较。 */
     static boolean constantTimeEquals(String a, String b) {
         byte[] ab = a.getBytes(StandardCharsets.UTF_8);
         byte[] bb = b.getBytes(StandardCharsets.UTF_8);
@@ -86,7 +82,7 @@ public final class ImAdapterVerify {
         return r == 0 && ab.length == bb.length;
     }
 
-    /** Mattermost：outgoing token 精确相等（payload.Token != a.outgoingToken → fail）。 */
+    /** Mattermost：outgoing token 精确相等。 */
     public static boolean mattermostTokenMatches(String payloadToken, String outgoingToken) {
         return outgoingToken != null && !outgoingToken.isEmpty()
                 ? outgoingToken.equals(payloadToken)

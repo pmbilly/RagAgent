@@ -10,18 +10,15 @@ import com.fasterxml.jackson.databind.JsonNode;
  * QA 请求面 DTO（三个入口共用：{@code /knowledge-chat}、{@code /agent-chat}、
  * {@code /knowledge-search}；embed 经 {@code patchEmbedChatPayload} 改写后走同一对端点）。
  *
- * <p><b>键名＝Java 字段名（camelCase）</b>，§14.9l S4 换锚——原先逐字段的
- * {@code @JsonProperty}（Go json tag 直译）已全部摘除；原先照抄 Go {@code omitempty}
- * 的 {@code @JsonInclude} 也一并去掉：这些类**只做入参**（解析后转
+ * <p><b>键名＝Java 字段名（camelCase）</b>：这些类不带 {@code @JsonProperty} /
+ * {@code @JsonInclude} 注解——它们**只做入参**（解析后转
  * {@code QaSupport.QaRequest} 内部模型），注解对入参没有语义，留着只会让下一个读者
  * 以为响应面也受影响。</p>
  *
- * <p>绑定错误文案**不动**：{@code QaRequestBinder} 仍按 Go 的
- * {@code Key: 'CreateKnowledgeQARequest.Query' Error:Field validation …} 措辞抛错
- * （错误形态统一是独立批次）。</p>
+ * <p>绑定错误文案保持既有措辞：{@code QaRequestBinder} 按
+ * {@code Key: 'CreateKnowledgeQARequest.Query' Error:Field validation …} 抛错。</p>
  *
- * <p>未登记的键一律被忽略（{@code @JsonIgnoreProperties}，与 Go 的
- * {@code json.Unmarshal} 一致）——**旧 snake 键因此不会报错，只会静默失效**，
+ * <p>未登记的键一律被忽略（{@code @JsonIgnoreProperties}）——**旧 snake 键因此不会报错，只会静默失效**，
  * 客户端须同批改造（前端、embed 访客页、集成文档页已同批）。</p>
  */
 public final class QaRequests {

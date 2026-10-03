@@ -3,7 +3,7 @@ package com.ragagent.mcp.oauth;
 import com.ragagent.mcp.protocol.McpContext;
 
 /**
- * token 存储（对照 mcp-go {@code transport.TokenStore}，oauth.go:61-73）。
+ * token 存储。
  *
  * <p>契约（Go 接口文档逐条）：
  * <ul>

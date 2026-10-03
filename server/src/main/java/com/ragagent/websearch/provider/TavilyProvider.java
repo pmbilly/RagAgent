@@ -10,7 +10,7 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * Tavily 搜索 provider（对照 Go {@code web_search/tavily.go} 全文）。
+ * Tavily 搜索 provider。
  *
  * <p>POST 官方端点；api_key 放请求体（非头）；snippet 取响应的 content 字段；
  * published_date 仅 includeDate 且解析成功（RFC3339）时输出。错误带 body。</p>

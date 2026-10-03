@@ -27,7 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * IMA OpenAPI 客户端（对照 Go {@code ima/client.go} 全文）。
+ * IMA OpenAPI 客户端。
  *
  * <h2>两个 HTTP 客户端，两种超时</h2>
  * <p>{@code httpClient} 用 {@code defaultTimeout=60s} 调 OpenAPI；
@@ -36,11 +36,10 @@ import org.slf4j.LoggerFactory;
  * 两者都经 {@link ConnectorHttp#newConnectorHttpClient(Duration)} 构造，
  * 于是 SSRF 校验、限次重定向跟随、跨域剥凭据头三层防护一体继承。</p>
  *
- * <h2>{@code ctx} 的处置</h2>
- * <p>Go 的 {@code sleepCtx(ctx, d)} → {@link Connector#sleep(long)}：取消靠线程
- * 中断，被中断时抛 {@link ConnectorException}（等价于 Go 的 {@code ctx.Err()}）。</p>
+ * <h2>取消</h2>
+ * <p>取消靠线程中断：{@link Connector#sleep(long)} 被中断时抛 {@link ConnectorException}。</p>
  *
- * <h2>重试矩阵（与 Go 逐行对应）</h2>
+ * <h2>重试矩阵</h2>
  * <ul>
  *   <li>传输层失败 / 429 / 业务限频码 {@code 110021} → 退避 {@code backoff[attempt]}；</li>
  *   <li>5xx → 只重试 {@code max5xxRetries}（1）次，固定等 {@code retry5xxDelay}；</li>
@@ -48,7 +47,7 @@ import org.slf4j.LoggerFactory;
  *   <li>其它非 2xx → {@code "ima api http error: status=%d body=%s"}；</li>
  *   <li>业务码 {@code 110030}（无权限）→ {@link ConnectorException.InvalidCredentials}；</li>
  *   <li>其它非零业务码 → 原文 {@code "ima api error: code=%d msg=%s"}（含 {@code 110001}
- *       参数非法——那是我方的 bug，不是凭据问题，照 Go 透给用户）。</li>
+ *       参数非法——那是我方的 bug，不是凭据问题，原文透给用户）。</li>
  * </ul>
  *
  * <h2>内部形状</h2>
@@ -59,14 +58,14 @@ public class ImaClient {
 
     private static final Logger log = LoggerFactory.getLogger(ImaClient.class);
 
-    /** 对照 Go {@code ima/client.go} 的常量。 */
+    /** 客户端常量。 */
     public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(60);
     public static final Duration DOWNLOAD_TIMEOUT = Duration.ofSeconds(120);
     public static final int DEFAULT_PAGE_SIZE = 50;
     /** IMA 硬上限：{@code search_knowledge_base} 最大 limit=20（{@code get_knowledge_list} 是 50）。 */
     public static final int SEARCH_PAGE_SIZE = 20;
     public static final String USER_AGENT = "WeKnora-IMA-Connector/1.0";
-    /** 对照 Go {@code maxDownloadBytes}：与 IMA 最大的单文件一致。 */
+    /** 单文件下载字节上限（与 IMA 最大的单文件一致）。 */
     public static final long MAX_DOWNLOAD_BYTES = 200L * 1024 * 1024;
 
     public static final String API_BASE_PATH = "/openapi/wiki/v1";
@@ -84,7 +83,7 @@ public class ImaClient {
     private final ImaRetryPolicy retry;
     private final AtomicBoolean credentialLogged = new AtomicBoolean();
 
-    /** 构造器：对照 Go {@code newClient(cfg)}，另外多一个可注入的重试预算。 */
+    /** 构造器：默认重试预算，另有可注入的 {@link ImaRetryPolicy}。 */
     public ImaClient(ImaConfig cfg) {
         this(cfg, ImaRetryPolicy.defaults());
     }
@@ -101,7 +100,7 @@ public class ImaClient {
     // ── 业务端点 ──────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code SearchKnowledgeBase}：空 query 返回当前 token 可见的全部知识库。
+     * 空 query 返回当前 token 可见的全部知识库。
      */
     public SearchKnowledgeBaseResp searchKnowledgeBase(String query, String cursor, int limit) {
         if (limit <= 0 || limit > SEARCH_PAGE_SIZE) {
@@ -116,7 +115,7 @@ public class ImaClient {
     }
 
     /**
-     * 对照 Go {@code GetKnowledgeBase}：批量取知识库详情（1-20 个 id）。
+     * 批量取知识库详情（1-20 个 id）。
      * {@code ids} 为空时**不发请求**，直接回空 map。
      */
     public Map<String, ImaApiTypes.KnowledgeBaseInfo> getKnowledgeBase(List<String> ids) {
@@ -131,7 +130,7 @@ public class ImaClient {
     }
 
     /**
-     * 对照 Go {@code GetAddableKnowledgeBaseList}：当前 token 有权写入的知识库。
+     * 当前 token 有权写入的知识库。
      * 这是"这个凭据能看到哪些 KB"的权威端点（{@code ListResources} 的主来源）。
      */
     public GetAddableKnowledgeBaseListResp getAddableKnowledgeBaseList(String cursor, int limit) {
@@ -147,10 +146,10 @@ public class ImaClient {
     }
 
     /**
-     * 对照 Go {@code GetKnowledgeList}：列某个文件夹下的条目（{@code folderId} 空表示根）。
+     * 列某个文件夹下的条目（{@code folderId} 空表示根）。
      *
      * <p><b>{@code knowledge_base_id} 无条件放进请求体，{@code folder_id} 只在非空时放</b>
-     * ——这与 Go 逐行对应，别"顺手统一"成两个都放。</p>
+     * ——这是既有的请求形状，别"顺手统一"成两个都放。</p>
      */
     public GetKnowledgeListResp getKnowledgeList(String kbId, String folderId, String cursor, int limit) {
         if (limit <= 0 || limit > DEFAULT_PAGE_SIZE) {
@@ -168,7 +167,7 @@ public class ImaClient {
     }
 
     /**
-     * 对照 Go {@code GetMediaInfo}：拿 URL 访问信息，笔记还会给
+     * 拿 URL 访问信息，笔记还会给
      * {@code notebook_ext_info.notebook_id}。
      */
     public GetMediaInfoResp getMediaInfo(String mediaId) {
@@ -179,7 +178,7 @@ public class ImaClient {
     }
 
     /**
-     * 对照 Go {@code GetNoteContent}：POST {@code /openapi/note/v1/get_doc_content}，
+     * POST {@code /openapi/note/v1/get_doc_content}，
      * 返回笔记正文（{@code target_content_format=0} 为纯文本）。
      *
      * <p>{@code noteId} 是 {@code get_media_info} 为笔记报出的 notebook_id：
@@ -195,19 +194,18 @@ public class ImaClient {
 
     // ── 下载 ──────────────────────────────────────────────────────────────
 
-    /** 下载结果（对照 Go {@code DownloadURL} 的 {@code ([]byte, string, error)}）。 */
+    /** 下载结果：响应体字节 + Content-Type。 */
     public record DownloadResult(byte[] body, String contentType) {
     }
 
     /**
-     * 对照 Go {@code DownloadURL}：抓 {@code get_media_info} 给的 URL，
+     * 抓 {@code get_media_info} 给的 URL，
      * 带上 IMA 随 URL 一起返回的鉴权头。
      *
      * <p><b>先做一次 SSRF 校验</b>（这个 URL 来自 API 响应，对本进程而言是
      * 攻击者可影响的输入），再交给已经内置逐跳校验的 {@code downloadClient}。</p>
      *
-     * <p><b>与 Go 的一个已知差异</b>：Go 用 {@code io.LimitReader(body, max+1)}
-     * 把内存占用**封在 200MB**；Java 侧的
+     * <p><b>内存注记</b>：
      * {@link ConnectorHttp.Client} 一次性读完响应体，所以超限检查发生在读完之后
      * ——判定结果相同，但峰值内存不受这条上限保护。</p>
      */
@@ -241,15 +239,15 @@ public class ImaClient {
 
     // ── 核心：信封解析 + 重试 ─────────────────────────────────────────────
 
-    /** 对照 Go {@code callAPI}（{@code callAPIAt(ctx, apiBasePath, ...)} 的简写）。 */
+    /** 默认命名空间的调用。 */
     JsonNode callApi(String action, Object req) {
         return callApi(API_BASE_PATH, action, req);
     }
 
     /**
-     * 对照 Go {@code callAPIAt}：向 {@code <basePath>/<action>} 发一次带鉴权的 POST，
+     * 向 {@code <basePath>/<action>} 发一次带鉴权的 POST，
      * 解析 {@code {code, msg, data}} 信封，返回 {@code data} 节点（缺失或 {@code null}
-     * 时回 {@code null}，等价 Go 的 {@code result == nil} 分支）。
+     * 时回 {@code null}）。
      */
     JsonNode callApi(String basePath, String action, Object req) {
         logCredentialOnce();
@@ -365,7 +363,7 @@ public class ImaClient {
         throw lastErr;
     }
 
-    /** 对照 Go {@code result != nil && len(env.Data) > 0 && string(env.Data) != "null"} 分支。 */
+    /** {@code data} 节点存在且非 null 时才反序列化，否则回退默认实例。 */
     private static <T> T decode(JsonNode data, Class<T> type, T fallback) {
         if (data == null) {
             return fallback;
@@ -373,7 +371,7 @@ public class ImaClient {
         return MAPPER.convertValue(data, type);
     }
 
-    /** 对照 Go 的 {@code c.logCredentialOnce.Do(...)}：整条 client 生命期只记一次。 */
+    /** 整条 client 生命期只记一次。 */
     private void logCredentialOnce() {
         if (credentialLogged.compareAndSet(false, true)) {
             log.info("[IMA] client configured client_id={} api_key={} base={}",
@@ -382,10 +380,10 @@ public class ImaClient {
     }
 
     /**
-     * 对照 Go {@code redact}：给日志用的脱敏形态，<b>绝不</b>记录完整凭据。
+     * 给日志用的脱敏形态，<b>绝不</b>记录完整凭据。
      *
-     * <p>按 Go 的**字节**语义实现（{@code len(t) < 12} 数的是字节，
-     * 切片也是字节切片）：ASCII 凭据下与按字符实现完全一致，
+     * <p>按 <b>UTF-8 字节</b>计长度（不足 12 字节直接 {@code ***}）：
+     * ASCII 凭据下与按字符实现完全一致，
      * 出现多字节字符时最多切出替换字符，但脱敏强度不变。</p>
      */
     public static String redact(String t) {

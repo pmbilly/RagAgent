@@ -26,15 +26,13 @@ import com.ragagent.common.pipeline.ChunkTypes;
 import com.ragagent.retrieval.obs.RetrievalObs;
 
 /**
- * CHUNK_MERGE 阶段插件（对照 Go chat_pipeline 的 merge.go + merge_expand.go +
- * merge_faq.go + merge_history.go + merge_overlap.go 五个文件收进一类；
- * 分段注释 = Go 文件名）。
+ * CHUNK_MERGE 阶段插件。
  *
- * <h2>OnEvent 八步（merge.go:44-97）</h2>
+ * <h2>OnEvent 八步</h2>
  * 输入选择 → 去重 → 历史引用注入 → 父块解析 → 分组顺序合并 → FAQ 答案回填 →
  * 短上下文邻居扩展 → 扩展后再合并 → 终去重（ID+签名+部分重叠）。
  *
- * <h2>合并分类（merge_overlap.go 的 classifyMerge，实录组 merge_classify 钉住）</h2>
+ * <h2>合并分类</h2>
  * SEPARATE / EXTEND（可信对，位置重叠裁剪）/ SUBSUME（可信包含）/ JOIN_DISTINCT /
  * JOIN_TEXT（不可信，纯文本匹配）。可信 = 未编辑 + 未被管线改写 + 坐标区间有效 +
  * runeLen(Content) == EndAt-StartAt（长度不变量）。
@@ -45,7 +43,7 @@ public final class PluginMerge implements Plugin {
 
     final PipelinePorts.ChunkRepository chunkRepo;
     final MergeParentOps parentOps;
-    private final PipelinePorts.ChunkService chunkService; // 父块解析预留（与 Go 一致当前未用）
+    private final PipelinePorts.ChunkService chunkService; // 父块解析预留（当前未用）
 
     public PluginMerge(PipelinePorts.ChunkRepository chunkRepo, PipelinePorts.ChunkService chunkService) {
         this.chunkRepo = chunkRepo;
@@ -113,10 +111,10 @@ public final class PluginMerge implements Plugin {
     }
 
     // ------------------------------------------------------------------
-    // merge.go：输入选择 / 去重 / 历史注入
+    // 输入选择 / 去重 / 历史注入
     // ------------------------------------------------------------------
 
-    /** 对照 selectInputResults：rerank 优先，回落按分数降序的检索结果。 */
+    /** rerank 优先，回落按分数降序的检索结果。 */
     private List<SearchResult> selectInputResults(ChatManage chatManage) {
         if (chatManage.getRerankResult() != null && !chatManage.getRerankResult().isEmpty()) {
             return chatManage.getRerankResult();
@@ -129,7 +127,7 @@ public final class PluginMerge implements Plugin {
         return result;
     }
 
-    /** 对照 dedup：带前后日志的 removeDuplicateResults。 */
+    /** 带前后日志的去重（removeDuplicateResults）。 */
     private List<SearchResult> dedup(String label, List<SearchResult> results) {
         int before = results == null ? 0 : results.size();
         List<SearchResult> out = SearchSupport.removeDuplicateResults(results);
@@ -142,7 +140,7 @@ public final class PluginMerge implements Plugin {
         return out;
     }
 
-    /** 对照 injectHistoryResults：历史引用注入后重去重。 */
+    /** 历史引用注入后重去重。 */
     private List<SearchResult> injectHistoryResults(ChatManage chatManage, List<SearchResult> current) {
         List<SearchResult> historyResults = filterHistoryResults(chatManage, current);
         if (historyResults == null || historyResults.isEmpty()) {
@@ -157,7 +155,7 @@ public final class PluginMerge implements Plugin {
         return SearchSupport.removeDuplicateResults(combined);
     }
 
-    /** 对照 groupAndMergeCurrentContent：KnowledgeID+ChunkType 分组 → 组内顺序合并 → 全局确定性排序。 */
+    /** KnowledgeID+ChunkType 分组 → 组内顺序合并 → 全局确定性排序。 */
     public List<SearchResult> groupAndMergeCurrentContent(List<SearchResult> results) {
         // KnowledgeID → ChunkType → chunks（LinkedHashMap 保插入序；全局排序还原确定性）
         Map<String, Map<String, List<SearchResult>>> knowledgeGroup = new LinkedHashMap<>();
@@ -218,18 +216,18 @@ public final class PluginMerge implements Plugin {
         return mergedChunks;
     }
 
-    /** 对照 runeLen。 */
+    /** 字符串的 Unicode 码点数。 */
     public static int runeLen(String s) {
         return s == null ? 0 : s.codePointCount(0, s.length());
     }
 
-    /** 对照 mergeOrderedContent：prev + base + next 按序拼接，超 maxLen 截 rune。 */
+    /** prev + base + next 按序拼接，超 maxLen 按码点截断。 */
     public static String mergeOrderedContent(String prev, String base, String next, int maxLen) {
         String content = base;
         if (!prev.isEmpty()) {
-            // Go 用 searchutil.JoinChunkContent（带重叠折叠），不是裸拼接——
+            // joinChunkContent 带重叠折叠，不是裸拼接——
             // 邻居块尾部常与 base 前缀重叠（parser 滑动窗口），裸拼会重复一段且
-            // 多出 "\n\n"，与 Go 输出逐字节对不上（走查疑点⑫抓回）。
+            // 多出 "\n\n"。
             content = ChunkSearchUtil.joinChunkContent(prev, content, "\n\n");
         }
         if (!next.isEmpty()) {
@@ -254,7 +252,7 @@ public final class PluginMerge implements Plugin {
         return false;
     }
 
-    /** SubChunkID 追加（保持 null→list 语义：Go 的 append 到 nil 产生单元素切片）。 */
+    /** SubChunkID 追加（null 列表先建空列表再追加）。 */
     static void appendSubChunkId(SearchResult r, String id) {
         List<String> ids = r.getSubChunkId();
         List<String> next = ids == null ? new ArrayList<>() : new ArrayList<>(ids);
@@ -262,7 +260,7 @@ public final class PluginMerge implements Plugin {
         r.setSubChunkId(next);
     }
     // ------------------------------------------------------------------
-    // merge_faq.go：FAQ 答案回填
+    // FAQ 答案回填
     // ------------------------------------------------------------------
 
     public List<SearchResult> resolveParentChunks(ChatManage chatManage, List<SearchResult> results) {
@@ -347,7 +345,7 @@ public final class PluginMerge implements Plugin {
         return results;
     }
 
-    /** 对照 Chunk.FAQMetadata：解析失败/无 FAQ 字段 → null。 */
+    /** FAQ 元数据解析（解析失败/无 FAQ 字段 → null）。 */
     private FaqChunkMetadata parseFaqMetadata(Chunk chunk) {
         JsonNode meta = chunk.getMetadata();
         if (meta == null || meta.isNull() || !meta.isObject()) {
@@ -368,7 +366,6 @@ public final class PluginMerge implements Plugin {
         }
     }
 
-    /** 对照 buildFAQAnswerContent。 */
     public static String buildFAQAnswerContent(FaqChunkMetadata meta) {
         if (meta == null) {
             return "";
@@ -403,10 +400,10 @@ public final class PluginMerge implements Plugin {
     }
 
     // ------------------------------------------------------------------
-    // merge_history.go：历史引用过滤
+    // 历史引用过滤
     // ------------------------------------------------------------------
 
-    /** 对照 filterHistoryResults：Jaccard ≥ 0.15 的历史引用，分数打 6 折，上限 3 条。 */
+    /** Jaccard ≥ 0.15 的历史引用，分数打 6 折，上限 3 条。 */
     public static List<SearchResult> filterHistoryResults(ChatManage chatManage, List<SearchResult> currentResults) {
         final double minSimilarity = 0.15;
         final double historyScoreDiscount = 0.6;
@@ -464,7 +461,7 @@ public final class PluginMerge implements Plugin {
         return filtered;
     }
 
-    /** 对照 TrimRight(x, "0") 后 TrimRight(x, ".")：0.1500 → 0.15、0.0000 → ""。 */
+    /** 先去尾部 '0' 再去尾部 '.'：0.1500 → 0.15、0.0000 → ""。 */
     static String trimTrailingZeros(String s) {
         int end = s.length();
         while (end > 0 && s.charAt(end - 1) == '0') {
@@ -477,11 +474,11 @@ public final class PluginMerge implements Plugin {
     }
 
     // ------------------------------------------------------------------
-    // merge_overlap.go：顺序合并
+    // 顺序合并
     // ------------------------------------------------------------------
 
     /**
-     * 对照 mergeSequentialChunks：可信对按位置合并；含编辑/扩展/过期内容的对
+     * 可信对按位置合并；含编辑/扩展/过期内容的对
      * 落回文本匹配。入参必须已按 ChunkIndex 排序。
      */
     public List<SearchResult> mergeSequentialChunks(String knowledgeID, List<SearchResult> chunks) {
@@ -542,7 +539,7 @@ public final class PluginMerge implements Plugin {
     }
 
     /**
-     * 对照 appendTrustedContent：位置重叠优先精确裁剪（字符须逐字一致），
+     * 位置重叠优先精确裁剪（字符须逐字一致），
      * 不一致回落文本最长重叠搜索。
      */
     static String appendTrustedContent(String acc, String next, int positionOverlap) {
@@ -553,7 +550,7 @@ public final class PluginMerge implements Plugin {
         return SearchChunkMerge.appendWithOverlap(acc, next, positionOverlap);
     }
 
-    /** 对照 chunkTrusted：坐标可信判定（长度不变量）。 */
+    /** 坐标可信判定（长度不变量）。 */
     public static boolean chunkTrusted(SearchResult chunk) {
         return chunk.getContentRevision() == 0
                 && !chunk.isContentRewritten()
@@ -561,12 +558,11 @@ public final class PluginMerge implements Plugin {
                 && runeLen(chunk.getContent()) == chunk.getEndAt() - chunk.getStartAt();
     }
 
-    /** 对照 mergeSituation。 */
     public enum MergeSituation {
         SEPARATE, EXTEND, SUBSUME, JOIN_DISTINCT, JOIN_TEXT
     }
 
-    /** 对照 classifyMerge：先可信位置路径，再不可信文本/顺序路径。 */
+    /** 先可信位置路径，再不可信文本/顺序路径。 */
     public static MergeSituation classifyMerge(SearchResult lastChunk, int lastIndex, SearchResult current) {
         if (chunkTrusted(lastChunk) && chunkTrusted(current)
                 && current.getStartAt() >= lastChunk.getStartAt()) {
@@ -591,7 +587,7 @@ public final class PluginMerge implements Plugin {
         return MergeSituation.JOIN_TEXT;
     }
 
-    /** 对照 recordMergedChild：记录子块 ID + 合并 ImageInfo。 */
+    /** 记录子块 ID + 合并 ImageInfo。 */
     private void recordMergedChild(String knowledgeID, SearchResult target, SearchResult source, String warnKey) {
         if (!containsId(target.getSubChunkId(), source.getId())) {
             appendSubChunkId(target, source.getId());
@@ -607,7 +603,7 @@ public final class PluginMerge implements Plugin {
     }
 
     /**
-     * 对照 mergeImageInfo：URL 去重合并（source 的 JSON 解析失败 → 异常；
+     * URL 去重合并（source 的 JSON 解析失败 → 异常；
      * target 解析失败 → 整体替换为 source）。
      */
     private void mergeImageInfo(SearchResult target, SearchResult source) {

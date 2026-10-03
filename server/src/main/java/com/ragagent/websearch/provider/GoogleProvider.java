@@ -11,12 +11,11 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * Google CSE 搜索 provider（对照 Go {@code web_search/google.go} 全文）。
+ * Google CSE 搜索 provider。
  *
- * <p>Go 走官方 SDK（google.golang.org/api/customsearch）；Java 侧按该 SDK 的
- * <b>线格式</b>裸 HTTP 复刻：GET {@code https://www.googleapis.com/customsearch/v1}
- * {@code ?cx=&q=&num=&hl=ch-zh&key=}。<b>hl 的 "ch-zh" 是 Go 侧既有笔误（应为
- * zh-CN），照抄不修</b>（§9 同类纪律）。num 缺省 5（maxResults<=0 时）。</p>
+ * <p>线格式与官方 customsearch SDK 一致：GET {@code https://www.googleapis.com/customsearch/v1}
+ * {@code ?cx=&q=&num=&hl=ch-zh&key=}。<b>hl 的 "ch-zh" 是既有笔误（应为
+ * zh-CN），保持不修</b>。num 缺省 5（maxResults<=0 时）。</p>
  */
 public final class GoogleProvider implements WebSearchProvider {
 
@@ -50,8 +49,8 @@ public final class GoogleProvider implements WebSearchProvider {
             throw new SearchHttp.SearchHttpException("query is empty");
         }
         int num = maxResults > 0 ? maxResults : 5;
-        // 对照 customsearch SDK 的线格式：参数按键字母序（alt/cx/hl/key/num/
-        // prettyPrint/q），alt=json 与 prettyPrint=false 是 SDK 恒发项
+        // 线格式按 customsearch 官方客户端形态：参数按键字母序（alt/cx/hl/key/num/
+        // prettyPrint/q），alt=json 与 prettyPrint=false 是恒发项
         String url = baseUrl
                 + "?alt=json"
                 + "&cx=" + URLEncoder.encode(engineId, StandardCharsets.UTF_8)

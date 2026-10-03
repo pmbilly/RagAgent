@@ -1,8 +1,8 @@
 package com.ragagent.retrieval.engine.weaviate;
 
 /**
- * Weaviate 对象的 properties 模型——对照 Go {@code weaviate.WeaviateVectorEmbedding}
- * （structs.go L21-31）。字段与 payload 键一一对应（snake_case，照 {@code createPayload}）。
+ * Weaviate 对象的 properties 模型。
+ * 字段与 payload 键一一对应（snake_case）。
  */
 public final class WeaviateVectorEmbedding {
 

@@ -17,13 +17,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 对照 Go internal/application/service/wiki_page_revision_test.go（232 行）的 6 个用例。
+ * Wiki 页面修订历史的 6 个场景测试（共享 H2 + {@link TestSchema#resetData}）。
  *
- * <p>Go 的 {@code newWikiRevisionTestService} 每个用例开一个独立的 SQLite 内存库；
- * Java 用共享 H2 + {@link TestSchema#resetData}。</p>
- *
- * <p>Go 通过 {@code types.WithWikiEditSource(ctx, src)} 把编辑来源挂到 ctx 上；
- * Java 侧由 {@link WikiEditContext} 用 ThreadLocal 承担同一语义。</p>
+ * <p>编辑来源由 {@link WikiEditContext} 用 ThreadLocal 承载。</p>
  */
 @SpringBootTest
 class WikiPageRevisionServiceTest {
@@ -42,8 +38,6 @@ class WikiPageRevisionServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestUpdateWikiPageSnapshotsSupersededVersion}。
-     *
      * <p>要点：只有真的内容变更才快照被取代的版本；快照的作者是<b>被取代版本的</b>
      * 作者而不是取代它的人；纯记账写入不产生快照。</p>
      */
@@ -87,7 +81,6 @@ class WikiPageRevisionServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestUpdateWikiPagePersistsClearedFields}：
      * 清空的字段必须真的落库，不能被零值感知的写入路径跳过。
      */
     @Test
@@ -112,7 +105,7 @@ class WikiPageRevisionServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestRevertWikiPageToVersion}：回滚以一次新编辑的形式应用，
+     * 回滚以一次新编辑的形式应用，
      * 于是回滚本身也是可撤销的（两个被取代的版本都留了快照）。
      */
     @Test
@@ -147,7 +140,7 @@ class WikiPageRevisionServiceTest {
                 .isEqualTo("rewritten body");
     }
 
-    /** 回滚到不存在的版本 → not found（对照 Go 的 GetRevision 错误直传） */
+    /** 回滚到不存在的版本 → not found */
     @Test
     void revertToMissingVersionFails() {
         final String kb = "kb-revert-miss";
@@ -156,7 +149,7 @@ class WikiPageRevisionServiceTest {
                 .isInstanceOf(WikiPageNotFoundException.class);
     }
 
-    /** 对照 Go {@code TestWikiPageRevisionsArePruned}：软上限 50 条 */
+    /** 修订快照有软上限 50 条 */
     @Test
     void wikiPageRevisionsArePruned() {
         final String kb = "kb-prune-rev";
@@ -182,7 +175,6 @@ class WikiPageRevisionServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestPipelineChurnDoesNotEvictHumanRevisions}：
      * 被管道反复重写的页面绝不能挤掉当初让历史值得保留的那几次人工编辑。
      */
     @Test
@@ -218,7 +210,6 @@ class WikiPageRevisionServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestDeletePageDropsRevisionHistory}：
      * 删除页面不能留下不可达的正文快照。
      */
     @Test
@@ -246,7 +237,7 @@ class WikiPageRevisionServiceTest {
 
     // ──────────────────────────── 夹具 ────────────────────────────
 
-    /** 对照 Go 测试里的 {@code &types.WikiPage{Title: ..., Content: ..., Summary: "s1"}} */
+    /** 基础页面夹具 */
     private static WikiPage newPage(String kbId, String slug, String title, String content) {
         WikiPage p = new WikiPage();
         p.setTenantId(1L);

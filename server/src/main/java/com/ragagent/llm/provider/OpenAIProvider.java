@@ -7,7 +7,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.OpenAIProvider + openai.go。
+ * OpenAI。
  */
 public class OpenAIProvider implements Provider {
 
@@ -39,7 +39,7 @@ public class OpenAIProvider implements Provider {
     }
 
     /**
-     * 对照 Go IsOpenAIReasoningOrGPT5Model：判断模型是否为 OpenAI / Azure OpenAI 的
+     * 判断模型是否为 OpenAI / Azure OpenAI 的
      * 推理类（o-series）或 GPT-5 系列模型。
      *
      * <p>这些模型在 OpenAI Chat Completions API 中：

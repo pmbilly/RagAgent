@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 import com.ragagent.embed.EmbedTokens;
 
 /**
- * Redis 版 token store（对照 Go 的 go-redis 调用）。键空间与 Go 逐字一致：
- * {@code embed:session:<token>} → channelID，TTL 30 分钟——Go/Java 双端可互读。
+ * Redis 版 token store。键空间：{@code embed:session:<token>} → channelID，
+ * TTL 30 分钟。
  */
 @Component
 public class RedisEmbedTokenStore implements EmbedTokenStore {

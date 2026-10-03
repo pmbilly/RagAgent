@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.ZhipuProvider（zhipu.go）：智谱 BigModel。
+ * 智谱 BigModel。
  */
 public class ZhipuProvider implements Provider {
 

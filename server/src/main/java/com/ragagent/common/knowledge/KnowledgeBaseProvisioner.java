@@ -15,7 +15,7 @@ public interface KnowledgeBaseProvisioner {
     /**
      * 建"聊天历史"隐藏知识库（{@code __chat_history__}，document 型、临时、自动托管），返回其 id。
      *
-     * <p>对照 Go L1696-1716：enabled + 有模型 + 无 KB → 自动建。名字/类型/描述等**语义归知识域**，
+     * <p>enabled + 有模型 + 无 KB → 自动建。名字/类型/描述等**语义归知识域**，
      * 调用方不感知实体形态。</p>
      */
     String provisionChatHistoryKnowledgeBase(String embeddingModelId);

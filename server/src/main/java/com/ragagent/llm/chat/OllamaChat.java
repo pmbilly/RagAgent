@@ -30,10 +30,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 本地 Ollama 聊天客户端（对照 Go chat.OllamaChat，
- * internal/models/chat/ollama.go 全文）。
+ * 本地 Ollama 聊天客户端。
  *
- * <p><b>与 OpenAI 路径的关键差异（最容易翻错）：</b></p>
+ * <p><b>与 OpenAI 路径的关键差异：</b></p>
  * <ol>
  *   <li>补全预算走 {@code options.num_predict}（不是 max_tokens）；思考开关走
  *       {@code think}；响应格式 {@code format} 直接透传；</li>
@@ -43,11 +42,11 @@ import org.slf4j.LoggerFactory;
  *       {@code index} 转字符串当 ID（{@link #tooli2s}）；</li>
  *   <li>用量取 {@code prompt_eval_count}/{@code eval_count}，且<b>永远
  *       {@link TokenUsage#markPromptCacheUnsupported()}</b>（Ollama 不上报服务端 prompt 缓存）；</li>
- *   <li>{@code finish_reason} <b>不设置</b>（Go 侧全程留空）。</li>
+ *   <li>{@code finish_reason} <b>不设置</b>（全程留空）。</li>
  * </ol>
  *
- * <p><b>⚠️ 非流式与流式路径的 completionTokens 算法不一致，这是 Go 侧既有行为，
- * 两边照抄、不要统一：</b>非流式 {@code eval_count - prompt_eval_count}，
+ * <p><b>⚠️ 非流式与流式路径的 completionTokens 算法不一致（既有口径，不要统一）：</b>
+ * 非流式 {@code eval_count - prompt_eval_count}，
  * 流式直接 {@code eval_count}。</p>
  *
  * <p>图片：user 消息的 Images 走 {@link ImageResolver#resolveImageForOllama}（含 SSRF 校验、
@@ -64,7 +63,7 @@ public class OllamaChat implements LlmChatClient {
     private final OllamaService ollamaService;
 
     /**
-     * 对照 Go NewOllamaChat。<b>注意：与 Go 一样忽略 config.BaseURL</b>——
+     * <b>注意：忽略 config.BaseURL</b>——
      * Ollama 的基址只来自 {@link OllamaService}（OLLAMA_BASE_URL 环境变量）。
      */
     public OllamaChat(ChatConfig config, OllamaService ollamaService) {
@@ -74,11 +73,11 @@ public class OllamaChat implements LlmChatClient {
     }
 
     // ------------------------------------------------------------------
-    // 对外接口（对照 ollama.go:126-294）
+    // 对外接口
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go OllamaChat.Chat：非流式。
+     * 非流式。
      *
      * <p>Content 为空但 Thinking 有内容时，用 Thinking 兜底当答案
      * （推理模型没正确配置 thinking 参数时的补救）。</p>
@@ -106,7 +105,7 @@ public class OllamaChat implements LlmChatClient {
                 responseContent[0] = content;
                 toolCalls.set(toolCallTo(message == null ? null : message.getToolCalls()));
 
-                // 注意：非流式用 eval_count - prompt_eval_count 当补全量（Go 侧既有口径）
+                // 注意：非流式用 eval_count - prompt_eval_count 当补全量（既有口径）
                 if (resp.getEvalCount() > 0) {
                     promptTokens[0] = resp.getPromptEvalCount();
                     completionTokens[0] = resp.getEvalCount() - promptTokens[0];
@@ -127,12 +126,12 @@ public class OllamaChat implements LlmChatClient {
         result.setContent(responseContent[0]);
         result.setToolCalls(toolCalls.get());
         result.setUsage(usage);
-        // finish_reason 留空（对照 Go：ChatResponse 的该字段从未赋值）
+        // finish_reason 留空
         return result;
     }
 
     /**
-     * 对照 Go OllamaChat.ChatStream：模型可用性检查在<b>建立阶段同步做</b>（失败直接抛），
+     * 模型可用性检查在<b>建立阶段同步做</b>（失败直接抛），
      * 之后由虚拟线程把块推进队列，出错时补一个 ERROR + done=true。
      */
     @Override
@@ -146,7 +145,7 @@ public class OllamaChat implements LlmChatClient {
         String model = modelName;
 
         Thread.ofVirtual().name("ollama-chat-stream").start(() -> {
-            // 与 Go 一样，thinking 的记账跨回调实例存活（"还欠一个 thinking-done"）
+            // thinking 的记账跨回调实例存活（"还欠一个 thinking-done"）
             ThinkingEmitter thinking = new ThinkingEmitter();
             try {
                 ollamaService.chat(chatReq, resp -> {
@@ -190,7 +189,7 @@ public class OllamaChat implements LlmChatClient {
                             if (thought != null && thought.isTextual() && !thought.asText().isEmpty()) {
                                 StreamResponse thoughtChunk =
                                         StreamResponse.of(ResponseType.THINKING, thought.asText(), false);
-                                // 对照 Go 的 map[string]interface{}：键按字母序序列化（约定 §9）
+                                // data 键按字母序序列化
                                 Map<String, Object> data = new LinkedHashMap<>();
                                 data.put("source", "thinking_tool");
                                 data.put("tool_call_id", tooli2s(tc.getFunction().getIndex()));
@@ -205,7 +204,7 @@ public class OllamaChat implements LlmChatClient {
                         if (resp.getPromptEvalCount() > 0 || resp.getEvalCount() > 0) {
                             usage = new TokenUsage();
                             usage.setPromptTokens(resp.getPromptEvalCount());
-                            // 流式路径直接用 eval_count（与上面的非流式口径不一致，照抄 Go）
+                            // 流式路径直接用 eval_count（与上面的非流式口径不一致，既有口径）
                             usage.setCompletionTokens(resp.getEvalCount());
                             usage.setTotalTokens(resp.getPromptEvalCount() + resp.getEvalCount());
                             usage.markPromptCacheUnsupported();
@@ -235,17 +234,17 @@ public class OllamaChat implements LlmChatClient {
         return modelId;
     }
 
-    /** 对照 Go {@code c.ensureModelAvailable(ctx)}：每次调用都先确保模型就绪（必要时拉取）。 */
+    /** 每次调用都先确保模型就绪（必要时拉取）。 */
     void ensureModelAvailable() {
         log.info("确保模型 {} 可用", modelName);
         ollamaService.ensureModelAvailable(modelName);
     }
 
     // ------------------------------------------------------------------
-    // 请求体构造（对照 ollama.go:36-123）
+    // 请求体构造
     // ------------------------------------------------------------------
 
-    /** 对照 Go buildChatRequest：{@code isStream} 决定 stream 标志。 */
+    /** {@code isStream} 决定 stream 标志。 */
     OllamaChatRequest buildChatRequest(List<ChatMessage> messages, ChatOptions opts, boolean isStream) {
         OllamaChatRequest chatReq = new OllamaChatRequest();
         chatReq.setModel(modelName);
@@ -253,8 +252,7 @@ public class OllamaChat implements LlmChatClient {
         chatReq.setStream(isStream);
 
         if (opts != null) {
-            // 注意：temperature 无条件塞进去（Go 里即 0 也会发送），
-            // Go 的 encoding/json 把 0.0 写成 0，Jackson 写成 0.0——数值语义相同
+            // 注意：temperature 无条件塞进去（即 0 也会发送；JSON 数值 0 与 0.0 语义相同），
             chatReq.putOption("temperature", opts.getTemperature());
             if (opts.getTopP() > 0) {
                 chatReq.putOption("top_p", opts.getTopP());
@@ -277,7 +275,7 @@ public class OllamaChat implements LlmChatClient {
         return chatReq;
     }
 
-    /** 对照 Go convertMessages：tool 角色带 tool_name；图片只取 user 消息。 */
+    /** tool 角色带 tool_name；图片只取 user 消息。 */
     List<OllamaMessage> convertMessages(List<ChatMessage> messages) {
         List<OllamaMessage> ollamaMessages = new ArrayList<>();
         if (messages == null) {
@@ -307,7 +305,7 @@ public class OllamaChat implements LlmChatClient {
     }
 
     /**
-     * 对照 Go toolFrom。schema 直接透传（不做 Go SDK 那套强类型结构的丢字段往返，
+     * schema 直接透传（不做强类型结构的丢字段往返，
      * 见 {@link OllamaTool} 的类注释）。
      */
     List<OllamaTool> toolFrom(List<com.ragagent.llm.domain.ChatTool> tools) {
@@ -327,10 +325,10 @@ public class OllamaChat implements LlmChatClient {
     }
 
     // ------------------------------------------------------------------
-    // 工具调用互转（对照 ollama.go:349-398）
+    // 工具调用互转
     // ------------------------------------------------------------------
 
-    /** 对照 Go toolCallFrom：ID 解析回整数 index（非数字 → 0），arguments 解析成对象。 */
+    /** ID 解析回整数 index（非数字 → 0），arguments 解析成对象。 */
     List<OllamaToolCall> toolCallFrom(List<ToolCall> toolCalls) {
         if (toolCalls == null || toolCalls.isEmpty()) {
             return null;
@@ -350,7 +348,7 @@ public class OllamaChat implements LlmChatClient {
         return ollamaToolCalls;
     }
 
-    /** 对照 Go toolCallTo：ID 用 function.index 的十进制字符串（Ollama 没有语义化 ID）。 */
+    /** ID 用 function.index 的十进制字符串（Ollama 没有语义化 ID）。 */
     List<ToolCall> toolCallTo(List<OllamaToolCall> ollamaToolCalls) {
         if (ollamaToolCalls == null || ollamaToolCalls.isEmpty()) {
             return null;
@@ -369,12 +367,12 @@ public class OllamaChat implements LlmChatClient {
         return toolCalls;
     }
 
-    /** 对照 Go {@code strconv.Itoa(i)}。 */
+    /** 整数 → 十进制字符串。 */
     static String tooli2s(int i) {
         return Integer.toString(i);
     }
 
-    /** 对照 Go {@code strconv.Atoi(s)} 忽略了错误的那一面：非数字一律 0。 */
+    /** 字符串解析回整数 index：非数字一律 0。 */
     static int tools2i(String s) {
         if (s == null || s.isEmpty()) {
             return 0;
@@ -387,8 +385,7 @@ public class OllamaChat implements LlmChatClient {
     }
 
     /**
-     * 对照 Go 的 {@code args.UnmarshalJSON} + 被忽略的 error：
-     * 解析不出对象就给空对象（Go 的 map 在失败时也保持"已初始化的空 map"）。
+     * 解析不出对象就给空对象。
      */
     private static ObjectNode parseArguments(String arguments) {
         ObjectNode empty = MAPPER.createObjectNode();
@@ -427,7 +424,7 @@ public class OllamaChat implements LlmChatClient {
                 usage.isCacheReported(), usage.getCacheStatus());
     }
 
-    /** 对照 Go {@code ch <- chunk}（阻塞写；被中断则标记线程并让后续回调短路）。 */
+    /** 阻塞写入队列；被中断则标记线程并让后续回调短路。 */
     private static void put(BlockingQueue<StreamResponse> queue, StreamResponse chunk) {
         try {
             queue.put(chunk);
@@ -436,7 +433,7 @@ public class OllamaChat implements LlmChatClient {
         }
     }
 
-    /** 对照 Go {@code thinking.emit(streamChan, ...)}。 */
+    /** 转发一个思考分片。 */
     private static void thinkingEmit(ThinkingEmitter thinking, BlockingQueue<StreamResponse> queue, String content) {
         try {
             thinking.emit(queue, content);
@@ -445,7 +442,7 @@ public class OllamaChat implements LlmChatClient {
         }
     }
 
-    /** 对照 Go {@code thinking.finish(streamChan)}。 */
+    /** 补发 thinking-done。 */
     private static void thinkingFinish(ThinkingEmitter thinking, BlockingQueue<StreamResponse> queue) {
         try {
             thinking.finish(queue);

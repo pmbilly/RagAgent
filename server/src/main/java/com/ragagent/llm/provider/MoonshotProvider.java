@@ -7,7 +7,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.MoonshotProvider + moonshot.go（月之暗面 Moonshot / Kimi）。
+ * 月之暗面 Moonshot / Kimi。
  */
 public class MoonshotProvider implements Provider {
 
@@ -39,7 +39,7 @@ public class MoonshotProvider implements Provider {
     }
 
     /**
-     * 对照 Go IsMoonshotFixedTempModel：判断该 Moonshot/Kimi 模型是否只接受 temperature=1。
+     * 判断该 Moonshot/Kimi 模型是否只接受 temperature=1。
      *
      * <p>以下模型拒绝除 1 以外的任何 temperature：
      * <ul>

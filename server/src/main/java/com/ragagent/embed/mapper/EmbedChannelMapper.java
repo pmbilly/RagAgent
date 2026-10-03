@@ -13,30 +13,29 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.ragagent.embed.domain.EmbedChannelEntity;
 
 /**
- * embed_channels 仓储（对照 Go internal/application/repository/embed_channel.go）。
+ * embed_channels 仓储。
  *
- * <p>GORM 的 {@code gorm.DeletedAt} 按约定翻成显式 {@code deleted_at IS NULL} 条件
- * （不用 @TableLogic）；{@code Save}（全列写）翻成显式 UPDATE 全列。</p>
+ * <p>软删用显式 {@code deleted_at IS NULL} 条件（不用 @TableLogic）；更新是显式全列 UPDATE。</p>
  */
 public interface EmbedChannelMapper extends BaseMapper<EmbedChannelEntity> {
 
-    /** 对照 GetByID：软删行不可见（Go First + ErrRecordNotFound → nil, nil）。 */
+    /** 按 id 查：软删行不可见。 */
     @Select("SELECT * FROM embed_channels WHERE id = #{id} AND deleted_at IS NULL")
     EmbedChannelEntity getById(@Param("id") String id);
 
-    /** 对照 ListByAgent：created_at DESC。 */
+    /** 按 agent 列出：created_at DESC。 */
     @Select("SELECT * FROM embed_channels WHERE tenant_id = #{tenantId} AND agent_id = #{agentId} "
             + "AND deleted_at IS NULL ORDER BY created_at DESC")
     List<EmbedChannelEntity> listByAgent(@Param("tenantId") long tenantId,
             @Param("agentId") String agentId);
 
-    /** 对照 ListByTenant：created_at DESC。 */
+    /** 按租户列出：created_at DESC。 */
     @Select("SELECT * FROM embed_channels WHERE tenant_id = #{tenantId} AND deleted_at IS NULL "
             + "ORDER BY created_at DESC")
     List<EmbedChannelEntity> listByTenant(@Param("tenantId") long tenantId);
 
     /**
-     * 对照 repo.Create（GORM Create 全列写）。⚠️ Go 的 default:true 零值列
+     * 全列插入。⚠️ default:true 的零值布尔列
      * （enabled / show_suggested_questions）在 service 层已归一为 true 后才到这里。
      */
     @Insert("INSERT INTO embed_channels (id, tenant_id, agent_id, name, enabled, publish_token, "
@@ -53,7 +52,7 @@ public interface EmbedChannelMapper extends BaseMapper<EmbedChannelEntity> {
             + "#{e.createdAt}, #{e.updatedAt})")
     void insertChannel(@Param("e") EmbedChannelEntity e);
 
-    /** 对照 repo.Update（GORM Save = 全列写，含零值）。 */
+    /** 全列更新（含零值）。 */
     @Update("UPDATE embed_channels SET agent_id = #{e.agentId}, name = #{e.name}, "
             + "enabled = #{e.enabled}, publish_token = #{e.publishToken}, "
             + "allowed_origins = #{e.allowedOrigins,typeHandler=com.ragagent.agent.management.mapper.JsonbRawStringTypeHandler}, "
@@ -68,12 +67,12 @@ public interface EmbedChannelMapper extends BaseMapper<EmbedChannelEntity> {
             + "WHERE id = #{e.id} AND deleted_at IS NULL")
     int saveChannel(@Param("e") EmbedChannelEntity e);
 
-    /** 对照 repo.Delete（GORM Delete → 软删：deleted_at = now）。 */
+    /** 硬删（service 的删除路径走 softDelete）。 */
     @Delete("DELETE FROM embed_channels WHERE tenant_id = #{tenantId} AND id = #{id} "
             + "AND deleted_at IS NULL")
     int deleteHard(@Param("tenantId") long tenantId, @Param("id") String id);
 
-    /** 软删版（GORM Delete 的真实语义）。 */
+    /** 软删（deleted_at = now）。 */
     @Update("UPDATE embed_channels SET deleted_at = #{now} WHERE tenant_id = #{tenantId} "
             + "AND id = #{id} AND deleted_at IS NULL")
     int softDelete(@Param("tenantId") long tenantId, @Param("id") String id,

@@ -25,7 +25,7 @@ public record WikiIngestPayload(
         String knowledgeBaseId,
         String language,
         /**
-         * 观测载体（B5：嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
+         * 观测载体（嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
          * 空载体经 {@code EmptyOmitFilter} 整键省略：未启用追踪时负载字节与平铺期逐字一致。
          */
         @JsonProperty("tracing")

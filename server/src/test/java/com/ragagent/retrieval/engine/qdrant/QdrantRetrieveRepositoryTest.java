@@ -29,15 +29,15 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * Qdrant 驱动（W5γ4.11）对照 Go {@code retriever/qdrant/} 全包：惰性建集合
+ * Qdrant 驱动：惰性建集合
  * （size/distance=Cosine + keyword×4/bool/text 索引）、BatchSave 的分组与 100 分片、
  * point ID 恒新 UUID、payload 清理（NUL/非法编码单元）、三种删除（match any）、
  * 向量检索（/points/search + score_threshold）、关键词检索（should(text) 的 Scroll +
  * 跨集合合并截 TopK）、批量更新与 move 的 SetPayload、CopyIndices 的向量回搬与三态
  * SourceID、存储估算与分词纯函数。
  *
- * <p>协议口径：Go 走 gRPC，本仓自持 REST——桩断言"发出去的 HTTP 长什么样"（该批无
- * golden 面，逐请求断言即本批的字节契约）。</p>
+ * <p>协议口径：本仓自持 REST——桩断言"发出去的 HTTP 长什么样"（该面无
+ * golden fixture，逐请求断言即字节契约）。</p>
  */
 class QdrantRetrieveRepositoryTest {
 
@@ -383,7 +383,7 @@ class QdrantRetrieveRepositoryTest {
                 .isFalse();
         assertThat(payloads.get(2).json().path("payload").path("tag_id").asText())
                 .isEqualTo("t9");
-        // Go 的前缀规则是纯字符串前缀（不校验维度后缀）——非前缀集合必须跳过
+        // 前缀规则是纯字符串前缀（不校验维度后缀）——非前缀集合必须跳过
         assertThat(captured.stream().noneMatch(c -> c.path().contains("other_base"))).isTrue();
     }
 
@@ -456,7 +456,7 @@ class QdrantRetrieveRepositoryTest {
         QdrantVectorEmbedding emptyVector = new QdrantVectorEmbedding();
         emptyVector.embedding = new float[0];
         assertThat(QdrantRetrieveRepository.calculateStorageSize(emptyVector))
-                .isEqualTo(8 + 256 + 24); // 非 null 空数组也计 HNSW（照 Go 的 nil 判定）
+                .isEqualTo(8 + 256 + 24); // 非 null 空数组也计 HNSW
     }
 
     @Test

@@ -20,10 +20,9 @@ import com.ragagent.common.web.GoJsonMarshal;
 import com.ragagent.common.web.GoValueStr;
 
 /**
- * 实体抽取的提示词生成与 LLM 输出解析（对照 Go chat_pipeline/extract_entity.go 的
- * Extractor / QAPromptGenerator / Formater，PluginExtractEntity 见同包插件类）。
+ * 实体抽取的提示词生成与 LLM 输出解析。
  *
- * <h2>围栏恢复（实录组 entity_parse ×16 钉住）</h2>
+ * <h2>围栏恢复</h2>
  * 围栏正则 {@code ```(lang)?\n body ```} 非贪婪匹配语言标签 + body；多候选取首；
  * 无候选时回落 stripFencesAndExtract（截断回复的开围栏 / 裸 JSON 提取）。
  * Graph 重建：重名节点合并 attributes；自环关系丢弃；未知端点自动补节点。
@@ -35,7 +34,7 @@ public final class EntityExtraction {
     private EntityExtraction() {}
 
     // ------------------------------------------------------------------
-    // Extractor（extract_entity.go:154-219）
+    // Extractor
     // ------------------------------------------------------------------
 
     /** 抽取器（对照 Extractor）。 */
@@ -71,7 +70,7 @@ public final class EntityExtraction {
     }
 
     // ------------------------------------------------------------------
-    // QAPromptGenerator（extract_entity.go:221-294）
+    // QAPromptGenerator
     // ------------------------------------------------------------------
 
     /** QA 提示词生成器（对照 QAPromptGenerator）。 */
@@ -146,7 +145,7 @@ public final class EntityExtraction {
     }
 
     // ------------------------------------------------------------------
-    // Formater（extract_entity.go:296-712）
+    // Formater
     // ------------------------------------------------------------------
 
     /** 格式化/解析器（对照 Formater，json + 围栏形态）。 */
@@ -186,7 +185,7 @@ public final class EntityExtraction {
 
         /**
          * 对照 parseOutput：抽体 + JSON 解析 + 形状校验。失败抛 IllegalArgumentException。
-         * 值保持 JsonNode（Go 的 map[string]interface{} 语义：nil 键 = 不存在）。
+         * 值保持 JsonNode（null 值键视为不存在）。
          */
         List<Map<String, JsonNode>> parseOutput(String text) {
             if (text == null || text.isEmpty()) {
@@ -224,7 +223,7 @@ public final class EntityExtraction {
                     var fields = item.fields();
                     while (fields.hasNext()) {
                         var e = fields.next();
-                        // Go json.Unmarshal 把 null 解成 nil interface —— 等价"键不存在"
+                        // null 值键等价"不存在"，跳过
                         if (e.getValue() == null || e.getValue().isNull()) {
                             continue;
                         }

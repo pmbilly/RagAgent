@@ -3,13 +3,12 @@ package com.ragagent.tracing.langfuse;
 import java.util.Locale;
 
 /**
- * langfuse 运行配置（对照 Go internal/tracing/langfuse/config.go 全文）：
- * 环境变量驱动（LANGFUSE_*，B6 批 2 起走 @ConfigurationProperties 绑定），默认值与解析规则逐条照抄——非法/非正值保持默认，
+ * langfuse 运行配置：
+ * 环境变量驱动（LANGFUSE_*，走 @ConfigurationProperties 绑定），非法/非正值保持默认，
  * 有凭据（PUBLIC_KEY + SECRET_KEY）且未显式禁用时自动启用（与 Python SDK 一致）。
  *
- * <p>时长解析：Go 用 {@code time.ParseDuration}（失败再试 {@code Atoi} 毫秒…实为秒）。
- * Java 侧在本包内置同款最小解析器（ns/us/µs/ms/s/m/h 复合串 + 纯数字秒）。
- * 与 datasource.connector.yuque.GoDuration 同形，但按包复用纪律不复用（该类型包私有）。</p>
+ * <p>时长解析：本包内置最小解析器（ns/us/µs/ms/s/m/h 复合串 + 纯数字按秒）。
+ * 与 datasource.connector.yuque.GoDuration 同形，但该类型包私有，故各自维护。</p>
  */
 public record LangfuseConfig(
         boolean enabled,
@@ -25,7 +24,7 @@ public record LangfuseConfig(
         double sampleRate,
         boolean debug) {
 
-    /** 对照 LoadConfigFromEnv 的默认值。 */
+    /** 默认值。 */
     public static final String DEFAULT_HOST = "https://cloud.langfuse.com";
     public static final int DEFAULT_FLUSH_AT = 15;
     public static final long DEFAULT_FLUSH_INTERVAL_MS = 3000;
@@ -33,8 +32,8 @@ public record LangfuseConfig(
     public static final long DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
     /**
-     * 对照 LoadConfigFromEnv：取值来自 {@link LangfuseEnvProperties}（env 名与 Go 一致），
-     * 默认值与解析规则逐条照抄。
+     * 取值来自 {@link LangfuseEnvProperties}，
+     * 非法/缺失回落上方默认值。
      */
     public static LangfuseConfig fromEnv(LangfuseEnvProperties env) {
         String host = firstNonEmpty(env.host(), DEFAULT_HOST);
@@ -94,7 +93,7 @@ public record LangfuseConfig(
                     sampleRate = f;
                 }
             } catch (NumberFormatException ignored) {
-                // 非法 → 保持默认（Go 的 err != nil 分支）
+                // 非法 → 保持默认
             }
         }
         // 0 = 全不采样 → 视作整体关闭（此前被悄悄改写成 1.0，旋钮失效）。
@@ -114,7 +113,7 @@ public record LangfuseConfig(
                 queueSize, requestTimeoutMs, release, environment, sampleRate, debug);
     }
 
-    /** 对照 Validate：失败消息照 Go 原文（errors.New 语义，调用方透传）。 */
+    /** 配置校验：失败消息固定（调用方透传）。 */
     public void validate() {
         if (!enabled) {
             return;
@@ -141,7 +140,7 @@ public record LangfuseConfig(
         return "";
     }
 
-    /** 对照 parseBool："1"/"true"/"t"/"yes"/"y"/"on" 为真，其余为假。 */
+    /** 布尔解析："1"/"true"/"t"/"yes"/"y"/"on" 为真，其余为假。 */
     static boolean parseBool(String v) {
         String s = trim(v).toLowerCase(Locale.ROOT);
         return switch (s) {
@@ -162,7 +161,7 @@ public record LangfuseConfig(
     }
 
     /**
-     * 对照 {@code time.ParseDuration} 的最小实现（支持 {@code 1h30m}、{@code 500ms}、
+     * 时长解析的最小实现（支持 {@code 1h30m}、{@code 500ms}、
      * {@code 1.5s}、负号）；无法解析或结果 &lt;= 0 → 返回 -1（调用方保持默认）。
      */
     static long parseGoDurationMs(String orig) {

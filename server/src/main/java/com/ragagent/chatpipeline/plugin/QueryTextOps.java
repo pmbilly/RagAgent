@@ -7,13 +7,12 @@ import java.util.regex.Pattern;
 import com.ragagent.chatpipeline.support.QueryTokenizer;
 
 /**
- * 查询关键词/分词静态工具（对照 Go query_expansion.go 的分词段，
- * 自 {@link PluginSearch} 机械搬出，全静态）：中英停用词、疑问词剥离、
+ * 查询关键词/分词静态工具（自 {@link PluginSearch} 拆出，全静态）：中英停用词、疑问词剥离、
  * 引号短语/分隔符切分与中英混合 tokenize。
  */
 final class QueryTextOps {
 
-    // ----- 中英停用词（对照 stopwords） -----
+    // ----- 中英停用词 -----
 
     static final Set<String> STOPWORDS = Set.of(
             "的", "是", "在", "了", "和", "与", "或",
@@ -26,7 +25,7 @@ final class QueryTextOps {
             "what", "how", "why", "when", "where", "which",
             "who", "whom", "whose");
 
-    /** 中文疑问词前缀（对照 questionWords，锚定开头）。 */
+    /** 中文疑问词前缀（锚定开头）。 */
     static final Pattern QUESTION_WORDS =
             Pattern.compile("^(什么是|什么|如何|怎么|怎样|为什么|为何|哪个|哪些|谁|何时|何地|请问|请告诉我|帮我|我想知道|我想了解)");
 
@@ -46,7 +45,7 @@ final class QueryTextOps {
         List<String> phrases = new ArrayList<>();
         java.util.regex.Matcher m = QUOTED_PHRASE.matcher(text);
         while (m.find()) {
-            // Go 的 len(m[1]) > 2 是 UTF-8 字节数（CJK 短语两字 = 6 字节仍入选）
+            // 按 UTF-8 字节数 > 2（CJK 短语两字 = 6 字节仍入选）
             if (m.groupCount() >= 1
                     && m.group(1).getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 2) {
                 phrases.add(m.group(1));
@@ -55,7 +54,7 @@ final class QueryTextOps {
         return phrases;
     }
 
-    /** 引号对（Go 字符类 hexdump 对照：直双引号、直单引号、「」『』）。 */
+    /** 引号对（直双引号、直单引号、「」『』）。 */
     static final Pattern QUOTED_PHRASE =
             Pattern.compile("[\"'\u300c\u300d\u300e\u300f]([^\"'\u300c\u300d\u300e\u300f]+)[\"'\u300c\u300d\u300e\u300f]");
 
@@ -78,8 +77,8 @@ final class QueryTextOps {
     }
 
     /**
-     * 对照 tokenize：Han 连续段走 jieba CutForSearch（searchutil 的分词 seam，
-     * 4.4 的已知降级：Java 默认二字滑窗，可注入恢复）；字母数字段整段成词。
+     * Han 连续段走 jieba CutForSearch（{@link QueryTokenizer} 分词 seam，
+     * 已知降级：默认实现为二字滑窗，可注入真实分词器恢复）；字母数字段整段成词。
      */
     public static List<String> tokenize(String text) {
         List<String> tokens = new ArrayList<>();
@@ -127,7 +126,7 @@ final class QueryTextOps {
         return tokens;
     }
 
-    /** Unicode Han 判定（对照 unicode.Is(unicode.Han, r)）。 */
+    /** Unicode Han 判定。 */
     static boolean isHan(int cp) {
         Character.UnicodeScript script = Character.UnicodeScript.of(cp);
         return script == Character.UnicodeScript.HAN;

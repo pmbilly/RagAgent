@@ -28,27 +28,25 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对照 Go internal/handler/tenant_member.go（442 行）的 5 条路由：
+ * 租户成员管理的 5 条路由：
  * GET/POST /tenants/{id}/members、PUT/DELETE /tenants/{id}/members/{user_id}、
  * POST /tenants/{id}/leave。
  *
- * <p>角色门禁与 PathTenantMatch 在 RbacInterceptor（对照路由层 g.Viewer()/g.Owner()
- * 与组级 g.PathTenantMatch()），controller 不复查角色。本类还承载成员/邀请两组
- * 共用的绑定与分页辅助（对照 Go 的包级函数 parseTenantIDFromPath /
- * parseListPagination / addMemberAndRespond）。</p>
+ * <p>角色门禁与 PathTenantMatch 在 RbacInterceptor，controller 不复查角色。
+ * 本类还承载成员/邀请两组共用的绑定与分页辅助
+ * （parseTenantId / parseListPagination / addMemberAndRespond）。</p>
  *
- * <p><b>错误映射不共享</b>：Go 的 writeAddMemberError / UpdateMemberRole /
- * RemoveMember / LeaveTenant 各有一份 errors.Is 链——"找不到成员"的文案在
+ * <p><b>错误映射不共享</b>：各端点的哨兵→HTTP 映射各自一份——"找不到成员"的文案在
  * leave 里是 "you are not a member of this workspace"、别处是 "membership not
- * found"；直加/邀请的哨兵映射也不一致。controller 的 catch 逐端点复刻，
- * 不做统一映射（§9 波 2 chunk 第 1 条的同族教训）。</p>
+ * found"；直加/邀请的哨兵映射也不一致。controller 的 catch 逐端点维护，
+ * 不做统一映射。</p>
  */
 @RestController
 public class TenantMemberController {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Go 的 "system-<tenantID>" 合成用户（API-Key 主体）不入 invited_by */
+    /** "system-<tenantID>" 合成用户（API-Key 主体）不入 invited_by */
     private static final String SYNTHETIC_PREFIX = "system-";
 
     private final TenantMemberService memberService;
@@ -70,7 +68,7 @@ public class TenantMemberController {
 
         TenantMemberService.MemberPage page = memberService.listMembersPage(tenantId, q, pp[0], pp[1]);
 
-        // 一批 hydrate（对照 Go：失败降级为空字段而非丢行，悬挂成员仍可被 Owner 清理）
+        // 一批 hydrate：查不到的用户降级为空字段而非丢行，悬挂成员仍可被 Owner 清理
         List<String> ids = new ArrayList<>();
         for (TenantMember m : page.members()) {
             ids.add(m.getUserId());
@@ -113,7 +111,7 @@ public class TenantMemberController {
         }
         TenantRole role = TenantRole.fromString(body.path("role").asText());
         if (!role.isValid()) {
-            // 对照 handler 的 defence-in-depth：binding required 过了但角色值非法
+            // defence-in-depth：binding required 过了但角色值非法
             throw new BizException(AppError.validation("role must be one of owner/admin/contributor/viewer"));
         }
 
@@ -211,22 +209,21 @@ public class TenantMemberController {
         return ResponseEntity.noContent().build();
     }
 
-    // ── 共享辅助（成员/邀请两组共用，对照 Go 包级函数） ──────────────────────
+    // ── 共享辅助（成员/邀请两组共用） ──────────────────────────────────────
 
     /** addMemberAndRespond 的结果：body + 显式状态码（201 直加成功用） */
     public record PreparedResponse(TenantMemberResponse body, int status) {
     }
 
     /**
-     * 对照 addMemberAndRespond：AddMember → 201 + TenantMemberResponse；
-     * 哨兵 → writeAddMemberError 的映射（400/403/409/500）。
-     * 公开给 TenantInvitationController（auto-accept 分支共用，对照 Go 的
-     * 包级函数共享——两处映射永不漂移）。
+     * 直加成员：成功 → 201 + TenantMemberResponse；
+     * 哨兵 → 400/403/409/500 映射。
+     * 公开给 TenantInvitationController（auto-accept 分支共用）。
      */
     public PreparedResponse addMemberAndRespond(User user, long tenantId, TenantRole role, String invitedBy) {
         try {
             TenantMember member = memberService.addMemberChecked(user.getId(), tenantId, role, invitedBy);
-            // 对照 writeAddMemberSuccess：与列表端点同形，前端免二次往返
+            // 与列表端点同形，前端免二次往返
             return new PreparedResponse(memberResponse(member, user), 201);
         } catch (TenantRbacException e) {
             switch (e.kind()) {
@@ -239,7 +236,7 @@ public class TenantMemberController {
         }
     }
 
-    /** 对照 parseTenantIDFromPath（通常已被 PathTenantMatch 拦在前面，保留同文案） */
+    /** 路径租户 ID 解析（通常已被 PathTenantMatch 拦在前面，保留同文案） */
     static long parseTenantId(String raw) {
         String s = trimToEmpty(raw);
         if (s.isEmpty()) {
@@ -256,7 +253,7 @@ public class TenantMemberController {
         }
     }
 
-    /** 对照 parseInvitationIDFromPath */
+    /** 路径邀请 ID 解析。 */
     static long parseInvitationId(String raw) {
         String s = trimToEmpty(raw);
         if (s.isEmpty()) {
@@ -274,7 +271,7 @@ public class TenantMemberController {
     }
 
     /**
-     * 对照 parseListPagination：缺省 page=1 / size=20；**给了就必须合法**——
+     * 分页参数：缺省 page=1 / size=20；**给了就必须合法**——
      * page 非正整数或非数字都是 400 "page must be a positive integer"，
      * size 出 [1,100] 是 400 "page_size must be between 1 and 100"（三段 if，不是 clamp）。
      */
@@ -312,7 +309,7 @@ public class TenantMemberController {
         return s == null ? "" : s.trim();
     }
 
-    /** 对照 types.IsSyntheticUserID：system-<id> 前缀（严格长于前缀） */
+    /** 合成用户判定：system-<id> 前缀（严格长于前缀） */
     static boolean isSyntheticUserId(String id) {
         if (id == null || id.length() <= SYNTHETIC_PREFIX.length()) {
             return false;
@@ -320,7 +317,7 @@ public class TenantMemberController {
         return id.startsWith(SYNTHETIC_PREFIX);
     }
 
-    /** 对照 addMember/Create 的 invitedBy 归一：合成主体（API-Key）→ NULL */
+    /** invitedBy 归一：合成主体（API-Key）→ null */
     static String invitedByForCaller(String caller) {
         if (caller == null || caller.isEmpty() || isSyntheticUserId(caller)) {
             return null;
@@ -330,7 +327,7 @@ public class TenantMemberController {
 
     /**
      * 绑定 JSON body：解析失败 → 400 validation("invalid request body") +
-     * details=Go 解析器原文（GoJsonBindError 仿真；EOF 与字面量扫描逐字节一致）。
+     * details=legacy 解析器原文（{@link GoJsonBindError}；EOF 与字面量扫描逐字节一致）。
      */
     static JsonNode bindJson(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
@@ -346,8 +343,8 @@ public class TenantMemberController {
     }
 
     /**
-     * 对照 go-playground/validator 的 required tag：string 是"非零值"（空串失败、
-     * 纯空白通过）。多失败字段按 struct 序 \n 连接进 details。
+     * required 校验：string 是"非零值"（空串失败、
+     * 纯空白通过）。多失败字段按声明序 \n 连接进 details。
      */
     static void requireFields(JsonNode body, String structName, String... jsonFields) {
         List<String> lines = new ArrayList<>();
@@ -367,8 +364,8 @@ public class TenantMemberController {
     }
 
     /**
-     * 对照 validator 的 email tag（简化子集：非空本地部分 + 恰一个 @ + 非空域名——
-     * Go 的完整 RFC 正则接受的边角更宽；golden 只钉 "notanemail" 拒绝这一形态）。
+     * email 校验（简化子集：非空本地部分 + 恰一个 @ + 非空域名——
+     * 完整 RFC 正则接受的边角更宽；golden 只钉 "notanemail" 拒绝这一形态）。
      */
     static boolean isValidEmailFormat(String email) {
         int at = email.indexOf('@');
@@ -388,7 +385,7 @@ public class TenantMemberController {
                 member.getJoinedAt());
     }
 
-    /** caller user id（对照 types.UserIDFromContext；缺失 → 401） */
+    /** 请求上下文的 caller user id（缺失 → 401） */
     static String requireCaller() {
         String caller = TenantContext.currentUserId();
         if (caller == null || caller.isEmpty()) {

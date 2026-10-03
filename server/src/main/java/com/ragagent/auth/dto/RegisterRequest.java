@@ -3,10 +3,10 @@ package com.ragagent.auth.dto;
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * 注册请求体（对照 Go types/user.go RegisterRequest）。
- * TenantProvisioning 是服务端控制的注册上下文，不从 JSON 读（Go json:"-"）。
+ * 注册请求体。
+ * TenantProvisioning 是服务端控制的注册上下文，不从 JSON 读（不出现在请求体）。
  *
- * gin binding 校验（Java 在 AuthController 手动复刻）：
+ * 校验（在 AuthController 手动执行）：
  * username required,min=2,max=50；email required,email；password required,min=6。
  */
 public record RegisterRequest(

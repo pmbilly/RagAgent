@@ -11,9 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 /**
- * 语雀 Open API v2 的响应形状（对照 Go {@code yuque/types.go} 的
- * {@code v2UserResponse} / {@code v2Repo} / {@code v2Doc} / {@code flexibleStatus}
- * 等一整组类型）。
+ * 语雀 Open API v2 的响应形状。
  *
  * <h2>⚠️ 内部 API 形状，不是契约</h2>
  * <p>只用于**解码语雀的响应**：不作 HTTP 响应体、不落 jsonb。真正的契约类型是
@@ -22,9 +20,8 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
  * {@link com.ragagent.datasource.domain.SyncCursor}。</p>
  *
  * <h2>{@code status} 既能是字符串也能是数字</h2>
- * <p>语雀的 OpenAPI 规范把 {@code status} 声明为 string，运行时却返回整数
- * （原文："cannot unmarshal number into Go struct field v2Doc.data.status of type string"）。
- * Java 侧与 Go 的 {@code flexibleStatus} 一一对应，见 {@link FlexibleStatus}。</p>
+ * <p>语雀的 OpenAPI 规范把 {@code status} 声明为 string，运行时却返回整数。
+ * 两种形状都要能解，见 {@link FlexibleStatus}。</p>
  */
 public final class YuqueApiTypes {
 
@@ -34,12 +31,12 @@ public final class YuqueApiTypes {
     // ── flexibleStatus ────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code flexibleStatus}：同时接受字符串 {@code "1"} 与数字 {@code 1}
+     * 同时接受字符串 {@code "1"} 与数字 {@code 1}
      * 的 {@code status} 字段，归一成文本形式，让既有的 {@code != "1"} 比较
      * 对两种响应形状都成立。
      *
      * <h2>其它类型必须抛错</h2>
-     * <p>Go 的注释特意说明：只解码到 {@code int64}，于是浮点、布尔、数组、对象
+     * <p>只解码到 {@code int64}：浮点、布尔、数组、对象
      * 会<b>清晰报错</b>，而不是被静默字符串化——如果语雀再改一次形状，
      * 我们宁可看到一个明确的错误，也不愿把垃圾喂给 {@code Status == "1"} 的比较
      * （那会让草稿被当成已发布文档灌进知识库）。</p>
@@ -78,7 +75,7 @@ public final class YuqueApiTypes {
         }
 
         /**
-         * 对照 Go 的 {@code (*flexibleStatus).UnmarshalJSON}：
+         * 反序列化规则：
          * {@code null} → {@code ""}；字符串原样；整数 → 十进制字符串；
          * 其余（浮点 / 布尔 / 数组 / 对象）抛错。
          */
@@ -107,7 +104,7 @@ public final class YuqueApiTypes {
 
     // ── 错误体 ────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code apiErrorBody}：非 2xx 时语雀**有时**返回的形状。 */
+    /** 非 2xx 时语雀**有时**返回的错误体形状。 */
     public static class ApiErrorBody {
 
         @JsonProperty("message")
@@ -135,7 +132,7 @@ public final class YuqueApiTypes {
 
     // ── 当前用户 / 团队 ───────────────────────────────────────────────────
 
-    /** 对照 Go {@code v2UserResponse}（{@code GET /api/v2/user}）。 */
+    /** {@code GET /api/v2/user} 的响应。 */
     public static class V2UserResponse {
 
         @JsonProperty("data")
@@ -150,7 +147,7 @@ public final class YuqueApiTypes {
         }
     }
 
-    /** 对照 Go {@code v2User}。{@code type} 为 {@code "Group"} 表示这是团队令牌。 */
+    /** {@code /api/v2/user} 返回的用户。{@code type} 为 {@code "Group"} 表示这是团队令牌。 */
     public static class V2User {
 
         @JsonProperty("id")
@@ -198,7 +195,7 @@ public final class YuqueApiTypes {
         }
     }
 
-    /** 对照 Go {@code v2GroupListResponse}（{@code GET /api/v2/users/{id}/groups}）。 */
+    /** {@code GET /api/v2/users/{id}/groups} 的响应。 */
     public static class V2GroupListResponse {
 
         @JsonProperty("data")
@@ -213,7 +210,7 @@ public final class YuqueApiTypes {
         }
     }
 
-    /** 对照 Go {@code v2Group}。 */
+    /** 一个团队（group）。 */
     public static class V2Group {
 
         @JsonProperty("id")
@@ -253,8 +250,8 @@ public final class YuqueApiTypes {
     // ── 仓库（知识库） ────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code v2RepoListResponse}（{@code /api/v2/users/{login}/repos}
-     * 与 {@code /groups/{login}/repos}）。
+     * {@code GET /api/v2/users/{login}/repos}
+     * 与 {@code GET /api/v2/groups/{login}/repos} 的响应。
      */
     public static class V2RepoListResponse {
 
@@ -269,13 +266,13 @@ public final class YuqueApiTypes {
             data = v;
         }
 
-        /** 分页是否到底：Go 用 {@code len(resp.Data) < defaultPageSize} 判定。 */
+        /** 分页是否到底：本页数量不足一页即到底。 */
         public int size() {
             return data == null ? 0 : data.size();
         }
     }
 
-    /** 对照 Go {@code v2Repo}。 */
+    /** 一个仓库（知识库）。 */
     public static class V2Repo {
 
         @JsonProperty("id")
@@ -384,7 +381,7 @@ public final class YuqueApiTypes {
 
     // ── 文档 ──────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code v2DocListResponse}（{@code GET /api/v2/repos/{book_id}/docs}）。 */
+    /** {@code GET /api/v2/repos/{book_id}/docs} 的响应。 */
     public static class V2DocListResponse {
 
         @JsonProperty("meta")
@@ -409,12 +406,12 @@ public final class YuqueApiTypes {
             data = v;
         }
 
-        /** 分页是否到底：Go 用 {@code len(resp.Data) < defaultPageSize} 判定。 */
+        /** 分页是否到底：本页数量不足一页即到底。 */
         public int size() {
             return data == null ? 0 : data.size();
         }
 
-        /** 对照 Go 里那个匿名结构体 {@code Meta struct { Total int } }（连接器从不读它）。 */
+        /** 文档列表接口附带的 {@code meta}（连接器从不读它）。 */
         public static class Meta {
 
             @JsonProperty("total")
@@ -430,7 +427,7 @@ public final class YuqueApiTypes {
         }
     }
 
-    /** 对照 Go {@code v2Doc}：列表接口返回的摘要（不含正文）。 */
+    /** 列表接口返回的文档摘要（不含正文）。 */
     public static class V2Doc {
 
         @JsonProperty("id")
@@ -547,7 +544,7 @@ public final class YuqueApiTypes {
         }
     }
 
-    /** 对照 Go {@code v2DocDetailResponse}（{@code GET /api/v2/repos/docs/{id}}）。 */
+    /** {@code GET /api/v2/repos/docs/{id}} 的响应。 */
     public static class V2DocDetailResponse {
 
         @JsonProperty("data")
@@ -562,7 +559,7 @@ public final class YuqueApiTypes {
         }
     }
 
-    /** 对照 Go {@code v2DocDetail}。{@code format} 是 {@code markdown / lake / html}。 */
+    /** 一篇文档的详情。{@code format} 是 {@code markdown / lake / html}。 */
     public static class V2DocDetail {
 
         @JsonProperty("id")

@@ -16,7 +16,7 @@ import org.apache.ibatis.annotations.Update;
 /**
  * wiki_page_issues 仓储语句。
  *
- * <p>原 ORM 隐式行为清单（约定 §3）：</p>
+ * <p>落库隐式行为清单：</p>
  * <ul>
  *   <li><b>软删除</b>：查询显式 {@code deleted_at IS NULL}。</li>
  *   <li><b>排序</b>：{@code listIssues → created_at DESC}。</li>

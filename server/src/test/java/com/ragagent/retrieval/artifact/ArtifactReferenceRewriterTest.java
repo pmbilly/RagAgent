@@ -12,10 +12,9 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.retrieval.artifact.ArtifactReferenceRewriter.Artifact;
 
 /**
- * 产物引用改写的字节契约：期望值录自 Go `go test -overlay` 探针
- * （internal/handler/session/artifact_reference.go 的 rewriteArtifactReferences，
- * 2026-09-22），fixture 在 {@code contracts/w5g3c-artifacts.tsv}（换行转义）。
- * 输入序列与 Go 探针一致（键序即用例序）。
+ * 产物引用改写的字节契约：期望值逐条钉死，
+ * fixture 在 {@code contracts/w5g3c-artifacts.tsv}（换行转义）。
+ * 用例序即 fixture 键序。
  */
 class ArtifactReferenceRewriterTest {
 

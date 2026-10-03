@@ -9,8 +9,7 @@ import java.util.TreeMap;
 import com.ragagent.mcp.protocol.McpContext;
 
 /**
- * OAuth 协议交换协作者（对照 mcp-go oauth.go 的刷新/注册/授权 URL/code 交换段，
- * 自 {@link OAuthHandler} 机械搬出）：token 刷新与落库、RFC 7591 动态注册、
+ * OAuth 协议交换协作者（自 {@link OAuthHandler} 拆出）：token 刷新与落库、RFC 7591 动态注册、
  * 授权 URL 组装（state 副作用）、CSRF 校验先行 code 交换，及表单编码与
  * OAuth 错误解析静态工具。持门面回引取 config/timeout/CSRF 态与发现委托。
  */
@@ -25,7 +24,7 @@ final class OAuthTokenOps {
     // ── 刷新 ───────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code refreshToken}（oauth.go:240-318）。
+     * token 刷新。
      *
      * <p>要点：接受<b>任意 2xx</b>（Supabase 会回 201）；若响应体里带 {@code error} 字段
      * （GitHub 的 HTTP 200 错误）则按错误处理；服务器没回新 refresh token 时<b>沿用旧的</b>
@@ -74,11 +73,10 @@ final class OAuthTokenOps {
     // ── RFC 7591 动态客户端注册 ─────────────────────────────────────────
 
     /**
-     * 对照 Go {@code RegisterClient}（oauth.go:886-966）。
+     * RFC 7591 动态客户端注册。
      *
      * <p>注册成功后<b>就地</b>更新 handler 的 client_id/secret，随后的
-     * {@link #getClientId} 才拿得到新值（Go 正是靠这个把 client_id 回填进
-     * {@code OAuthManager.StartAuthorization}）。</p>
+     * {@link #getClientId} 才拿得到新值，调用方才能把 client_id 回填持久化。</p>
      */
     public void registerClient(McpContext ctx, String clientName) {
         AuthServerMetadata metadata = service.getServerMetadata(ctx);
@@ -134,9 +132,9 @@ final class OAuthTokenOps {
     // ── 授权 URL ───────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code GetAuthorizationURL}（oauth.go:1071-1101）。
+     * 组装授权 URL。
      *
-     * <p><b>注意副作用</b>：Go 在这里顺手调用 {@code SetExpectedState(state)}，
+     * <p><b>注意副作用</b>：这里顺手调用 {@code setExpectedState(state)}，
      * 即"发起授权"这一动作本身就把 state 记进了 handler 的 CSRF 期望值。
      * 回调请求是<b>另一个</b> handler 实例，因此必须显式再 set 一次
      * （见 {@code OAuthManager.CompleteAuthorization} 的说明）。</p>
@@ -166,7 +164,7 @@ final class OAuthTokenOps {
     // ── code 交换 ──────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code ProcessAuthorizationResponse}（oauth.go:971-1068）。
+     * code 交换。
      *
      * <p>CSRF 校验先行：期望值为空报"流程未正确发起"，不匹配报
      * {@code OAuthHandler.INVALID_STATE_MESSAGE}；<b>校验后立刻清空</b>期望值，
@@ -224,7 +222,7 @@ final class OAuthTokenOps {
         }
         service.config.tokenStore().saveToken(ctx, token);
     }
-    /** 对照 Go {@code extractOAuthError}：结构化错误优先，否则回落到 "with status N: <body>"。 */
+    /** 结构化错误优先，否则回落到 "with status N: <body>"。 */
     static OAuthProtocolException extractOAuthError(String body, int statusCode, String context) {
         OAuthError parsed = parseOAuthError(body);
         if (parsed != null) {
@@ -254,7 +252,7 @@ final class OAuthTokenOps {
     }
 
     /**
-     * 对照 Go {@code url.Values.Encode()}：键<b>按字典序</b>输出，空格编成 {@code +}，
+     * 表单编码：键<b>按字典序</b>输出，空格编成 {@code +}，
      * 非保留字符含 {@code ~} 不编码。JDK 的 {@code URLEncoder} 会把 {@code ~} 编成
      * {@code %7E} 且对 {@code *} 的处理不同，故这里自实现以保证字节级一致。
      */
@@ -271,7 +269,7 @@ final class OAuthTokenOps {
         return sb.toString();
     }
 
-    /** 对照 Go {@code url.QueryEscape}。 */
+    /** 查询串转义（空格编成 {@code +}，未保留字符不编码）。 */
     static String queryEscape(String s) {
         StringBuilder sb = new StringBuilder();
         for (byte raw : (s == null ? "" : s).getBytes(StandardCharsets.UTF_8)) {

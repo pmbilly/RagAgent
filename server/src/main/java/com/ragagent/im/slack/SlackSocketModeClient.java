@@ -20,9 +20,9 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.runtime.SlackAdapterCore;
 
 /**
- * Slack Socket Mode 长连接（对照 Go {@code internal/im/slack/longconn.go} L18-149）。
+ * Slack Socket Mode 长连接。
  *
- * <p>流程照 Go（socketmode SDK）：{@code POST apps.connections.open}（app 级 token）拿
+ * <p>流程（Socket Mode 协议）：{@code POST apps.connections.open}（app 级 token）拿
  * WSS URL → 连上后收 envelope：<b>先 ack</b>（回 {@code {"envelope_id": …}}）再处理
  * {@code events_api} 的 payload（交给 {@link SlackAdapterCore#parseCallback} 解析）→
  * {@code disconnect} 收帧即关连接、外层循环重连（退避 3 秒）。</p>
@@ -57,7 +57,7 @@ public class SlackSocketModeClient {
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
     }
 
-    /** 停止循环并关连接（对照 Go 的 ctx cancel）。 */
+    /** 停止循环并关连接。 */
     public void stop() {
         running = false;
         WebSocket ws = socket;
@@ -70,7 +70,7 @@ public class SlackSocketModeClient {
         }
     }
 
-    /** 阻塞的重连循环（对照 Go 的 {@code Start}）；由工厂放进守护线程跑。 */
+    /** 阻塞的重连循环；由工厂放进守护线程跑。 */
     public void start() {
         log.info("[IM] Slack WebSocket connecting...");
         while (running) {
@@ -99,7 +99,7 @@ public class SlackSocketModeClient {
         }
     }
 
-    /** 对照 socketmode 的握手：POST {@code apps.connections.open} → 取 {@code url}。 */
+    /** 握手：POST {@code apps.connections.open} → 取 {@code url}。 */
     private String openConnection() throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(apiBase + "/apps.connections.open"))
                 .header("Authorization", "Bearer " + appToken)
@@ -118,13 +118,13 @@ public class SlackSocketModeClient {
         return node.path("url").asText("");
     }
 
-    /** 处理一帧（对照 Go 的 Events 循环 + Ack + handleEvent）。 */
+    /** 处理一帧（Events 循环 + Ack + handleEvent）。 */
     private void handleFrame(String payload, WebSocket ws) {
         try {
             JsonNode node = MAPPER.readTree(payload);
             String envelopeId = node.path("envelope_id").asText("");
             if (!envelopeId.isEmpty()) {
-                // 照 Go：先 Ack 再处理
+                // 先 Ack 再处理
                 ws.sendText("{\"envelope_id\":\"" + envelopeId + "\"}", true).join();
             }
             String type = node.path("type").asText("");

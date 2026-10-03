@@ -155,9 +155,9 @@ public final class ConversationSerializer {
     }
 
     /**
-     * Go json.Marshal 的值编码（HTML 转义 + 键字节序 + float64 语义）。
+     * 值编码规则：HTML 转义 + 键按字节序排序 + 数字按 64 位浮点（double）语义。
      * 递归遍历 JsonNode 而不是用 Jackson mapper：树里的 DoubleNode 走不到
-     * DoubleSerializer，且 Go 先把一切数字归一成 float64。
+     * DoubleSerializer，且先把一切数字归一成 double。
      */
     private static String goMarshal(JsonNode node) {
         StringBuilder sb = new StringBuilder();
@@ -215,7 +215,7 @@ public final class ConversationSerializer {
     }
 
     /**
-     * Go encoding/json 的字符串编码：短转义 + 控制字符小写十六进制 +
+     * 字符串编码规则：短转义 + 控制字符小写十六进制 +
      * HTML 转义（{@code < > &}）+ U+2028/9。
      */
     private static void goEscapeString(String s, StringBuilder sb) {

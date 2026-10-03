@@ -18,20 +18,18 @@ import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.GoJsonEscapes;
 
 /**
- * Langfuse / OpenTelemetry 语义约定属性键与序列化辅助（对照 Go
- * internal/tracing/langfuse/events.go 的属性常量族 + tracer.go 的
- * jsonAttr/mergeMetadata/isoTime）。
+ * Langfuse / OpenTelemetry 语义约定属性键与序列化辅助。
  *
  * <p>属性值恒为<b>字符串</b>（结构化字段先 JSON 序列化再包成 string attribute，
- * 与 langfuse-python v4 的存储方式一致）。JSON 编码按 Go 风格装配
- * （map 键序 + {@code < > &} 转义 + 整数型 double 不带 .0），与 StreamJson 同款。</p>
+ * 与 langfuse-python v4 的存储方式一致）。JSON 编码规则：
+ * map 键序 + {@code < > &} 转义 + 整数型 double 不带 .0，与 StreamJson 同款。</p>
  */
 public final class LangfuseAttributes {
 
     private LangfuseAttributes() {
     }
 
-    // ── 属性键（照抄 official langfuse-python v4 SDK 的 _client/attributes.py） ──
+    // ── 属性键（与 langfuse-python v4 SDK 的 _client/attributes.py 一致） ──
 
     public static final String ATTR_OBS_TYPE = "langfuse.observation.type";
     public static final String ATTR_OBS_INPUT = "langfuse.observation.input";
@@ -52,14 +50,14 @@ public final class LangfuseAttributes {
     public static final String ATTR_RELEASE = "langfuse.release";
     public static final String ATTR_LANGFUSE_PUBLIC_KEY = "langfuse.public.key";
 
-    /** 对照 instrumentation scope 名/版本（langfuseScopeName/langfuseScopeVersion）。 */
+    /** OTel instrumentation scope 名/版本（随载荷上报）。 */
     public static final String SCOPE_NAME = "langfuse-sdk";
     public static final String SCOPE_VERSION = "4.0.0";
 
-    /** 对照 resource 的 service.name。 */
+    /** OTel resource 的 service.name 属性。 */
     public static final String SERVICE_NAME = "weknora";
 
-    /** 对照 trace.WithInstrumentationAttributes(attribute.String("public_key", pk))。 */
+    /** resource 级属性 public_key。 */
     public static final String ATTR_SCOPE_PUBLIC_KEY = "public_key";
 
     // ── 观测类型（langfuse.observation.type 的取值） ──
@@ -73,7 +71,7 @@ public final class LangfuseAttributes {
     private static final DateTimeFormatter ISO_MILLIS =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
 
-    /** Go 风格 JSON 编码器（map 键序 + Go 转义 + 整数型 double 直写）。 */
+    /** 紧凑 JSON 编码器（map 键序 + HTML 转义 + 整数型 double 直写）。 */
     private static final ObjectMapper JSON = buildJson();
 
     private static ObjectMapper buildJson() {
@@ -88,7 +86,7 @@ public final class LangfuseAttributes {
     }
 
     /**
-     * 对照 jsonAttr：序列化为紧凑 JSON 字符串；null/空/字面量 {@code null}
+     * 属性值序列化为紧凑 JSON 字符串；null/空/字面量 {@code null}
      * → 返回 null（调用方跳过该属性，而非写入空值）。
      */
     public static String jsonAttrValue(Object v) {
@@ -107,7 +105,7 @@ public final class LangfuseAttributes {
         return json;
     }
 
-    /** 对照 mergeMetadata：start 打底、finish 覆盖；两者皆空 → null（不写属性）。 */
+    /** metadata 合并：start 打底、finish 覆盖；两者皆空 → null（不写属性）。 */
     public static Map<String, Object> mergeMetadata(Map<String, Object> start,
                                                     Map<String, Object> finish) {
         boolean startEmpty = start == null || start.isEmpty();
@@ -125,12 +123,12 @@ public final class LangfuseAttributes {
         return merged;
     }
 
-    /** 对照 isoTime：UTC 毫秒精度 {@code 2006-01-02T15:04:05.000Z}。 */
+    /** ISO-8601 时间：UTC 毫秒精度（如 {@code 2026-01-02T15:04:05.000Z}）。 */
     public static String isoTime(long epochMillis) {
         return ISO_MILLIS.format(Instant.ofEpochMilli(epochMillis));
     }
 
-    /** W3C 32 位十六进制 trace id（对照 OTel SDK 的随机 Root trace id）。 */
+    /** W3C 32 位十六进制随机 trace id。 */
     public static String randomTraceIdHex() {
         return randomHex(16);
     }
@@ -155,7 +153,7 @@ public final class LangfuseAttributes {
         return sb.toString();
     }
 
-    /** 十六进制 → 字节；非十六进制或奇数长度 → null（对照 TraceIDFromHex 的 err 分支）。 */
+    /** 十六进制 → 字节；非十六进制或奇数长度 → null。 */
     public static byte[] hexToBytes(String hex) {
         if (hex == null || hex.isEmpty() || hex.length() % 2 != 0) {
             return null;
@@ -172,7 +170,7 @@ public final class LangfuseAttributes {
         return out;
     }
 
-    /** 判空（Go 的 len(s)==0）。 */
+    /** 判空（null 或空串）。 */
     public static boolean isEmpty(String s) {
         return s == null || s.isEmpty();
     }

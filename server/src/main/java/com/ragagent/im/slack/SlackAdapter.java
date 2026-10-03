@@ -26,28 +26,28 @@ import com.ragagent.im.runtime.ReplyMessage;
 import com.ragagent.im.runtime.SlackAdapterCore;
 
 /**
- * Slack 适配器（对照 Go {@code internal/im/slack/adapter.go} L28-343）。
+ * Slack 适配器。
  *
- * <p><b>入站</b>委托已翻译的 {@link SlackAdapterCore}（URL verification 挑战 + 事件解析）
+ * <p><b>入站</b>委托 {@link SlackAdapterCore}（URL verification 挑战 + 事件解析）
  * 与 {@link ImAdapterVerify#slackExpectedSignature}（v0 签名）；<b>出站</b>按 Slack Web API
- * 直连（Go 用 slack-go SDK）：{@code chat.postMessage} / {@code chat.update} /
+ * 直连：{@code chat.postMessage} / {@code chat.update} /
  * {@code files.info} + 带 Bearer 的私有文件下载。</p>
  *
- * <h2>照抄的语义</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>{@code sendReply} 的文本是 <b>reply.content 原样</b>（Slack 这一支不做
- *       {@code FormatIMDisplayContent}——与 telegram 不同，照 Go）；{@code thread_ts}
+ *       {@code FormatIMDisplayContent}——与 telegram 不同）；{@code thread_ts}
  *       取 {@code incoming.messageId}；channel 回落 user_id（DM）；</li>
  *   <li>流：{@code startStream} 发"正在思考..." → {@code {channel}:{ts}}；
  *       {@code update} = {@code chat.update}（<b>无节流</b>，与 telegram 不同）；
- *       {@code finalize} 就是 update（照 Go）；{@code endStream} 用累积内容再 update 一次；</li>
+ *       {@code finalize} 就是 update；{@code endStream} 用累积内容再 update 一次；</li>
  *   <li>验签：{@code X-Slack-Signature} = {@code v0=HMAC(secret, "v0:ts:body")}，
- *       且时间戳须在 5 分钟窗内（照 slack-go 的 {@code Ensure()}）；secret 空则免验。</li>
+ *       且时间戳须在 5 分钟窗内；secret 空则免验。</li>
  * </ul>
  *
- * <h2>与 Go 的一处措辞差异（备案）</h2>
- * <p>失败信息的包装层照 Go（"slack post message: …"），内层用的是 Slack 的
- * {@code error} 字段（Go 用 SDK 自己的措辞）。</p>
+ * <h2>措辞约定（备案）</h2>
+ * <p>失败信息的包装层固定为 "slack post message: …"，内层用 Slack API 响应的
+ * {@code error} 字段。</p>
  */
 public class SlackAdapter implements AdapterInterfaces.Adapter,
         AdapterInterfaces.StreamSender, AdapterInterfaces.FileDownloader {
@@ -55,15 +55,15 @@ public class SlackAdapter implements AdapterInterfaces.Adapter,
     private static final Logger log = LoggerFactory.getLogger(SlackAdapter.class);
 
     public static final String DEFAULT_API_BASE = "https://slack.com/api";
-    /** 签名时间戳容忍窗（照 slack-go Ensure 的 5 分钟）。 */
+    /** 签名时间戳容忍窗（5 分钟）。 */
     static final long SIGNATURE_MAX_AGE_SECONDS = 300;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 全局流表（对照 Go 包级 {@code slackStreams}），key = {@code {channel}:{ts}}。 */
+    /** 全局流表，key = {@code {channel}:{ts}}。 */
     static final Map<String, StreamState> STREAMS = new ConcurrentHashMap<>();
 
-    /** 一条流的状态（对照 Go {@code slackStreamState}）。 */
+    /** 一条流的状态。 */
     static final class StreamState {
         final String channel;
         final String ts;
@@ -142,7 +142,7 @@ public class SlackAdapter implements AdapterInterfaces.Adapter,
     public void sendReply(IncomingMessage incoming, ReplyMessage reply) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("channel", channelOf(incoming));
-        body.put("text", reply.content); // 照 Go：Slack 这支不做展示格式化
+        body.put("text", reply.content); // Slack 这支不做展示格式化
         if (incoming.messageId != null && !incoming.messageId.isEmpty()) {
             body.put("thread_ts", incoming.messageId);
         }
@@ -180,7 +180,7 @@ public class SlackAdapter implements AdapterInterfaces.Adapter,
         try {
             updateMessage(state.channel, state.ts, fullContent);
         } catch (Exception e) {
-            // 照 Go：更新失败只告警（流式期间的一次编辑失败不该中断回答）
+            // 更新失败只告警（流式期间的一次编辑失败不该中断回答）
             log.warn("[Slack] Failed to update stream content: {}", e.toString());
         }
     }
@@ -250,7 +250,7 @@ public class SlackAdapter implements AdapterInterfaces.Adapter,
 
     // ── HTTP ────────────────────────────────────────────────────────────────
 
-    /** 对照 slack-go 的调用：POST JSON + Bearer；{@code ok=false} → 错误（包装文案照 Go）。 */
+    /** POST JSON + Bearer；{@code ok=false} → 错误（固定包装文案）。 */
     private JsonNode callApi(String method, Object body, String wrap) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(apiBase + "/" + method))
                 .header("Authorization", "Bearer " + botToken)

@@ -6,14 +6,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.llm.domain.ChatOptions;
 
 /**
- * thinking 策略的四个实现（对照 Go internal/models/chat/thinking.go:54-118）。
+ * thinking 策略的四个实现。
  *
  * 前端 ModelEditorDialog.vue 通过 `parameters.extra_config.thinking_control`
- * 选择策略，取值与 Go 一致：none / enable_thinking / thinking_type / chat_template_kwargs。
+ * 选择策略，取值：none / enable_thinking / thinking_type / chat_template_kwargs。
  */
 public final class ThinkingStrategies {
 
-    /** extra_config 里的策略选择键（对照 Go ExtraConfigThinkingControl）。 */
+    /** extra_config 里的策略选择键。 */
     public static final String EXTRA_CONFIG_THINKING_CONTROL = "thinking_control";
 
     private ThinkingStrategies() {
@@ -111,7 +111,7 @@ public final class ThinkingStrategies {
     }
 
     /**
-     * 读 extra_config.thinking_control 选策略（对照 Go parseThinkingOverride）。
+     * 读 extra_config.thinking_control 选策略。
      * 未设置（null 或空串）返回 null = 用 provider adapter 的默认策略；
      * 无法识别的非空值回退到 chat_template_kwargs（保持历史默认行为）。
      */

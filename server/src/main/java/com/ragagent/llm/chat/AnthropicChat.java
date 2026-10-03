@@ -36,12 +36,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Anthropic Messages API 客户端（对照 Go chat.AnthropicChat，
- * internal/models/chat/anthropic.go 全文 + anthropic_tools.go 全文）。
+ * Anthropic Messages API 客户端。
  *
- * <p><b>与 OpenAI 路径的四处关键差异</b>（最容易翻错的地方）：</p>
+ * <p><b>与 OpenAI 路径的四处关键差异</b>：</p>
  * <ol>
- *   <li>{@code max_tokens} <b>硬编码默认 1024</b>（anthropic.go:280），
+ *   <li>{@code max_tokens} <b>硬编码默认 1024</b>，
  *       只有调用方给了补全预算（&gt;0）才覆盖——OpenAI 路径不带默认值；</li>
  *   <li>system 抽成<b>顶层字段</b>（string 或 {@code [{text, cache_control}]}），
  *       不留在 messages 里；</li>
@@ -53,23 +52,22 @@ import org.slf4j.LoggerFactory;
  * <p>usage 归一化：{@code input_tokens + cache_read_input_tokens + cache_creation_input_tokens}
  * = promptTokens；流式下多次上报按 {@code max()} 合并（不是累加）。</p>
  *
- * <p>错误处理：Go 用 error 返回值，Java 抛 {@link IllegalStateException}，消息文本与 Go 的
- * {@code fmt.Errorf} 逐字对齐（前缀如 "send request: "、"API request failed with status %d: "）。</p>
+ * <p>错误处理：统一抛 {@link IllegalStateException}，消息前缀形如
+ * "send request: "、"API request failed with status %d: "。</p>
  */
 public class AnthropicChat implements LlmChatClient {
 
     private static final Logger log = LoggerFactory.getLogger(AnthropicChat.class);
 
-    /** 对照 Go anthropicVersion。 */
+    /** anthropic-version 请求头的取值。 */
     public static final String ANTHROPIC_VERSION = "2023-06-01";
 
     /**
-     * 对照 Go anthropic.go:280 的 {@code MaxTokens: 1024}。
-     * <b>这是 Anthropic 路径独有的默认值</b>——别跟 OpenAI 路径对齐成"不发"。
+     * max_tokens 默认值。<b>这是 Anthropic 路径独有的默认值</b>，别跟 OpenAI 路径对齐成"不发"。
      */
     public static final int DEFAULT_MAX_TOKENS = 1024;
 
-    /** 对照 Go rawHTTPClient 的凭据头保护名单（utils.IsReservedHeader）。 */
+    /** 不允许被自定义头覆盖的凭据/协议头名单。 */
     private static final Set<String> RESERVED_HEADERS = Set.of(
             "authorization", "api-key", "x-api-key", "x-goog-api-key", "content-type",
             "content-length", "accept-encoding", "host", "connection", "transfer-encoding");
@@ -83,7 +81,7 @@ public class AnthropicChat implements LlmChatClient {
     private final Map<String, String> customHeaders;
 
     /**
-     * 对照 Go NewAnthropicChat：baseURL 先过 SSRF 校验，API key 必填，
+     * 构造：baseURL 先过 SSRF 校验，API key 必填，
      * 空 baseURL 回退到厂商默认（{@code https://api.anthropic.com/v1}）。
      */
     public AnthropicChat(ChatConfig config) {
@@ -110,10 +108,10 @@ public class AnthropicChat implements LlmChatClient {
     }
 
     // ------------------------------------------------------------------
-    // 对外接口（对照 anthropic.go:139-246）
+    // 对外接口
     // ------------------------------------------------------------------
 
-    /** 对照 Go AnthropicChat.Chat：非流式（但服务端可能仍回 SSE，本方法两者都吃）。 */
+    /** 非流式（但服务端可能仍回 SSE，本方法两者都吃）。 */
     @Override
     public ChatResponse chat(List<ChatMessage> messages, ChatOptions options) {
         AnthropicRequest request = buildRequest(messages, options);
@@ -131,7 +129,7 @@ public class AnthropicChat implements LlmChatClient {
         builder.header("Content-Type", "application/json")
                 .header("x-api-key", apiKey)
                 .header("anthropic-version", ANTHROPIC_VERSION);
-        // 自定义头在标准头之后（Go 的顺序），非保留头同名覆盖
+        // 自定义头在标准头之后，非保留头同名覆盖
         applyCustomHeaders(builder, customHeaders);
         HttpResponse<InputStream> resp = send(builder.POST(HttpRequest.BodyPublishers.ofByteArray(jsonData)).build());
         byte[] body = readBody(resp);
@@ -170,7 +168,7 @@ public class AnthropicChat implements LlmChatClient {
     }
 
     /**
-     * 对照 Go AnthropicChat.ChatStream：<b>先同步建立连接</b>（建立阶段失败直接抛），
+     * <b>先同步建立连接</b>（建立阶段失败直接抛），
      * 再返回由虚拟线程填充的响应队列。队列以 done=true 的元素收尾。
      */
     @Override
@@ -186,7 +184,7 @@ public class AnthropicChat implements LlmChatClient {
             throw new IllegalStateException("endpoint SSRF check failed: " + e.getMessage(), e);
         }
 
-        // 与 Go 一致：流式不套兜底超时（超时由调用方的 deadline/取消控制）
+        // 流式不套兜底超时（超时由调用方的 deadline/取消控制）
         HttpRequest.Builder builder = newRequestBuilder(endpoint, null);
         builder.header("Content-Type", "application/json")
                 .header("Accept", "text/event-stream")
@@ -224,11 +222,11 @@ public class AnthropicChat implements LlmChatClient {
     }
 
     // ------------------------------------------------------------------
-    // endpoint 拼接（对照 anthropic.go:248-275）
+    // endpoint 拼接
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go AnthropicChat.endpoint：<b>三种形态</b>——
+     * <b>三种形态</b>——
      * 已是 {@code /messages} 结尾 → 直接用；{@code /v1} 或 {@code /v1beta} 结尾 → 补
      * {@code /messages}；其余 → 补 {@code /v1/messages}。
      */
@@ -243,21 +241,20 @@ public class AnthropicChat implements LlmChatClient {
         return base + "/v1/messages";
     }
 
-    /** 对照 Go isAnthropicMessagesEndpoint（URL 解析失败一律 false）。 */
+    /** URL 解析失败一律 false。 */
     static boolean isAnthropicMessagesEndpoint(String baseUrl) {
         String path = urlPath(baseUrl);
         return path != null && path.endsWith("/messages");
     }
 
-    /** 对照 Go isAnthropicVersionedBaseURL：{@code /v1} 或 {@code /v1beta} 结尾。 */
+    /** {@code /v1} 或 {@code /v1beta} 结尾。 */
     static boolean isAnthropicVersionedBaseUrl(String baseUrl) {
         String path = urlPath(baseUrl);
         return path != null && (path.endsWith("/v1") || path.endsWith("/v1beta"));
     }
 
     /**
-     * 对照 Go {@code url.Parse(baseURL)} 后取 {@code strings.TrimRight(u.Path, "/")}。
-     * 解析不出来返回 null（= Go 的 err != nil 分支）。
+     * 取 URL 的 path 并去掉尾部斜杠；解析不出来返回 null。
      */
     private static String urlPath(String baseUrl) {
         if (baseUrl == null) {
@@ -272,11 +269,11 @@ public class AnthropicChat implements LlmChatClient {
     }
 
     // ------------------------------------------------------------------
-    // 请求体构造（对照 anthropic.go:277-339）
+    // 请求体构造
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go AnthropicChat.buildRequest。
+     * 构造 Anthropic 请求体。
      *
      * <p>system / messages 的三种形态（CacheRetention 决定）：</p>
      * <ul>
@@ -312,7 +309,7 @@ public class AnthropicChat implements LlmChatClient {
         CacheRetention retention = PromptCache.resolveCacheRetention(opts);
         AnthropicCacheControl marker = AnthropicCacheControl.from(PromptCache.cacheControlFor(retention, "1h"));
         if (marker == null) {
-            // Go 的 System 是 any：赋一个字符串（哪怕是空串）后接口非 nil，会照发 "system":""
+            // system 只要被赋过值（哪怕是空串）就照发 "system":""
             req.setSystem(systemText);
             return req;
         }
@@ -333,10 +330,10 @@ public class AnthropicChat implements LlmChatClient {
     }
 
     // ------------------------------------------------------------------
-    // 非流式解析（对照 anthropic.go:341-451）
+    // 非流式解析
     // ------------------------------------------------------------------
 
-    /** 对照 Go AnthropicChat.parseResponse。 */
+    /** 解析非流式响应。 */
     public ChatResponse parseResponse(AnthropicResponse resp) {
         List<String> parts = new ArrayList<>();
         List<ToolCall> calls = new ArrayList<>();
@@ -385,7 +382,7 @@ public class AnthropicChat implements LlmChatClient {
     }
 
     /**
-     * 对照 Go parseAnthropicSSE：非流式入口拿到 {@code text/event-stream} 时的整段解析。
+     * 非流式入口拿到 {@code text/event-stream} 时的整段解析。
      * 与流式路径共用 {@link AnthropicToolStream}，但总量按 {@code max()} 逐次合并。
      */
     static ChatResponse parseAnthropicSse(InputStream reader) {
@@ -473,7 +470,7 @@ public class AnthropicChat implements LlmChatClient {
     }
 
     /**
-     * 对照 Go processAnthropicStream：逐事件转发到队列，末尾一定补一个 done=true 的终态块
+     * 逐事件转发到队列，末尾一定补一个 done=true 的终态块
      * （出错时改写成 ERROR + finish_reason="incomplete"，用量与工具调用照带）。
      */
     static void processAnthropicStream(InputStream body, String model, BlockingQueue<StreamResponse> streamQueue) {
@@ -524,8 +521,7 @@ public class AnthropicChat implements LlmChatClient {
                     && AnthropicContentBlock.TYPE_TOOL_USE.equals(streamEvent.getContentBlock().getType())) {
                 AnthropicContentBlock block = streamEvent.getContentBlock();
                 StreamResponse chunk = StreamResponse.of(ResponseType.TOOL_CALL, "", false);
-                // 对照 Go 的 map[string]interface{}：Go 的 map 按**键字母序**序列化
-                // （约定 §9），故这里也用有序 map 且按序插入
+                // data 是 map 时按键字母序序列化，故这里用有序 map 且按序插入
                 Map<String, Object> data = new java.util.LinkedHashMap<>();
                 data.put("tool_call_id", nullSafe(block.getId()));
                 data.put("tool_name", nullSafe(block.getName()));
@@ -563,7 +559,7 @@ public class AnthropicChat implements LlmChatClient {
         }
     }
 
-    /** 对照 Go processAnthropicStream 里的闭包 {@code finish}。 */
+    /** 补发流末尾的终态块。 */
     private static void finish(BlockingQueue<StreamResponse> streamQueue, String model, TokenUsage usage,
                                AnthropicToolStream toolStream, String finishReason, RuntimeException error) {
         StreamResponse chunk = new StreamResponse();
@@ -582,15 +578,15 @@ public class AnthropicChat implements LlmChatClient {
     }
 
     // ------------------------------------------------------------------
-    // usage 合并（对照 anthropic.go:546-582）
+    // usage 合并
     // ------------------------------------------------------------------
 
-    /** 对照 Go mergeAnthropicCacheCounters 的三元返回。 */
+    /** 缓存读写计数与"是否上报过"标记的合并结果。 */
     record CacheCounters(int read, int write, boolean reported) {
     }
 
     /**
-     * 对照 Go mergeAnthropicCacheCounters：缓存计数按 max() 合并，reported 取 OR
+     * 缓存计数按 max() 合并，reported 取 OR
      * （<b>任一</b>上报过就算上报过——nil 与 0 的区别在这里兑现）。
      */
     static CacheCounters mergeAnthropicCacheCounters(int currentRead, int currentWrite, boolean currentReported,
@@ -608,7 +604,7 @@ public class AnthropicChat implements LlmChatClient {
     }
 
     /**
-     * 对照 Go mergeAnthropicUsage：流式下的增量合并。
+     * 流式下的增量合并。
      *
      * <p><b>不是简单累加</b>：promptTokens 由"已见的最大未缓存输入 + 合并后的缓存读写"重算，
      * completionTokens 取 max——因为同一份用量会在 message_start 与 message_delta 里各报一次。</p>
@@ -641,7 +637,7 @@ public class AnthropicChat implements LlmChatClient {
     // HTTP 细节
     // ------------------------------------------------------------------
 
-    /** 建 builder（只带超时，头部顺序由调用方拼：标准头 → 自定义头，与 Go 一致）。 */
+    /** 建 builder（只带超时，头部顺序由调用方拼：标准头 → 自定义头）。 */
     private static HttpRequest.Builder newRequestBuilder(String endpoint, Duration timeout) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(endpoint));
         if (timeout != null) {
@@ -651,10 +647,9 @@ public class AnthropicChat implements LlmChatClient {
     }
 
     /**
-     * 对照 Go secutils.ApplyCustomHeaders：跳过保留头（否则会破坏鉴权/签名），
-     * 其余同名覆盖。JDK 的 HttpClient 对 Connection/Content-Length/Expect/Host/Upgrade
-     * 等头部直接抛 IllegalArgumentException——Go 侧这些多半本就在保留名单里，
-     * 漏网的（Expect/Upgrade）按"发不出去"处理，记 debug 日志。
+     * 跳过保留头（否则会破坏鉴权/签名），其余同名覆盖。JDK 的 HttpClient 对
+     * Connection/Content-Length/Expect/Host/Upgrade 等头部直接抛
+     * IllegalArgumentException，漏网的（Expect/Upgrade）按"发不出去"处理，记 debug 日志。
      */
     static void applyCustomHeaders(HttpRequest.Builder builder, Map<String, String> headers) {
         if (headers == null || headers.isEmpty()) {
@@ -677,8 +672,7 @@ public class AnthropicChat implements LlmChatClient {
         try {
             return LlmTransport.send(request);
         } catch (IOException e) {
-            // getMessage() 可能为 null（如 EOFException），对照 Go fmt.Errorf("send request: %w")
-            // 会打出错误名，兜底用异常类名。
+            // getMessage() 可能为 null（如 EOFException），兜底用异常类名。
             throw new IllegalStateException("send request: " + ioDetail(e), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -719,7 +713,7 @@ public class AnthropicChat implements LlmChatClient {
         }
     }
 
-    /** 对照 Go 的 {@code select { case ch <- chunk: ... case <-ctx.Done(): }}（可中断的入队）。 */
+    /** 可中断的入队。 */
     private static boolean put(BlockingQueue<StreamResponse> queue, StreamResponse chunk) {
         try {
             queue.put(chunk);
@@ -734,7 +728,7 @@ public class AnthropicChat implements LlmChatClient {
         return value == null ? "" : value;
     }
 
-    /** 对照 Go strings.TrimRight(s, "/")（去掉全部尾部斜杠）。 */
+    /** 去掉全部尾部斜杠。 */
     static String trimTrailingSlashes(String value) {
         if (value == null) {
             return "";
@@ -750,7 +744,7 @@ public class AnthropicChat implements LlmChatClient {
         logUsageStatic(modelName, usage);
     }
 
-    /** 对照 Go logUsage（ctx 里的 purpose / prefix 指纹在 Java 侧由调用方日志补充）。 */
+    /** 标准用量日志行。 */
     private static void logUsageStatic(String model, TokenUsage usage) {
         if (usage == null || !log.isInfoEnabled()) {
             return;

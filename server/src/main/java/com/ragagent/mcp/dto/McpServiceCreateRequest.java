@@ -8,26 +8,25 @@ import com.ragagent.mcp.domain.McpService;
 import com.ragagent.mcp.domain.McpStdioConfig;
 
 /**
- * 创建 MCP 服务的请求体（对照 Go handler CreateMCPService 里
- * {@code c.ShouldBindJSON(&service)} 直接把 JSON 绑到 types.MCPService）。
+ * 创建 MCP 服务的请求体。
  *
- * <p>JSON 键名逐字对照 {@code types.MCPService} 的 json tag。用独立 record 而不是
+ * <p>JSON 键名与既有契约保持一致。用独立 record 而不是
  * 直接绑实体：实体上带有 {@code deleted_at} 等持久化字段，请求体不应能设置它们。</p>
  *
- * <p>⚠️ <b>保真说明</b>：Go 直接绑实体，因此 {@code id} 与 {@code is_builtin}
- * 也是可绑定的——客户端传 {@code id} 就能钉死主键，传 {@code is_builtin: true}
- * 就能建出一条对所有工作空间可见的行（Go 侧 BeforeCreate 只在 id 为空时生成 UUID）。
- * 这里照抄该行为（保真优先），但已在报告中标记为需要产品决策的既有风险点。</p>
+ * <p>⚠️ <b>既有风险说明</b>：{@code id} 与 {@code builtin} 同样可由请求体提供——
+ * 客户端传 {@code id} 就能钉死主键，传 {@code builtin: true}
+ * 就能建出一条对所有工作空间可见的行。该行为按既有契约保留，
+ * 已标记为需要产品决策的风险点。</p>
  */
 public record McpServiceCreateRequest( String usageInstructions, String id, Long tenantId, String name, String description, Boolean enabled, String transportType, String url, Map<String, String> headers, McpAuthConfig authConfig, McpAdvancedConfig advancedConfig, McpStdioConfig stdioConfig, Map<String, String> envVars, Boolean builtin) {
 
-    /** 对照 Go 的 struct 绑定结果（tenantId 由 handler 覆盖）。 */
+    /** 转成实体（tenantId 由 handler 覆盖）。 */
     public McpService toService() {
         McpService s = new McpService();
         if (id != null && !id.isEmpty()) {
             s.setId(id);
         }
-        // usage_instructions 列是 NOT NULL DEFAULT ''；Go 的零值就是 ""
+        // usage_instructions 列是 NOT NULL DEFAULT ''；缺省按空串落库
         s.setUsageInstructions(usageInstructions == null ? "" : usageInstructions);
         if (name != null) {
             s.setName(name);
@@ -38,7 +37,7 @@ public record McpServiceCreateRequest( String usageInstructions, String id, Long
         if (enabled != null) {
             s.setEnabled(enabled);
         }
-        // Go 的 string 零值是 ""；transport_type 无 omitempty，缺省即空串
+        // transport_type 无省略语义，缺省即空串
         s.setTransportType(transportType == null ? "" : transportType);
         s.setUrl(url);
         s.setHeaders(headers);

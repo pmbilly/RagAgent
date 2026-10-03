@@ -3,27 +3,22 @@ package com.ragagent.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * 4.6b Go 实录常量（引擎核心：ReAct 循环六件）。生成方法：/tmp/toolrec46b 复制
- * WeKnora internal/ + go.mod/go.sum，同包探针 internal/agent/zz_rec46b_test.go
- * 复用 engine_test.go 的 mockChat 与 steer_test.go 的 fakeSteerSink/summarizerChat，
- * 脚本化驱动真引擎跑 2-4 轮 ReAct 循环，事件/状态/消息真值写入
- * /tmp/toolrec46b/rec46b.jsonl，本文件由该 rec.jsonl 生成——<b>禁止手改</b>。
- * 重生成：{@code cd /tmp/toolrec46b && go test ./internal/agent/ -run TestRec46B -count=1}
- * 然后按每行 rec.jsonl → 一条 R_<GROUP>_<KEY> 常量重新生成本文件。
+ * 4.6b 引擎核心录制常量（ReAct 循环六件）。本文件由录制输出（rec46b.jsonl）生成——
+ * <b>禁止手改</b>；每行录制记录 → 一条 R_&lt;GROUP&gt;_&lt;KEY&gt; 常量。
  *
- * <p>掩码约定（探针 mask46b 与 Java {@code Engine46bStubSupport.mask} 两侧同款后处理，
+ * <p>掩码约定（与 Java {@code Engine46bStubSupport.mask} 同款后处理，
  * 掩码后逐字节可比）：</p>
  * <ul>
  *   <li>事件 id 的 uuid 前缀 {@code ^[0-9a-f]{8}-} → {@code xxxxxxxx-}（后缀保留）；</li>
  *   <li>{@code "duration_ms":N} / {@code "duration":N} / {@code "total_duration_ms":N}
- *       <b>连键带值整体删除</b>（含前导逗号）——Go 侧 0ms 工具会被 omitempty 掉键而
- *       Java 侧真实耗时非 0 键在，留键掩 0 恒不一致；两侧都删后可比；</li>
+ *       <b>连键带值整体删除</b>（含前导逗号）——历史线格式会省略 0ms 工具的键而
+ *       本地真实耗时非 0 键在，留键掩 0 恒不一致；删键后可比；</li>
  *   <li>{@code "timestamp":"..."} → {@code "TS"}（AgentStep 时间戳）；</li>
  *   <li>&lt;current_time&gt;YYYY-MM-DD&lt;/current_time&gt; 的日期段 → DATE
- *       （含 < 转义形态；Java 测试当日现算后同款掩码）。</li>
+ *       （含 &lt; 转义形态；Java 测试当日现算后同款掩码）。</li>
  * </ul>
  *
- * <p>实录组（20 组 / 74 条）：execute_natural_stop、execute_empty_retry、
+ * <p>录制组（20 组 / 74 条）：execute_natural_stop、execute_empty_retry、
  * execute_stuck_loop、execute_max_iterations、execute_empty_exhausted、
  * execute_content_filter、run_tool_call_args(×4 态)、execute_parallel_tools、
  * execute_length_finish、steer_drain、steer_loop_end_inject、render_user_turn、
@@ -36,7 +31,7 @@ public final class GoRecording46B {
     private GoRecording46B() {
     }
 
-    /** 解析一条实录记录（传常量原文）。 */
+    /** 解析一条录制记录（传常量原文）。 */
     public static JsonNode rec(String json) {
         try {
             return new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);

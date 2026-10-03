@@ -13,14 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 波 4.6d 契约（chat 三入口 golden 回放）。
+ * chat 三入口的契约测试（golden 回放）。
  *
- * <p>golden 全部是 <b>Go 实录</b>（scripts/ab-qa46d.sh 双端同指 stub LLM 录制；
- * SSE 场景掩码后逐字节 MATCH ×2 轮）。本测试钉住两点：</p>
+ * <p>golden 均为 stub LLM 录制（scripts/ab-qa46d.sh；SSE 场景掩码后逐字节比对）。
+ * 本测试钉住两点：</p>
  * <ol>
- *   <li>Go 录制的错误信封/文案形状（400 绑定文案、404 文案、409/500 信封键序）；</li>
+ *   <li>golden 录制的错误信封/文案形状（400 绑定文案、404 文案、409/500 信封键序）；</li>
  *   <li>SSE 帧骨架（event:message\ndata:{...}\n\n、response_type 序列、
- *       answer 分片重组、complete 的键集）——掩码后与 Java 实录同构。</li>
+ *       answer 分片重组、complete 的键集）。</li>
  * </ol>
  *
  * <p>掩码族与 ab-qa46d.sh 的 mask() 逐条同源（uuid/时间戳/事件 id 前缀/耗时数字）。</p>
@@ -94,7 +94,7 @@ class KnowledgeQaContractTest {
     }
 
     /**
-     * SSE 帧骨架（stub LLM 全链路实录）：帧序 agent_query → answer(done=false) →
+     * SSE 帧骨架（stub LLM 全链路录制）：帧序 agent_query → answer(done=false) →
      * answer(done=true) → complete；帧格式 event:message\ndata:<json>\n\n；
      * complete 键集 total_steps/total_duration_ms/final_content（无 usage 键时两侧同缺）。
      */

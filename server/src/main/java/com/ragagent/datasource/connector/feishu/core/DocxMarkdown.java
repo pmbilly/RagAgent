@@ -12,7 +12,7 @@ import com.ragagent.datasource.connector.feishu.core.DocxBlocks.BlockText;
 import com.ragagent.datasource.connector.feishu.core.DocxBlocks.DocxBlock;
 
 /**
- * docx 块 → Markdown 渲染器（对照 Go {@code core/markdown.go} 全文）。
+ * docx 块 → Markdown 渲染器。
  *
  * <h2>它做三件事</h2>
  * <ol>
@@ -32,16 +32,15 @@ import com.ragagent.datasource.connector.feishu.core.DocxBlocks.DocxBlock;
  *       泄漏内部 media token 会污染 embedding。</li>
  * </ul>
  *
- * <h2>与 Go 的签名差异</h2>
- * <p>Go 的 {@code blocksToMarkdown} 返回 {@code ([]byte, []pendingAttachment, error)}，
- * 但实现里<b>所有分支返回的都 是 nil 错误</b>（表格读取失败在 {@link #inlineTable}
- * 内就降解成占位文案了）。Java 侧去掉那个永远为 nil 的 error，只保留两个真实返回值。</p>
+ * <h2>错误处理</h2>
+ * <p>这里不会抛错：表格读取失败在 {@link #inlineTable}
+ * 内就降解成占位文案了，所以只返回 Markdown 与附件两个结果。</p>
  */
 public final class DocxMarkdown {
 
     /**
-     * 对照 Go 的 {@code sheetReader} 接口：{@code blocksToMarkdown} 只需要客户端这两件事，
-     * 转换器才能用假实现（或 nil）单测。{@link FeishuClient} 实现了它。
+     * {@code blocksToMarkdown} 只需要客户端提供这两件事，
+     * 转换器才能用假实现（或 {@code null}）单测。{@link FeishuClient} 实现了它。
      */
     public interface SheetReader {
 
@@ -50,7 +49,7 @@ public final class DocxMarkdown {
         FeishuClient.BitableTable readBitableRecords(String embedToken);
     }
 
-    /** 对照 Go {@code pendingAttachment}：等待连接器决定是否下载的内嵌文件块。 */
+    /** 等待连接器决定是否下载的内嵌文件块。 */
     public record PendingAttachment(String fileToken, String name) {
 
         public PendingAttachment {
@@ -59,10 +58,10 @@ public final class DocxMarkdown {
         }
     }
 
-    /** 对照 Go {@code blocksToMarkdown} 的 {@code (md, atts)}。 */
+    /** 渲染结果：Markdown 字节 + 收集到的附件。 */
     public record MarkdownResult(byte[] markdown, List<PendingAttachment> attachments) {
 
-        /** 便利：按 UTF-8 解码成字符串（Go 测试里的 {@code string(md)}）。 */
+        /** 便利：按 UTF-8 解码成字符串。 */
         public String text() {
             return new String(markdown, StandardCharsets.UTF_8);
         }
@@ -72,11 +71,11 @@ public final class DocxMarkdown {
     }
 
     /**
-     * 对照 Go {@code blocksToMarkdown}：把扁平的 docx 块数组渲染成 Markdown，
+     * 把扁平的 docx 块数组渲染成 Markdown，
      * 内嵌 sheet/bitable 表格并收集可下载附件。
      *
      * @param client 可以为 {@code null}——那时块集合里若没有需要下钻的表格块，
-     *               渲染照样完成（Go 的注释就是这么约定的）
+     *               渲染照样完成
      */
     public static MarkdownResult blocksToMarkdown(SheetReader client, List<DocxBlock> blocks) {
         List<DocxBlock> safeBlocks = blocks == null ? List.of() : blocks;
@@ -163,7 +162,7 @@ public final class DocxMarkdown {
         return new MarkdownResult(out.getBytes(StandardCharsets.UTF_8), atts);
     }
 
-    /** 对照 Go 的 {@code strings.TrimRight(s, "\n")}。 */
+    /** 去掉末尾的换行符。 */
     private static String stripTrailingNewlines(String s) {
         int end = s.length();
         while (end > 0 && s.charAt(end - 1) == '\n') {
@@ -172,7 +171,7 @@ public final class DocxMarkdown {
         return s.substring(0, end);
     }
 
-    /** 对照 Go {@code writePara}：追加一段文本 + 一个空行；空文本跳过。 */
+    /** 追加一段文本 + 一个空行；空文本跳过。 */
     private static void writePara(StringBuilder sb, String s) {
         if (s == null || s.isEmpty()) {
             return;
@@ -180,14 +179,14 @@ public final class DocxMarkdown {
         sb.append(s).append("\n\n");
     }
 
-    /** 对照 Go {@code plainText}：拼接带文本块的各个 run。 */
+    /** 拼接带文本块的各个 run。 */
     public static String plainText(BlockText bt) {
         return bt == null ? "" : bt.plainText();
     }
 
-    /** 对照 Go {@code headingText}：取该级别的 heading 字段，取不到回落到 {@code Text}。 */
+    /** 取该级别的 heading 字段，取不到回落到 {@code Text}。 */
     static BlockText headingText(DocxBlock b) {
-        // ⚠️ 不能写成 List.of(...)：那些字段大多为 null，而 List.of 拒绝 null（Go 的切片没这问题）
+        // ⚠️ 不能写成 List.of(...)：那些字段大多为 null，而 List.of 拒绝 null
         BlockText[] fields = {
                 b.getHeading1(), b.getHeading2(), b.getHeading3(), b.getHeading4(), b.getHeading5(),
                 b.getHeading6(), b.getHeading7(), b.getHeading8(), b.getHeading9()};
@@ -199,7 +198,7 @@ public final class DocxMarkdown {
     }
 
     /**
-     * 对照 Go {@code tableDescendants}：返回属于某个原生表格的块 id 集合——
+     * 返回属于某个原生表格的块 id 集合——
      * 表格块列出的每个单元格，以及经这些单元格 {@code Children} 能走到的一切。
      * {@code blocksToMarkdown} 跳过它们，于是表格内容只由表格渲染器输出一次。
      */
@@ -237,7 +236,7 @@ public final class DocxMarkdown {
     }
 
     /**
-     * 对照 Go {@code tableRenderable}：原生表格块是否带够了结构（列数）让
+     * 原生表格块是否带够了结构（列数）让
      * {@link #renderNativeTable} 能产出 Markdown 表格。
      *
      * <p>它是 consume 扫描与渲染共用的<b>唯一</b>判据，确保两者对"哪些表格被
@@ -249,7 +248,7 @@ public final class DocxMarkdown {
     }
 
     /**
-     * 对照 Go {@code textBearingField}：按块的类型名取它的内联文本载荷
+     * 按块的类型名取它的内联文本载荷
      * （docx 把块的文本存在与类型同名的字段里），于是任意文本类单元格的内容
      * 都能被统一抽取。
      */
@@ -280,7 +279,7 @@ public final class DocxMarkdown {
     }
 
     /**
-     * 对照 Go {@code cellText}：把一个原生表格单元格渲染成一个字符串。
+     * 把一个原生表格单元格渲染成一个字符串。
      *
      * <p>飞书的 table_cell（block_type 32）是<b>容器</b>：文本在子块里、不在单元格上，
      * 所以这里要拼接各子块的文本。</p>
@@ -289,7 +288,7 @@ public final class DocxMarkdown {
         List<String> parts = new ArrayList<>();
         for (String childId : cell.getChildren()) {
             DocxBlock child = byId.get(childId);
-            // Go 里取不到时拿到的是零值 DocxBlock（Text 为 nil）→ 同样得到 ""
+            // 子块 id 取不到对应块时按空文本处理
             String t = child == null ? "" : plainText(textBearingField(child));
             if (!t.isEmpty()) {
                 parts.add(t);
@@ -298,7 +297,7 @@ public final class DocxMarkdown {
         return String.join(" ", parts);
     }
 
-    /** 对照 Go {@code renderNativeTable}：把原生 table 块渲染成 Markdown 表格。 */
+    /** 把原生 table 块渲染成 Markdown 表格。 */
     static String renderNativeTable(DocxBlock b, Map<String, DocxBlock> byId) {
         if (!tableRenderable(b)) {
             return "";
@@ -318,7 +317,7 @@ public final class DocxMarkdown {
     }
 
     /**
-     * 对照 Go {@code markdownTable}：把 {@code [][]string}（首行是表头）渲染成 GFM 表格。
+     * 把行列表（首行是表头）渲染成 GFM 表格。
      *
      * <p>零列表头（没有列的内嵌 sheet/bitable）会输出 {@code "|  |"} 表头 + 只有 {@code "|"}
      * 的分隔行——那是<b>畸形 GFM</b>。这种情况什么都不渲染。</p>
@@ -346,7 +345,7 @@ public final class DocxMarkdown {
         return stripTrailingNewlines(sb.toString());
     }
 
-    /** 对照 Go {@code escapePipes}：让单元格值在一行 Markdown 表格里安全。 */
+    /** 让单元格值在一行 Markdown 表格里安全。 */
     static List<String> escapePipes(List<String> row) {
         List<String> out = new ArrayList<>(row.size());
         for (String c : row) {
@@ -356,7 +355,7 @@ public final class DocxMarkdown {
     }
 
     /**
-     * 对照 Go {@code inlineTable}：读一个内嵌 sheet/bitable 并渲染成 Markdown 表格。
+     * 读一个内嵌 sheet/bitable 并渲染成 Markdown 表格。
      *
      * <p>读/权限错误降解成一句内联说明，而不是让整篇文档失败（部分内容胜过没有内容）。
      * 读取方报告的截断会追加一句说明。</p>

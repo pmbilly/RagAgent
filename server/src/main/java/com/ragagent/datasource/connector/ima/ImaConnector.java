@@ -32,7 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 腾讯 IMA（ima.qq.com）数据源连接器（对照 Go {@code ima/connector.go} 全文）。
+ * 腾讯 IMA（ima.qq.com）数据源连接器。
  *
  * <h2>身份契约：逻辑键而不是 media_id</h2>
  * <p>每个条目由 {@link ImaFormats#logicalKey} 算出的稳定逻辑键标识，<b>不是</b>
@@ -48,20 +48,19 @@ import org.slf4j.LoggerFactory;
  *   <li>上次在、这次不在 → {@code IsDeleted} 墓碑。</li>
  * </ul>
  *
- * <p><b>已知限制</b>（照抄 Go 的注释）：IMA 至今不暴露逐条目的 {@code updated_at}，
+ * <p><b>已知限制</b>：IMA 至今不暴露逐条目的 {@code updated_at}，
  * 所以"就地编辑但 {@code media_id} 不变"对我们是不可见的。需要整份内容刷新的
  * 用户应当周期性跑一次全量同步。</p>
  *
- * <h2>{@code ctx} 的处置</h2>
- * <p>Java 侧接口没有 {@code ctx}：取消靠线程中断，退避走
+ * <h2>取消与超时</h2>
+ * <p>取消靠线程中断，退避走
  * {@link Connector#sleep(long)}（被中断时抛 {@link ConnectorException}）。
- * Go 里由 {@code ctx} 顺带承载的请求级超时落在两个 HTTP 客户端的构造参数上
+ * 请求级超时落在两个 HTTP 客户端的构造参数上
  * （60s / 120s）。</p>
  *
- * <h2>与 Go 的一处刻意的确定性差异</h2>
- * <p>删除检测那段 Go 是 {@code for prevKey := range prevSet} ——<b>map 迭代顺序随机</b>，
- * 所以墓碑在 items 里的相对顺序在 Go 侧本来就不可复现。Java 侧按<b>逻辑键升序</b>
- * 发出，保证同一次同步的结果可复现；集合内容与 Go 完全一致，只有顺序更稳定。</p>
+ * <h2>确定性的墓碑顺序</h2>
+ * <p>删除检测的墓碑按<b>逻辑键升序</b>
+ * 发出，保证同一次同步的结果可复现。</p>
  */
 public class ImaConnector implements Connector {
 
@@ -70,9 +69,8 @@ public class ImaConnector implements Connector {
     /**
      * 解析 {@code knowledge_list} 里的松散条目。
      *
-     * <p>必须容忍未知属性：Go 的 {@code json.Unmarshal} 默认忽略，而 IMA 会在
-     * 这些对象上继续加字段（约定 §9「jsonb 回读的 ObjectMapper 要容忍未知属性」）。
-     * 这里虽然不是 jsonb 回读，但同一条理由成立。</p>
+     * <p>必须容忍未知属性：IMA 会在
+     * 这些对象上继续加字段，严格模式会让整条列表解析失败。</p>
      */
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -94,15 +92,13 @@ public class ImaConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code Validate}：调 {@code get_addable_knowledge_base_list} 验凭据
+     * 调 {@code get_addable_knowledge_base_list} 验凭据
      * ——即使 token 名下零个 KB 也最容易成功的端点，且 {@code ListResources} 用的就是它。
      * token 本身无效时它返回 {@code 110030}（无权限），客户端已把该码映射成
      * {@link ConnectorException.InvalidCredentials}。
      *
-     * <p>外层包装 {@code "ima connection failed: ..."} 的语义与 Go 的
-     * {@code fmt.Errorf("ima connection failed: %w", err)} 一致：<b>文本逐字相同</b>。
+     * <p>外层包装 {@code "ima connection failed: ..."}：<b>文本保持原样</b>。
      * 分类信息由<b>异常链</b>承载（{@code getCause()}），而不是包装后的类型——
-     * Go 的 {@code errors.Is} 能穿透 {@code %w}，Java 的 {@code instanceof} 不能，
      * 这是本模块唯一一处"类型判定要往 cause 上找"的地方。</p>
      */
     @Override
@@ -116,7 +112,7 @@ public class ImaConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code ResolveResourceAncestors}：IMA 的知识库是**扁平**的顶层资源列表，
+     * IMA 的知识库是<b>扁平</b>的顶层资源列表，
      * 惰性加载的选择器没有祖先可揭示，回空列表。
      */
     @Override
@@ -125,7 +121,7 @@ public class ImaConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code ListResources}：返回该 token 可读的知识库扁平列表。
+     * 返回该 token 可读的知识库扁平列表。
      *
      * <p>{@code parentId} 只用于满足"没有子项"的契约：非空即回空列表。</p>
      *
@@ -174,7 +170,7 @@ public class ImaConnector implements Connector {
                 }
                 if (resp.getInfoList() != null) {
                     for (SearchedKnowledgeBaseInfo b : resp.getInfoList()) {
-                        // 对照 Go 的 kbLite(b) 结构体转换：字段一一对应，CoverURL 一并带过来。
+                        // 字段一一对应，CoverURL 一并带过来。
                         bases.add(new KbLite(b.getId(), b.getName(), b.getCoverUrl()));
                     }
                 }
@@ -231,21 +227,21 @@ public class ImaConnector implements Connector {
         return out;
     }
 
-    /** 对照 Go 里那个文件内私有的 {@code kbLite}。 */
+    /** 知识库的最小信息（id + 名字 + 封面）。 */
     private record KbLite(String id, String name, String coverUrl) {
     }
 
-    /** 对照 Go {@code FetchAll}：全量同步指定知识库（cursor 不参与）。 */
+    /** 全量同步指定知识库（cursor 不参与）。 */
     @Override
     public List<FetchedItem> fetchAll(DataSourceConfig config, List<String> resourceIds) {
         return walk(config, resourceIds, null, false).items();
     }
 
     /**
-     * 对照 Go {@code FetchIncremental}：按 cursor 抓取新增 / 替换 / 删除的条目。
+     * 按 cursor 抓取新增 / 替换 / 删除的条目。
      *
-     * <p>没有配置任何知识库 id 时直接报错（Go 的
-     * {@code "no resource IDs (knowledge base IDs) configured"}），<b>不</b>回落到
+     * <p>没有配置任何知识库 id 时直接报错
+     * （{@code "no resource IDs (knowledge base IDs) configured"}），<b>不</b>回落到
      * "全部"——这与 RSS 的 walk 是相反处置，别统一。</p>
      */
     @Override
@@ -268,12 +264,12 @@ public class ImaConnector implements Connector {
         return new FetchIncrementalResult(result.items(), newCursor);
     }
 
-    /** 对照 Go 的 {@code walk} 的 {@code (items, *imaCursor, error)} 三返回值。 */
+    /** 一次 walk 的结果：条目 + 新游标。 */
     private record WalkResult(List<FetchedItem> items, ImaCursor cursor) {
     }
 
     /**
-     * 对照 Go {@code walk}：{@code FetchAll} / {@code FetchIncremental} 的共享实现。
+     * {@code FetchAll} / {@code FetchIncremental} 的共享实现。
      * {@code incremental} 为 false 时 {@code prev} 被忽略、返回的 cursor 无意义。
      */
     private WalkResult walk(DataSourceConfig config, List<String> resourceIds,
@@ -386,7 +382,7 @@ public class ImaConnector implements Connector {
     // ── 知识库枚举 ────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code listAllKBFiles}：把一个知识库递归摊平成条目列表，
+     * 把一个知识库递归摊平成条目列表，
      * 同时用现场构建的文件夹树解析出每个条目的文件夹路径。
      * {@code folderPath} 是出参（folder_id → 可读路径），只为元数据服务。
      */
@@ -454,7 +450,7 @@ public class ImaConnector implements Connector {
         return out;
     }
 
-    /** 对照 Go 的探测结构：{@code json.Unmarshal(raw, &probe)} 忽略错误后取字段。 */
+    /** 从松散 JSON 里取文本字段：形状不对时回空串。 */
     private static String text(JsonNode node, String field) {
         if (node == null || !node.isObject()) {
             return "";
@@ -466,7 +462,7 @@ public class ImaConnector implements Connector {
     // ── 单条目抓取 ────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code fetchOutcome}：{@code fetchOneMedia} 的三种结局，
+     * {@code fetchOneMedia} 的三种结局，
      * 因为调用方在构建 cursor 时必须区别对待——只有**临时失败**必须留在
      * cursor 之外，以便下一轮重试。
      */
@@ -479,12 +475,12 @@ public class ImaConnector implements Connector {
         FAILED
     }
 
-    /** 对照 Go 的 {@code (types.FetchedItem, fetchOutcome)} 双返回值。 */
+    /** 单条目抓取结果：条目 + 结局。 */
     private record FetchOne(FetchedItem item, FetchOutcome outcome) {
     }
 
     /**
-     * 对照 Go {@code fetchOneMedia}：对单个条目调 {@code get_media_info}，
+     * 对单个条目调 {@code get_media_info}，
      * 有可能时下载正文。
      *
      * <p>{@code externalId} 是调用方算好的稳定逻辑键——跨同步不变，即使 IMA
@@ -580,7 +576,7 @@ public class ImaConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code fetchNote}：解析 IMA 笔记（{@code media_type=11}）。
+     * 解析 IMA 笔记（{@code media_type=11}）。
      *
      * <p>正文以纯文本返回，但按 Markdown ingest——IMA 笔记是富文本写的，
      * 导出保留标题与列表标记，当 Markdown 解析能把结构留给分块，
@@ -625,12 +621,12 @@ public class ImaConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code baseMetadata}：每个 ingest 条目都要带上的元数据。
+     * 每个 ingest 条目都要带上的元数据。
      *
      * <p>{@code externalID}（调用方的逻辑键）也存进去，运维就能把稳定身份
      * 对回原始 {@code media_id}——排查"同名替换为什么表现为更新而不是新增"时很有用。</p>
      *
-     * <p>键集合（Go 实录已钉）：恒有 {@code channel/media_id/ima_logical_key/
+     * <p>键集合：恒有 {@code channel/media_id/ima_logical_key/
      * knowledge_base_id/folder_path/media_type} 六项；{@code parent_folder_id}
      * 仅在非空时加；{@code folder_path} 会被文件夹树解析出的路径**覆盖**；
      * {@code notebook_id} 仅在非空时加。</p>

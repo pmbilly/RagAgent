@@ -30,6 +30,7 @@ final class OpenSearchWriteOps {
 
     // ── 写入 ────────────────────────────────────────────────────────────────
 
+    /** 单条写入：幂等（_id=chunk_id）；缺 embedding → keywords 索引。 */
     void save(IndexInfo info, Map<String, Object> params) throws Exception {
         float[] emb = lookupEmbedding(params, info.sourceId);
         boolean enabled = lookupChunkEnabled(params, info.chunkId, info.isEnabled);
@@ -45,6 +46,7 @@ final class OpenSearchWriteOps {
         service.send("PUT", "/" + targetIndex + "/_doc/" + info.chunkId, doc, "application/json");
     }
 
+    /** 批量写入：批量上限 + 混合维度检 + NDJSON + 逐项错误检视。 */
     void batchSave(List<IndexInfo> infos, Map<String, Object> params) throws Exception {
         if (infos == null || infos.isEmpty()) {
             return;
@@ -82,7 +84,7 @@ final class OpenSearchWriteOps {
         StringBuilder buf = new StringBuilder();
         for (int i = 0; i < infos.size(); i++) {
             IndexInfo info = infos.get(i);
-            // 照 Go 的 map 序列化：键字母序 {"index":{"_id":..,"_index":..}}
+            // 动作行键字母序 {"index":{"_id":..,"_index":..}}
             Map<String, Object> action = new TreeMap<>();
             Map<String, Object> desc = new TreeMap<>();
             desc.put("_id", info.chunkId);
@@ -115,7 +117,7 @@ final class OpenSearchWriteOps {
         deleteByList(knowledgeIdList, dimension, "knowledge_id");
     }
 
-    /** 对照 deleteByList：cap 1000；dim==0 → keywords 索引。 */
+    /** 按字段删除：cap 1000；dim==0 → keywords 索引。 */
     void deleteByList(List<String> ids, int dim, String field) throws Exception {
         if (ids == null || ids.isEmpty()) {
             return;
@@ -145,6 +147,7 @@ final class OpenSearchWriteOps {
         inspectByQueryResponse(response, false);
     }
 
+    /** 分页拷贝：批 500 扫源 + 三态 SourceID 改写 + 逐页 BatchSave。 */
     void copyIndices(String sourceKnowledgeBaseId, Map<String, String> sourceToTargetKbIdMap,
                             Map<String, String> sourceToTargetChunkIdMap, String targetKnowledgeBaseId,
                             int dimension, String knowledgeType) throws Exception {
@@ -230,7 +233,7 @@ final class OpenSearchWriteOps {
 
     // ── 复制 / 批量更新 ─────────────────────────────────────────────────────
 
-    /** 对照 copyScanBatch：全 _source（含 embedding/is_recommended）。 */
+    /** 源扫描页：全 _source（含 embedding/is_recommended）。 */
     List<Map<String, Object>> copyScanBatch(String index, String sourceKb, int from)
             throws Exception {
         Map<String, Object> term = new TreeMap<>();
@@ -267,6 +270,7 @@ final class OpenSearchWriteOps {
         return out;
     }
 
+    /** 批量改状态：false 先 true 后（确定性），ids 排序。 */
     void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap) throws Exception {
         if (chunkStatusMap == null || chunkStatusMap.isEmpty()) {
             return;
@@ -288,6 +292,7 @@ final class OpenSearchWriteOps {
         }
     }
 
+    /** 批量改标签：tag 字典序、组内 id 排序。 */
     void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
         if (chunkTagMap == null || chunkTagMap.isEmpty()) {
             return;
@@ -306,7 +311,7 @@ final class OpenSearchWriteOps {
         }
     }
 
-    /** 对照 updateByQueryScript：跨维 {@code <base>_*} + painless 常量源 + params 绑定。 */
+    /** 脚本更新：跨维 {@code <base>_*} + painless 常量源 + params 绑定。 */
     void updateByQueryScript(List<String> chunkIds, String source,
                                      Map<String, Object> scriptParams) throws Exception {
         Map<String, Object> terms = new TreeMap<>();
@@ -327,6 +332,8 @@ final class OpenSearchWriteOps {
 
     // ── 迁移 ────────────────────────────────────────────────────────────────
 
+    /** 跨 {@code <base>_*} 改写（含历史向量——chunk 行已删的也搬），保向量 id；
+     *  完整性校验 requireComplete=true。 */
     void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
                                      List<String> chunkIds, int dimension, String knowledgeType)
             throws Exception {
@@ -359,7 +366,7 @@ final class OpenSearchWriteOps {
 
     // ── 文档投影与参数查表 ──────────────────────────────────────────────────
 
-    /** 对照 toDoc：字母序键；缺 embedding 时整体省略该字段（keyword-only 文档）。 */
+    /** 文档投影：字母序键；缺 embedding 时整体省略该字段（keyword-only 文档）。 */
     static Map<String, Object> toDoc(IndexInfo info, float[] emb, boolean enabled) {
         Map<String, Object> doc = new TreeMap<>();
         doc.put("chunk_id", info.chunkId);
@@ -420,7 +427,7 @@ final class OpenSearchWriteOps {
         return def;
     }
 
-    /** 对照 extractBatchEmbeddings：混合维度 → DIMENSION_MISMATCH。 */
+    /** 批量取向量：混合维度 → DIMENSION_MISMATCH。 */
     static float[][] extractBatchEmbeddings(Map<String, Object> params, List<IndexInfo> infos) {
         float[][] out = new float[infos.size()][];
         int dim = 0;
@@ -447,7 +454,7 @@ final class OpenSearchWriteOps {
         return o == null ? "" : String.valueOf(o);
     }
 
-    /** 对照 inspectBulkResponse：逐项错误（≤5 条 "[op id] type"；reason 只进 DEBUG）。 */
+    /** bulk 响应检视：逐项错误（≤5 条 "[op id] type"；reason 只进 DEBUG）。 */
     static void inspectBulkResponse(String response) throws Exception {
         JsonNode root;
         try {
@@ -492,7 +499,7 @@ final class OpenSearchWriteOps {
                         + String.join("; ", msgs) + "): opensearch: transport error");
     }
 
-    /** 对照 inspectByQueryResult（requireComplete=move 的完整性校验）。 */
+    /** _update_by_query 响应检视（requireComplete=move 的完整性校验）。 */
     static void inspectByQueryResponse(String response, boolean requireComplete)
             throws Exception {
         JsonNode root;

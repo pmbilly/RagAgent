@@ -13,7 +13,7 @@ import com.ragagent.stream.StreamManager;
 
 /**
  * {@code AgentStreamBridge} 的 SSE 发射缝：组装 {@link StreamEvent}（时间戳取当前时刻）并追加到
- * {@link StreamManager}；**追加失败只记日志**（对照 Go：流追加报错不打断本轮）。
+ * {@link StreamManager}；**追加失败只记日志**（不打断本轮）。
  *
  * <p>为什么单独一类：桥里 17 个 handler 各抄了一份同样的"组装 + try 追加 + catch 日志"样板，
  * 且日志文案逐个不同。这里把样板收成 {@link #emit}/{@link #emitTolerant}（组装 + 追加）与
@@ -60,7 +60,7 @@ final class AgentStreamEmitter {
         appendTolerant(event(id, type, content, done, data), failureLog);
     }
 
-    /** 追加；失败 error 级记日志（对照 Go 的 log.Errorf）。 */
+    /** 追加；失败 error 级记日志。 */
     void append(StreamEvent event, String failureLog) {
         try {
             streamManager.appendEvent(sessionId, assistantMessageId, event);
@@ -69,7 +69,7 @@ final class AgentStreamEmitter {
         }
     }
 
-    /** 追加；失败 warn 级记日志（对照 Go 的 log.Warnf）。 */
+    /** 追加；失败 warn 级记日志。 */
     void appendTolerant(StreamEvent event, String failureLog) {
         try {
             streamManager.appendEvent(sessionId, assistantMessageId, event);

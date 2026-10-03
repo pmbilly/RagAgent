@@ -22,14 +22,14 @@ final class SessionQaResolution {
 
     private final SessionKnowledgeQaService service;
 
-    /** agent 覆盖簇（§11.37 第 2 步）。 */
+    /** agent 覆盖簇。 */
     private final QaSearchTargets searchTargets;
 
     public List<SessionKnowledgeQaService.SearchTargetView> buildSearchTargets(long tenantId, List<String> knowledgeBaseIds, List<String> knowledgeIds, List<QaSupport.TagScope> tagScopes) {
         return searchTargets.buildSearchTargets(tenantId, knowledgeBaseIds, knowledgeIds, tagScopes);
     }
 
-    /** agent 覆盖簇（§11.37 第 2 步）。 */
+    /** agent 覆盖簇。 */
     private final QaChatManageOverrides chatOverrides;
 
     void applyAgentOverridesToChatManage(QaSupport.QaRequest req, ChatManage cm) {
@@ -40,24 +40,30 @@ final class SessionQaResolution {
         return chatOverrides.resolveCustomAgentPrompts(agent, c);
     }
 
-    /** mention/tag 收敛簇（§14.9c 刀 10）。 */
+    /** mention/tag 收敛簇。 */
     private final QaMentionTagScope mentionTagScope;
 
     public SessionKnowledgeQaService.KnowledgeResolution resolveKnowledgeBases(QaSupport.QaRequest req) {
         return mentionTagScope.resolveKnowledgeBases(req);
     }
 
+    /**
+     * 把 @mention 的 KB/知识收窄到共享 agent 的允许范围——允许集为空则**全部拦下**；
+     * 知识按其所属 KB 是否在允许集内判定（批量取按 **agent 的租户**查）。
+     */
     public MentionScope restrictMentionsToAgentScope(com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId, List<String> kbIds, List<String> knowledgeIds) {
         return mentionTagScope.restrictMentionsToAgentScope(agent, agentCfg, sessionTenantId, kbIds, knowledgeIds);
     }
 
+    /** 按允许 KB 集过滤 tag 范围；空输入返回空列表。 */
     public List<QaSupport.TagScope> restrictTagScopesToAgentScope(com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId, List<QaSupport.TagScope> tagScopes) {
         return mentionTagScope.restrictTagScopesToAgentScope(agent, agentCfg, sessionTenantId, tagScopes);
     }
 
-    /** KB 范围簇（§14.9c 刀 9）。 */
+    /** KB 范围簇。 */
     private final QaKbScope kbScope;
 
+    /** 按 agent 配置的 kbSelectionMode 解析允许 KB 集（all 模式做工具能力过滤）。 */
     public List<String> resolveKnowledgeBasesFromAgent(com.ragagent.agent.management.domain.CustomAgentEntity agent, ObjectNode agentCfg, long sessionTenantId) {
         return kbScope.resolveKnowledgeBasesFromAgent(agent, agentCfg, sessionTenantId);
     }
@@ -70,11 +76,12 @@ final class SessionQaResolution {
         return kbScope.resolveRetrievalTenantId(req);
     }
 
+    /** 作用域能否读该 KB：① API-key 作用域（拒绝路径）→ ② 仅本租户可读。 */
     boolean callerCanReadKb(String kbId, long ownerTenantId, long retrievalTenantId) {
         return kbScope.callerCanReadKb(kbId, ownerTenantId, retrievalTenantId);
     }
 
-    /** 模型选择簇（§14.9c 刀 8）。 */
+    /** 模型选择簇。 */
     private final QaModelSelection modelSelection;
 
     public String resolveChatModelId(QaSupport.QaRequest req, List<String> knowledgeBaseIds, List<String> knowledgeIds) {
@@ -109,48 +116,14 @@ final class SessionQaResolution {
         this.searchTargets = new QaSearchTargets(service, this.kbScope);
 }
 
-    /** resolveKnowledgeBases（Go L21-60）。 */
-    /** @mention 收敛结果（对照 Go 的两个多返回值 helper）。 */
-    /**
-     * 对照 Go {@code restrictMentionsToAgentScope}（session_qa_helpers.go L295-340）：
-     * 把 @mention 的 KB/知识收窄到共享 agent 的允许范围——允许集为空则**全部拦下**；
-     * 知识按其所属 KB 是否在允许集内判定（批量取按 **agent 的租户**查）。
-     */
-    /**
-     * 对照 Go {@code restrictTagScopesToAgentScope}（session_qa_helpers.go L62-86）：
-     * 按允许 KB 集过滤 tag 范围；空输入返回空列表（Go 返回 nil）。
-     */
-    /**
-     * resolveKnowledgeBasesFromAgent（Go L335-433）：能力过滤 + "all" 模式下**非共享
-     * agent** 才并入调用方可见的共享 KB（D 批已接线；共享 agent 时显式跳过并入）。
-     */
-    /** resolveChatModelID（Go session_qa_helpers.go L97-141）。 */
-    /** selectChatModelID（Go L246-323）。 */
-    /** 包内装配面的 KB 只读查询（GetKnowledgeBaseByIDOnly）。 */
-    /** resolveRetrievalTenantID（Go L145-163）。 */
-    /**
-     * 作用域能否读该 KB（对照 Go {@code access.KBPermissions.Check}，context.go:79-94，required=Viewer）：
-     * ① API-key 作用域（拒绝路径）→ ② 同租户 → ③ 组织共享 ≥ viewer
-     * （{@code checkTenantKBPermission(...).permits("viewer")} = Go 的 {@code p.shares.Check}）。
-     *
-     * <p><b>唯一未移植</b>的是 Go 的 {@code KBGrantsContextKey}（{@code HasKBGrant} 的精确授予，
-     * 由 KB 传输/导入流注入 ctx；见 {@code access/kb_transfer.go:101}、{@code knowledgebase.go:61-70}）——
-     * 那条不经过 QA 检索路径。共享 agent 情形由"用检索作用域租户比较"覆盖（对应 Go 的
-     * {@code SharedAgentGrantContextKey}）。差异备案见 09 §7.6。</p>
-     */
-    /** buildSearchTargets（Go L441-615）。 */
-    /** applyAgentOverridesToChatManage（Go session_qa_helpers.go L170-289）。 */
-    /** ResolveCustomAgentPrompts（config/agent_prompts.go L10-33）。 */
+    /** {@link #resolveCustomAgentPrompts} 的返回：system / context 两段提示词。 */
     record Prompts(String system, String context) {}
 
     /**
-     * 对照 Go {@code types.CustomAgent.IsAgentMode}（internal/types/custom_agent.go
-     * L553-556：{@code Config.AgentMode == AgentModeSmartReasoning}）。
+     * agent 是否为 agent-chat 模式：{@code agentMode == "smart-reasoning"}。
      *
-     * <p>⚠️ 2026-09-23 修复：原实现误写成 {@code == "agent"}（Go 侧无此取值），
-     * 导致所有真实 agent（前端/内置/IM 一律写 {@code smart-reasoning}）在
-     * agent-chat 被误判进 RAG 快答分支——实弹 2×2 对拍证据见
-     * known-issues/06-wave-5.md 尾部。</p>
+     * <p>⚠️ 前端/内置/IM 写的都是 {@code smart-reasoning}，判别取值不要改——
+     * 写错会让 agent-chat 被误判进 RAG 快答分支。</p>
      */
     static boolean isAgentMode(ObjectNode c) {
         return "smart-reasoning".equals(c.path("agentMode").asText(""));

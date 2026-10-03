@@ -39,8 +39,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * embed 渠道 HTTP 层（对照 Go internal/handler/embed_channel.go 全文 847 行 +
- * internal/router/routes_agent.go 的管理面/公开面注册）。
+ * embed 渠道 HTTP 层（管理面/公开面路由）。
  *
  * <p><b>管理面</b>（JWT + RBAC + API-Key manage_channels 门）：POST/GET
  * /agents/:id/embed-channels、GET/PUT/DELETE /embed-channels/:channel_id、
@@ -50,7 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
  * suggested-questions、chunks/:chunk_id、sessions(POST)、messages/:sid/load、
  * sessions/:sid/stop、suggestions GET/POST、suggestion-events、events（webhook 中继）、
  * mcp-oauth authorize-url/status、mcp-oauth-resolutions(+cancel)、tool-approvals。
- * 委托面直接调用既有控制器方法（对照 Go 的 handler 委托），确保字节契约同源。</p>
+ * 委托面直接调用既有控制器方法，确保字节契约同源。</p>
  *
  * <p><b>W5d 收口（2026-09-21）</b>：{@code POST /embed/:cid/knowledge-chat/:sid} 与
  * {@code POST /embed/:cid/agent-chat/:sid}（patchEmbedChatPayload + 委托
@@ -59,7 +58,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <h2>响应形态</h2>
  * <ul>
- *   <li>管理面响应是 gin.H map → 键<b>字母序</b>（TreeMap 构建）；create 是 201；</li>
+ *   <li>管理面响应键<b>字母序</b>（TreeMap 构建）；create 是 201；</li>
  *   <li>公开面 envelope {@code {"data":…,"success":true}}；错误是纯字符串
  *       {@code {"error":"…"}}（webhook 中继/签名/白名单族）或 AppError 信封
  *       （suggestion/MCP 委托面沿用各自控制器的异常）。</li>
@@ -82,13 +81,13 @@ static final ObjectMapper MAPPER = new ObjectMapper()
 final com.ragagent.session.controller.KnowledgeQaController knowledgeQaController;
 final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
 
-    /** 管理面协作者（对照 Go 管理段）。 */
+    /** 管理面协作者。 */
     final EmbedChannelMgmtOps mgmtOps;
 
-    /** 公开面协作者（对照 Go 公开段）。 */
+    /** 公开面协作者。 */
     final EmbedChannelPublicOps publicOps;
 
-    /** 委托协作者（对照 Go W5d/会话/建议/MCP 段）。 */
+    /** 委托协作者（chat 委托/会话/建议/MCP 段）。 */
     final EmbedChannelDelegateOps delegateOps;
 
     public EmbedChannelController(EmbedChannelService service,
@@ -116,7 +115,7 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
         this.delegateOps = new EmbedChannelDelegateOps(this);
     }
 
-    // ═══════════════════ 请求体（对照 Go embedChannelRequest） ═══════════════════
+    // ═══════════════════ 请求体 ═══════════════════
 
     record EmbedChannelRequest( String name, Boolean enabled, JsonNode allowedOrigins, String welcomeMessage, Integer rateLimitPerMinute, Integer rateLimitPerDay, String primaryColor, String pageTitle, String headerTitleMode, Boolean showSuggestedQuestions, Boolean showThinking, String widgetPosition, Boolean allowWebSearch, Boolean allowFileUpload, String defaultLocale, String webhookUrl, String webhookSecret, String agentId, String launcherIcon) {
     }
@@ -300,10 +299,10 @@ final com.ragagent.storage.fileserve.FileProxyService fileProxyService;
         return delegateOps.toolApprovals(sessionId, pendingId, rawBody);
     }
 
-    // ═══════════════════ ensureEmbedSession（对照 L650-704） ═══════════════════
+    // ═══════════════════ ensureSession ═══════════════════
 
     /**
-     * 对照 ensureEmbedSession（L650-704）：失败直接抛 {@link PlainErrorException}
+     * 会话门：失败直接抛 {@link PlainErrorException}
      * （全局处理器渲染纯字符串错误信封）；成功时上下文已改写为 embed_session 主体。
      */
 void ensureSession(String sessionId) {
@@ -332,14 +331,14 @@ void ensureSession(String sessionId) {
             try {
                 sessionRepository.setOwnerId(tenantId, sessionId, owner);
             } catch (RuntimeException e) {
-                // 对照 Go：Warnf 后继续
+                // 失败仅记 warn 后继续
             }
         }
         String sig = trim(request0().getHeader("X-Embed-Session"));
         if (!EmbedTokens.verifyHandle(ch, sessionId, sig)) {
             throw new PlainErrorException(403, "session signature invalid");
         }
-        // X-Embed-Visitor：合法时挂到上下文（对照 ValidateEmbedVisitorID）
+        // X-Embed-Visitor：合法时挂到上下文
         String visitor = trim(request0().getHeader("X-Embed-Visitor"));
         if (!visitor.isEmpty() && !validVisitor(visitor)) {
             throw new PlainErrorException(400, "invalid embed visitor id");
@@ -352,14 +351,14 @@ void ensureSession(String sessionId) {
         if (!visitor.isEmpty()) {
             com.ragagent.common.context.TenantContext.setEmbedVisitorId(visitor);
         }
-        // 对照 storageurl.WithForcedHandleMode：embed 访客恒收 resource:// 句柄
+        // embed 访客恒收 resource:// 句柄
         StorageUrlContext.force();
     }
 
     /**
      * 渠道关闭推荐问题 → 200 裸对象 {@code {questions, status, suppressionReason}}：
      * 与委托路径（{@code MessageSuggestionController} 返回裸 {@code MessageSuggestionSet}）同形，
-     * 键名取该实体的字段名（§2.1：不再包 data/success 信封）。
+     * 键名取该实体的字段名（不包 data/success 信封）。
      */
     ResponseEntity<Object> suppressedIfChannelOff() {
         EmbedChannelEntity ch = channel(request0());
@@ -373,7 +372,7 @@ void ensureSession(String sessionId) {
         return null;
     }
 
-    /** 对照 types.ValidateEmbedVisitorID：非空、≤128、无控制字符。 */
+    /** 访客 ID 校验：非空、≤128、无控制字符。 */
     private static boolean validVisitor(String id) {
         if (id.isEmpty() || id.length() > 128) {
             return false;
@@ -390,18 +389,18 @@ void ensureSession(String sessionId) {
     // ═══════════════════ 响应组构件 ═══════════════════
 
     /**
-     * 对照 embedChannelResponse（L798-828）：gin.H = 字母序。publishToken 非空才带键。
+     * 渠道行视图：键字母序。publishToken 非空才带键。
      */
     static Map<String, Object> row(EmbedChannelEntity ch, boolean withPublishToken) {
         return row(ch, ch.getPublishToken() == null ? "" : ch.getPublishToken(), withPublishToken);
     }
 
     /**
-     * 渠道行视图（§14.9m E1 换锚后：键名＝Java 实体字段名、无 {@code {data,success}} 信封）。
+     * 渠道行视图（键名＝实体字段名、无 {@code {data,success}} 信封）。
      *
      * <p>唯一的**条件键**是 {@code publishToken}：管理详情/创建/轮换带它、列表行不带——
      * 这是**授权边界**（列表里泄漏 publish token 等于把渠道会话签发权发给任何读列表的人），
-     * 不是 §1.6 说的那种"有时出现有时消失"的数据条件键，故按 Go 行为刻意保留。</p>
+     * 不是"有时出现有时消失"的数据条件键，故刻意保留。</p>
      */
     static Map<String, Object> row(EmbedChannelEntity ch, String token) {
         return row(ch, token, true);
@@ -438,7 +437,7 @@ void ensureSession(String sessionId) {
         return m;
     }
 
-    /** 对照 ch.AllowedOriginsList()：nil → JSON null，非 nil → 数组（列表行用）。 */
+    /** allowed_origins 列值：空 → JSON null，非空 → 数组（列表行用）。 */
     private static Object originsJson(List<String> origins) {
         return origins.isEmpty() ? null : origins;
     }
@@ -458,7 +457,7 @@ void ensureSession(String sessionId) {
         return ResponseEntity.status(status).body(body);
     }
 
-    /** 对照 writeEmbedMgmtError 的分派（纯字符串错误信封）。 */
+    /** 管理面错误的分派（纯字符串错误信封）。 */
     static PlainErrorException writeMgmtError(EmbedError e) {
         return switch (e.kind) {
             case CHANNEL_NOT_FOUND -> new PlainErrorException(404, "embed channel not found");
@@ -483,7 +482,7 @@ void ensureSession(String sessionId) {
         return entity;
     }
 
-    /** MockMvc/Servlet 通用取当前请求（对照 gin c）。 */
+    /** 取当前 HTTP 请求（MockMvc/Servlet 通用）。 */
     static jakarta.servlet.http.HttpServletRequest request0() {
         var attrs = org.springframework.web.context.request.RequestContextHolder
                 .currentRequestAttributes();
@@ -491,7 +490,7 @@ void ensureSession(String sessionId) {
     }
 
     /**
-     * 对照 c.ShouldBindJSON(&req)：空 body → "EOF"，坏 JSON → Go 措辞（GoJsonBindError）。
+     * 请求体绑定：空 body → 400 "EOF"，坏 JSON → 解析器原文措辞（{@link GoJsonBindError}）。
      */
     static EmbedChannelRequest bind(String rawBody) {
         if (rawBody == null || rawBody.isEmpty()) {
@@ -506,14 +505,14 @@ void ensureSession(String sessionId) {
     }
 
     /**
-     * allowed_origins 的列值。create 路径：缺键（null 节点）按 Go 的 json.Marshal(nil)="null"
-     * 处理（但 handler 校验会先拒掉缺键/空数组，实际到不了 service）；存在则原样文本。
+     * allowed_origins 的列值。create 路径：缺键（null 节点）落库为字符串 "null"
+     * （但 handler 校验会先拒掉缺键/空数组，实际到不了 service）；存在则原样文本。
      */
     static String allowedOriginsColumn(JsonNode node) {
         return node == null ? "null" : node.toString();
     }
 
-    /** JsonNode → List&lt;String&gt;（校验入口）。非数组/元素非字符串在 Go 是 bind 错误，这里容忍为列表。 */
+    /** JsonNode → List&lt;String&gt;（校验入口）。非数组 → 空列表，非字符串元素按空串。 */
     static List<String> stringList(JsonNode node) {
         List<String> out = new ArrayList<>();
         if (node == null) {

@@ -6,8 +6,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * RFC 9728 {@code /.well-known/oauth-protected-resource} 的响应
- * （对照 mcp-go {@code transport.OAuthProtectedResource}，oauth.go:492-497）。
+ * RFC 9728 {@code /.well-known/oauth-protected-resource} 的响应。
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record OAuthProtectedResource(

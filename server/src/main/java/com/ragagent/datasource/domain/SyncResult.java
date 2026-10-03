@@ -8,13 +8,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 一次同步的成果汇总（对照 Go {@code types.SyncResult}，
- * internal/types/datasource.go L417-446）。
+ * 一次同步的成果汇总。
  *
  * <p>它落 {@code data_sources.last_sync_result} 与 {@code sync_logs.result}
  * 两个 jsonb 列。</p>
  *
- * <h2>Go 实录（{@code DataSourceJsonTest} 逐字节钉住）</h2>
+ * <h2>JSON 形状（{@code DataSourceJsonTest} 逐字节钉住）</h2>
  * <pre>
  *   SyncResult{} → {"total":0,"created":0,"updated":0,"deleted":0,"skipped":0,"failed":0}
  *   SyncResult(全字段) →
@@ -24,12 +23,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *    "next_cursor":{"last_sync_time":"0001-01-01T00:00:00Z","connector_cursor":null,
  *                   "last_schema_hash":"h"}}
  * </pre>
- * <p>§1.6：九个键**全部恒输出**（键名＝字段名）——{@code deletionFailed} 零值写 0、
- * {@code errors} 写 {@code null}（nil 与空切片同形）、{@code nextCursor} 写 {@code null}。
- * 旧 Go 里这三个 omitempty 的处置各不相同（NON_DEFAULT / NON_EMPTY / NON_NULL），
- * 本仓统一为"显式 null / 零值照写"。</p>
+ * <p>九个键**全部恒输出**（键名＝字段名）——{@code deletionFailed} 零值写 0、
+ * {@code errors} 写 {@code null}（null 与空列表同形）、{@code nextCursor} 写 {@code null}。
+ * 统一口径是"显式 null / 零值照写"。</p>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>持久化语义</h2>
  * <ol>
  *   <li><b>钩子/软删除/自动时间戳/唯一索引/关联预加载/默认排序</b>：全无——
  *       本类型不落表，只作为两列 jsonb 的载荷。</li>
@@ -56,14 +54,14 @@ public class SyncResult {
 
     /**
      * 删除失败（{@code failed} 的子集）。因为已经越过连接器游标，
-     * 通常只有下一次全量同步才会重试它们。§1.6：0 也恒输出。
+     * 通常只有下一次全量同步才会重试它们。0 也恒输出。
      */
     private int deletionFailed;
 
-    /** 逐条失败样本（有上限），显示在同步日志 UI 里。§1.6：nil 写 {@code null}。 */
+    /** 逐条失败样本（有上限），显示在同步日志 UI 里。{@code null} 写 {@code null}。 */
     private List<SyncItemError> errors;
 
-    /** 供下次增量同步用的新游标。§1.6：nil 写 {@code null}。 */
+    /** 供下次增量同步用的新游标。{@code null} 写 {@code null}。 */
     private SyncCursor nextCursor;
 
     public int getTotal() { return total; }
@@ -94,7 +92,7 @@ public class SyncResult {
     public void setNextCursor(SyncCursor v) { nextCursor = v; }
 
     /**
-     * 对照 Go {@code SyncResult.ToJSON}。
+     * 序列化成写进 jsonb 列的 JSON。
      *
      * @return 写进 jsonb 列的 JSON；接收者为 null 时回 {@code null}
      */
@@ -103,10 +101,10 @@ public class SyncResult {
     }
 
     /**
-     * 对照 Go 的 {@code json.Unmarshal(d.LastSyncResult, &result)}。
+     * 从 jsonb 列反序列化。
      *
-     * <p>两态与 Go 一致：SQL NULL（{@code node == null}）→ {@code len == 0} 短路回
-     * {@code null}；字面量 {@code null}（{@code NullNode}）→ 零值对象。</p>
+     * <p>两态：SQL NULL（{@code node == null}）→ 回 {@code null}；
+     * 字面量 {@code null}（{@code NullNode}）→ 零值对象。</p>
      */
     public static SyncResult fromJson(JsonNode node) {
         if (node == null) {

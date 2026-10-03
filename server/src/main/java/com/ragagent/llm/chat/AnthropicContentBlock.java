@@ -6,17 +6,15 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Anthropic content block（对照 Go chat.anthropicContentBlock，
- * internal/models/chat/anthropic.go:33-42）。
+ * Anthropic content block。
  *
- * <p><b>字段序 = Go 声明序</b>，序列化时 {@code type} 恒输出，其余按各自 omitempty 语义：</p>
+ * <p><b>JSON 字段序 = 声明序</b>，序列化时 {@code type} 恒输出，其余按各自省略规则：</p>
  * <ul>
  *   <li>{@code text} / {@code id} / {@code name} / {@code tool_use_id}：空串省略 → NON_EMPTY；</li>
- *   <li>{@code cache_control}：指针，nil 省略 → NON_NULL；</li>
- *   <li>{@code input}：Go 是 {@code json.RawMessage}，len==0 才省略。<b>空对象 {@code {}} 必须照发</b>
- *       （模型显式要一个无参工具调用），故这里用 NON_NULL 而非 NON_EMPTY；</li>
- *   <li>{@code content}：Go 是 {@code any}，只有 nil 省略，<b>空串照发</b>
- *       （anthropic_tools_test 断言 {@code "tool_use_id":"b","content":""}）→ NON_NULL。</li>
+ *   <li>{@code cache_control}：null 省略 → NON_NULL；</li>
+ *   <li>{@code input}：仅 null 省略 → NON_NULL（<b>空对象 {@code {}} 必须照发</b>，
+ *       模型显式要一个无参工具调用）；</li>
+ *   <li>{@code content}：仅 null 省略 → NON_NULL（<b>空串照发</b>）。</li>
  * </ul>
  */
 @JsonPropertyOrder({"type", "text", "cache_control", "id", "name", "input", "tool_use_id", "content"})
@@ -46,7 +44,7 @@ public class AnthropicContentBlock {
     @JsonProperty("tool_use_id")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String toolUseId;
-    /** tool_result 的内容（Go 的 {@code any}，实际只用字符串） */
+    /** tool_result 的内容（实际只用字符串） */
     @JsonProperty("content")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Object content;
@@ -54,7 +52,7 @@ public class AnthropicContentBlock {
     public AnthropicContentBlock() {
     }
 
-    /** 对照 Go 的 {@code anthropicContentBlock{Type: "text", Text: ...}}。 */
+    /** 构造 type=text 的 content block。 */
     public static AnthropicContentBlock text(String text) {
         AnthropicContentBlock block = new AnthropicContentBlock();
         block.type = TYPE_TEXT;
@@ -62,7 +60,7 @@ public class AnthropicContentBlock {
         return block;
     }
 
-    /** 对照 Go 的 {@code anthropicContentBlock{Type: "tool_use", ID, Name, Input}}。 */
+    /** 构造 type=tool_use 的 content block。 */
     public static AnthropicContentBlock toolUse(String id, String name, JsonNode input) {
         AnthropicContentBlock block = new AnthropicContentBlock();
         block.type = TYPE_TOOL_USE;
@@ -72,7 +70,7 @@ public class AnthropicContentBlock {
         return block;
     }
 
-    /** 对照 Go 的 {@code anthropicContentBlock{Type: "tool_result", ToolUseID, Content}}。 */
+    /** 构造 type=tool_result 的 content block。 */
     public static AnthropicContentBlock toolResult(String toolUseId, Object content) {
         AnthropicContentBlock block = new AnthropicContentBlock();
         block.type = TYPE_TOOL_RESULT;
@@ -98,7 +96,7 @@ public class AnthropicContentBlock {
     public Object getContent() { return content; }
     public void setContent(Object v) { content = v; }
 
-    /** 请求方向：把 {@link #content} 当字符串读（Go 里 tool_result 只塞 string）。 */
+    /** 请求方向：把 {@link #content} 当字符串读（tool_result 只装 string）。 */
     public String contentText() {
         return content instanceof String s ? s : "";
     }

@@ -18,14 +18,14 @@ import com.ragagent.session.domain.SessionListItem;
 import org.junit.jupiter.api.Test;
 
 /**
- * 会话响应体的 JSON **键序与键数**（§14.9l S1 换锚后：键名＝Java 字段名、键序＝声明序）。
+ * 会话响应体的 JSON **键序与键数**（键名＝Java 字段名、键序＝声明序）。
  *
  * <p>两者都是裸响应体：GET /sessions/{id} 直接返回 {@link Session}，
  * GET /sessions 的 {@code items} 数组元素是 {@link SessionListItem}。</p>
  *
  * <h2>为什么专门钉 SessionListItem 的键序</h2>
- * <p>Go 用**结构体内嵌 + 外层同名字段遮蔽**：{@code SessionListItem} 自己又声明了一个
- * {@code IMPlatform}，把内嵌 {@code Session} 里那个（{@code gorm:"-"}）盖掉。
+ * <p>线格式里 {@code SessionListItem} 只有一个 {@code imPlatform}（外层字段
+ * 盖掉 {@code Session} 里的同名字段）。
  * Java 侧若图省事用继承或 {@code @JsonUnwrapped}，两个 {@code imPlatform} 会撞成重复键，
  * 或键序由 Jackson 内部规则决定——所以平铺 + 声明序，本测试逐键核对。</p>
  *
@@ -34,9 +34,9 @@ import org.junit.jupiter.api.Test;
  *   <li>键名正则最初写成 {@code "([a-z_]+)"}，只匹配下划线命名——Jackson 因字段名带
  *       {@code is} 前缀而多吐出的驼峰重复键（{@code "pinned"}）**整个被正则过滤掉**，
  *       测试全绿而响应是错的。现在用驼峰感知的模式。</li>
- *   <li>同一个坑在**契约测试的掩码正则**里也有一份：`"([a-z_]+)":"<uuid>"` 在键名换锚后
- *       匹配不到，时间戳/UUID 不再被掩码、两侧差异直接炸出来。S1 已把 session 域五个
- *       契约测试的掩码键模式一并改成大小写感知（改键名的批次都要检查这一处）。</li>
+ *   <li>同一个坑在**契约测试的掩码正则**里也有一份：`"([a-z_]+)":"<uuid>"` 在键名换成
+ *       驼峰后匹配不到，时间戳/UUID 不再被掩码。session 域各契约测试的掩码键模式
+ *       必须保持大小写感知（改键名时都要检查这一处）。</li>
  * </ol>
  */
 class SessionJsonContractTest {
@@ -102,7 +102,7 @@ class SessionJsonContractTest {
     @Test
     void sessionEmitsNoDuplicateBooleanKeys() {
         // 字段曾叫 isPinned：Jackson 的字段隐式名是 "isPinned"、getter 的隐式名是 "pinned"，
-        // 两者对不上就会各生成一个属性。换锚后线格式键是 "pinned"（§1.24：不带 is 前缀）。
+        // 两者对不上就会各生成一个属性。线格式键是 "pinned"（§1.24：不带 is 前缀）。
         Session s = new Session();
         s.setId("s1");
         s.setTenantId(10002L);
@@ -150,7 +150,7 @@ class SessionJsonContractTest {
     }
 
     /**
-     * 换锚后**没有条件键**：一个只填了 id/tenantId 的列表行也输出全部 22 个键
+     * **没有条件键**：一个只填了 id/tenantId 的列表行也输出全部 22 个键
      * （空串、{@code null}、空数组各按 §1.5/§1.6 显式写出）。
      */
     @Test

@@ -11,8 +11,7 @@ import java.time.Duration;
 import com.ragagent.mcp.protocol.McpHttp;
 
 /**
- * OAuth 流程的出站 HTTP（对照 Go {@code secutils.NewSSRFSafeHTTPClient(httpCfg)} 在
- * {@code newHandler} 里的用法：{@code httpCfg.Timeout = 30s}）。
+ * OAuth 流程的出站 HTTP（统一 30s 超时）。
  *
  * <p><b>所有</b> OAuth 出站请求（元数据发现、动态客户端注册、code 交换、刷新）都必须经过
  * 这里——底层复用 {@link McpHttp#send}，即"发送前校验 + 每一跳重定向再校验 + 跨域剥凭据头"。
@@ -35,7 +34,7 @@ final class OAuthHttp {
     record Response(int status, String body) {
     }
 
-    /** GET {@code url}；{@code accept: application/json} 与协议版本头按 Go 设置。 */
+    /** GET {@code url}；带 {@code accept: application/json} 与协议版本头。 */
     static Response get(String url, Duration timeout) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
                 .timeout(timeout)

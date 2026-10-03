@@ -26,10 +26,10 @@ import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.agent.modelcontext.StreamDecoder;
 
 /**
- * CHAT_COMPLETION_STREAM 阶段插件（对照 Go chat_pipeline/chat_completion_stream.go）：
+ * CHAT_COMPLETION_STREAM 阶段插件：
  * 流式生成——组消息 → 建流 → 消费流 chunk 并直接 emit 事件。
  *
- * <h2>chunk → 事件路由（实录组 stream ×6 钉住）</h2>
+ * <h2>chunk → 事件路由</h2>
  * <ul>
  *   <li>ERROR chunk → EventError（stage=chat_completion_stream）后继续消费；</li>
  *   <li>THINKING chunk → 经独立 StreamDecoder 馈给 EventAgentThought（同一 thinkingID）；
@@ -38,10 +38,10 @@ import com.ragagent.agent.modelcontext.StreamDecoder;
  *       done=true 后后续 ANSWER 重复完成被丢弃（complete 之后不得再出答案）。</li>
  * </ul>
  *
- * <p>流终止约定（4.6b 标准）：Java BlockingQueue 无 channel 关闭——消费在
- * 「done=true 且非 THINKING」的元素处理完处收束（4.0 生产者的终态元素恒
+ * <p>流终止约定：BlockingQueue 无关闭语义——消费在
+ * 「done=true 且非 THINKING」的元素处理完处收束（生产者的终态元素恒
  * ANSWER/ERROR+done；THINKING+done 是生产者中途补的 thinking-done 标记，其后仍有
- * 分片，照 Go 继续消费）。收束路径 flushDecoders + closeThinking（悬挂句柄尾巴不能丢）。</p>
+ * 分片，须继续消费）。收束路径 flushDecoders + closeThinking（悬挂句柄尾巴不能丢）。</p>
  */
 public final class PluginChatCompletionStream implements Plugin {
 
@@ -123,7 +123,7 @@ public final class PluginChatCompletionStream implements Plugin {
         ms.put("session_id", chatManage.getSessionId());
         PipelineLog.info("Stream", "model_started", ms);
 
-        // 消费线程（对照 goroutine；虚拟线程）
+        // 消费线程（虚拟线程）
         final ChatManage cm = chatManage;
         final BlockingQueue<StreamResponse> queue = responseQueue;
         final com.ragagent.agent.modelcontext.Registry modelContext = assembly.registry();
@@ -132,7 +132,7 @@ public final class PluginChatCompletionStream implements Plugin {
         return next.next();
     }
 
-    /** 流消费循环（对照 OnEvent 的 goroutine 体，逐行对应）。 */
+    /** 流消费循环（独立虚拟线程上执行）。 */
     private static void consumeStream(ChatManage chatManage, EventBusInterface eventBus,
                                       com.ragagent.agent.modelcontext.Registry modelContext,
                                       BlockingQueue<StreamResponse> responseQueue) {
@@ -146,7 +146,7 @@ public final class PluginChatCompletionStream implements Plugin {
         while (true) {
             StreamResponse response = takeQuietly(responseQueue);
             if (response == null) {
-                // 对照 channel close / ctx.Done 收束：flush + closeThinking
+                // 队列已关闭：流结束，flush + closeThinking
                 flushDecoders(eventBus, chatManage, thinkingID, answerID, thinkingDecoder, answerDecoder);
                 closeThinking(eventBus, chatManage, thinkingID, thinkingOpen);
                 Map<String, Object> f = new LinkedHashMap<>();
@@ -172,10 +172,10 @@ public final class PluginChatCompletionStream implements Plugin {
                 try {
                     eventBus.emit(errEvt);
                 } catch (RuntimeException ignored) {
-                    // 对照 `_ = eventBus.Emit(...)`
+                    // 发送失败忽略
                 }
                 if (response.isDone()) {
-                    // ERROR+done 是终态元素：对照 channel close 收束
+                    // ERROR+done 是终态元素：收束并退出
                     flushDecoders(eventBus, chatManage, thinkingID, answerID, thinkingDecoder, answerDecoder);
                     closeThinking(eventBus, chatManage, thinkingID, thinkingOpen);
                     return;
@@ -206,7 +206,7 @@ public final class PluginChatCompletionStream implements Plugin {
                 if (response.isDone()) {
                     closeThinking(eventBus, chatManage, thinkingID, thinkingOpen);
                 }
-                // THINKING+done 是生产者中途补的 thinking-done 标记，其后仍有分片，照 Go 继续
+                // THINKING+done 是生产者中途补的 thinking-done 标记，其后仍有分片，继续消费
                 continue;
             }
 
@@ -234,7 +234,7 @@ public final class PluginChatCompletionStream implements Plugin {
                 } catch (RuntimeException ignored) {
                 }
                 if (response.isDone()) {
-                    // ANSWER+done 是终态元素：对照 channel close（flush 尾巴）
+                    // ANSWER+done 是终态元素：flush 尾巴后收束
                     flushDecoders(eventBus, chatManage, thinkingID, answerID, thinkingDecoder, answerDecoder);
                     closeThinking(eventBus, chatManage, thinkingID, thinkingOpen);
                     return;
@@ -243,7 +243,7 @@ public final class PluginChatCompletionStream implements Plugin {
         }
     }
 
-    /** 阻塞取队列元素（channel 读的等价物；2 分钟无新 chunk 视为收束）。 */
+    /** 阻塞取队列元素（2 分钟无新 chunk 视为收束）。 */
     private static StreamResponse takeQuietly(BlockingQueue<StreamResponse> queue) {
         try {
             return queue.poll(120, TimeUnit.SECONDS);
@@ -272,7 +272,7 @@ public final class PluginChatCompletionStream implements Plugin {
     }
 
     /**
-     * 对照 flushDecoders：流解码器扣留的句柄尾巴在此放出（引用跨分片桥接）；
+     * 流解码器扣留的句柄尾巴在此放出（引用跨分片桥接）；
      * 正常收束与取消路径都必须调用。
      */
     private static void flushDecoders(EventBusInterface eventBus, ChatManage chatManage,

@@ -12,9 +12,8 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * model-context registry 的持久资源半边（对照 Go internal/modelcontext/resources.go，
- * 全文移植）：为存储资源引用分配请求局部 res://NNNN 句柄，并在应用代码消费模型
- * 输出之前还原它们。
+ * model-context registry 的持久资源半边：为存储资源引用分配请求局部 res://NNNN 句柄，
+ * 并在应用代码消费模型输出之前还原它们。
  */
 final class ResourceRegistry {
 
@@ -42,7 +41,7 @@ final class ResourceRegistry {
         this.table = new HandleStore<>("res://", 4, 1);
     }
 
-    /** 用紧凑、稳定句柄替换存储引用（对照 EncodeText）。 */
+    /** 用紧凑、稳定句柄替换存储引用。 */
     String encodeText(String value) {
         if (value == null || value.isEmpty()) {
             return value;
@@ -51,7 +50,7 @@ final class ResourceRegistry {
     }
 
     /**
-     * 还原 registry 当前已知的每个句柄（对照 DecodeText）。按句柄最长优先替换、
+     * 还原 registry 当前已知的每个句柄。按句柄最长优先替换、
      * 不做词边界检查——普通子串行为是承重设计：Markdown 里紧邻标点的句柄。
      */
     String decodeText(String value) {
@@ -67,7 +66,7 @@ final class ResourceRegistry {
     }
 
     /**
-     * 已知句柄全部还原后移除 handle 形状 token（对照 StripOrphanHandles）。
+     * 已知句柄全部还原后移除 handle 形状 token。
      * 只用于模型输出；工具参数必须保留未知句柄，好让 modelcontext 拒绝调用。
      */
     String stripOrphanHandles(String value) {
@@ -77,7 +76,7 @@ final class ResourceRegistry {
         return RESOURCE_HANDLE_SHAPE.matcher(value).replaceAll("");
     }
 
-    /** 文本引用压缩过的消息副本（对照 EncodeMessages）。二进制/图片内容刻意不动。 */
+    /** 文本引用压缩过的消息副本。二进制/图片内容刻意不动。 */
     List<ChatMessage> encodeMessages(List<ChatMessage> messages) {
         if (messages == null || messages.isEmpty()) {
             return messages;
@@ -111,7 +110,7 @@ final class ResourceRegistry {
         return encoded;
     }
 
-    /** 工具调用 JSON 参数里的句柄还原（对照 DecodeToolCalls）。 */
+    /** 工具调用 JSON 参数里的句柄还原。 */
     void decodeToolCalls(List<ToolCall> toolCalls) {
         for (ToolCall call : toolCalls) {
             call.getFunction().setArguments(decodeText(call.getFunction().getArguments()));
@@ -119,8 +118,8 @@ final class ResourceRegistry {
     }
 
     /**
-     * 已解码字符串里 registry 无法解析的 distinct handle 形状 token
-     * （对照 OrphanHandles）。非空结果 = 模型虚构了引用或用户文本撞了句柄语法。
+     * 已解码字符串里 registry 无法解析的 distinct handle 形状 token。
+     * 非空结果 = 模型虚构了引用或用户文本撞了句柄语法。
      */
     List<String> orphanHandles(String decoded) {
         if (decoded == null || decoded.isEmpty()) {
@@ -142,7 +141,7 @@ final class ResourceRegistry {
         return orphans;
     }
 
-    /** 已分配句柄清单（流式 holdLen 用；对照 handles()）。 */
+    /** 已分配句柄清单（流式 holdLen 用）。 */
     List<String> handles() {
         List<HandleStore.Pair<Object>> pairs = table.pairs();
         List<String> handles = new ArrayList<>(pairs.size());

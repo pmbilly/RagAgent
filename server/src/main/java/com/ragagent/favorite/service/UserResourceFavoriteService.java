@@ -9,18 +9,16 @@ import com.ragagent.favorite.mapper.UserResourceFavoriteMapper;
 import org.springframework.stereotype.Service;
 
 /**
- * 收藏 service（对照 Go {@code internal/application/service/user_resource_favorite.go}）。
+ * 收藏 service。
  *
- * <p>Go 侧刻意保持薄：收藏是非业务动作，不进审计、无跨聚合副作用；
- * service 只做输入校验（类型白名单 + 非空 id），错误串逐字对照 Go 的
- * sentinel error：</p>
+ * <p>刻意保持薄：收藏是非业务动作，不进审计、无跨聚合副作用；
+ * service 只做输入校验（类型白名单 + 非空 id），错误文案固定为：</p>
  * <pre>
  *   ErrFavoriteInvalidType → "invalid favorite resource type"
  *   ErrFavoriteEmptyID     → "favorite resource id is required"
  * </pre>
- * <p>Handler 把这两类映射为 400（信封 code 1000），其余 500。仓库层错误在
- * Java 侧直接抛（DataAccessException），由全局兜底成 500——与 Go 的
- * NewInternalServerError(err.Error()) 语义一致。</p>
+ * <p>这两类校验失败映射为 400，其余错误 500。仓库层错误直接抛
+ * （DataAccessException），由全局兜底成 500。</p>
  */
 @Service
 public class UserResourceFavoriteService {
@@ -31,13 +29,13 @@ public class UserResourceFavoriteService {
         this.mapper = mapper;
     }
 
-    /** 对照 Go List：类型必须命中白名单，否则 400。 */
+    /** 类型必须命中白名单，否则 400。 */
     public List<UserResourceFavorite> list(String userId, Long tenantId, String resourceType) {
         requireValidType(resourceType);
         return mapper.list(userId, tenantId, resourceType);
     }
 
-    /** 对照 Go Add：先校验再 upsert（已存在则幂等跳过，不报错）。 */
+    /** 先校验再插入（已存在则幂等跳过，不报错）。 */
     public void add(String userId, Long tenantId, String resourceType, String resourceId) {
         requireValidType(resourceType);
         requireNonEmptyId(resourceId);
@@ -54,8 +52,8 @@ public class UserResourceFavoriteService {
     }
 
     /**
-     * 对照 Go Remove：删不存在的行不报错（repo 返回 false，Handler 照样 200
-     * ——golden fav-remove-ghost.json 已钉：幽灵删除也是 {@code {"success":true}}）。
+     * 删不存在的行不报错（repo 返回 0）——幽灵删除同样按成功处理，接口返回 204
+     * （契约金片钉住）。
      */
     public void remove(String userId, Long tenantId, String resourceType, String resourceId) {
         requireValidType(resourceType);

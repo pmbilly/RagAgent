@@ -4,10 +4,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Agent 思考流式数据（对照 Go {@code event.AgentThoughtData}，internal/event/event_data.go:155-159）。
- * emit 点：think.go:287（主思考流）/ think.go:385（thinking tool 流），见包注释 emit 表 #1/#5。
+ * Agent 思考流式数据。
+ * emit 点：ThinkPhase（主思考流 / thinking tool 流），见包注释 emit 表 #1/#5。
  *
- * <p>三字段全无 omitempty：零值恒输出 {@code {"content":"","iteration":0,"done":false}}。
+ * <p>三字段全部恒输出：零值输出 {@code {"content":"","iteration":0,"done":false}}。
  * 同一 id 的分片在客户端重组（思考流整段共用一个 generateEventID("thinking")）。</p>
  */
 @JsonPropertyOrder({"content", "iteration", "done"})

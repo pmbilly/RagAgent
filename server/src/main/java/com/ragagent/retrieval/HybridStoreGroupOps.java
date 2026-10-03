@@ -34,7 +34,7 @@ final class HybridStoreGroupOps {
 
     private final TenantStoreOwnership storeOwnership;
 
-    /** RETRIEVE_DRIVER 原始串（B6 批 3 起由调用方注入，本类不读进程环境）。 */
+    /** RETRIEVE_DRIVER 原始串（由调用方注入，本类不读进程环境）。 */
     private final String retrieveDriver;
 
     HybridStoreGroupOps(HybridSearchService service, TenantStoreOwnership storeOwnership,
@@ -46,7 +46,7 @@ final class HybridStoreGroupOps {
 
     /**
      * KB 按 (vectorStoreId, kb.tenantId) 分桶，逐组经工厂解析复合引擎并构建
-     * 基础检索参数。桶序 = KB 首见序（Go 为 map 随机序，本仓确定性备案）。
+     * 基础检索参数。桶序 = KB 首见序（确定序）。
      */
     List<StoreGroup> resolveStoreGroups(KnowledgeBaseSearchFacts primary, List<KnowledgeBaseSearchFacts> kbs,
                                                 SearchParams params, int matchCount) {
@@ -57,8 +57,8 @@ final class HybridStoreGroupOps {
             buckets.computeIfAbsent(sid + ":" + tid, key -> new ArrayList<>()).add(kb);
         }
 
-        // env-store 组的租户有效引擎（Go 从 ctx 的 TenantInfo 取——按当前租户行解析，
-        // 引擎列表为空 = RETRIEVE_DRIVER 未配置 = 检索全关，Go 实测行为）。
+        // env-store 组的租户有效引擎：按当前租户解析；引擎列表为空 =
+        // RETRIEVE_DRIVER 未配置 = 检索全关。
         List<RetrieverEngineParams> tenantEngines =
                 EffectiveEngines.of(service.currentTenant(), retrieveDriver);
 
@@ -86,8 +86,8 @@ final class HybridStoreGroupOps {
     }
 
     /**
-     * 对照 classifyFactoryError（storegroup.go L165-190）：工厂哨兵 → 2200/2201 的
-     * AppError，不向用户泄漏 store UUID（UUID 只进结构化日志，经 sanitizer）。
+     * 工厂哨兵 → 2200/2201 的 AppError，不向用户泄漏 store UUID
+     * （UUID 只进结构化日志，经 sanitizer）。
      */
     static BizException classifyFactoryError(RuntimeException err, long tenantId,
                                                      String storeId) {
@@ -111,8 +111,8 @@ final class HybridStoreGroupOps {
                     break;
             }
         }
-        // 解析超时也报 2201（绑定没问题，重试可能成功）——照 Go 的
-        // DeadlineExceeded 分支；其余错误原样上抛（handler 折 500 原文）。
+        // 解析超时也报 2201（绑定没问题，重试可能成功）；
+        // 其余错误原样上抛（handler 折 500 原文）。
         if (RetrieveEngineException.isCancellation(err)) {
             return vectorStoreUnavailable();
         }

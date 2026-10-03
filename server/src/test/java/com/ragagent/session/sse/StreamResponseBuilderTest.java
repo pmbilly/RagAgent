@@ -18,14 +18,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 /**
  * {@link StreamResponseBuilder} 的逐字节契约测试。
  *
- * <h2>期望值的来源</h2>
- * <p>全部是 <b>Go 实录</b>：把 {@code internal/handler/session/helpers.go} 的
- * {@code buildStreamResponse} / {@code searchResultFromMap} / {@code getString} /
- * {@code getFloat64} 连同 {@code types.StreamResponse} / {@code types.SearchResult}
- * 的定义原样抄进一个独立 Go 程序，喂同样的输入，打印 {@code json.Marshal} 的结果，
- * 再原样抄进下面的字符串常量。</p>
- *
- * <p>这样钉住的不只是"字段有没有"，而是<b>键序</b>与<b>零值取舍</b>——
+ * <h2>期望值钉住的线格式</h2>
+ * <p>钉住的不只是"字段有没有"，而是<b>键序</b>与<b>零值取舍</b>——
  * 正是本项目最容易漂移的两处：</p>
  * <ul>
  *   <li>{@code StreamResponse} / {@code SearchResult} 按 <b>struct 声明序</b>；</li>
@@ -71,9 +65,9 @@ class StreamResponseBuilderTest {
     }
 
     /**
-     * 与 Go 的 {@code searchResultFromMap} 同形的输入——注意故意用<b>乱序</b>的
+     * 与 {@code data.references[]} 线格式同形的输入——注意故意用<b>乱序</b>的
      * {@code LinkedHashMap}，并混入一个不认识的键，验证两件事：
-     * 输出键序与插入序无关（Go 是 map，本来就没有插入序），未知键照旧回显在 {@code data} 里。
+     * 输出键序与插入序无关（按键名排序），未知键照旧回显在 {@code data} 里。
      */
     private static Map<String, Object> redisRoundTrippedRef() {
         Map<String, Object> ref = new LinkedHashMap<>();
@@ -114,7 +108,7 @@ class StreamResponseBuilderTest {
                         + "\"data\":{\"assistant_message_id\":\"msg-1\",\"session_id\":\"sess-1\"}}"));
     }
 
-    /** 非 agent_query 事件即便带了这两个键也<b>不</b>提取（Go 只在 agent_query 分支里取）。 */
+    /** 非 agent_query 事件即便带了这两个键也<b>不</b>提取（只在 agent_query 分支里取）。 */
     @Test
     void doesNotExtractIdsForOtherResponseTypes() throws Exception {
         StreamEvent evt = new StreamEvent("evt-6", ResponseType.ANSWER, "hi", false);
@@ -144,8 +138,8 @@ class StreamResponseBuilderTest {
     }
 
     /**
-     * 元素不是 map → 逐个跳过。结果集是「空但非 nil」的 slice，
-     * Go 的 omitempty 让整个键消失——所以输出与"没有引用"完全一样。
+     * 元素不是 map → 逐个跳过。空列表也让整个键消失——
+     * 所以输出与"没有引用"完全一样。
      */
     @Test
     void skipsNonMapReferenceElementsAndOmitsTheEmptyList() throws Exception {
@@ -171,9 +165,9 @@ class StreamResponseBuilderTest {
     // ── 活路径（不经 Redis）：直接就是 SearchResult 对象 ─────────────────────
 
     /**
-     * 活路径下 {@code data["references"]} 已经是 {@code List<SearchResult>}
-     * （Go 的 {@code []*SearchResult} 分支），<b>不做</b> map 重建——
-     * 于是 {@code match_type} / {@code sub_chunk_id} / 各个 omitempty 字段都保留原值。
+     * 活路径下 {@code data["references"]} 已经是 {@code List<SearchResult>}，
+     * <b>不做</b> map 重建——
+     * 于是 {@code match_type} / {@code sub_chunk_id} / 各个原样透传的字段都保留原值。
      */
     @Test
     void passesThroughLiveSearchResultsWithoutRebuilding() throws Exception {
@@ -196,13 +190,13 @@ class StreamResponseBuilderTest {
         assertThat(json).contains("\"matchType\":3");
         assertThat(json).contains("\"subChunkId\":[\"sub-1\"]");
         assertThat(json).contains("\"chunkMetadata\":{\"questions\":[\"q\"]}");
-        // score 现在是标准 Jackson 写法（Go 序列化层退役后不再折叠成 1）
+        // score 是标准 Jackson 写法（1.0，不折叠成 1）
         assertThat(json).contains("\"score\":1.0,");
         assertThat(json).contains("\"data\":{\"references\":[");
         assertThat(json).contains("\"id\":\"chunk-2\"");
     }
 
-    /** 空 {@code data} → Go 的 omitempty 整键省略（不是输出 {@code "data":{}}）。 */
+    /** 空 {@code data} → 整键省略（不是输出 {@code "data":{}}）。 */
     @Test
     void omitsEmptyDataMap() throws Exception {
         StreamEvent evt = new StreamEvent("evt-8", ResponseType.ANSWER, "x", true);
@@ -212,9 +206,9 @@ class StreamResponseBuilderTest {
                 "{\"id\":\"req-8\",\"response_type\":\"answer\",\"content\":\"x\",\"done\":true}"));
     }
 
-    // ── 与 Go 一致的"不拷贝"语义 ────────────────────────────────────────────
+    // ── "不拷贝"语义 ─────────────────────────────────────────────────────────
 
-    /** Go 是 {@code Data: evt.Data}（同一引用），Java 照抄——下游改写会同时反映到事件上。 */
+    /** {@code data} 与事件是同一引用——下游改写会同时反映到事件上。 */
     @Test
     void sharesTheDataReferenceWithTheEvent() {
         StreamEvent evt = new StreamEvent("evt-8", ResponseType.ANSWER, "x", false);
@@ -241,7 +235,7 @@ class StreamResponseBuilderTest {
     }
 
     /**
-     * {@code setSSEHeaders} 是<b>覆盖</b>语义（对照 Go 的 {@code c.Header}），
+     * {@code setSSEHeaders} 是<b>覆盖</b>语义，
      * 调两次不应出现两个同名头。
      */
     @Test

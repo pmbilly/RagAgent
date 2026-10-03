@@ -14,10 +14,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * Mattermost REST 客户端——对照 Go {@code internal/im/mattermost/client.go} L18-245。
+ * Mattermost REST 客户端。
  *
  * <p>基址 {@code <site_url>/api/v4}，认证 {@code Authorization: Bearer <bot_token>}；
- * 构造期校验照 Go：site_url 必填 + 必须 http(s) + 过 SSRF（白名单提示文案照抄）、
+ * 构造期校验：site_url 必填 + 必须 http(s) + 过 SSRF、
  * bot_token 必填。</p>
  */
 public class MattermostClient {
@@ -25,7 +25,7 @@ public class MattermostClient {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     static final int ERR_BODY_LIMIT = 512;
 
-    /** 对照 Go 的 {@code FileInfo}。 */
+    /** 平台文件元信息。 */
     public record FileInfo(String id, String name, long size) {
     }
 
@@ -74,7 +74,7 @@ public class MattermostClient {
                 .build();
     }
 
-    /** 对照 {@code CreatePost}：403 时给"把机器人加进频道"的提示（照 Go）。 */
+    /** 403 时给"把机器人加进频道"的提示。 */
     public String createPost(String channelId, String rootId, String message) throws Exception {
         Map<String, String> body = new LinkedHashMap<>();
         body.put("channel_id", channelId == null ? "" : channelId);
@@ -102,7 +102,7 @@ public class MattermostClient {
         return id;
     }
 
-    /** 对照 {@code GetPost}：返回 root_id（顶层帖为空串）。 */
+    /** 返回 root_id（顶层帖为空串）。 */
     public String getPostRootId(String postId) throws Exception {
         HttpResponse<byte[]> response = send("GET", baseUrl + "/posts/" + postId, null, false);
         byte[] respBody = body(response);
@@ -113,7 +113,7 @@ public class MattermostClient {
         return MAPPER.readTree(respBody).path("root_id").asText("");
     }
 
-    /** 对照 {@code PatchPostMessage}：PUT /posts/{id}/patch。 */
+    /** PUT /posts/{id}/patch。 */
     public void patchPostMessage(String postId, String message) throws Exception {
         HttpResponse<byte[]> response = send("PUT", baseUrl + "/posts/" + postId + "/patch",
                 MAPPER.writeValueAsBytes(Map.of("message", message == null ? "" : message)), true);
@@ -124,7 +124,7 @@ public class MattermostClient {
         }
     }
 
-    /** 对照 {@code GetFileInfo}。 */
+    /** 取文件元信息。 */
     public FileInfo getFileInfo(String fileId) throws Exception {
         HttpResponse<byte[]> response = send("GET", baseUrl + "/files/" + fileId + "/info",
                 null, false);
@@ -138,7 +138,7 @@ public class MattermostClient {
                 info.path("size").asLong(0));
     }
 
-    /** 对照 {@code GetFileReader}（Java 面向上层返回字节）。 */
+    /** 下载文件内容（向上层返回字节）。 */
     public byte[] getFileBytes(String fileId) throws Exception {
         HttpResponse<byte[]> response = send("GET", baseUrl + "/files/" + fileId, null, false);
         byte[] respBody = body(response);
@@ -169,7 +169,7 @@ public class MattermostClient {
         return response.body() == null ? new byte[0] : response.body();
     }
 
-    /** 对照 {@code truncateForErr}：512 字节上限 + "..."。 */
+    /** 512 字节上限 + "..."。 */
     static String truncateForErr(byte[] raw) {
         String text = new String(raw == null ? new byte[0] : raw, StandardCharsets.UTF_8);
         return text.length() > ERR_BODY_LIMIT ? text.substring(0, ERR_BODY_LIMIT) + "..." : text;

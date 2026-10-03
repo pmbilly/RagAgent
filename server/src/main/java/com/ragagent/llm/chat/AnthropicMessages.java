@@ -12,15 +12,13 @@ import com.ragagent.llm.domain.MessageContentPart;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * 把本模块的消息/工具翻成 Anthropic Messages 的开头形态
- * （对照 Go internal/models/chat/anthropic_tools.go:23-107 的非流式部分）。
+ * 把本模块的消息/工具转成 Anthropic Messages 的请求形态。
  *
- * <p>两条最容易被翻错的纪律：</p>
+ * <p>两条关键纪律：</p>
  * <ol>
  *   <li><b>连续 tool 消息必须合并进同一条 user 消息的 tool_result blocks</b>——
  *       并行工具调用的多个结果属于紧随其后的那一条 user 消息；</li>
- *   <li><b>保留 ID、保留 JSON、保留空 tool 结果</b>（空串照发，
- *       anthropic_tools_test 明确断言）。</li>
+ *   <li><b>保留 ID、保留 JSON、保留空 tool 结果</b>（空串照发）。</li>
  * </ol>
  */
 final class AnthropicMessages {
@@ -30,12 +28,12 @@ final class AnthropicMessages {
     private AnthropicMessages() {
     }
 
-    /** 对照 Go {@code anthropicMessages} 的返回值 {@code (system []string, result []anthropicMessage)}。 */
+    /** system 段与转换后的消息列表。 */
     record Converted(List<String> system, List<AnthropicMessage> messages) {
     }
 
     /**
-     * 对照 Go anthropicToolOptions：工具定义 + tool_choice 映射。
+     * 工具定义 + tool_choice 映射。
      *
      * <p>Anthropic 的 schema 字段叫 {@code input_schema}，且原样透传（不做 OpenAI 那样的
      * 整形）——`$defs`/`$ref`/`oneOf`/`additionalProperties` 全部保留。</p>
@@ -77,7 +75,7 @@ final class AnthropicMessages {
     }
 
     /**
-     * 对照 Go anthropicMessages：拆出 system 段，其余消息转成 Anthropic 形态。
+     * 拆出 system 段，其余消息转成 Anthropic 形态。
      *
      * <p>角色映射：system → 顶层 system；assistant + tool_calls → assistant（text block +
      * tool_use blocks）；tool → user 的 tool_result block（连续 tool 合并）；其余 →
@@ -143,9 +141,8 @@ final class AnthropicMessages {
     }
 
     /**
-     * 对照 Go anthropicMessages 里的 {@code json.RawMessage(call.Function.Arguments)}：
-     * 空串补 {@code {}}；非空则按 JSON 解析（Go 在下一层 json.Marshal 时才发现非法 JSON，
-     * Java 在构造时就解析，故在此抛出与 Go 同前缀的错误）。
+     * 工具调用参数解析：空串补 {@code {}}；非空则按 JSON 解析，
+     * 非法 JSON 在构造时就抛错。
      */
     private static JsonNode parseToolArguments(String arguments) {
         if (arguments == null || arguments.isEmpty()) {
@@ -161,7 +158,7 @@ final class AnthropicMessages {
     }
 
     /**
-     * 对照 Go textFromMultiContent：只取 type=text 且非空白的 part，各自 trim 后用
+     * 只取 type=text 且非空白的 part，各自 trim 后用
      * "\n" 拼接（注意不是空串拼接——这是与 OpenAI 路径不同的地方）。
      */
     static String textFromMultiContent(List<MessageContentPart> parts) {
@@ -181,7 +178,7 @@ final class AnthropicMessages {
         return String.join("\n", textParts);
     }
 
-    /** 对照 Go strings.TrimSpace（Unicode 空白，含   之外的各类空白）。 */
+    /** 去除首尾 Unicode 空白（不含   等不换行空白）。 */
     private static String trimSpace(String value) {
         return value == null ? "" : value.strip();
     }

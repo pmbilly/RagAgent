@@ -27,12 +27,10 @@ import com.ragagent.common.wiki.SlugUpdate;
 import com.ragagent.wiki.service.page.WikiPageService;
 
 /**
- * {@link WikiIngestDedupService} 的对等测试（对照 Go
- * internal/application/service/wiki_ingest_dedup_test.go，640 行）。
+ * {@link WikiIngestDedupService} 的测试。
  *
- * <p>Go 用 miniredis 验证 Redis 的 Lua GET-or-SET 语义；Java 侧的等价物是
- * {@link InProcessWikiIdentityClaimStore}（逐条复刻该脚本），因此这里直接对它做断言
- * ——<b>无需</b>真实 Redis，也不依赖任何网络（约定 §6）。</p>
+ * <p>身份认领的共享存储用进程内的 {@link InProcessWikiIdentityClaimStore}，
+ * 这里直接对它做断言——<b>无需</b>真实 Redis，也不依赖任何网络（约定 §6）。</p>
  */
 class WikiIngestDedupServiceTest {
 
@@ -87,7 +85,7 @@ class WikiIngestDedupServiceTest {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code TestDedupMergeRejectReason}：逐条表驱动地覆盖"允许/拒绝"的五种情形。
+     * 逐条表驱动地覆盖"允许/拒绝"的五种情形。
      */
     @Test
     @DisplayName("dedupMergeRejectReason：逐条表驱动（对照 Go TestDedupMergeRejectReason）")
@@ -122,9 +120,7 @@ class WikiIngestDedupServiceTest {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code TestSelectDedupCandidatePages_FiltersUnrelatedHallucinationTarget}：
-     * 回归 llm_debug/20260422_171316.675.log 里观测到的幻觉
-     * ——deepseek-v3.2 把 concept/chengzhen-dengji-shiye-renyuan 合并进了
+     * 回归一次真实观测到的幻觉——模型把 concept/chengzhen-dengji-shiye-renyuan 合并进了
      * concept/zhong-hua-you-xiu-chuan-tong-wen-hua，尽管零字符重叠。
      * 有了预筛，那个传统文化页面根本不该作为候选被喂给 LLM。
      */
@@ -159,7 +155,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestSelectDedupCandidatePages_KeepsRelatedPages}：相关页面
+     * 相关页面
      * （与新条目共享 token / 字符）必须挺过预筛，让 LLM 仍能评估合并。
      */
     @Test
@@ -184,7 +180,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestSelectDedupCandidatePages_SmallCorpusBypass}：小语料上预筛应当
+     * 小语料上预筛应当
      * 是 no-op（除页面类型过滤之外）——prompt 本来就小，砍掉合法匹配得不偿失。
      */
     @Test
@@ -200,7 +196,6 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestSelectDedupCandidatePages_DropsNonEntityConcept}：
      * 非 entity/concept 页面（摘要、对比……）无论语料大小都必须被剥掉——它们永远不是
      * 合法的合并目标。
      */
@@ -221,7 +216,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestSurfaceGrams_UnrelatedCJKPair}：真实幻觉配对的 bigram 交集必须为空，
+     * 真实幻觉配对的 bigram 交集必须为空，
      * 证明底层相似度信号确实在干活。
      */
     @Test
@@ -235,7 +230,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestDedupPairScore_AcmeCorpVariant}：拉丁缩写 ↔ 全名的配对必须得分
+     * 拉丁缩写 ↔ 全名的配对必须得分
      * 很高（高于下限），让过滤器保留 "Acme Corp" ↔ "Acme Corporation" 这类合法合并候选。
      */
     @Test
@@ -254,7 +249,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestDedupPairScore_UnrelatedCJKPair}：生产环境观测到的那对无关中文
+     * 生产环境观测到的那对无关中文
      * 条目必须得 0 分。
      */
     @Test
@@ -276,7 +271,6 @@ class WikiIngestDedupServiceTest {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code TestNormalizeWikiIdentityTitlePreservesSemanticPunctuation}：
      * 空白 + 大小写折叠，但标点必须保留（概念 vs 作品/篇章要可区分）。
      */
     @Test
@@ -289,7 +283,7 @@ class WikiIngestDedupServiceTest {
                 .isNotEqualTo(WikiIdentityDedup.normalizeWikiIdentityTitle("《寓言》"));
     }
 
-    /** 对照 Go {@code TestExactIdentityTargetSameTypeOnly} */
+    /** 精确同名目标只在同类型里解析 */
     @Test
     @DisplayName("精确同名目标只在同类型里解析（对照 Go TestExactIdentityTargetSameTypeOnly）")
     void exactIdentityTargetSameTypeOnly() {
@@ -309,7 +303,7 @@ class WikiIngestDedupServiceTest {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code TestWikiIdentityClaimConvergesDifferentSlugs}：并发的身份认领必须
+     * 并发的身份认领必须
      * 收敛到同一个 slug；已验证的既有页是权威的，会替换早先 map worker 留下的临时预留。
      */
     @Test
@@ -357,7 +351,6 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestWikiIdentityClaimKeepsDistinctTypesAndPunctuation}：
      * 不同类型的同名条目、以及带标点的不同标题，都必须保持各自独立的 slug。
      */
     @Test
@@ -376,7 +369,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestStabilizeExtractedIdentitiesCoalescesEvidence}：收敛时必须保留
+     * 收敛时必须保留
      * 每一个 alias / chunk 引用，并保留更丰富的回落文本。
      */
     @Test
@@ -406,7 +399,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestWikiIdentityClaimRedisOverridesStaleLocal}：共享存储里的认领
+     * 共享存储里的认领
      * 要胜过批次局部 map 里的陈旧值，并刷新后者。
      */
     @Test
@@ -417,7 +410,7 @@ class WikiIngestDedupServiceTest {
         batch.identityClaims().put(
                 WikiBatchContext.identityPageCacheKey(WikiConstants.PAGE_TYPE_ENTITY, identity),
                 "entity/kong-zi");
-        // 种下共享存储里的认领（对照 Go 的 rdb.Set(...)）
+        // 种下共享存储里的认领
         claims.claim("kb-1", WikiConstants.PAGE_TYPE_ENTITY, identity,
                 "entity/confucius", true, "entity/");
 
@@ -432,7 +425,6 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestStabilizeLLMMergeDoesNotOverrideRedisClaim}：
      * 语义（LLM）合并<b>不是</b>权威的，不能劈开一个已被预留的标题。
      */
     @Test
@@ -457,7 +449,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestStabilizeExactTargetIsAuthoritative}：精确既有页命中是权威的，
+     * 精确既有页命中是权威的，
      * 会替换临时认领，并且这个结果会留在共享存储里。
      */
     @Test
@@ -485,7 +477,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestWikiIdentityClaimLiteConcurrentSameBatch}：同一批次内并发的
+     * 同一批次内并发的
      * 认领也必须收敛。
      */
     @Test
@@ -522,7 +514,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestRemapSlugUpdatesByIdentityConverges}：remap 必须把同一标题的
+     * remap 必须把同一标题的
      * 不同罗马化折到已认领的 slug 上，summary slug 保持不动。
      */
     @Test
@@ -559,7 +551,7 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestReclaimExtractedIdentitiesCoalescesCitationSlugs}：引用遍的
+     * 引用遍的
      * new_slugs 跳过了抽取期去重，所以必须重跑一次精确解析 + 身份认领；
      * 并且不能丢掉引用证据。
      */
@@ -590,7 +582,6 @@ class WikiIngestDedupServiceTest {
     }
 
     /**
-     * 对照 Go {@code TestWikiIdentityClaimReplacesInvalidRedisValue}：
      * 共享存储里的脏值必须被替换（调用方绝不可以在一个脏键上分叉）。
      */
     @Test
@@ -613,7 +604,7 @@ class WikiIngestDedupServiceTest {
     // 精确标题批量查询与缓存
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go {@code stubNormalizedTitleWiki}：统计批量查询次数并回显命中的页面 */
+    /** stub：统计批量查询次数并回显命中的页面 */
     @Nested
     @DisplayName("attachExactIdentityPages 批量与缓存")
     class AttachExactIdentityPages {
@@ -645,7 +636,7 @@ class WikiIngestDedupServiceTest {
         }
 
         /**
-         * 对照 Go {@code TestAttachExactIdentityPagesBatchesAndCaches}：一次批量查询覆盖
+         * 一次批量查询覆盖
          * 本批次所有身份；命中页被同时绑到两个罗马化上；不相关的条目不受污染；
          * 第二次调用走缓存不再打库；新增身份只查增量。
          */
@@ -687,7 +678,7 @@ class WikiIngestDedupServiceTest {
     // 辅助
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go {@code countEntityConceptPages}：只用于日志的压缩比 */
+    /** 只用于日志的压缩比 */
     @Test
     @DisplayName("countEntityConceptPages 只数 entity/concept")
     void countEntityConceptPages() {
@@ -698,7 +689,7 @@ class WikiIngestDedupServiceTest {
         assertThat(WikiIdentityDedup.countEntityConceptPages(pages)).isEqualTo(2);
     }
 
-    /** 对照 Go {@code slugBaseTokens} 的注释示例 */
+    /** slugBaseTokens 的拆分示例 */
     @Test
     @DisplayName("slugBaseTokens 例：entity/beijing-nongshang-yinxing")
     void slugBaseTokens() {
@@ -707,7 +698,7 @@ class WikiIngestDedupServiceTest {
         assertThat(WikiIdentityDedup.slugBaseTokens("")).isEmpty();
     }
 
-    /** 对照 Go {@code gramsPerSurface}：空表层形式被跳过 */
+    /** 空表层形式被跳过 */
     @Test
     @DisplayName("gramsPerSurface 跳过空表层形式")
     void gramsPerSurfaceSkipsEmpty() {
@@ -716,7 +707,7 @@ class WikiIngestDedupServiceTest {
         assertThat(grams).hasSize(2);
     }
 
-    /** 对照 Go {@code appendUniqueString}：去空白、非空、不重复 */
+    /** 去空白、非空、不重复 */
     @Test
     @DisplayName("appendUniqueString 去空白且不重复")
     void appendUniqueString() {
@@ -726,7 +717,7 @@ class WikiIngestDedupServiceTest {
         assertThat(out).containsExactly("a");
     }
 
-    /** 未接线/空输入时的容忍语义（对照 Go 的 nil 容忍） */
+    /** 未接线/空输入时的容忍语义（null 容忍） */
     @Test
     @DisplayName("空输入容忍：null slugUpdates / null items")
     void nullTolerance() {

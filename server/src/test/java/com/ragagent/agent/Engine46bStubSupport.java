@@ -23,8 +23,8 @@ import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * 4.6b 实录回放的替身与掩码工具（对照 Go 探针复用的 mockChat / countingTool /
- * fakeSteerSink 与 mask46b）。期望值全部是 {@link GoRecording46B} 的 Go 实录常量。
+ * 引擎录制回放的替身与掩码工具（脚本化 chat / 计数工具 / steer sink 与掩码）。
+ * 期望值全部是 {@link GoRecording46B} 的录制常量。
  *
  * <p>掩码约定（探针在录制侧做了同款替换，两侧掩码后逐字节可比）：事件 id 的 uuid
  * 前缀 → {@code xxxxxxxx-}；duration/duration_ms/total_duration_ms → 0；
@@ -106,7 +106,7 @@ final class Engine46bStubSupport {
             return this;
         }
 
-        /** 与 Go 探针同构的事件序列 JSON（掩码后逐字节可比）。 */
+        /** 事件序列 JSON（掩码后与录制常量逐字节可比）。 */
         String toJson() {
             StringBuilder sb = new StringBuilder("[");
             for (int i = 0; i < events.size(); i++) {
@@ -128,8 +128,8 @@ final class Engine46bStubSupport {
     // ------------------------------------------------------------------
 
     /**
-     * 脚本化 LLM 替身（对照 mockChat）。收到的消息在调用时刻即序列化成 JSON 存储
-     * （对照 Go 切片按值拷贝的语义——引擎后续的就地改动不回写记录）。
+     * 脚本化 LLM 替身。收到的消息在调用时刻即序列化成 JSON 存储
+     * （值拷贝——引擎后续的就地改动不回写记录）。
      */
     static final class StubChat implements LlmChatClient {
 
@@ -193,7 +193,7 @@ final class Engine46bStubSupport {
     }
 
     /**
-     * mockChat 收到的消息与选项（对照 rec46bChatShape；opts 键按 Go map 字母序）。
+     * stub 收到的消息与选项（opts 键按字母序）。
      */
     static String chatShape(StubChat chat) {
         StringBuilder sb = new StringBuilder("[");
@@ -241,7 +241,7 @@ final class Engine46bStubSupport {
     // fakeSteerSink 的 Java 对应
     // ------------------------------------------------------------------
 
-    /** 对照 Go fakeSteerSink：队列由测试喂；持久化调用被记录。 */
+    /** steer sink 替身：队列由测试喂；持久化调用被记录。 */
     static final class FakeSteerSink implements SteerSink {
         final List<Map<String, Object>> queued = new ArrayList<>();
         final List<String> persisted = new ArrayList<>();

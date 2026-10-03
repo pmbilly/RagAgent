@@ -15,27 +15,25 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * MCP 出站 HTTP 的安全底座（对照 Go {@code secutils.NewSSRFSafeHTTPClient}
- * + {@code secutils.DefaultSSRFSafeHTTPClientConfig}，client.go:169-171）。
+ * MCP 出站 HTTP 的安全底座。
  *
- * <p>Go 侧靠 {@code SSRFSafeDialContext} 在<b>拨号</b>层做 SSRF 校验，JDK 的 HttpClient 不允许
- * 替换 dialer，故 Java 侧把校验放在"发送前 + 每一次重定向跳转前"——与
- * {@code LlmTransport} 同策略（项目内已有的等价实现；这里是 MCP 专用的一份，
+ * <p>JDK 的 HttpClient 不允许替换拨号层，故把校验放在"发送前 + 每一次重定向跳转前"——
+ * 与 {@code LlmTransport} 同策略（这里是 MCP 专用的一份，
  * 因为两者的头处理与超时语义不同：MCP 的 SSE 长连接<b>不能</b>套整体超时）。</p>
  *
- * <p>超时口径（对照 Go）：{@code clientCfg.Timeout = AdvancedConfig.timeout}（默认 30s）。
- * Java 侧把它落到每个请求的 {@code HttpRequest.timeout} 上，而不是 client 级
+ * <p>超时口径：服务的 {@code AdvancedConfig.timeout}（默认 30s）落到每个请求的
+ * {@code HttpRequest.timeout} 上，而不是 client 级
  * {@code connectTimeout} —— 否则 SSE 长连接会被拦腰截断。</p>
  */
 public final class McpHttp {
 
-    /** 连接建立超时（对照 Go rawHTTPTransport 的 TLSHandshakeTimeout=10s 量级）。 */
+    /** 连接建立超时。 */
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
 
-    /** 最多跟随的重定向跳数（对照 Go {@code MaxRedirects}）。 */
+    /** 最多跟随的重定向跳数。 */
     public static final int MAX_REDIRECTS = 10;
 
-    /** 跨域重定向时必须剥掉的凭据头（对照 Go stripRedirectSensitiveHeaders）。 */
+    /** 跨域重定向时必须剥掉的凭据头。 */
     private static final List<String> REDIRECT_SENSITIVE_HEADERS =
             List.of("Authorization", "Cookie", "X-Auth-Token", "X-Api-Key", "Api-Key");
 
@@ -52,8 +50,7 @@ public final class McpHttp {
 
     /**
      * 进程级共享客户端。刻意固定 HTTP/1.1：MCP 的 SSE/HTTP-Streamable 服务多部署在
-     * 反向代理之后，HTTP/2 的流式复用在这些实现上容易踩坑（Go 侧默认 transport 也会
-     * 因无 TLS 而退回 HTTP/1.1 明文）。
+     * 反向代理之后，HTTP/2 的流式复用在这些实现上容易踩坑。
      */
     public static HttpClient sharedClient() {
         return ClientHolder.INSTANCE;
@@ -68,7 +65,7 @@ public final class McpHttp {
                 .build();
     }
 
-    /** 对照 Go secutils.ValidateURLForSSRF。 */
+    /** SSRF 校验。 */
     public static void validateUrlForSsrf(String url) {
         ssrfGuard.validateURLForSSRF(url);
     }
@@ -79,7 +76,7 @@ public final class McpHttp {
     }
 
     /**
-     * 对照 Go {@code http.Client.Do}（含 CheckRedirect）：发送前校验 URL，每一跳重新校验
+     * 发送前校验 URL，每一跳重新校验
      * （含 scheme），跨域跳转剥掉凭据头，跳数超限报错。
      *
      * @return 响应；打开流式 body 后<b>不会</b>自动关闭（SSE 调用方负责）
@@ -97,7 +94,7 @@ public final class McpHttp {
             }
             Optional<String> location = response.headers().firstValue("Location");
             if (location.isEmpty() || location.get().isBlank()) {
-                return response; // 3xx 但没 Location：不跟随，原样返回（对照 Go）
+                return response; // 3xx 但没 Location：不跟随，原样返回
             }
             closeQuietly(response);
             if (hops >= maxRedirects) {

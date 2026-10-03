@@ -15,19 +15,16 @@ import com.ragagent.mcp.protocol.StreamableHttpTransport;
 
 /**
  * 带 OAuth 的 MCP 传输：在既有 SSE / HTTP-Streamable 传输之上按请求注入
- * {@code Authorization: Bearer <token>}（对照 Go
- * {@code client.NewOAuthSSEClient} / {@code NewOAuthStreamableHttpClient} +
- * {@code oauthHandler.GetAuthorizationHeader(ctx)}，streamable_http.go:650-664）。
+ * {@code Authorization: Bearer <token>}。
  *
  * <h3>为什么是"包装 + 换 token 时重建"而不是"每请求塞头"</h3>
- * <p>Go 的传输持有 {@code oauthHandler}，每个请求现算一次 Authorization 头。
- * Java 侧既有的 {@link SseTransport}/{@link StreamableHttpTransport} 在构造期
+ * <p>既有 {@link SseTransport}/{@link StreamableHttpTransport} 在构造期
  * <b>拷贝</b>头表（{@code new LinkedHashMap<>(headers)}），构造后无法再改；
- * 而本任务不允许改动 protocol 包既有文件。故这里在<b>请求时</b>比对当前 token
+ * 故这里在<b>请求时</b>比对当前 token
  * 与 delegate 构造时用的 token：不同就关掉旧 delegate、用新 token 重建一个
  * （若已 start 过则顺带把新 delegate 也 start 起来）。</p>
  *
- * <p><b>行为差异（已评估）</b>：Go 在 token 轮换后<b>不</b>重建连接，Java 会重建。
+ * <p><b>已评估的行为</b>：token 轮换后本类会重建连接。
  * 触发重建的唯一时机是"刷新把一个已过期的 token 换成了新的"，此时上游 401 本来
  * 也要求重试；重建只多一次握手（SSE 多一次 GET 建流），语义等价。
  * token 未变时零开销，路径完全等同非 OAuth 传输。</p>

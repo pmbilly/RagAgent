@@ -27,10 +27,9 @@ import com.ragagent.vectorstore.domain.VectorStore;
 import com.ragagent.vectorstore.mapper.VectorStoreRepository;
 
 /**
- * 检索引擎注册表——对照 Go {@code internal/application/service/retriever/registry.go}
- * （370 行，{@code RetrieveEngineRegistry}）。
+ * 检索引擎注册表——两张表 + 按需重建。
  *
- * <h2>两张表 + 按需重建（照 Go 注释）</h2>
+ * <h2>两张表 + 按需重建</h2>
  * <ul>
  *   <li>{@code byEngineType}：{@code RETRIEVE_DRIVER} 注册的 env-store；</li>
  *   <li>{@code byStoreID}：{@code vector_stores} 表注册的 DB-store。注册表<b>是进程内的</b>：
@@ -38,7 +37,7 @@ import com.ragagent.vectorstore.mapper.VectorStoreRepository;
  *       按需重建让这两种情况不必靠运维重新发布就能自愈。</li>
  * </ul>
  *
- * <h2>重建路径的四道闸（逐条照抄）</h2>
+ * <h2>重建路径的四道闸</h2>
  * <ol>
  *   <li><b>冷却</b>（{@code rebuildCooldown=30s}）：刚建失败的 store 不再花一次超时——
  *       否则后端持续宕机时每个请求都赔一次完整构建超时（singleflight 只帮并发调用者，
@@ -49,29 +48,27 @@ import com.ragagent.vectorstore.mapper.VectorStoreRepository;
  *       每请求一次就是把冷 store 变成连接风暴）；航班按 {@code tenantID:storeID} 分键，
  *       没有归属校验的调用者也无法蹭到别的租户的航班。</li>
  *   <li><b>panic 兜底</b>：构建里调第三方客户端构造函数，未兜住的异常/错误会带走整个进程
- *       而不是失败一个请求——折成可重试哨兵（且<b>不设冷却</b>，照 Go 的 recover 路径）。</li>
+ *       而不是失败一个请求——折成可重试哨兵（且<b>不设冷却</b>）。</li>
  * </ol>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现说明</h2>
  * <ul>
- *   <li><b>无 ctx 取消</b>：Go 用 {@code ctx.Done()} 让"调用方放弃"先于构建返回，并刻意
- *       把构建 context 从发起请求上<b>摘下来</b>（{@code context.WithoutCancel}）——否则首个
- *       调用方关标签页就会连带失败所有等待者。本仓无请求级取消，因此构建恒为"共享航班"，
- *       等待者只等结果；cancel/超时语义只保留在 {@code EngineBuildTimeout} 一处
+ *   <li><b>无请求级取消</b>：构建恒为"共享航班"，等待者只等结果——即使发起方先离开，
+ *       其余等待者也不受牵连；cancel/超时语义只保留在 {@code ENGINE_BUILD_TIMEOUT} 一处
  *       （用虚拟线程 + {@code CompletableFuture.get(timeout)} 实现，超时即取消构建线程）。</li>
- *   <li><b>两表用 {@code LinkedHashMap}</b>（Go 的 map 遍历无序）：{@code getAllRetrieveEngineServices}
- *       的返回顺序在本仓是确定的（注册序）。</li>
- *   <li>日志走 slf4j（Go 的 {@code logger.GetLogger(ctx)}）；结构化字段照抄。</li>
+ *   <li><b>两表用 {@code LinkedHashMap}</b>：{@code getAllRetrieveEngineServices}
+ *       的返回顺序是确定的（注册序）。</li>
+ *   <li>日志走 slf4j，带结构化字段。</li>
  * </ul>
  */
 public class EngineRegistry implements RetrieveEngineRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(EngineRegistry.class);
 
-    /** 对照 {@code EngineBuildTimeout = 10s}：单次按需构建的上界。 */
+    /** 单次按需构建的上界。 */
     public static final Duration ENGINE_BUILD_TIMEOUT = Duration.ofSeconds(10);
 
-    /** 对照 {@code rebuildCooldown = 30s}。 */
+    /** 重建冷却时长。 */
     public static final Duration REBUILD_COOLDOWN = Duration.ofSeconds(30);
 
     private final Map<String, RetrieveEngineService> byEngineType = new LinkedHashMap<>();
@@ -80,7 +77,7 @@ public class EngineRegistry implements RetrieveEngineRegistry {
     private final Map<String, Instant> failedUntil = new HashMap<>();
     private final ReadWriteLock mu = new ReentrantReadWriteLock();
 
-    /** 对照 {@code repo} / {@code factory}：两者任一为空即"不能重建"（GetOrLoad 退化为普通查表）。 */
+    /** 两者任一为空即"不能重建"（按需加载退化为普通查表）。 */
     private final VectorStoreRepository repo;
     private final StoreEngineFactory factory;
     private final SingleFlight sf = new SingleFlight();
@@ -88,14 +85,14 @@ public class EngineRegistry implements RetrieveEngineRegistry {
     private final Duration rebuildCooldown;
 
     /**
-     * 测试口：调用方挂上航班后触发一次（对照 Go 的 {@code onFlightJoin}）。测试需要它把
+     * 测试口：调用方挂上航班后触发一次。测试需要它把
      * 「第二个调用方」排到正在跑的构建之后——没挂上之前外部无从观察，过早放行会让那个
      * 调用方错过航班、直接读到已完成的引擎（结果断言分辨不出来）。生产恒 {@code null}。
      */
     volatile Runnable onFlightJoin;
 
     /**
-     * 测试口：报告本次调用是否与他人共享了构建（对照 Go 的 {@code flightObserver}）。
+     * 测试口：报告本次调用是否与他人共享了构建。
      * 折叠是这条路径的全部意义，却不在结果里留痕：错过航班后读到已完成引擎的调用方，
      * 与真的等了航班的调用方，从结果上看一模一样。生产恒 {@code null}。
      */
@@ -105,7 +102,7 @@ public class EngineRegistry implements RetrieveEngineRegistry {
         this(repo, factory, ENGINE_BUILD_TIMEOUT, REBUILD_COOLDOWN);
     }
 
-    /** 供测试注入超时/冷却（Go 为包级常量；此处留测试口，默认值同 Go）。 */
+    /** 供测试注入超时/冷却（默认值同生产常量）。 */
     EngineRegistry(VectorStoreRepository repo, StoreEngineFactory factory, Duration buildTimeout,
                    Duration rebuildCooldown) {
         this.repo = repo;
@@ -242,7 +239,7 @@ public class EngineRegistry implements RetrieveEngineRegistry {
         return join.value();
     }
 
-    /** 在虚拟线程上跑构建并施加 {@code EngineBuildTimeout}（对照 {@code context.WithTimeout}）。 */
+    /** 在虚拟线程上跑构建并施加 {@code ENGINE_BUILD_TIMEOUT}。 */
     private RetrieveEngineService buildEngine(long tenantId, String storeId, long gen) {
         CompletableFuture<RetrieveEngineService> future = new CompletableFuture<>();
         Thread worker = Thread.ofVirtual().name("engine-build-" + storeId).start(() -> {
@@ -308,9 +305,8 @@ public class EngineRegistry implements RetrieveEngineRegistry {
             }
             return svc;
         } catch (Throwable surprise) {
-            // 对照 Go 的 deferred recover（singleflight 会把 panic 重抛到它自己的 goroutine 上，
-            // 那里的 HTTP recovery 中间件够不着）：第三方客户端构造函数"炸了"不能带走进程。
-            // Java 的对应物是 Error（构建失败路径已在上面各自兜住），此路径**不设冷却**，照 Go。
+            // 兜底：第三方客户端构造函数抛出的异常/错误不能带走整个进程
+            // （常规构建失败路径已在上面各自兜住，这里接的是 Error 一类意外）；此路径**不设冷却**。
             if (surprise instanceof RetrieveEngineException sentinel) {
                 throw sentinel;
             }
@@ -322,7 +318,7 @@ public class EngineRegistry implements RetrieveEngineRegistry {
 
     // ── 代数（storeGen）与冷却（failedUntil） ────────────────────────────────
 
-    /** 对照 {@code storeGeneration}。 */
+    /** 读取 store 的当前代数。 */
     private long storeGeneration(String storeId) {
         mu.readLock().lock();
         try {
@@ -334,7 +330,7 @@ public class EngineRegistry implements RetrieveEngineRegistry {
     }
 
     /**
-     * 对照 {@code registerIfGenUnchanged}：仅当条目自采样以来未被触碰时发布 svc。
+     * 仅当条目自采样以来未被触碰时发布 svc。
      * 返回是否发布。
      */
     private boolean registerIfGenUnchanged(String storeId, long gen, RetrieveEngineService svc) {
@@ -352,12 +348,12 @@ public class EngineRegistry implements RetrieveEngineRegistry {
         }
     }
 
-    /** 对照 {@code bumpGenerationLocked}：调用方须持写锁。 */
+    /** 代数自增（调用方须持写锁）。 */
     private void bumpGenerationLocked(String storeId) {
         storeGen.merge(storeId, 1L, Long::sum);
     }
 
-    /** 对照 {@code inFailureCooldown}。 */
+    /** 是否仍在建失败的冷却期内。 */
     private boolean inFailureCooldown(String storeId) {
         mu.readLock().lock();
         try {
@@ -368,7 +364,7 @@ public class EngineRegistry implements RetrieveEngineRegistry {
         }
     }
 
-    /** 对照 {@code markBuildFailed}：为建失败的 store 起冷却。 */
+    /** 为建失败的 store 起冷却。 */
     private void markBuildFailed(String storeId) {
         mu.writeLock().lock();
         try {
@@ -378,15 +374,14 @@ public class EngineRegistry implements RetrieveEngineRegistry {
         }
     }
 
-    // ── singleflight（DoChan 子集） ─────────────────────────────────────────
+    // ── singleflight（按 key 折叠并发构建） ─────────────────────────────────
 
     /**
-     * 对照 {@code golang.org/x/sync/singleflight} 的 {@code Group.DoChan}：
      * 同一 key 的并发调用折叠成一次执行，等待者共享结果并标记 {@code shared=true}。
      */
     static final class SingleFlight {
 
-        /** 对照 {@code singleflight.Result}（{@code Val}/{@code Err}/{@code Shared}）。 */
+        /** 一次航班的结果（值/错误/是否共享）。 */
         static final class Join<T> {
             private final T value;
             private final Throwable error;
@@ -420,7 +415,7 @@ public class EngineRegistry implements RetrieveEngineRegistry {
             if (running != null) {
                 return running.join(onFlightJoin);
             }
-            // 对照 Go 的 doChanJoin：挂上航班后立刻回调（leader 与等待者都在"已挂上"时触发）。
+            // 挂上航班后立刻回调（leader 与等待者都在"已挂上"时触发）。
             if (onFlightJoin != null) {
                 onFlightJoin.run();
             }
@@ -431,7 +426,7 @@ public class EngineRegistry implements RetrieveEngineRegistry {
             } catch (Throwable t) {
                 failure = t;
             } finally {
-                // 与 Go 一致：先摘掉航班再交付结果——此后到达的调用者开新航班。
+                // 先摘掉航班再交付结果——此后到达的调用者开新航班。
                 flights.remove(key, mine);
             }
             boolean shared = mine.waiters.get() > 0;

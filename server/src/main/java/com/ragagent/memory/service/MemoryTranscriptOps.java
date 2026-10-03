@@ -26,12 +26,12 @@ final class MemoryTranscriptOps {
         this.service = service;
     }
 
-    /** {@link #collectSessionSegments} 的双返回值（对照 Go 的 {@code (segments, more, err)}）。 */
+    /** {@link #collectSessionSegments} 的双返回值。 */
     record CollectedSegments(List<MemoryExtractionService.TranscriptSegment> segments, boolean more) {
     }
 
     /**
-     * 对照 Go {@code collectSessionSegments}：用一个会话内游标读有界的一页。
+     * 用一个会话内游标读有界的一页。
      *
      * <p>每一行，包括只有助手消息的那些页，都属于一个检查点。间隔在接纳下一条消息**之前**
      * 就被冲刷，所以水位线不会一步跨过它。</p>
@@ -101,7 +101,7 @@ final class MemoryTranscriptOps {
     }
 
     /**
-     * 对照 Go {@code priorContext}：取一个片段之前的那几条用户消息。
+     * 取一个片段之前的那几条用户消息。
      *
      * <p>没有它，一次运行只看得到新东西，于是"就用前面那个吧"这样的回合到达时
      * 没有任何可供解析的东西，模型要么编一个主语，要么悄悄丢掉一个真实的偏好。
@@ -134,7 +134,7 @@ final class MemoryTranscriptOps {
         return tailContents(previous, MemoryExtractionService.EXTRACT_CONTEXT_LINES);
     }
 
-    /** 对照 Go {@code tailContents}：取最后 limit 条的内容。 */
+    /** 取最后 limit 条的内容。 */
     static List<String> tailContents(List<MemoryExtractionService.TranscriptLine> lines, int limit) {
         if (limit <= 0 || lines == null || lines.isEmpty()) {
             return null;
@@ -150,7 +150,7 @@ final class MemoryTranscriptOps {
         return out;
     }
 
-    /** 对照 Go {@code string([]rune(s)[:n])}。 */
+    /** 按码点截断字符串。 */
     static String runeSlice(String s, int maxRunes) {
         return com.ragagent.common.settings.MemoryKeys.runeLength(s) > maxRunes
                 ? com.ragagent.common.settings.MemoryKeys.runeSlice(s, maxRunes)

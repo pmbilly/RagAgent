@@ -13,17 +13,16 @@ import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.domain.DataSourceConfig;
 
 /**
- * 对照 Go {@code gitlab/types_test.go} + {@code parseConfig} / {@code normalizePath} /
- * {@code collapsePaths} 的<b>Go 实录</b>全表。
+ * GitLab 配置解析的语义测试：{@code parseConfig} / {@code normalizePath} /
+ * {@code collapsePaths} 的<b>全表</b>用例。
  *
- * <p>期望值来源：把 {@code types.go} 的函数连同一个本地
- * {@code ErrInvalidConfig} 原样抄进独立 Go 程序跑出来的输出（含每条错误消息）。</p>
+ * <p>期望值逐字钉死既有输出（含每条错误消息）。</p>
  */
 class GitLabConfigTest {
 
-    // ── Go types_test.go ────────────────────────────────────────────────
+    // ── parseConfig ──────────────────────────────────────────────────────
 
-    /** 对照 Go {@code TestParseConfigCollapsesDirectories}。 */
+    /** 重复/嵌套的目录列表被收敛成去重后的那份。 */
     @Test
     void parseConfigCollapsesDirectories() {
         DataSourceConfig ds = settingsConfig(Map.of("projects", List.of(Map.of(
@@ -39,7 +38,7 @@ class GitLabConfigTest {
         assertThat(cfg.projects().get(0).paths()).containsExactly("docs");
     }
 
-    /** 对照 Go {@code TestParseConfigRootMeansWholeProject}：{@code paths: ["/"]} → 整个项目。 */
+    /** {@code paths: ["/"]} → 整个项目。 */
     @Test
     void parseConfigRootMeansWholeProject() {
         DataSourceConfig ds = settingsConfig(Map.of("projects", List.of(Map.of(
@@ -51,7 +50,7 @@ class GitLabConfigTest {
         assertThat(cfg.projects().get(0).paths()).isNull();
     }
 
-    /** 对照 Go {@code TestNormalizePathRejectsTraversal}。 */
+    /** 目录穿越路径被拒绝。 */
     @Test
     void normalizePathRejectsTraversal() {
         assertThatThrownBy(() -> GitLabConfig.normalizePath("docs/../secrets"))
@@ -59,14 +58,14 @@ class GitLabConfigTest {
                 .hasMessage("invalid configuration: invalid repository path");
     }
 
-    /** 对照 Go {@code TestKnowledgeRelativePathPreservesRepositoryTreeBelowProjectAndBranch}。 */
+    /** knowledge 相对路径 = 项目/分支前缀 + 仓库内路径（保留目录树）。 */
     @Test
     void knowledgeRelativePathPreservesRepositoryTreeBelowProjectAndBranch() {
         assertThat(GitLabConnector.knowledgeRelativePath("knowledge", "feature/login",
                 "docs/guide/install.md"))
                 .isEqualTo("knowledge-feature-login/docs/guide/install.md");
 
-        // Go 实录（其余形态）
+        // 其余形态
         assertThat(GitLabConnector.knowledgeRelativePath("docs", "main", "README.md"))
                 .isEqualTo("docs-main/README.md");
         assertThat(GitLabConnector.knowledgeRelativePath("docs", "", "README.md"))
@@ -77,19 +76,19 @@ class GitLabConfigTest {
                 .isEqualTo("docs-main/a.md");
         assertThat(GitLabConnector.knowledgeRelativePath("docs", "main", ""))
                 .isEqualTo("docs-main");
-        // path.Join = Clean：前导斜杠、"." 与 ".." 都会被归掉
+        // 路径 join 带 clean 语义：前导斜杠、"." 与 ".." 都会被归掉
         assertThat(GitLabConnector.knowledgeRelativePath("docs", "main", "/a.md"))
                 .isEqualTo("docs-main/a.md");
         assertThat(GitLabConnector.knowledgeRelativePath("docs", "main", "a/../b.md"))
                 .isEqualTo("docs-main/b.md");
         assertThat(GitLabConnector.knowledgeRelativePath("docs", "main", "./a.md"))
                 .isEqualTo("docs-main/a.md");
-        // Go 实录：root = TrimSpace("a-b") + "-" + TrimSpace("c") = "a-b-c"
+        // root = trim("a-b") + "-" + trim("c") = "a-b-c"
         assertThat(GitLabConnector.knowledgeRelativePath("a-b", "c", "d/e"))
                 .isEqualTo("a-b-c/d/e");
     }
 
-    // ── normalizePath 全表（Go 实录） ───────────────────────────────────
+    // ── normalizePath 全表 ───────────────────────────────────────────────
 
     @Test
     void normalizePathMatchesGo() {
@@ -105,8 +104,8 @@ class GitLabConfigTest {
         assertThat(GitLabConfig.normalizePath("中文/路径")).isEqualTo("中文/路径");
         assertThat(GitLabConfig.normalizePath("~/x")).isEqualTo("~/x");
         assertThat(GitLabConfig.normalizePath("...")).isEqualTo("...");
-        // ⚠️ 裸 ".." 是 Go 的漏网之鱼：Clean("..")==".." 让 Clean(v)!=v 不成立，
-        // 而 ".." 既不匹配 Prefix("../") 也不含 "/../" —— 照抄，别"顺手修好"
+        // ⚠️ 裸 ".." 刻意放行，别"顺手修好"：clean("..")==".." 让"归一后必须变"
+        // 的判定不成立，而 ".." 既不以 "../" 开头也不含 "/../"——两道拦截都拦不住它
         assertThat(GitLabConfig.normalizePath("..")).isEqualTo("..");
 
         assertInvalidRepositoryPath("docs//guide");
@@ -130,13 +129,13 @@ class GitLabConfigTest {
                 .hasMessage("invalid configuration: invalid repository path");
     }
 
-    // ── collapsePaths 全表（Go 实录） ───────────────────────────────────
+    // ── collapsePaths 全表 ───────────────────────────────────────────────
 
     @Test
     void collapsePathsMatchesGo() {
         assertThat(GitLabConfig.collapsePaths(null)).isNull();
         assertThat(GitLabConfig.collapsePaths(List.of())).isNull();
-        // 含空元素 → 整个置 nil（这就是 paths:["/"] 变成"整个项目"的那一步）
+        // 含空元素 → 整个置 null（这就是 paths:["/"] 变成"整个项目"的那一步）
         assertThat(GitLabConfig.collapsePaths(List.of(""))).isNull();
         assertThat(GitLabConfig.collapsePaths(List.of("", "a"))).isNull();
         assertThat(GitLabConfig.collapsePaths(List.of("a", ""))).isNull();
@@ -154,7 +153,7 @@ class GitLabConfigTest {
         assertThat(GitLabConfig.collapsePaths(List.of("ab", "a"))).containsExactly("a", "ab");
     }
 
-    // ── parseConfig 错误全表（Go 实录） ─────────────────────────────────
+    // ── parseConfig 错误全表 ─────────────────────────────────────────────
 
     @Test
     void parseConfigRejectsMissingSettings() {
@@ -246,7 +245,7 @@ class GitLabConfigTest {
     // ── GoPath ──────────────────────────────────────────────────────────
 
     /**
-     * {@code path.Clean} 与 {@code Path.normalize()} 的分叉点（用 Go 实录钉住）。
+     * {@link GoPath#clean} 与 {@code java.nio.file.Path.normalize()} 的分叉点（逐字钉住）。
      *
      * <p>这些用例的作用是：如果有人把 {@link GoPath#clean} 换成 JDK 的实现，
      * 这里会立刻红——而不是等到某个用户的 {@code paths} 被悄悄放行。</p>
@@ -269,9 +268,8 @@ class GitLabConfigTest {
     }
 
     /**
-     * {@code ".."} 回退的边界（Go 实录）——Go 的 {@code lazybuf} 在回退时
-     * 读的是<b>逻辑游标处</b>的字符而不是"当前输出的最后一个字符"，
-     * 两者在 {@code "docs-main/a/../b.md"} 这种路径上会分叉
+     * {@code ".."} 回退的边界——回退时读的是<b>逻辑游标处</b>的字符而不是
+     * "当前输出的最后一个字符"，两者在 {@code "docs-main/a/../b.md"} 这种路径上会分叉
      * （写成后者会多留一个斜杠）。这一组是那个缺陷的回归保护。
      */
     @Test

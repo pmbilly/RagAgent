@@ -27,20 +27,19 @@ import java.util.function.Consumer;
  * <p>线上行为逐条对照 mcp-go：</p>
  * <ul>
  *   <li><b>建流</b>：GET 服务 URL，{@code Accept: text/event-stream} +
- *       {@code Cache-Control: no-cache}（Go 还显式设了 {@code Connection: keep-alive}，
- *       JDK 把它列为受限头无法设置，见 {@link #start} 的说明），
- *       自定义/鉴权头一并带上（sse.go:164-200）；</li>
+ *       {@code Cache-Control: no-cache}
+ *       （{@code Connection: keep-alive} 是受限头无法设置，见 {@link #start} 的说明），
+ *       自定义/鉴权头一并带上；</li>
  *   <li><b>endpoint 帧</b>：服务端首帧给出 POST 地址（可相对），相对基准是<b>建流的 URL</b>；
- *       且要求 host 与建流 URL 一致，否则丢弃（防被重定向到第三方）——sse.go:339-350；</li>
+ *       且要求 host 与建流 URL 一致，否则丢弃（防被重定向到第三方）；</li>
  *   <li><b>endpoint 等待上限</b> 30s（mcp-go WithEndpointTimeout 默认值）；</li>
  *   <li><b>发请求</b>：POST 到 endpoint，{@code Content-Type: application/json}，
- *       响应体丢弃；真正的 JSON-RPC 响应从 SSE 流里按 id 匹配回来（sse.go:413-460）；</li>
- *   <li><b>断流</b>：读取线程结束/报错且未主动 close 时，回调 OnConnectionLost（sse.go:296-308）。</li>
+ *       响应体丢弃；真正的 JSON-RPC 响应从 SSE 流里按 id 匹配回来；</li>
+ *   <li><b>断流</b>：读取线程结束/报错且未主动 close 时，回调 OnConnectionLost。</li>
  * </ul>
  *
- * <p><b>与 Go 的差异（刻意）</b>：Go 侧把 {@code http.Client.Timeout}（WeKnora 默认 30s）
- * 直接用在建流的 GET 上，于是 SSE 长连接会被整体超时<b>每 30 秒掐断一次</b>
- * （sse.go:205 用同一个 client）。Java 侧建流只施加连接超时，不施加整体超时——
+ * <p><b>刻意差异</b>：建流只施加连接超时，不施加整体超时——若给建流 GET 套上 30s
+ * 整体超时，SSE 长连接会被反复掐断。
  * 与 {@code LlmTransport} 对"流式调用不设 per-request timeout"的处理一致。</p>
  */
 public final class SseTransport implements McpTransport {
@@ -70,8 +69,8 @@ public final class SseTransport implements McpTransport {
     @Override
     public void start(McpContext ctx) {
         ctx.throwIfCancelled();
-        // ⚠️ 与 Go 的差异：Go 会显式设置 Connection: keep-alive（sse.go:178），但 JDK 的
-        // HttpClient 把 Connection 列为受限头（设置即抛 IllegalArgumentException）。
+        // ⚠️ {@code Connection: keep-alive} 头是 JDK HttpClient 的受限头（设置即抛
+        // IllegalArgumentException），无法显式设置。
         // 语义上无损失——HTTP/1.1 默认就是持久连接，连接的复用与回收由 JDK 客户端管理。
         HttpRequest.Builder builder = HttpRequest.newBuilder(baseUrl)
                 .header("Accept", McpProtocol.ACCEPT_SSE)
@@ -151,7 +150,7 @@ public final class SseTransport implements McpTransport {
                     return;
                 }
                 if (resolved.getHost() == null || !resolved.getHost().equals(baseUrl.getHost())) {
-                    // 对照 Go："Endpoint origin does not match connection origin"
+                    // 固定文案："Endpoint origin does not match connection origin"
                     endpointError = "Endpoint origin does not match connection origin";
                     endpointReady.countDown();
                     return;
@@ -164,7 +163,7 @@ public final class SseTransport implements McpTransport {
                 try {
                     node = MAPPER.readTree(message.data());
                 } catch (Exception e) {
-                    return; // 非 JSON 帧忽略（对照 Go 的 log-and-return）
+                    return; // 非 JSON 帧忽略
                 }
                 JsonRpcResponse parsed = JsonRpcResponse.from(node);
                 if (parsed.isNotification()) {
@@ -176,7 +175,7 @@ public final class SseTransport implements McpTransport {
                 }
             }
             default -> {
-                // 未知事件名忽略（对照 Go switch 的默认分支）
+                // 未知事件名忽略
             }
         }
     }
@@ -223,8 +222,7 @@ public final class SseTransport implements McpTransport {
             }
 
             try {
-                // Go 侧这里是无界等待（只受 ctx.Done() 约束）；Java 额外用服务超时兜底，
-                // 避免没有 deadline 的调用方永久挂住（见类注释的差异说明）。
+                // 用服务超时兜底，避免没有 deadline 的调用方永久挂住（见类注释）。
                 return waiter.get(ctx.effectiveTimeout(timeout).toMillis(), TimeUnit.MILLISECONDS);
             } catch (TimeoutException e) {
                 throw new McpException(McpErrorCode.TIMEOUT, "operation timed out");

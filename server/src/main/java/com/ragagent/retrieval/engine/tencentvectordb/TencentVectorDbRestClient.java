@@ -16,12 +16,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * 腾讯 VectorDB <b>HTTP API</b> 传输层——本仓的"协议决策"落点：Go 用官方 SDK 的
- * {@code tcvectordb.RpcClient}（库/集合/文档操作实际走 gRPC/olama protobuf，仅 database
- * 走 HTTP）；本仓自持 SDK 的 HTTP 面（同一服务端的等价接口，SDK 的 {@code tcvectordb.Client}
- * 走的就是它），零新依赖、不引 protobuf。
+ * 腾讯 VectorDB <b>HTTP API</b> 传输层——本仓自持 SDK 的 HTTP 面（同一服务端的等价接口，SDK 的
+ * {@code tcvectordb.Client} 走的就是它），零新依赖、不引 protobuf。
  *
- * <h2>wire 形状（逐项照 SDK v1.8.4 的 {@code client.go}/{@code api/*}）</h2>
+ * <h2>wire 形状（对齐 SDK v1.8.4）</h2>
  * <ul>
  *   <li>鉴权：{@code Authorization: Bearer account=<username>&api_key=<key>}（明文，非 TC3）；</li>
  *   <li>头：{@code Content-Type: application/json} + {@code Sdk-Version: v1.8.4}；</li>
@@ -29,7 +27,7 @@ import com.ragagent.common.security.SsrfGuard;
  *       {@code /document/upsert|search|fullTextSearch|query|delete|update}
  *       （库名/集合名在<b>请求体</b>里，路径是静态的）；</li>
  *   <li>响应信封 {@code {code,msg,...}}：HTTP 非 2xx → {@code response code is %d, %s}；
- *       {@code code != 0} → {@code code: %d, message: %s}（照 Go 的 handleResponse）。</li>
+ *       {@code code != 0} → {@code code: %d, message: %s}。</li>
  * </ul>
  *
  * <p>地址形态照 SDK：必须 {@code http://}（或裸 host，自动补 http://）；<b>https:// 被 SDK 拒绝</b>
@@ -37,7 +35,7 @@ import com.ragagent.common.security.SsrfGuard;
  */
 public final class TencentVectorDbRestClient {
 
-    /** 对照 SDK {@code const SDKVersion = "v1.8.4"}。 */
+    /** 与 SDK 一致的版本头。 */
     static final String SDK_VERSION = "v1.8.4";
 
     static final class Json {
@@ -136,7 +134,7 @@ public final class TencentVectorDbRestClient {
         return root;
     }
 
-    /** API 级失败（{@code code != 0} 或非 2xx）；文案照 Go 的 handleResponse。 */
+    /** API 级失败（{@code code != 0} 或非 2xx）；文案与 SDK 的 handleResponse 一致。 */
     public static final class TencentVectorDbApiException extends RuntimeException {
 
         TencentVectorDbApiException(String message) {
@@ -161,7 +159,7 @@ public final class TencentVectorDbRestClient {
         send("POST", "/database/create", body);
     }
 
-    /** 照 {@code CreateDatabaseIfNotExists}：列表查不到才建。 */
+    /** 建库（如缺）：列表查不到才建。 */
     void createDatabaseIfNotExists(String database) {
         if (listDatabases().contains(database)) {
             return;
@@ -176,7 +174,7 @@ public final class TencentVectorDbRestClient {
         return send("POST", "/collection/describe", body);
     }
 
-    /** 照 {@code ExistsCollection}：describe 报 15202（未定义集合）→ false。 */
+    /** 集合存在性：describe 报 15202（未定义集合）→ false。 */
     boolean existsCollection(String database, String collection) {
         try {
             describeCollection(database, collection);
@@ -214,7 +212,7 @@ public final class TencentVectorDbRestClient {
         ObjectNode body = Json.object();
         body.put("database", database);
         body.put("collection", collection);
-        // 照 Go：ReadConsistency = eventualConsistency（SDK 默认）
+        // 读一致性 = eventualConsistency（SDK 默认）
         body.put("readConsistency", "eventualConsistency");
         body.set("search", searchCond);
         return send("POST", "/document/search", body);
@@ -254,7 +252,7 @@ public final class TencentVectorDbRestClient {
         send("POST", "/document/update", body);
     }
 
-    /** 探针：{@code /database/list} 成功即连通（照 testTencentVectorDBConnection 的 ListDatabase）。 */
+    /** 探针：{@code /database/list} 成功即连通。 */
     void probe() {
         listDatabases();
     }

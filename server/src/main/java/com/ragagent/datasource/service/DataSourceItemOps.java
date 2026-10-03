@@ -35,14 +35,14 @@ final class DataSourceItemOps {
     }
 
     /**
-     * 对照 Go {@code applyFetchedItem}（L860-974）：单条抓取结果的分类与灌入。
+     * 单条抓取结果的分类与灌入。
      *
      * <p>批量循环与流式处理器共用它，所以"删除 / 空内容 / 灌入结果"三类的判定
      * 在两条抓取路径上必然一致。</p>
      *
-     * @param suppressed 对照 Go 的 {@code withKBActivitySuppressed(ctx)}——
-     *                   同步期间的单条变更<b>不</b>进审计（一次同步能灌几千条，
-     *                   只有本次运行的汇总事件该出现）。本实现里审计本就只在
+     * @param suppressed 表示"同步期间的单条变更<b>不</b>进审计"的调用意图——
+     *                   一次同步能灌几千条，只有本次运行的汇总事件该出现。
+     *                   本实现里审计本就只在
      *                   汇总点发生，所以参数只用于表达调用意图。
      */
     void applyFetchedItem(DataSource ds, FetchedItem item, List<String> tagIDs,
@@ -116,7 +116,7 @@ final class DataSourceItemOps {
         }
     }
 
-    /** 对照 Go {@code applyFetchedItem} 的删除分支（L864-927）。 */
+    /** 删除分支：处理"源端已删除"的单条抓取结果。 */
     private void applyDeletion(DataSource ds, FetchedItem item, SyncResult result) {
         Knowledge existing;
         try {
@@ -164,7 +164,7 @@ final class DataSourceItemOps {
     }
 
     /**
-     * 对照 Go {@code ingestItem}（L1243-1370）：把一条 {@link FetchedItem} 写进知识库。
+     * 把一条 {@link FetchedItem} 写进知识库。
      *
      * <p>有 external_id 时先删后建（update = delete + re-create）；有内容字节走
      * {@code createFromFile}，只有 URL 走 {@code createFromUrl} 并在<b>新建</b>分支上
@@ -266,7 +266,7 @@ final class DataSourceItemOps {
     }
 
     /**
-     * 对照 Go {@code dupIsSameNode}（L1382-1385）：重复内容命中的是不是<b>这个节点自己</b>
+     * 判断重复内容命中的是不是<b>这个节点自己</b>
      * 的行（external_id 相同）。
      *
      * <p>文件去重只看 file_hash + file_type，所以"某节点重建后的正文恰好与<b>另一条</b>
@@ -282,7 +282,7 @@ final class DataSourceItemOps {
     }
 
     /**
-     * 对照 Go {@code sweepStaleSubtree}（L1399-1444）：删掉源端已经消失的子项。
+     * 删掉源端已经消失的子项。
      *
      * <p>只在父项<b>确实存在于知识库之后</b>才跑（刚重建成功、或经重复哈希确认还在），
      * 这样一次真正失败的父写入绝不会毁掉已有的子项。仍在源端的子项由

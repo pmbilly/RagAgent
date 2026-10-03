@@ -3,18 +3,17 @@ package com.ragagent.mcp.protocol;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * JSON-RPC 2.0 错误对象（对照 mcp-go {@code mcp.JSONRPCErrorDetails} + {@code AsError()}，
- * mcp/errors.go:86-130）。
+ * JSON-RPC 2.0 错误对象。
  *
- * <p>映射规则逐条对照 Go：</p>
+ * <p>映射规则：</p>
  * <ul>
  *   <li>已知 code → 哨兵文案打底；若服务端 message 非空且与哨兵文案不同，则拼成
- *       {@code "<哨兵>: <服务端 message>"}（Go 的 {@code fmt.Errorf("%w: %s", err, e.Message)}）；</li>
- *   <li>未知 code → 直接用服务端 message（Go 的 {@code errors.New(e.Message)}）。</li>
+ *       {@code "<哨兵>: <服务端 message>"}；</li>
+ *   <li>未知 code → 直接用服务端 message。</li>
  * </ul>
  *
- * <p>Java 侧统一承载为 {@link McpException}（code = {@link McpErrorCode#INVALID_RESPONSE}），
- * 因为 errors.go 的 9 个哨兵是 MCP 客户端层的错误，不是 JSON-RPC 错误码。</p>
+ * <p>统一承载为 {@link McpException}（code = {@link McpErrorCode#INVALID_RESPONSE}）：
+ * 协议客户端层的哨兵错误不是 JSON-RPC 错误码。</p>
  */
 public record JsonRpcError(int code, String message, JsonNode data) {
 
@@ -34,7 +33,7 @@ public record JsonRpcError(int code, String message, JsonNode data) {
         return new JsonRpcError(code, message, data);
     }
 
-    /** 对照 Go {@code JSONRPCErrorDetails.AsError()}。 */
+    /** 转成 {@link McpException}。 */
     public McpException asException() {
         String sentinel = sentinelMessage();
         String text = sentinel != null
@@ -45,7 +44,7 @@ public record JsonRpcError(int code, String message, JsonNode data) {
         return new McpException(McpErrorCode.INVALID_RESPONSE, text);
     }
 
-    /** 已知 JSON-RPC 错误码对应的哨兵文案（对照 mcp/errors.go:7-31）。 */
+    /** 已知 JSON-RPC 错误码对应的哨兵文案。 */
     private String sentinelMessage() {
         return switch (code) {
             case PARSE_ERROR -> "parse error";

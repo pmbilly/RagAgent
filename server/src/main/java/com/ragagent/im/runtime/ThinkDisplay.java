@@ -5,10 +5,10 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * IM 流式显示的 think 块处理（对照 Go internal/im/think.go 全文，波 5 W5γ1 逐行翻译）。
+ * IM 流式显示的 think 块处理。
  *
- * <p>字节契约：StripThinkBlocks / TransformThinkBlocks / 组装族全部钉 Go 实录
- * （overlay 探针 2026-09-21，contracts/w5g1-im-foundation.tsv）。</p>
+ * <p>字节契约：stripThinkBlocks / transformThinkBlocks / 组装族由测试 fixture
+ * （contracts/w5g1-im-foundation.tsv）钉住。</p>
  */
 public final class ThinkDisplay {
 
@@ -25,7 +25,7 @@ public final class ThinkDisplay {
     private static final Pattern THINK_OPEN_TAIL_RE =
             Pattern.compile("(?s)<think>.*$");
 
-    /** 对照 ragPipelineToolNames：镜像前端 RAG_PIPELINE_TOOL_NAMES。 */
+    /** 镜像前端 RAG_PIPELINE_TOOL_NAMES。 */
     private static final java.util.Set<String> RAG_PIPELINE_TOOL_NAMES =
             java.util.Set.of("query_understand", "knowledge_search");
 
@@ -48,7 +48,7 @@ public final class ThinkDisplay {
     public static final int IM_STREAM_MODE_AGENT = 0;
     public static final int IM_STREAM_MODE_QUICK_QA = 1;
 
-    /** IM 流内容分部（对照 Go {@code im.IMStreamParts}，think.go L53-66）。 */
+    /** IM 流内容分部。 */
     public static final class IMStreamParts {
         public int mode = IM_STREAM_MODE_AGENT;
         /** quick-QA：query_understand / knowledge_search 行。 */
@@ -161,7 +161,7 @@ public final class ThinkDisplay {
         return transformThinkBlocks(raw, ThinkBlockStyle.MARKDOWN);
     }
 
-    /** think 块渲染样式（对照 Go {@code im.ThinkBlockStyle}，think.go L176-187）。 */
+    /** think 块渲染样式。 */
     public static final class ThinkBlockStyle {
         /** think 块还在进行中（没等到闭合标签）时显示。 */
         public final String thinkingHeader;
@@ -193,8 +193,7 @@ public final class ThinkDisplay {
     }
 
     /**
-     * 按给定样式转换 &lt;think&gt;...&lt;/think&gt; 块；闭合与未闭合（流式中）都处理
-     * （think.go L219-275 逐行）。
+     * 按给定样式转换 &lt;think&gt;...&lt;/think&gt; 块；闭合与未闭合（流式中）都处理。
      */
     public static String transformThinkBlocks(String content, ThinkBlockStyle style) {
         final String openTag = "<think>";

@@ -24,9 +24,9 @@ final class DorisAdminOps {
         this.service = service;
     }
 
-    // ── 兼容模式解析（照 compat.go 全文） ──────────────────────────────────
+    // ── 兼容模式解析 ────────────────────────────────────────────────────────
 
-    /** 解析结果（mode 与 error 二选一；照 Go 的 sync.Once 缓存含错误）。 */
+    /** 解析结果（mode 与 error 二选一；结果缓存含失败）。 */
     record CompatResolution(DorisCompatMode mode, RuntimeException error) {
     }
 
@@ -135,7 +135,7 @@ final class DorisAdminOps {
                 + "=" + existing.wire();
     }
 
-    /** 对照 {@code detectExistingCompatMode}：列既有表（字典序）→ SHOW CREATE TABLE → 模式判读。 */
+    /** 列既有表（字典序）→ SHOW CREATE TABLE → 模式判读。 */
     DetectResult detectExistingCompatMode() {
         List<String> tables;
         try {
@@ -211,10 +211,10 @@ final class DorisAdminOps {
         }
     }
 
-    // ── 表管理（照 schema.go） ──────────────────────────────────────────────
+    // ── 表管理 ──────────────────────────────────────────────────────────────
 
     /**
-     * 对照 {@code ensureTable}：不存在则 CREATE TABLE IF NOT EXISTS，并起后台线程轮询
+     * 建表：不存在则 CREATE TABLE IF NOT EXISTS，并起后台线程轮询
      * ANN 索引就绪（写入路径不阻塞——索引未就绪期间检索退化为 brute-force）。
      */
     void ensureTable(int dimension) {
@@ -255,7 +255,7 @@ final class DorisAdminOps {
     }
 
     /**
-     * 对照 {@code tableExists}：走 information_schema（Doris 4.1 的 SHOW TABLES LIKE
+     * 表存在性检查走 information_schema（Doris 4.1 的 SHOW TABLES LIKE
      * 大小写敏感，information_schema 兼容性更好）。
      */
     boolean tableExists(String tableName) {
@@ -291,7 +291,7 @@ final class DorisAdminOps {
         }
     }
 
-    /** 对照 {@code waitANNReady}：到点未就绪只报错，不阻塞。 */
+    /** 等待 ANN 索引就绪：到点未就绪只报错，不阻塞。 */
     void waitAnnReady(String tableName) {
         long deadline = System.currentTimeMillis() + DorisRetrieveRepository.ANN_READY_TIMEOUT_MS;
         while (true) {
@@ -312,7 +312,7 @@ final class DorisAdminOps {
     }
 
     /**
-     * 对照 {@code annIndexReady}：SHOW INDEX 按列名匹配 key_name / state（不同小版本
+     * ANN 索引就绪判定：SHOW INDEX 按列名匹配 key_name / state（不同小版本
      * 列序有差异）；找不到 idx_emb 行或旧版本无 state 列都视为已就绪。
      */
     boolean annIndexReady(String tableName) {
@@ -353,7 +353,7 @@ final class DorisAdminOps {
         return true;
     }
 
-    /** 对照 {@code listEmbeddingTables}：{@code <base>\_%}（LIKE 里 \_ 转义下划线）。 */
+    /** 列出 embedding 表：{@code <base>\_%}（LIKE 里 \_ 转义下划线）。 */
     List<String> listEmbeddingTables() {
         try {
             return service.sql.query("SELECT TABLE_NAME FROM information_schema.tables "

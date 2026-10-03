@@ -22,11 +22,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * {@code task_pending_ops} / {@code task_dead_letters} 的仓储测试。
  *
- * <p><b>Go 侧没有直接对应的测试文件</b>：Go 的 task_queue 仓储测试依赖真 PG 的
- * {@code FOR UPDATE SKIP LOCKED}，跑在 repository 层的 SQLite 内存库里做不了。
- * Java 侧换了实现（可移植的<b>条件 UPDATE</b> 认领，见
+ * <p>认领实现用的是可移植的<b>条件 UPDATE</b>（见
  * {@link TaskPendingOpsRepository} 的类注释），因此<b>必须</b>有这一份测试把
- * 「认领的不变量」逐条钉住——否则"换实现"就成了无凭据的宣称。</p>
+ * 「认领的不变量」逐条钉住。</p>
  *
  * <p>覆盖的不变量：</p>
  * <ol>
@@ -40,8 +38,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * </ol>
  *
  * <p><b>⚠️ H2 与 PG 的差异</b>：本测试跑在 H2（VARCHAR 承载 jsonb、无 SKIP LOCKED），
- * 按约定 §9 的工具链坑，涉及方言的行必须在真 PG 上复验一次——
- * 已记入报告的"需决策的点"。</p>
+ * 按约定 §9 的工具链坑，涉及方言的行必须在真 PG 上复验一次。</p>
  */
 @SpringBootTest
 class TaskQueueRepositoryTest {
@@ -325,7 +322,7 @@ class TaskQueueRepositoryTest {
 
         // 游标分页：满页时给出下一页游标。
         // 注意必须新建对象：id 插入后被回填，复用同一个实例会带着已存在的主键再插一次
-        // （这与 GORM 对非零主键的行为一致——两边都不会"自动忽略 id"）。
+        // （落库语义：显式给定的非空主键不会被"自动忽略"）。
         TaskDeadLetter second = deadLetter();
         deadLetterRepo.insert(second);
         TaskDeadLetterRepository.CursorPage page =

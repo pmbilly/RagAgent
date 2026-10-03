@@ -25,32 +25,31 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
 /**
- * 腾讯 VectorDB 的客户端 BM25 稀疏向量编码——对照 SDK {@code tcvdbtext/encoder} 的
+ * 腾讯 VectorDB 的客户端 BM25 稀疏向量编码——对齐腾讯 SDK {@code tcvdbtext/encoder} 的
  * {@code BM25Encoder}（v1.8.4）：
  *
  * <ul>
- *   <li><b>分词</b>：Go 用 {@code gse} 的 HMM 切分 + 停用词表——注意
+ *   <li><b>分词</b>：SDK 内置 jieba 系分词的 HMM 切分 + 停用词表——注意
  *       <b>{@code LoadDict("")} 实际什么都没加载</b>（非空 varargs 走错分支，词典恒为空 ⇒ 纯 HMM），
- *       勘察结论见 {@link JiebaTokenizer} 类注释；本仓同款复刻；</li>
- *   <li><b>哈希</b>：token → <b>murmur3 32 位</b>（{@code spaolacci/murmur3}，x86_32 种子 0）
+ *       实测结论见 {@link JiebaTokenizer} 类注释；本仓同款实现；</li>
+ *   <li><b>哈希</b>：token → <b>murmur3 32 位</b>（x86_32 种子 0）
  *       → 无符号 int64 的十进制串；</li>
  *   <li><b>文档权重</b>：{@code tf/(K1*(1-B+B*(len/avgDocLen))+tf)}（B=0.75/K1=1.2）；</li>
  *   <li><b>查询权重</b>：{@code idf=ln((docCount+1)/(df+0.5))} 再按 Σidf 归一化；</li>
  *   <li><b>语料统计</b>：从 COS 下载的 {@code bm25_zh_default.json}（85 MB / 389 万词条：
  *       b/k1/doc_count/average_doc_length/token_freq），缓存于
- *       {@code /tmp/tencent/vectordatabase/data/}（照 Go 的 {@code DefaultStorageDir}）。</li>
+ *       {@code /tmp/tencent/vectordatabase/data/}（SDK 缺省目录）。</li>
  * </ul>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现差异</h2>
  * <ol>
- *   <li><b>分词接缝</b>：~~Go 内嵌 gse（jieba 词典 + HMM）vs 本仓近似分词（按空白 + CJK 二字滑窗）
- *       ⇒ 稀疏向量与 Go 不逐词一致~~ ✅ <b>已对齐（W5γ5.7）</b>：{@link JiebaTokenizer} 照 Go 的
- *       实际行为（HMM 切分 + 小写化 + 停用词）逐 token 复刻，基线
+ *   <li><b>分词接缝</b>：{@link JiebaTokenizer} 与 SDK 的
+ *       实际行为（HMM 切分 + 小写化 + 停用词）逐 token 等价，基线
  *       {@code src/test/resources/jieba/jieba_baseline.json} + {@code JiebaTokenizerDiffTest}
- *       逐句守卫——Java 写出的稀疏向量现与 Go 同源（前提：Go 侧仍走 SDK 默认构造）。</li>
- *   <li>统计表解析：Go {@code json.Unmarshal} 进 {@code map[string]float64}（数百 MB 堆）；
- *       本仓用<b>流式解析 + 排序长整型数组</b>（约 47 MB）——查询结果一致，查找走二分。</li>
- *   <li>停用词：Go 默认从 COS 下 {@code default_stopwords.txt}（1.1 KB）并启用；本仓同款
+ *       逐句守卫——写出的稀疏向量与 SDK 同源（前提：SDK 侧仍走默认构造）。</li>
+ *   <li>统计表解析：不用整表 {@code map}（数百 MB 堆）；
+ *       改用<b>流式解析 + 排序长整型数组</b>（约 47 MB）——查询结果一致，查找走二分。</li>
+ *   <li>停用词：SDK 默认从 COS 下 {@code default_stopwords.txt}（1.1 KB）并启用；本仓同款
  *       （下载失败只 WARN 且不去停用词，不阻塞主链）。</li>
  * </ol>
  */
@@ -58,22 +57,22 @@ public final class TencentVectorDbBm25 {
 
     private static final Logger log = LoggerFactory.getLogger(TencentVectorDbBm25.class);
 
-    /** 照 Go {@code DefaultBM25EncoderB} / {@code DefaultBM25EncoderK1}。 */
+    /** BM25 权重缺省值（B=0.75 / K1=1.2，SDK 缺省）。 */
     static final double DEFAULT_B = 0.75;
     static final double DEFAULT_K1 = 1.2;
 
-    /** 照 Go {@code tcvdbtext.DefaultStorageDir}（下载缓存目录）。 */
+    /** 下载缓存目录（SDK 缺省）。 */
     public static final String DEFAULT_STORAGE_DIR = "/tmp/tencent/vectordatabase/data/";
     static final String COS_SPARSEVECTOR_DIR =
             "https://vectordb-public-1310738255.cos.ap-guangzhou.myqcloud.com/sparsevector/";
     static final String ZH_PARAMS_FILE = "bm25_zh_default.json";
     static final String STOPWORDS_FILE = "default_stopwords.txt";
 
-    /** 一条稀疏向量项（照 {@code encoder.SparseVecItem}）。 */
+    /** 一条稀疏向量项。 */
     public record SparseVecItem(long termId, float score) {
     }
 
-    /** 分词接缝（默认 {@link JiebaTokenizer}，已与 Go 同源；测试可注入 {@link #fixedTokenizer}）。 */
+    /** 分词接缝（默认 {@link JiebaTokenizer}，与 SDK 同源；测试可注入 {@link #fixedTokenizer}）。 */
     public interface Tokenizer {
 
         List<String> tokens(String text);
@@ -99,7 +98,7 @@ public final class TencentVectorDbBm25 {
         this.tokenizer = tokenizer;
     }
 
-    /** 入口：下载/缓存参数 + 停用词，构造编码器（照 Go 的 {@code SetDefaultParams("zh")}）。 */
+    /** 入口：下载/缓存参数 + 停用词，构造编码器（SDK 的 {@code SetDefaultParams("zh")} 口径）。 */
     public static TencentVectorDbBm25 create() {
         Path dir = Path.of(DEFAULT_STORAGE_DIR);
         Path paramsFile = dir.resolve(ZH_PARAMS_FILE);
@@ -133,7 +132,7 @@ public final class TencentVectorDbBm25 {
         return new TencentVectorDbBm25(b, k1, docCount, avgDocLen, keys, freqs, tokenizer);
     }
 
-    /** 写库：文本 → 稀疏向量（照 {@code EncodeTexts} 的每篇 tf 归一）。 */
+    /** 写库：文本 → 稀疏向量（每篇 tf 归一）。 */
     public List<SparseVecItem> encodeText(String text) {
         List<Long> hashes = new ArrayList<>();
         List<Long> counts = new ArrayList<>();
@@ -156,7 +155,7 @@ public final class TencentVectorDbBm25 {
         return out;
     }
 
-    /** 检索：查询文本 → 稀疏向量（照 {@code EncodeQueries} 的 idf 归一）。 */
+    /** 检索：查询文本 → 稀疏向量（idf 归一）。 */
     public List<SparseVecItem> encodeQuery(String text) {
         List<Long> hashes = new ArrayList<>();
         List<Long> ignored = new ArrayList<>();
@@ -184,7 +183,7 @@ public final class TencentVectorDbBm25 {
         return out;
     }
 
-    /** 对照 {@code tf}：分词 → 逐 token 计数（保留首次出现顺序，照 Go 的 map 迭代顺序无关紧要）。 */
+    /** 词频统计：分词 → 逐 token 计数（保留首次出现顺序）。 */
     private void tf(String text, List<Long> hashes, List<Long> counts) {
         Map<Long, Long> counter = new LinkedHashMap<>();
         List<String> tokens = tokenizer.tokens(text == null ? "" : text);
@@ -201,15 +200,15 @@ public final class TencentVectorDbBm25 {
         }
     }
 
-    /** DF 查表（照 Go：缺失 = 0）。 */
+    /** DF 查表（缺失 = 0）。 */
     private double dfOf(long termId) {
         int idx = java.util.Arrays.binarySearch(tokenKeys, termId);
         return idx >= 0 ? tokenFreqs[idx] : 0d;
     }
 
-    // ── murmur3 x86_32（种子 0）——照 spaolacci/murmur3 的 New32() ──────────
+    // ── murmur3 x86_32（种子 0，无密钥的标准 32 位口） ──────────────────────
 
-    /** 返回无符号 32 位值（放到 long 里，照 Go 的 {@code int64(Sum32())}）。 */
+    /** 返回无符号 32 位值（放到 long 里）。 */
     public static long murmur3_32(byte[] data) {
         final int c1 = 0xcc9e2d51;
         final int c2 = 0x1b873593;

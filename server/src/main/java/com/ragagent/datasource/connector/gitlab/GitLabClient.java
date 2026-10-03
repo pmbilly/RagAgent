@@ -15,35 +15,33 @@ import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.ConnectorHttp;
 
 /**
- * GitLab REST 客户端（对照 Go 的 {@code internal/datasource/connector/gitlab/client.go} 全文）。
+ * GitLab REST 客户端。
  *
  * <h2>内部 API 形状，不是契约</h2>
  * <p>本类及其全部嵌套类型（{@link Project} / {@link TreeEntry} / {@link Comparison} /
  * {@link FileDetail}）<b>只</b>用于反序列化 GitLab 的响应。它们不落 jsonb、也从不进
  * HTTP 响应体，所以<b>不需要</b> {@code @JsonIgnore} 派生访问器、
  * 也不挂 {@code DataSourceMapSerializer} / {@code GoDoubleSerializer}
- * （约定 §7.5 第 3 条只约束会落库或作响应体的类型）。字段名一律按 GitLab 的
+ * （那套只约束会落库或作响应体的类型）。字段名一律按 GitLab 的
  * {@code snake_case} 用 {@code @JsonProperty} 显式标出——这里是<b>外部协议</b>的字段名，
  * 不是本项目的 JSON 契约。</p>
  *
- * <h2>ctx 的处置</h2>
- * <p>Go 的每个方法都吃 {@code ctx}，它承载取消信号与请求超时。Java 侧：
- * 取消靠线程中断（{@link ConnectorHttp} 会把它转成 {@link ConnectorException}），
- * 超时落在客户端构造参数上——Go 是 {@code 30 * time.Second}。</p>
+ * <h2>取消与超时</h2>
+ * <p>取消靠线程中断（{@link ConnectorHttp} 会把它转成 {@link ConnectorException}），
+ * 超时落在客户端构造参数上。</p>
  *
  * <h2>失败形态</h2>
- * <p>非 2xx 由 {@link ApiException} 表达（对照 Go 的 {@code *apiError}，可
- * {@code errors.As} / Java {@code instanceof} 判定）；传输层失败由
+ * <p>非 2xx 由 {@link ApiException} 表达（{@code instanceof} 判定）；传输层失败由
  * {@link ConnectorHttp} 直接抛 {@link ConnectorException}。{@code raw()} 的
  * 404 回落正是靠这个区分。</p>
  */
 public final class GitLabClient {
 
-    /** 对照 Go {@code datasource.NewConnectorHTTPClient(30 * time.Second)}。 */
+    /** 单次请求超时。 */
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
     /**
-     * 对照 Go 的 {@code json.Unmarshal}：<b>容忍未知属性</b>（GitLab 的响应字段只多不少，
+     * <b>容忍未知属性</b>（GitLab 的响应字段只多不少，
      * 严格模式会让新版本 GitLab 加的字段直接把同步打挂）。
      */
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -60,20 +58,20 @@ public final class GitLabClient {
     }
 
     /**
-     * 对照 Go {@code newClient(baseURL, token)}。
+     * 构造客户端。
      *
-     * <p><b>归一顺序有语义，逐条照抄</b>（顺序错了会在"带不带 scheme / 带不带
+     * <p><b>归一顺序有语义</b>（顺序错了会在"带不带 scheme / 带不带
      * {@code /api/v4}"的六种组合上给出不同结果）：</p>
      * <ol>
      *   <li>{@code TrimSpace} → {@code TrimRight "/"}（去掉<b>全部</b>尾部斜杠）；</li>
      *   <li>baseURL 为空、或 token 去空白后为空 → {@code "GitLab platform configuration is missing"}；</li>
-     *   <li>{@link ConnectorHttp#validateConnectorBaseUrl}——<b>此时可能还没补 scheme</b>，
-     *       Go 就是先校验再补。{@code validateConnectorBaseUrl} 内部对无 scheme 的串会自己
+     *   <li>{@link ConnectorHttp#validateConnectorBaseUrl}——<b>此时可能还没补 scheme</b>：
+     *       校验函数内部对无 scheme 的串会自己
      *       补 {@code https://} 再解析，所以 {@code evil.internal} 这种裸主机会被真的当成主机名校验，
-     *       而不是被 {@code url.Parse} 当成 path；</li>
+     *       而不是被当成 path；</li>
      *   <li>不含 {@code "://"} 才补 {@code https://}；</li>
      *   <li>结尾不是 {@code /api/v4} 才补——所以 {@code .../api/v4extra} 会变成
-     *       {@code .../api/v4extra/api/v4}（Go 亦然，别"顺手修好"）。</li>
+     *       {@code .../api/v4extra/api/v4}（这条是刻意保留的既有行为）。</li>
      * </ol>
      *
      * @throws ConnectorException 配置缺失或 base_url 未过 SSRF 策略
@@ -103,7 +101,7 @@ public final class GitLabClient {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code (*client).ping}：验证 PRIVATE-TOKEN 被这个 GitLab 实例接受。
+     * 验证 PRIVATE-TOKEN 被这个 GitLab 实例接受。
      * 刻意走 {@code /user} 而不是项目列表——老的 GitLab 部署即使 token 有效，
      * 也可能拒绝项目列表的排序参数。
      */
@@ -127,7 +125,7 @@ public final class GitLabClient {
     }
 
     /**
-     * 对照 Go {@code (*client).tree}：逐页取目录项，靠响应头 {@code X-Next-Page} 推进。
+     * 逐页取目录项，靠响应头 {@code X-Next-Page} 推进。
      *
      * <p><b>分页游标在响应头里，不在 body 里</b>——GitLab 的 {@code /repository/tree}
      * 返回的是一个裸 JSON 数组，没有 {@code next_page} 字段。空串表示没有下一页。</p>
@@ -153,9 +151,9 @@ public final class GitLabClient {
     }
 
     /**
-     * 对照 Go {@code (*client).raw}：取文件正文，带 404 的 base64 回落。
+     * 取文件正文，带 404 的 base64 回落。
      *
-     * <p>顺序照抄：先 {@code /repository/files/<esc>/raw?ref=}；只有拿到
+     * <p>先 {@code /repository/files/<esc>/raw?ref=}；只有拿到
      * <b>404</b> 才改走 {@code /repository/files/<esc>?ref=}，并要求
      * {@code encoding == "base64"} 才解码。非 404 的失败直接
      * {@code "gitlab raw file: " + err}（Gitaly 的 5xx 不该被回落掩盖）。</p>
@@ -198,12 +196,10 @@ public final class GitLabClient {
     }
 
     /**
-     * 对照 Go {@code (*client).compare}。
+     * 比对两个 ref 的差异。
      *
-     * <p>失败时 Go 仍然返回一个 <b>非 nil 的</b> {@code *comparison}（零值）与 error；
-     * Java 的异常语义等价——但调用方必须像 Go 那样<b>先看异常、再看
-     * {@code compareTimeout}</b>：{@code err != nil || diff.CompareTimeout}
-     * 是两个独立触发条件，前者让 {@code diff} 不可读。</p>
+     * <p>调用方必须<b>先看异常、再检查 {@code compareTimeout}</b>：
+     * 两者是独立触发条件，异常抛出时结果对象不可读。</p>
      */
     public Comparison compare(String id, String from, String to) {
         Map<String, String> q = new LinkedHashMap<>();
@@ -214,15 +210,15 @@ public final class GitLabClient {
     }
 
     // ------------------------------------------------------------------
-    // 纯函数（对照 Go 的两个包级函数）
+    // 纯函数
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code projectPath}：把 GitLab 项目标识编码成 URL 路径段。
+     * 把 GitLab 项目标识编码成 URL 路径段。
      *
      * <ol>
      *   <li>纯数字 ID <b>原样</b>（{@code ParseInt} 成功即返回，含前导零与负号）；</li>
-     *   <li>含 {@code %} 时先尝试 {@code PathUnescape}（<b>失败就保留原串</b>）；
+     *   <li>含 {@code %} 时先尝试 {@code pathUnescape}（<b>失败就保留原串</b>）；
      *       这一步是为了让已经编码过的 {@code group%2Fproject} 不会被二次编码成
      *       {@code group%252Fproject}；</li>
      *   <li>含 {@code /} 则逐段 {@code PathEscape} 后用 {@code %2F} 拼回去；</li>
@@ -245,7 +241,7 @@ public final class GitLabClient {
             try {
                 decoded = GoUrl.pathUnescape(trimmed);
             } catch (GoUrl.InvalidEscapeException ignored) {
-                // 对照 Go：PathUnescape 失败时保留原串
+                // 解码失败时保留原串
             }
         }
         if (decoded.contains("/")) {
@@ -263,13 +259,13 @@ public final class GitLabClient {
     }
 
     /**
-     * 对照 Go {@code gitlabFilePathEscape}：公司 GitLab 的 raw-file 路由只让
+     * 公司 GitLab 的 raw-file 路由只让
      * ASCII 字母、数字、连字符、下划线保持字面。
      *
      * <p><b>其余一律逐字节 {@code %XX}，大写十六进制</b>——所以 {@code .} 也要转义
-     * （{@code a.md} → {@code a%2Emd}）。注意遍历的是 {@code []byte(file)}：
-     * UTF-8 的中文会被拆成多个字节各自转义（{@code 中} → {@code %E4%B8%AD}），
-     * 这<b>不是</b>按码点编码，用 Java 的 {@code char} 遍历会直接错。</p>
+     * （{@code a.md} → {@code a%2Emd}）。注意按 <b>UTF-8 字节</b>遍历：
+     * 中文会被拆成多个字节各自转义（{@code 中} → {@code %E4%B8%AD}），
+     * 这<b>不是</b>按码点编码，用 {@code char} 遍历会直接错。</p>
      */
     public static String filePathEscape(String file) {
         char[] hex = "0123456789ABCDEF".toCharArray();
@@ -329,8 +325,8 @@ public final class GitLabClient {
         try {
             return MAPPER.readValue(body == null ? new byte[0] : body, type);
         } catch (IOException e) {
-            // 对照 Go 的 json.Unmarshal 错误：调用方只把它当"这次请求失败了"，
-            // 具体文案由 Jackson 给出（与 encoding/json 不同，属已知差异）
+            // 调用方只把它当"这次请求失败了"，
+            // 具体文案由 Jackson 给出
             throw new ConnectorException("gitlab API response decode: " + e.getMessage(), e);
         }
     }
@@ -347,10 +343,10 @@ public final class GitLabClient {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go 的 {@code apiError}：GitLab 返回了非 2xx。
+     * GitLab 返回了非 2xx。
      *
-     * <p>消息逐字一致：{@code gitlab API <endpoint>: status <n>}。{@code endpoint}
-     * 是<b>不含 query</b> 的那一段（照抄 Go 的传参）。</p>
+     * <p>消息格式：{@code gitlab API <endpoint>: status <n>}。{@code endpoint}
+     * 是<b>不含 query</b> 的那一段。</p>
      */
     public static class ApiException extends ConnectorException {
 
@@ -374,7 +370,7 @@ public final class GitLabClient {
         }
     }
 
-    /** 对照 Go 的 {@code project}。{@code namespace} 在 Go 里建模了但从未被读取，此处同理保留形状。 */
+    /** GitLab 的 project 响应。{@code namespace} 从未被读取，保留形状。 */
     public record Project(
             @JsonProperty("id") long id,
             @JsonProperty("path_with_namespace") String pathWithNamespace,
@@ -387,7 +383,7 @@ public final class GitLabClient {
         }
     }
 
-    /** 对照 Go 的 {@code treeEntry}。 */
+    /** {@code /repository/tree} 的一条目录项。 */
     public record TreeEntry(
             @JsonProperty("id") String id,
             @JsonProperty("name") String name,
@@ -396,11 +392,11 @@ public final class GitLabClient {
     }
 
     /**
-     * 对照 Go 的 {@code comparison}。
+     * 两个 ref 的比对结果。
      *
      * <p>只建模了连接器真正读的字段：{@code deleted_file} 与 {@code renamed_file}
      * 决定"要不要发删除条目"，{@code old_path} / {@code new_path} 决定作用范围。
-     * {@code new_file} 与 {@code compare_same_ref} Go 声明了但从不读，保留形状。</p>
+     * {@code new_file} 与 {@code compare_same_ref} 从不读，保留形状。</p>
      */
     public record Comparison(
             @JsonProperty("diffs") List<Diff> diffs,
@@ -420,13 +416,13 @@ public final class GitLabClient {
         }
     }
 
-    /** 对照 Go 的 {@code /repository/files/<path>} 详情响应（只取占位符那两段）。 */
+    /** {@code /repository/files/<path>} 详情响应（只取占位符那两段）。 */
     record FileDetail(
             @JsonProperty("encoding") String encoding,
             @JsonProperty("content") String content) {
     }
 
-    /** 对照 Go 的 {@code /user} 与 {@code /repository/commits/<ref>} 的匿名单字段结构。 */
+    /** {@code /user} 与 {@code /repository/commits/<ref>} 的单字段响应。 */
     record UserInfo(@JsonProperty("id") long id) {
     }
 

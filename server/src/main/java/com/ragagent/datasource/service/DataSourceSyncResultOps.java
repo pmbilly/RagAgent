@@ -34,10 +34,10 @@ final class DataSourceSyncResultOps {
     }
 
     /**
-     * 对照 Go {@code updateSyncRunResult}（L1124-1177）：把一次运行的结果同时落到
+     * 把一次运行的结果同时落到
      * sync_log 与 data_source 两侧，并按状态决定审计动作与结果。
      *
-     * <p>状态机的三条分支逐条照抄：<b>failed</b> 时（若原本不是 paused）置 error；
+     * <p>状态机的三条分支：<b>failed</b> 时（若原本不是 paused）置 error；
      * 否则原状态是 paused 就保持 paused（手动跑完一次不该把暂停的源变成 active），
      * 其余置 active。</p>
      */
@@ -97,7 +97,7 @@ final class DataSourceSyncResultOps {
     }
 
     /**
-     * 对照 Go {@code allFetchedItemsFailedError}（L1179-1200）。
+     * 判定"整批全失败"。
      *
      * <p>只有"抓到了东西、而且<b>每一件</b>都失败、且没有任何成功计数"才算整体失败
      * ——这样一个"源里全是被删的条目"的运行不会被误判成故障。
@@ -141,12 +141,11 @@ final class DataSourceSyncResultOps {
     }
 
     /**
-     * 对照 Go {@code recordSyncError}（L830-834）：错误样本按 {@value #DataSourceService.MAX_SYNC_RESULT_ERRORS}
-     * 封顶。
+     * 记录错误样本，按 {@value #DataSourceService.MAX_SYNC_RESULT_ERRORS} 封顶。
      *
-     * <p>理由写在 Go 的注释里：{@code result.Errors} 会落 jsonb、并且出现在<b>每一次</b>
+     * <p>理由：{@code errors} 会落 jsonb、并且出现在<b>每一次</b>
      * 同步日志列表响应里。一次失败几千份文档的同步若把错误全留下，就是多 MB 的行
-     * 和多 MB 的响应体。准确的失败数在 {@code result.Failed}（一个有界整数）。</p>
+     * 和多 MB 的响应体。准确的失败数在 {@code failed}（一个有界整数）。</p>
      */
     static void recordSyncError(SyncResult result, SyncItemError item) {
         List<SyncItemError> errors = result.getErrors();
@@ -160,7 +159,7 @@ final class DataSourceSyncResultOps {
     }
 
     /**
-     * 对照 Go {@code fetchFailureSyncError}（L842-854）。
+     * 构造"抓取失败"错误样本。
      *
      * <p>会分类错误的连接器（飞书）经 metadata 给出稳定的 i18n 码 + 参数，
      * 让前端能本地化；<b>原始状态码/响应体/log_id 永远不出服务端日志</b>。

@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Elasticsearch v7 引擎的检索簇：基础条件（JSON 字符串拼接口，v7 形状）、
  * vector（script_score）与 keywords（bool filter+match）两路、命中解析。
- * v7 的 Retrieve 只分派 keywords（vector → invalid retriever type，照 Go）。
+ * v7 的 Retrieve 只分派 keywords（vector → invalid retriever type）。
  */
 final class ElasticsearchV7SearchOps {
 
@@ -30,7 +30,7 @@ final class ElasticsearchV7SearchOps {
         this.service = service;
     }
 
-    /** 对照 v7 {@code getBaseConds}：返回 JSON <b>字符串</b>（Go 是 string 拼接口）。 */
+    /** 基础条件：返回 JSON <b>字符串</b>（供上层拼接口）。 */
     String getBaseCondsJson(RetrieveParams params) {
         List<ObjectNode> must = new ArrayList<>();
         if (params.knowledgeBaseIds != null && !params.knowledgeBaseIds.isEmpty()) {
@@ -69,7 +69,7 @@ final class ElasticsearchV7SearchOps {
         return query.toString();
     }
 
-    /** 对照 v7 {@code Retrieve}：<b>只分派 keywords</b>（vector → invalid retriever type）。 */
+    /** <b>只分派 keywords</b>（vector → invalid retriever type）。 */
     List<RetrieveResult> retrieve(RetrieveParams params) throws Exception {
         if (EngineTypes.RETRIEVER_KEYWORDS.equals(params.retrieverType)) {
             return keywordsRetrieve(params);
@@ -77,7 +77,7 @@ final class ElasticsearchV7SearchOps {
         throw new IllegalArgumentException("invalid retriever type: " + params.retrieverType);
     }
 
-    /** 对照 v7 {@code VectorRetrieve}（不在分派表里，可直呼）。 */
+    /** 向量路（不在分派表里，可直呼）。 */
     List<RetrieveResult> vectorRetrieve(RetrieveParams params) throws Exception {
         JsonNode filter;
         try {
@@ -110,7 +110,7 @@ final class ElasticsearchV7SearchOps {
                 EngineTypes.RETRIEVER_VECTOR));
     }
 
-    /** 对照 v7 {@code KeywordsRetrieve}：{@code {"query":{"bool":{"must":[{"match":{"content":q}}],"filter":[<cond>]}}}}。 */
+    /** 关键词路：{@code {"query":{"bool":{"must":[{"match":{"content":q}}],"filter":[<cond>]}}}}。 */
     List<RetrieveResult> keywordsRetrieve(RetrieveParams params) throws Exception {
         JsonNode filter;
         try {
@@ -134,11 +134,11 @@ final class ElasticsearchV7SearchOps {
     }
 
     /**
-     * 对照 v7 {@code processSearchResponse} + {@code processHits}：单条命中缺
+     * 命中解析：单条命中缺
      * {@code _id}/{@code _source}/{@code _score} 时<b>跳过继续</b>（v8 是整请求报错）。
      *
-     * <p><b>修复（有意偏离 Go v7）</b>：Go v7 的 {@code processHit} 恒传 MatchTypeKeywords，
-     * 向量结果也被标成关键词命中（v8 的同类代码是对的）——这里按实际检索类型给。</p>
+     * <p>命中类型按实际检索路径标注：vector → MatchTypeEmbedding、
+     * keywords → MatchTypeKeywords。</p>
      */
     List<IndexWithScore> processSearchResponse(HttpResult resp, String retrieverType)
             throws Exception {

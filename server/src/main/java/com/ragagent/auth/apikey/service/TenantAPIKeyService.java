@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 租户 API Key 服务（对照 Go internal/application/service/tenant_api_key.go）。
+ * 租户 API Key 服务。
  *
  * <p><b>生命周期</b>：创建 → （明文 Token 只在创建响应里出现一次）→ 认证命中 →
  * 周期刷新 {@code last_used_at} → 撤销（软删）。</p>
@@ -36,7 +36,7 @@ public class TenantAPIKeyService {
     private static final Logger log = LoggerFactory.getLogger(TenantAPIKeyService.class);
 
     /**
-     * 对照 Go {@code apiKeyLastUsedMinInterval}：同一把 Key 的 {@code last_used_at}
+     * 节流：同一把 Key 的 {@code last_used_at}
      * 最多每分钟落一次库。UI 只需要分钟级新鲜度，而认证路径上的 UPDATE 在高 QPS
      * 下是实打实的写放大。
      */
@@ -46,8 +46,7 @@ public class TenantAPIKeyService {
 
     private final TenantAPIKeyRepository repo;
     /**
-     * 对照 Go 的 {@code lastUsedTouch sync.Map}：Key ID → 上次**已持久化**的触碰时间。
-     * 用 {@link ConcurrentHashMap} 代替（Java 无锁并发 Map，与 sync.Map 同语义）。
+     * Key ID → 上次**已持久化**的触碰时间（进程内节流标记）。
      */
     private final ConcurrentHashMap<Long, Instant> lastUsedTouch = new ConcurrentHashMap<>();
 
@@ -55,13 +54,13 @@ public class TenantAPIKeyService {
         this.repo = repo;
     }
 
-    /** 对照 Go {@code interfaces.TenantAPIKeyCreateResult}：明文 Token 与实体一起返回。 */
+    /** 创建结果：明文 Token 与实体一起返回。 */
     public record CreateResult(TenantAPIKey apiKey, String token) {}
 
     /**
-     * 对照 {@code CreateAPIKey}（Go L34-84）。
+     * 创建 Key。
      *
-     * <p>校验顺序有语义（Go 逐句照抄）：</p>
+     * <p>校验顺序有语义，勿重排：</p>
      * <ol>
      *   <li>tenant 作用域必须有 tenant_id；</li>
      *   <li>platform 作用域**禁止** full_access（平台 Key 必须显式列能力）；</li>
@@ -100,7 +99,7 @@ public class TenantAPIKeyService {
         key.setCapabilities(capabilities);
         key.setExpiresAt(toUtc(req.expiresAt()));
         if (key.isFullAccess()) {
-            // 对照 Go：full-access 的 KB/能力清单一律置 nil（响应里表现为 null / []）
+            // full-access 的 KB/能力清单一律置 null（响应里表现为 null / []）
             key.setKnowledgeBaseIds(null);
             key.setCapabilities(null);
         }
@@ -109,10 +108,10 @@ public class TenantAPIKeyService {
     }
 
     /**
-     * 对照 {@code UpdateAPIKey}（Go L135-169）。
+     * 更新 Key。
      *
-     * <p>与创建的同名语义：scoped Key 至少一个能力；full-access 清空细粒度能力与 KB 范围。
-     * 注意 Go 这里**没有** "expires_at 必须在未来" 的校验（只有 handler 的 Create 有）——照抄。</p>
+     * <p>与创建同名语义：scoped Key 至少一个能力；full-access 清空细粒度能力与 KB 范围。
+     * 注意这里**没有** "expires_at 必须在未来" 的校验（只有 Create 入口有）——刻意保留。</p>
      */
     public TenantAPIKey update(TenantAPIKeyServiceUpdateRequest req) {
         if (req.tenantId() == 0L) {
@@ -144,7 +143,7 @@ public class TenantAPIKeyService {
     }
 
     /**
-     * 对照 {@code AuthenticateAPIKey}（Go L86-103）。
+     * 认证一把 Key。
      *
      * <p>三态失败（空 Token / 摘要未命中 / 已撤销 / 已过期）**一律**抛
      * {@link TenantAPIKeyNotFoundException}——调用方无从区分，这是刻意的信息隐藏。</p>
@@ -167,11 +166,10 @@ public class TenantAPIKeyService {
     }
 
     /**
-     * 对照 {@code touchAPIKeyLastUsedAsync}（Go L108-123）：节流 + 分离线程。
+     * 节流 + 异步刷新 {@code last_used_at}（虚拟线程执行）。
      *
-     * <p>Go 用 {@code go func(...)}；Java 用虚拟线程（application.yml 已开
-     * {@code spring.threads.virtual.enabled}）。写失败时**删除节流标记**，
-     * 让下一次认证立刻重试——对照 Go 的 {@code s.lastUsedTouch.Delete(id)}。</p>
+     * <p>写失败时**删除节流标记**，
+     * 让下一次认证立刻重试。</p>
      */
     void touchLastUsedAsync(long keyId) {
         Instant now = Instant.now();
@@ -190,40 +188,35 @@ public class TenantAPIKeyService {
         });
     }
 
-    /** 对照 {@code ListAPIKeys}。 */
+    /** 租户 Key 列表。 */
     public List<TenantAPIKey> listByTenant(long tenantId) {
         return repo.listByTenant(tenantId);
     }
 
-    /** 对照 {@code ListPlatformAPIKeys}。 */
+    /** 平台 Key 列表。 */
     public List<TenantAPIKey> listPlatform() {
         return repo.listPlatform();
     }
 
-    /** 对照 {@code RevokeAPIKey}。 */
+    /** 撤销租户 Key。 */
     public void revoke(long tenantId, long id) {
         repo.revoke(tenantId, id);
     }
 
-    /** 对照 {@code RevokePlatformAPIKey}。 */
+    /** 撤销平台 Key。 */
     public void revokePlatform(long id) {
         repo.revokePlatform(id);
     }
 
     /**
-     * 对照 {@code BackfillMissingKeyHashes}（Go L179-206）：
+     * 回填缺失的真实摘要：
      * 迁移 000065 给历史行写的是占位摘要 {@code migrated-tenant-<id>}，
      * 这些行从未被真实认证过；用库里的明文重算 SHA-256 并回填。
-     *
-     * <p>Go 在每次启动时调用一次（cmd/server/bootstrap.go L44-52，常量 EXISTS
-     * 短路使稳态零开销）。Java 侧由本服务的 ApplicationReadyEvent 钩子等价调用
-     * （2026-09-23 第二轮走查批接线——原"待接线"备案清除）。</p>
      *
      * @return 实际回填的行数；第二条相同的 Key 摘要直接跳过
      */
     /**
-     * 对照 Go bootstrap 的启动回填（cmd/server/bootstrap.go L44-52）：每次启动
-     * 尽力而为执行一次；失败只记 warn 不阻断启动。
+     * 启动回填：每次启动尽力而为执行一次；失败只记 warn 不阻断启动。
      */
     @org.springframework.context.event.EventListener(
             org.springframework.boot.context.event.ApplicationReadyEvent.class)
@@ -261,7 +254,7 @@ public class TenantAPIKeyService {
     // ── Token 生成与摘要 ──
 
     /**
-     * 对照 {@code generateTenantAPIKeyToken}（Go L208-214）：32 字节密码学随机 →
+     * 生成 Token：32 字节密码学随机 →
      * {@code "sk-" + base64url(无填充)}。前缀是集成方可见的约定（测试也钉住了它）。
      */
     public static String generateToken() {
@@ -271,8 +264,8 @@ public class TenantAPIKeyService {
     }
 
     /**
-     * 对照 {@code hashTenantAPIKey}：SHA-256 → 小写十六进制（64 字符，列宽 varchar(64)）。
-     * public 是为了让跨包测试能像 Go 的包内测试一样直接驱动它。
+     * Token 摘要：SHA-256 → 小写十六进制（64 字符，列宽 varchar(64)）。
+     * public 是为了让跨包测试能直接驱动它。
      */
     public static String hashToken(String token) {
         try {
@@ -290,9 +283,9 @@ public class TenantAPIKeyService {
     }
 
     /**
-     * 对照 {@code normalizeAPIKeyIDs}（Go L221-236）：trim + 去空 + 去重，
-     * **返回非 null 的可变空列表**（Go 的 {@code types.StringArray{}}）。
-     * 这个"非 nil 空切片"决定了 scoped Key 落库是 jsonb {@code []} 而不是 {@code null}。
+     * KB 白名单归一：trim + 去空 + 去重，
+     * **返回非 null 的可变列表**（null 输入返回空列表）。
+     * 这个"非 null 空列表"决定了 scoped Key 落库是 jsonb {@code []} 而不是 {@code null}。
      */
     static List<String> normalizeApiKeyIds(List<String> in) {
         List<String> out = new ArrayList<>(in == null ? 0 : in.size());
@@ -315,19 +308,19 @@ public class TenantAPIKeyService {
         return out;
     }
 
-    /** 对照 Go 的 {@code expiresAt.UTC()}：统一存 UTC（repository 测试专门钉了这一点）。 */
+    /** 到期时间统一转 UTC 落库。 */
     private static OffsetDateTime toUtc(OffsetDateTime value) {
         return value == null ? null : value.withOffsetSameInstant(ZoneOffset.UTC);
     }
 
-    // ── 请求载体（对照 Go interfaces.TenantAPIKeyCreateRequest / UpdateRequest） ──
+    // ── 请求载体 ──
 
-    /** 对照 {@code interfaces.TenantAPIKeyCreateRequest}。 */
+    /** 创建请求载体。 */
     public record TenantAPIKeyServiceCreateRequest(
             long tenantId, String scopeType, String name, boolean fullAccess,
             List<String> knowledgeBaseIds, List<String> capabilities, OffsetDateTime expiresAt) {}
 
-    /** 对照 {@code interfaces.TenantAPIKeyUpdateRequest}。 */
+    /** 更新请求载体。 */
     public record TenantAPIKeyServiceUpdateRequest(
             long tenantId, long apiKeyId, String name, boolean fullAccess,
             List<String> knowledgeBaseIds, List<String> capabilities, OffsetDateTime expiresAt) {}

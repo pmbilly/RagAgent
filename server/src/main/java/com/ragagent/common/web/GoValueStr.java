@@ -3,10 +3,10 @@ package com.ragagent.common.web;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Go {@code fmt.Sprintf("%v", v)} 的 JSON 值形态复刻（extract_entity 的 attributes、
+ * {@code fmt.Sprintf("%v", v)} 风格的 JSON 值字符串化（extract_entity 的 attributes、
  * Knowledge.GetMetadata 的值字符串化共用）。
  *
- * <p>Go 的 %v 对 json 解出来的类型：string 原样、float64 用 strconv.FormatFloat('g')
+ * <p>%v 对 JSON 解出类型的形态：string 原样、数值用 'g'
  * 的最短形态（1 → 1、1.5 → 1.5、1e21 → 1e+21）、bool → true/false、nil →
  * &lt;nil&gt;、数组 → [a b c]、对象 → map[k:v ...]。实体抽取语料里以标量为主，
  * 容器形态仅供兜底（%v 数组以空格分隔、对象按 key 字母序）。</p>
@@ -88,7 +88,7 @@ public final class GoValueStr {
         return String.format(java.util.Locale.ROOT, "%g", v);
     }
 
-    /** Java 的 %g 指数形态（1e+21）与 Go 一致；去掉多余的 +0 尾零。 */
+    /** %g 指数形态（如 {@code 1e+21}）已符合目标形态，原样返回。 */
     private static String normalizeGoG(String s) {
         if (!s.contains("e")) {
             return s;

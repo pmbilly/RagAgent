@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
- * MCP 服务的鉴权策略（对照 Go types.MCPAuthType）。
+ * MCP 服务的鉴权策略。
  *
  * NONE 的空串取值是**向后兼容契约**：早于该字段的历史行读出来就是空串，
  * 空串必须被当作"无鉴权"而不是未知值。

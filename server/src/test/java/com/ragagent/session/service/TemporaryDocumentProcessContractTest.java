@@ -31,7 +31,7 @@ import com.ragagent.session.domain.TemporaryDocument;
 import com.ragagent.session.mapper.TemporaryDocumentRepository;
 
 /**
- * 附件解析链路的验收（对照 Go Process/parse 的资源租户、引擎回落与音频分支）：
+ * 附件解析链路的验收（资源租户、引擎回落与音频分支）：
  * {@code resource_tenant_id} 决定解析依赖范围、租户级 chat 规则兜底 parser engine、
  * 音频走 ASR（无模型 → "audio transcription model is not configured"）。
  */

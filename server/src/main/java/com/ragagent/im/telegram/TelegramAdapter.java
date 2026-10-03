@@ -25,19 +25,18 @@ import com.ragagent.im.runtime.ReplyMessage;
 import com.ragagent.im.runtime.ThinkDisplay;
 
 /**
- * Telegram Bot 适配器（对照 Go {@code internal/im/telegram/adapter.go} L30-505）。
+ * Telegram Bot 适配器。
  *
  * <p>三面齐备：{@code Adapter}（验签/解析/发送）+ {@code StreamSender}
  * （"正在思考..." 占位消息 + editMessageText 原地替换）+ {@code FileDownloader}
  * （getFile + file/bot 下载）。</p>
  *
- * <h2>与 Go 的两处实现差异（备案）</h2>
+ * <h2>实现差异（备案）</h2>
  * <ul>
- *   <li><b>API 基址可注入</b>：Go 把 {@code https://api.telegram.org} 写死在 callAPI 里，
- *       测试靠假 transport；Java 保留常量 {@link #DEFAULT_API_BASE} 作生产默认，
- *       另给包内构造注入基址，测试用本地 stub 服务器（与 OTLP 导出器同一套路）。</li>
- *   <li><b>孤儿流的回收是惰性的</b>：Go 起一个 ticker goroutine（每分钟清 5 分钟前的孤儿流）；
- *       Java 在每次 {@link #startStream} 时顺带清理（无后台线程，效果等价）。</li>
+ *   <li><b>API 基址可注入</b>：常量 {@link #DEFAULT_API_BASE} 作生产默认，
+ *       包内构造可注入基址，测试用本地 stub 服务器（与 OTLP 导出器同一套路）。</li>
+ *   <li><b>孤儿流的回收是惰性的</b>：在每次 {@link #startStream} 时顺带清理
+ *       5 分钟前的孤儿流（无后台线程）。</li>
  * </ul>
  */
 public class TelegramAdapter implements AdapterInterfaces.Adapter,
@@ -45,20 +44,20 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
 
     private static final Logger log = LoggerFactory.getLogger(TelegramAdapter.class);
 
-    /** 生产基址（照 Go 的固定域）。 */
+    /** 生产基址。 */
     public static final String DEFAULT_API_BASE = "https://api.telegram.org";
 
-    /** 对照 Go {@code minEditInterval}：两次 editMessageText 的最小间隔。 */
+    /** 两次 editMessageText 的最小间隔。 */
     static final long MIN_EDIT_INTERVAL_MS = 500;
-    /** 对照 Go {@code streamOrphanTTL}。 */
+    /** 孤儿流 TTL。 */
     static final long STREAM_ORPHAN_TTL_MS = 5 * 60 * 1000L;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 全局流表（对照 Go 包级 {@code streams}），key = {@code {chatId}:{msgId}}。 */
+    /** 全局流表，key = {@code {chatId}:{msgId}}。 */
     static final Map<String, StreamState> STREAMS = new ConcurrentHashMap<>();
 
-    /** 一条流的状态（对照 Go {@code streamState}）。 */
+    /** 一条流的状态。 */
     static final class StreamState {
         final String chatId;
         final String msgId;
@@ -106,7 +105,7 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
         return ImTypes.PLATFORM_TELEGRAM;
     }
 
-    /** 对照 Go {@code VerifyCallback}：无 secret_token 直接放行；有则常量时间比较。 */
+    /** 无 secret_token 直接放行；有则常量时间比较。 */
     @Override
     public Exception verifyCallback(CallbackExchange exchange) {
         if (secretToken.isEmpty()) {
@@ -119,7 +118,7 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
         return ok ? null : new AdapterInterfaces.VerifyException("invalid secret token");
     }
 
-    /** Telegram 没有 URL verification 挑战（照 Go 恒 false）。 */
+    /** Telegram 没有 URL verification 挑战（恒 false）。 */
     @Override
     public boolean handleURLVerification(CallbackExchange exchange) {
         return false;
@@ -133,7 +132,7 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
         return parseUpdate(update);
     }
 
-    /** 对照 Go {@code parseUpdate}：非消息事件（无 message 字段）→ null。 */
+    /** 非消息事件（无 message 字段）→ null。 */
     static IncomingMessage parseUpdate(JsonNode update) {
         JsonNode message = update.path("message");
         if (message.isMissingNode() || message.isNull()) {
@@ -142,7 +141,7 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
         return parseTelegramMessage(message);
     }
 
-    /** 对照 Go {@code parseTelegramMessage}：群聊剥 @bot 前缀 + document/photo 映射。 */
+    /** 群聊剥 @bot 前缀 + document/photo 映射。 */
     static IncomingMessage parseTelegramMessage(JsonNode msg) {
         if (msg == null || msg.isMissingNode() || msg.isNull()) {
             return null;
@@ -213,7 +212,7 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
         return incoming;
     }
 
-    /** 对照 Go {@code resolveChatID}：群聊用 chat_id，私聊回落 user_id。 */
+    /** 群聊用 chat_id，私聊回落 user_id。 */
     static String resolveChatId(IncomingMessage incoming) {
         return incoming.chatId == null || incoming.chatId.isEmpty()
                 ? (incoming.userId == null ? "" : incoming.userId) : incoming.chatId;
@@ -246,7 +245,7 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 Go {@code editMessage}：parse_mode 为空则不带该键。 */
+    /** parse_mode 为空则不带该键。 */
     private void editMessage(String chatId, String messageId, String text, String parseMode)
             throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -259,7 +258,7 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
         callApi("editMessageText", body);
     }
 
-    /** 对照 Go {@code callAPIWithResult}：POST JSON，解 {@code {ok, result}}。 */
+    /** POST JSON，解 {@code {ok, result}}。 */
     private JsonNode callApi(String method, Object body) throws Exception {
         URI uri = URI.create(apiBase + "/bot" + botToken + "/" + method);
         HttpRequest request = HttpRequest.newBuilder(uri)
@@ -314,7 +313,7 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
         }
         synchronized (state) {
             if (System.currentTimeMillis() - state.lastEdit < MIN_EDIT_INTERVAL_MS) {
-                // 照 Go：节流窗口内只记内容、不发请求
+                // 节流窗口内只记内容、不发请求
                 return;
             }
             state.lastEdit = System.currentTimeMillis();
@@ -322,7 +321,7 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
         try {
             editMessage(state.chatId, state.msgId, fullContent, "");
         } catch (Exception e) {
-            // 照 Go：更新失败只告警，不抛（流式期间的一次编辑失败不该中断回答）
+            // 更新失败只告警，不抛（流式期间的一次编辑失败不该中断回答）
             log.warn("[Telegram] Failed to update stream content: {}", e.toString());
         }
     }
@@ -353,7 +352,7 @@ public class TelegramAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 Go 的 ticker 回收：惰性清掉超过 TTL 的孤儿流。 */
+    /** 惰性清掉超过 TTL 的孤儿流。 */
     static void purgeOrphans() {
         long cutoff = System.currentTimeMillis() - STREAM_ORPHAN_TTL_MS;
         STREAMS.entrySet().removeIf(e -> e.getValue().createdAt < cutoff);

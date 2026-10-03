@@ -6,7 +6,7 @@ import java.util.List;
 import com.baomidou.mybatisplus.annotation.TableField;
 
 /**
- * 结构化 wiki 索引响应里的一行。JSON 键为 snake（§11 登记边界，前端按此解析）。
+ * 结构化 wiki 索引响应里的一行。JSON 键为 snake（前端按此解析）。
  *
  * <p>只携带渲染一条可点击目录项所需的列——后端投影 {@code SELECT slug, title, summary}，
  * 这样 4 万页的知识库每次打开索引都不必为 TEXT 正文付出传输代价。</p>

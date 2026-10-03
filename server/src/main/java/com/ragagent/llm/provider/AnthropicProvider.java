@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.AnthropicProvider（anthropic.go）：原生 Anthropic Messages API 元数据。
+ * 原生 Anthropic Messages API 的厂商元数据。
  */
 public class AnthropicProvider implements Provider {
 

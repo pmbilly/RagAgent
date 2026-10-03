@@ -7,10 +7,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 聊天生成事件数据（对照 Go {@code event.ChatData}，internal/event/event_data.go:52-61）。
+ * 聊天生成事件数据。
  *
- * <p>实录锚点：零值输出 {@code {"query":"","model_id":"","is_stream":false}}——
- * {@code is_stream} 无 omitempty，false 也恒输出。</p>
+ * <p>零值输出 {@code {"query":"","model_id":"","is_stream":false}}——
+ * {@code is_stream} 恒输出，false 也输出。</p>
  */
 @JsonPropertyOrder({"query", "model_id", "response", "stream_chunk", "token_count",
         "duration_ms", "is_stream", "extra"})
@@ -22,31 +22,31 @@ public class ChatData {
     @JsonProperty("model_id")
     private String modelId = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("response")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String response = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("stream_chunk")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String streamChunk = "";
 
-    /** Go omitempty */
+    /** 0 省略 */
     @JsonProperty("token_count")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private int tokenCount;
 
-    /** Go omitempty */
+    /** 0 省略 */
     @JsonProperty("duration_ms")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private long durationMs;
 
-    /** 无 omitempty：false 恒输出（实录锚点） */
+    /** false 恒输出 */
     @JsonProperty("is_stream")
     private boolean isStream;
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("extra")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Object> extra;

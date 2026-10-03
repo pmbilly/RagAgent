@@ -10,7 +10,7 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 
 /**
- * {@code SessionQaResolution} 的**agent 覆盖簇**（§11.37 第 2 步）：把 custom agent 的配置
+ * {@code SessionQaResolution} 的**agent 覆盖簇**：把 custom agent 的配置
  * （system_prompt / context / 采样与检索参数 / 各能力开关）覆盖到 {@code ChatManage} 上，
  * 以及从 agentRow + 配置读出提示词（{@code resolveCustomAgentPrompts}）。
  *
@@ -54,16 +54,13 @@ final class QaSearchTargets {
                 }
             }
         }
-        // resolveKBTenant（对照 Go `resolveKBTenant` + `access.KBPermissions.Check`，
-        // context.go:79-94，required=OrgRoleViewer）：
+        // KB 租户判定（检索作用域租户）：
         //   ① KB 行缺失 ⇒ 租户回落 caller（**保留**该 target；未知 KB 在检索插件内报 1003，
         //      A/B 场景 kse-unknown-kb 依赖这一形态）；
-        //   ② KB 行存在但**调用方无权读** ⇒ 记 0 ⇒ 调用方 continue ⇒ **该 KB 不进检索范围**
-        //      （Go：permissions.Check 不过即 `continue` 丢弃）；
+        //   ② KB 行存在但**调用方无权读** ⇒ 记 0 ⇒ 调用方 continue ⇒ **该 KB 不进检索范围**；
         //   ③ 否则归 KB 自己的租户。
-        // ⚠️ 旧实现按"KB 行存在即归其租户"处理（注释假称"跨租户由上层可见性拒绝"），
-        // 实测与 Go 分歧且**用户可见**：拿外租户 KB 检索时 Go `search_targets=0` 降级作答，
-        // 本仓却真去搜它 ⇒ 命中失效 store 绑定时 2200 硬错中止（W5γ5.15，09 §7.6）。
+        // ⚠️ ②是刻意的：若按"KB 行存在即归其租户"，拿外租户 KB 检索、命中失效 store
+        // 绑定时会 2200 硬错中止（见 docs/known-issues/09-e2e-observations.md）。
         java.util.function.Function<String, Long> resolveKbTenant = kbId -> {
             Long cached = kbTenantMap.get(kbId);
             if (cached != null && cached != 0) {

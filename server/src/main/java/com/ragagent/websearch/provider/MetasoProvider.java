@@ -12,7 +12,7 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * Metaso（秘塔）搜索 provider（对照 Go {@code web_search/metaso.go} 全文）。
+ * Metaso（秘塔）搜索 provider。
  *
  * <p>POST {@code https://metaso.cn/api/v1/search}；scope 缺省 webpage（白名单校验，
  * 非法值构造报错）；恒发 includeSummary:true / includeRawContent:false /
@@ -41,7 +41,7 @@ public final class MetasoProvider implements WebSearchProvider {
         this.scope = metasoScope(params.getExtraConfig());
     }
 
-    /** 对照 ValidateMetasoParameters。 */
+    /** 入参校验：api_key 必填；scope 必须在白名单内。 */
     public static void validateParameters(WebSearchProviderParams params) {
         if (params.getApiKey().trim().isEmpty()) {
             throw new SearchHttp.SearchHttpException("API key is required for Metaso provider");
@@ -137,7 +137,7 @@ public final class MetasoProvider implements WebSearchProvider {
         return results;
     }
 
-    /** 对照 metasoHTTPError：message/error 字段优先，body 截 4096。 */
+    /** 错误体解析：message/error 字段优先，body 截 4096。 */
     static SearchHttp.SearchHttpException metasoHttpError(int statusCode, byte[] body) {
         JsonNode apiError = GoJson.parse(body);
         if (apiError != null && apiError.isObject()) {

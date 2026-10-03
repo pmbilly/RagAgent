@@ -14,8 +14,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * {@code memory_extraction_sessions} 的仓储（对照 Go internal/application/repository/memory_extraction.go
- * 全部 230 行）。
+ * {@code memory_extraction_sessions} 的仓储。
  *
  * <h2>⚠️ 复合主键，没有任何 {@code selectById}/{@code updateById} 路径</h2>
  * <p>主键是 {@code (tenant_id, subject_id, session_id)}。实体上只把
@@ -23,12 +22,12 @@ import org.apache.ibatis.annotations.Update;
  * 但这个接口里**一条 MP 的按主键方法都不用**——全部是带完整 scope 的显式 SQL。</p>
  *
  * <h2>⚠️ 列名与 {@code MemoryMessageCursor} 的对应</h2>
- * <p>Go 的 {@code gorm:"embedded;embeddedPrefix:cursor_"} 展开成 {@code cursor_at}/{@code cursor_id}
+ * <p>游标在 DB 里展开成 {@code cursor_at}/{@code cursor_id}
  * 两列，{@code failed_from_} / {@code failed_to_} 同理。实体里是平列字段，
  * JSON 里才是嵌套对象——所以这里的 SQL 一律用平列名。</p>
  *
  * <h2>⚠️ {@code pending} 是 H2 的保留字吗</h2>
- * <p>不是（H2 与 PG 都接受裸的 {@code pending} 作为列名），DDL 与 Go 的迁移一致。</p>
+ * <p>不是（H2 与 PG 都接受裸的 {@code pending} 作为列名），DDL 与迁移一致。</p>
  *
  * <p><b>裸 {@code @Select} 显式写 {@code @Results}</b>：MyBatis 的隐式驼峰映射
  * 由全局配置决定，项目里既有裸 SQL 的投影行都显式声明（§9）。</p>
@@ -135,7 +134,7 @@ public interface MemoryExtractionSessionMapper extends BaseMapper<MemoryExtracti
     /**
      * 对照 {@code hasPendingExtraction}：{@code Select("session_id").Where("pending = ?", true).Limit(1)}。
      *
-     * <p>Go 判断的是"拿到的行数 > 0"，所以返回 {@code COUNT} 即可
+     * <p>存在性判断按"拿到的行数 > 0"，所以返回 {@code COUNT} 即可
      * （上限 1 行，语义等价且不用拉回一行实体）。</p>
      */
     @Select("SELECT COUNT(*) FROM memory_extraction_sessions "
@@ -191,8 +190,8 @@ public interface MemoryExtractionSessionMapper extends BaseMapper<MemoryExtracti
      * 对照 {@code RecordExtractionFailure} 的那一条 UPDATE。
      *
      * <p><b>{@code failed_at} 是条件写的</b>：只有"重试预算耗尽"（{@code skip=true}）时
-     * 才落时间戳，否则写 SQL NULL——Go 的 map 里 {@code "failed_at": nil} 与
-     * {@code "failed_at": time.Now()} 正是这两支。</p>
+     * 才落时间戳，否则写 SQL NULL——两支分别对应
+     * {@code failedAt} 传 null 与传 {@code now}。</p>
      */
     @Update("UPDATE memory_extraction_sessions SET failure_count = #{failureCount}, "
             + "failure_code = #{failureCode}, updated_at = #{now}, "

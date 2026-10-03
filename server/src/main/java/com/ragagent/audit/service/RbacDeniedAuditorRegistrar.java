@@ -8,18 +8,13 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.stereotype.Component;
 
 /**
- * 把 {@link AuditLogService} 接进 RBAC 拒绝分支（对照 Go
- * {@code middleware/audit_provider.go} 的 {@code AuditServiceProvider} +
- * {@code middleware/rbac.go} L99-106 的 {@code AuditServiceFromContext}）。
+ * 把 {@link AuditLogService} 接进 RBAC 拒绝分支。
  *
  * <p><b>为什么需要这个注册器</b>：{@code RbacInterceptor} 由
  * {@code config/WebConfig} 直接 {@code new} 出来（不是 Spring bean），拿不到依赖注入；
- * Go 那边则是把 service 塞进 gin 的请求上下文（{@code c.Set(auditServiceContextKey, svc)}）。
- * 两种手法都是"进程级装配"，Java 侧的等价物就是
- * {@link RbacInterceptor#setDeniedAuditor} 的静态注册点。</p>
+ * 所以这里提供进程级装配点 {@link RbacInterceptor#setDeniedAuditor}。</p>
  *
- * <p>这一条是约定 §9「阶段 1 已知差异」第 8 条的正式回补：
- * 此前 RBAC 拒绝只记日志、不落库。</p>
+ * <p>背景：此前 RBAC 拒绝只记日志、不落库，本注册器补上落库一环。</p>
  *
  * <p>关停时把钩子复位成空操作（多 Spring 上下文并存的测试环境里，
  * 陈旧的钩子会指向已关闭的上下文）。</p>
@@ -39,7 +34,7 @@ public class RbacDeniedAuditorRegistrar implements InitializingBean, DisposableB
     public void afterPropertiesSet() {
         RbacInterceptor.setDeniedAuditor((tenantId, actorUserId, actorRole, requiredRole,
                                           requestPath, requestMethod, rawPath) -> {
-            // 对照 Go LogDenied 的 dedupPath 回落：路由模板为空时才用原始路径
+            // 路由模板为空时才用原始路径做去重键
             // （Spring 侧 rule.pattern() 恒非空，这一层是防御性等价）。
             String dedupPath = (requestPath == null || requestPath.isEmpty()) ? rawPath : requestPath;
             auditLogService.logDenied(tenantId, actorUserId, actorRole, requiredRole,

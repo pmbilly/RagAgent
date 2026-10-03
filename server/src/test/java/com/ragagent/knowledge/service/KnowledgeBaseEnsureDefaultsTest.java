@@ -10,13 +10,13 @@ import com.ragagent.knowledge.domain.KnowledgeBaseIndexingStrategy;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 
 /**
- * 对照 Go {@code KnowledgeBase.EnsureDefaults}（{@code types/knowledgebase.go:727-770}）。
+ * 覆盖 {@code KnowledgeBaseService.ensureDefaults}。
  *
  * <p>2026-09-25 线上抓回（用户报"导入文档后新建提问看不到推荐问题"）：DB 里**零值**的
  * `indexing_strategy`（四标志全 false，如 FAQ 型 `faq-golden-kb`）在 Java 读出
  * vector/keyword=false ⇒ `capabilities()` 全假 ⇒ 被 quick-answer 的能力过滤丢弃 ⇒
- * `/agents/{id}/suggested-questions`（无 KB 范围）返回空数组 ✗；Go 的读路径会调
- * `EnsureDefaults()` 把零值回填成 `DefaultIndexingStrategy()`（vector+keyword=true）✓。
+ * `/agents/{id}/suggested-questions`（无 KB 范围）返回空数组 ✗；读路径应调
+ * `ensureDefaults()` 把零值回填成 `DefaultIndexingStrategy()`（vector+keyword=true）✓。
  * 根因是 **list 路径漏调** 本类的 {@code ensureDefaults}（get 路径 `getAllTenantById` 一直在调 ✓）。</p>
  */
 class KnowledgeBaseEnsureDefaultsTest {

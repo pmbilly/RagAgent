@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 合并事件数据（对照 Go {@code event.MergeData}，internal/event/event_data.go:42-49）。
+ * 合并事件数据。
  */
 @JsonPropertyOrder({"input_count", "output_count", "merge_type", "results", "duration_ms", "extra"})
 public class MergeData {
@@ -22,17 +22,17 @@ public class MergeData {
     @JsonProperty("merge_type")
     private String mergeType = "";
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("results")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Object results;
 
-    /** Go omitempty */
+    /** 0 省略 */
     @JsonProperty("duration_ms")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private long durationMs;
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("extra")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Object> extra;

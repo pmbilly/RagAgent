@@ -4,33 +4,32 @@ package com.ragagent.datasource.connector.rss;
  * <b>接缝（seam）</b>：文章页正文抽取（readability）。
  *
  * <h2>⚠️ 这是本模块最大的降级点——读这一节再读代码</h2>
- * <p>Go 的实现是 {@code codeberg.org/readeck/go-readability/v2}
- * （{@code readability.FromReader} + {@code article.RenderHTML} + {@code article.Title()}），
- * 它把文章页的导航、广告、页脚剥掉，只留下正文 HTML，再交给
+ * <p>目标语义是 {@code codeberg.org/readeck/go-readability/v2}
+ * （正文抽取 + 渲染 + 标题）：
+ * 把文章页的导航、广告、页脚剥掉，只留下正文 HTML，再交给
  * {@link HtmlToMarkdown} 转 Markdown。</p>
- * <p><b>Java 侧没有等价物</b>，且本项目不允许为翻译新增依赖。所以这里做成接缝，
+ * <p><b>当前构建没有等价实现</b>。所以这里做成接缝，
  * 默认实现是 {@link UnavailableArticleExtractor}——它<b>永远抛错</b>。
- * 2026-09-28 起 {@code resolveItem} 检测到抽取器不可用（{@code fullTextAvailable}）
+ * {@code resolveItem} 检测到抽取器不可用（{@code fullTextAvailable}）
  * 就<b>直接跳过文章页请求</b>、以 feed 内容定型：抓回的字节必被丢弃，白付一次外网调用。
- * 这是**唯一一处有意偏离 Go 控制流**的地方（Go 会真抓一次再丢弃）；注入可用实现后
- * 行为自动回到 Go 等价（"全文抓取失败，回落 feed 内容"的 warn 分支仍在）。</p>
+ * 注入可用实现后
+ * 行为自动回到"全文优先，失败回落 feed 内容"的完整语义。</p>
  *
  * <h2>降级后果（逐条）</h2>
  * <ol>
  *   <li><b>灌入知识库的是 feed 自带的摘要，不是文章全文</b>。
- *       RSS 的 {@code <description>} 常见只有一两句。检索质量会明显低于 Go 侧部署。</li>
- *   <li><b>标题回落</b>：Go 在 feed 条目没有 {@code <title>} 时会用文章页的
- *       {@code <title>}；Java 侧恒用 {@code "untitled"}（{@code firstNonEmpty(item.Title, "untitled")}）。</li>
- *   <li><b>网络开销反而省了（有意偏离 Go）</b>：默认抽取器不可用时 {@code resolveItem}
- *       直接跳过文章页请求（{@code fullTextAvailable} 判定），Go 则会真抓一次再丢弃——
- *       2026-09-28 评审修正，见 {@link RssConnector} 的 {@code resolveItem}。
- *       注入可用抽取器后回到 Go 等价（含鉴权头不泄漏的
+ *       RSS 的 {@code <description>} 常见只有一两句。检索质量会明显低于全文部署。</li>
+ *   <li><b>标题回落</b>：feed 条目没有 {@code <title>} 时本可用文章页的
+ *       {@code <title>}；降级时恒用 {@code "untitled"}（{@code firstNonEmpty(item.title(), "untitled")}）。</li>
+ *   <li><b>网络开销反而省了</b>：抽取器不可用时 {@code resolveItem}
+ *       直接跳过文章页请求（{@code fullTextAvailable} 判定）——
+ *       见 {@link RssConnector} 的 {@code resolveItem}。
+ *       注入可用抽取器后恢复完整语义（含鉴权头不泄漏的
  *       {@link RssClient#extractArticle} 契约）。</li>
- *   <li><b>指纹与 Go 不同</b>：{@code contentFingerprint} 算的是最终 Markdown，
- *       内容不同 → 指纹不同（这在本进程内自洽，但与 Go 写下的游标不通用）。</li>
+ *   <li><b>指纹依赖内容</b>：{@code contentFingerprint} 算的是最终 Markdown，
+ *       内容不同 → 指纹不同（换抽取实现会使既有游标指纹失配，第一次增量会重灌一轮）。</li>
  * </ol>
- * <p>三块的清单见 {@link HtmlToMarkdown} 与 {@link FeedParser} 的类注释，
- * 以及本模块的翻译报告。</p>
+ * <p>三块的清单见 {@link HtmlToMarkdown} 与 {@link FeedParser} 的类注释。</p>
  *
  * <h2>接缝在这里，怎么恢复</h2>
  * <p>{@link RssConnector} 的构造器可注入任意实现；恢复全文抓取只需提供一个
@@ -53,7 +52,7 @@ public interface ArticleExtractor {
     ExtractedArticle extract(byte[] body, String pageUrl);
 
     /**
-     * 对照 {@code (contentHTML, article.Title())}。
+     * 抽取结果。
      *
      * @param contentHtml 正文 HTML（会经 {@link HtmlToMarkdown} 转成 Markdown）
      * @param title       页面 {@code <title>}；空表示没抽到

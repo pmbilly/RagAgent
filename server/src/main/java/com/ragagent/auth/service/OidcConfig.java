@@ -7,14 +7,9 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
- * OIDC 配置（对照 Go internal/config/config.go 的 OIDCAuthConfig + env 覆盖段
- * L690-748 + 缺省值段 L736-748）。
+ * OIDC 配置（env + 缺省值两层）。
  *
- * Go 配置链：config.yaml `oidc_auth` 段 → env `OIDC_AUTH_*` 覆盖 → 缺省值。
- * Java 仓尚无 config.yaml 加载器，故仅实现 env + 缺省值两层（dev 两侧 config.yaml
- * 均无 oidc_auth 段，行为等价；记 docs §9 deferral）。
- *
- * env 与 Go 完全同名：OIDC_AUTH_{ENABLE,ISSUER_URL,DISCOVERY_URL,
+ * env：OIDC_AUTH_{ENABLE,ISSUER_URL,DISCOVERY_URL,
  * PROVIDER_DISPLAY_NAME,CLIENT_ID,CLIENT_SECRET,AUTHORIZATION_ENDPOINT,
  * TOKEN_ENDPOINT,USER_INFO_ENDPOINT,JWKS_URI,SCOPES} +
  * OIDC_USER_INFO_MAPPING_{USER_NAME,EMAIL}。
@@ -53,18 +48,18 @@ public class OidcConfig {
         this.mappingEmail = env("OIDC_USER_INFO_MAPPING_EMAIL");
     }
 
-    /** 对照 env 读取：TrimSpace 后为空 = 未设置（value != "" 才覆盖），值为 trim 后原文 */
+    /** env 读取：trim 后为空 = 未设置，值为 trim 后原文 */
     private static String env(String name) {
         String v = AppEnvLookup.get(name);
         return v == null ? "" : v.trim();
     }
 
     private static String envTrim(String name) {
-        // 与 env() 同实现同来源（B6 批 10）：两处各自持一份裸读，容易只改一处
+        // 与 env() 同实现同来源（两处各自持一份裸读，容易只改一处）
         return env(name);
     }
 
-    /** 对照 strings.Fields(strings.ReplaceAll(value, ",", " ")) */
+    /** scopes 解析：逗号或空白分隔 */
     private static List<String> parseScopes(String raw) {
         List<String> out = new ArrayList<>();
         if (raw.isEmpty()) {

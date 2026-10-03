@@ -14,21 +14,19 @@ import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.llm.chat.LlmTransport;
 
 /**
- * 出站搜索 HTTP 设施（对照 Go {@code web_search/proxy.go} 的
- * {@code ValidateProxyURL / NewSearchHTTPClient}）。
+ * 出站搜索 HTTP 设施（代理 URL 校验 + 客户端装配）。
  *
  * <p>代理：显式 proxyURL 先过 SSRF 校验再挂 ProxySelector；否则跟随环境
- * （Go 的 {@code http.ProxyFromEnvironment} ↔ JDK 的默认 selector）。
- * 重定向：Go 的 SSRF client 逐跳校验（MaxRedirects=10）→ 复用
- * {@link LlmTransport} 的手动跟随；<b>Brave 用「不跟随」</b>
- * （对照其 {@code CheckRedirect → ErrUseLastResponse}）。</p>
+ * （JDK 默认 selector）。
+ * 重定向：逐跳 SSRF 校验（MaxRedirects=10）→ 复用
+ * {@link LlmTransport} 的手动跟随；<b>Brave 用「不跟随」</b>。</p>
  */
 public final class SearchHttp {
 
     private SearchHttp() {
     }
 
-    /** 对照 ValidateProxyURL：trim 后非空才校验。 */
+    /** 代理 URL 校验：trim 后非空才校验。 */
     public static void validateProxyUrl(SsrfGuard guard, String proxyUrl) {
         String p = proxyUrl == null ? "" : proxyUrl.trim();
         if (p.isEmpty()) {
@@ -37,7 +35,7 @@ public final class SearchHttp {
         guard.validateURLForSSRF(p);
     }
 
-    /** 单次发送（不跟随重定向；3xx 原样返回 = Go 的 ErrUseLastResponse 语义）。 */
+    /** 单次发送（不跟随重定向；3xx 原样返回，由调用方决定后续）。 */
     public static Result sendNoRedirect(HttpRequest request) {
         try {
             HttpResponse<byte[]> resp = LlmTransport.send(request, 0,
@@ -149,7 +147,7 @@ public final class SearchHttp {
         return resp.body() == null ? new byte[0] : resp.body();
     }
 
-    /** Go resp.Status 短语表（同族小副本）。 */
+    /** HTTP 状态短语表（同族小副本）。 */
     static String statusLine(int code) {
         return code + " " + switch (code) {
             case 200 -> "OK";
@@ -170,7 +168,7 @@ public final class SearchHttp {
         };
     }
 
-    /** 搜索 provider 的运行期失败（对照 Go 的 error 返回）。 */
+    /** 搜索 provider 的运行期失败。 */
     public static class SearchHttpException extends RuntimeException {
         public SearchHttpException(String message) {
             super(message);

@@ -39,7 +39,7 @@ final class WeaviateSearchOps {
     }
 
     /**
-     * 对照 {@code VectorRetrieve}：类判存 → GraphQL nearVector（certainty = threshold）→
+     * 向量检索：类判存 → GraphQL nearVector（certainty = threshold）→
      * 解析 {@code _additional.certainty} 为分数；类不存在 → 空结果。
      */
     List<RetrieveResult> vectorRetrieve(RetrieveParams params) {
@@ -60,7 +60,7 @@ final class WeaviateSearchOps {
                     collection);
             return WeaviateRetrieveRepository.buildRetrieveResult(List.of(), EngineTypes.RETRIEVER_VECTOR);
         }
-        // 照 Go：scoreThreshold := float32(params.Threshold)
+        // certainty 是 float32 精度
         String query = WeaviateGql.vectorQuery(collection, baseFilter(params), params.topK,
                 embedding, (float) params.threshold);
         JsonNode result;
@@ -87,8 +87,8 @@ final class WeaviateSearchOps {
     }
 
     /**
-     * 对照 {@code KeywordsRetrieve}：跨集合 BM25；单集合查询失败<b>直接返回错误</b>
-     * （照 Go——与 Qdrant 的"跳过继续"相反），缺数据则 continue；合并后截 TopK。
+     * 关键词检索：跨集合 BM25；单集合查询失败<b>直接返回错误</b>
+     * （与 Qdrant 的"跳过继续"相反），缺数据则 continue；合并后截 TopK。
      */
     List<RetrieveResult> keywordsRetrieve(RetrieveParams params) {
         String query = params.query == null ? "" : params.query;
@@ -130,12 +130,12 @@ final class WeaviateSearchOps {
     }
 
     /**
-     * 对照 {@code parseGraphQLResponse}：向量取 certainty、关键词恒 1.0。
+     * 命中解析：向量取 certainty、关键词恒 1.0。
      *
-     * <p><b>有意修正（Go 实录实锤）</b>：Weaviate 1.28.4 把 BM25 的 {@code _additional.score}
-     * 编码成<b>字符串</b>（{@code "0.48952064"}），Go 的 {@code .(float64)} 类型断言因此恒失败
-     * → Go 的关键词结果分数**恒 0.0**（其"keywords → 1.0"分支是死代码；用 Go 客户端对真服务端
-     * 实测：{@code score="0.48952064" type=string isFloat64=false}）。本仓按代码意图修正为
+     * <p><b>对旧客户端行为的有意修正（见 known-issues）</b>：Weaviate 1.28.4 把 BM25 的
+     * {@code _additional.score} 编码成<b>字符串</b>（{@code "0.48952064"}），旧客户端的
+     * float64 类型断言因此恒失败 → 关键词结果分数**恒 0.0**（其"keywords → 1.0"分支是死代码；
+     * 对真服务端实测：{@code score="0.48952064" type=string isFloat64=false}）。本仓按代码意图修正为
      * "存在 score 值即 1.0"（与 Qdrant/Doris 驱动的关键词分数一致），并把字符串形态的数字
      * 也解析进 certainty（服务端版本差异的容错）。</p>
      */
@@ -157,7 +157,7 @@ final class WeaviateSearchOps {
                     try {
                         score = Double.parseDouble(raw.asText());
                     } catch (NumberFormatException ignored) {
-                        // 保持 0.0（照 Go 的"解析不了就不给分"）
+                        // 保持 0.0（解析不了就不给分）
                     }
                 }
             }
@@ -177,7 +177,7 @@ final class WeaviateSearchOps {
         return results;
     }
 
-    // ── 过滤器（照 getBaseFilter） ─────────────────────────────────────────
+    // ── 过滤器 ─────────────────────────────────────────────────────────────
 
     static WeaviateGql.Where baseFilter(RetrieveParams params) {
         List<WeaviateGql.Where> operands = new ArrayList<>();

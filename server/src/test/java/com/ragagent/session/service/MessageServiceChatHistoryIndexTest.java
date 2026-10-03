@@ -31,7 +31,7 @@ import com.ragagent.session.mapper.MessageSuggestionRepository;
 import com.ragagent.session.mapper.SessionRepository;
 
 /**
- * 聊天历史 KB 索引的验收（对照 Go {@code IndexMessageToKB}，message.go L374-412）：
+ * 聊天历史 KB 索引的验收：
  * think 剥离、Q/A 全空短路、配置三要素不全跳过、passage 文案逐字、knowledge_id
  * 回写（无 session_id 条件）、失败只警告不抛。
  */
@@ -96,7 +96,7 @@ class MessageServiceChatHistoryIndexTest {
 
         service.indexMessageToKb("问题", "先想一下<think>中间推理</think>最终答案", "m-1", "s-1");
 
-        // passage 文案照 Go：剥 think 后 TrimSpace，userQuery 保持原样
+        // passage 文案：剥 think 后去除首尾空白，userQuery 保持原样
         verify(knowledgeService).createFromPassageSync("kb-1",
                 List.of("[Session: s-1]\nQ: 问题\nA: 先想一下最终答案"), "");
         verify(messageRepository).updateKnowledgeId("m-1", "k-1");
@@ -114,7 +114,7 @@ class MessageServiceChatHistoryIndexTest {
 
     @Test
     void unconfiguredTenantSkipsIndexing() {
-        // enabled 但缺 embedding 模型 → IsConfigured false（照 Go 的三要素）
+        // enabled 但缺 embedding 模型 → 三要素不全，视为未配置
         ObjectNode n = MAPPER.createObjectNode();
         n.put("enabled", true);
         n.put("embedding_model_id", "");

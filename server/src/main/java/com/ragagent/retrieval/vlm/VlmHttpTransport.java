@@ -13,17 +13,15 @@ import com.ragagent.llm.asr.AsrTranscriber;
 import com.ragagent.llm.chat.LlmTransport;
 
 /**
- * {@link VlmClient.Transport} 的生产实现（对照 Go vlm/transport.go 的
- * newVLMHTTPClient + go-openai 客户端的可观察行为）。
+ * {@link VlmClient.Transport} 的生产实现。
  *
  * <ul>
- *   <li>超时：{@code VLM_HTTP_TIMEOUT_SECONDS}（正整数秒）缺省 180s
- *       （对照 vlmHTTPTimeout，remote_api.go:32-40）；</li>
+ *   <li>超时：{@code VLM_HTTP_TIMEOUT_SECONDS}（正整数秒）缺省 180s；</li>
  *   <li>鉴权：{@code Authorization: Bearer <apiKey>}；</li>
- *   <li>非 2xx 错误文案复用 go-openai 仿真
+ *   <li>非 2xx 错误文案走 OpenAI 错误报文仿真
  *       （{@link AsrTranscriber.OpenAiAsrTranscriber#goOpenAiError}）——
  *       与 ASR 共用同一套字节契约；</li>
- *   <li>网络层错误：Go 的 url.Error 形态（{@code Post "<url>": <cause>}）。</li>
+ *   <li>网络层错误：{@code Post "<url>": <cause>} 形态。</li>
  * </ul>
  */
 public class VlmHttpTransport implements VlmClient.Transport {
@@ -33,7 +31,7 @@ public class VlmHttpTransport implements VlmClient.Transport {
 
     /**
      * 带自定义头的 POST（WeKnoraCloud 签名头）——**不带** Authorization；非 200 抛
-     * {@link VlmClient.HttpStatusException}（让调用方按 Go 的文案报 status + 响应体）。
+     * {@link VlmClient.HttpStatusException}（调用方报 status + 响应体）。
      */
     @Override
     public String postWithHeaders(String url, java.util.Map<String, String> headers,
@@ -95,7 +93,7 @@ public class VlmHttpTransport implements VlmClient.Transport {
         return new String(respBody, StandardCharsets.UTF_8);
     }
 
-    /** 对照 vlmHTTPTimeout：env 正整数秒生效，否则 180s。 */
+    /** 超时：env 正整数秒生效，否则 180s。 */
     static Duration timeout() {
         String raw = com.ragagent.retrieval.config.RetrievalEnvLookup.get("VLM_HTTP_TIMEOUT_SECONDS");
         if (raw != null && !raw.isBlank()) {

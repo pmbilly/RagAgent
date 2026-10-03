@@ -431,7 +431,7 @@ public final class AgentPrompts {
     }
 
     /**
-     * 唯一组装路径（时间参数化供实录测试）。
+     * 唯一组装路径（时间参数化供测试注入）。
      * Custom templates replace only the base section; tool scope and runtime contracts
      * always come from the active engine, never from editable template text.
      */

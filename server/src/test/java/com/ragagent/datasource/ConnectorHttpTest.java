@@ -23,15 +23,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link ConnectorHttp} 的语义测试（对照 Go {@code internal/datasource/httpclient.go} +
- * {@code internal/utils/security.go} 的 {@code NewSSRFSafeHTTPClient} /
- * {@code newSSRFCheckRedirect} / {@code SSRFValidatingRoundTripper}）。
+ * {@link ConnectorHttp} 的语义测试（HTTP 客户端、base_url 的 SSRF 校验、
+ * 重定向安全、出站请求的 SSRF 拦截）。
  *
  * <h2>为什么必须用 stub server</h2>
  * <p>§7.5 第 7 条：测试**禁止依赖真实网络**（本机 DNS 会把公网域名解析到受限段，
- * 表现为随机的 SSRF 拒绝）。Go 侧的连接器测试全都起 {@code httptest} 并把
- * {@code SSRF_WHITELIST} 设成 {@code 127.0.0.1,::1,localhost}；Java 侧对应
- * {@link SsrfGuard#reloadWhitelist}。</p>
+ * 表现为随机的 SSRF 拒绝）。测试统一起本机 stub 并把
+ * {@code SSRF_WHITELIST} 放行范围设成 {@code 127.0.0.1,::1,localhost}；
+ * Java 侧对应 {@link SsrfGuard#reloadWhitelist}。</p>
  *
  * <h2>⚠️ 白名单是进程级静态状态</h2>
  * <p>{@code SsrfGuard.whitelist} 是 static（它的类注释解释了为什么）。
@@ -159,7 +158,7 @@ class ConnectorHttpTest {
         return ConnectorHttp.newConnectorHttpClient(Duration.ofSeconds(10));
     }
 
-    // ── validateConnectorBaseUrl（对照 Go ValidateConnectorBaseURL） ───────
+    // ── validateConnectorBaseUrl ──────────────────────────────────────────
 
     @Test
     void emptyBaseUrlIsAllowed() {
@@ -177,8 +176,8 @@ class ConnectorHttpTest {
 
     /**
      * 没有 scheme 的主机会先被补成 {@code https://<host>} 再校验——所以直接写一个
-     * 裸内网 IP 一样会被拒（裸 IP 一律不允许）。错误文本与 Go 的
-     * {@code fmt.Errorf("base_url SSRF validation failed: %w", err)} 同形。
+     * 裸内网 IP 一样会被拒（裸 IP 一律不允许）。错误文本为
+     * {@code base_url SSRF validation failed: <原因>}。
      */
     @Test
     void ssrfRejectedBaseUrlCarriesGoPrefix() {
@@ -207,7 +206,7 @@ class ConnectorHttpTest {
         assertThat(RECORDED.get(RECORDED.size() - 1).headers()).containsEntry("x-custom", "v");
     }
 
-    /** 非 2xx 是**正常返回**（由调用方判），不是异常——对照 Go 的 {@code client.Do} 语义。 */
+    /** 非 2xx 是**正常返回**（由调用方判），不是异常。 */
     @Test
     void nonSuccessStatusIsReturnedNotThrown() {
         ConnectorHttp.Response notFound = client().get(base + "/missing", null);
@@ -231,7 +230,7 @@ class ConnectorHttpTest {
         assertThat(last.headers()).containsEntry("content-type", "application/json");
     }
 
-    /** {@code truncatedBody} 对照 Go 的同名函数：超长才截断并补 {@code "..."}。 */
+    /** {@code truncatedBody}：超长才截断并补 {@code "..."}。 */
     @Test
     void truncatedBodyMatchesGoTruncate() {
         ConnectorHttp.Response resp = client().get(base + "/ok", null);
@@ -240,7 +239,7 @@ class ConnectorHttpTest {
         assertThat(resp.truncatedBody(0)).isEqualTo("...");
     }
 
-    // ── 重定向（对照 Go 的 newSSRFCheckRedirect） ─────────────────────────
+    // ── 重定向 ────────────────────────────────────────────────────────────
 
     @Test
     void followsSameOriginRedirect() {
@@ -249,7 +248,7 @@ class ConnectorHttpTest {
         assertThat(resp.bodyAsString()).isEqualTo("hello");
     }
 
-    /** 3xx 但没有 Location → 原样返回（Go 的行为）。 */
+    /** 3xx 但没有 Location → 原样返回。 */
     @Test
     void redirectWithoutLocationIsReturnedAsIs() {
         ConnectorHttp.Response resp = client().get(base + "/redirect-no-location", null);
@@ -265,7 +264,7 @@ class ConnectorHttpTest {
     }
 
     /**
-     * 跨域重定向必须剥掉凭据头（对照 Go 的 {@code stripRedirectSensitiveHeaders}）：
+     * 跨域重定向必须剥掉凭据头：
      * 两个不同端口的 stub 就是两个不同的 authority → {@code sameHTTPOrigin} 为 false。
      */
     @Test
@@ -281,11 +280,11 @@ class ConnectorHttpTest {
         assertThat(crossOrigin.bodyAsString()).isEqualTo("auth=<none>");
     }
 
-    // ── SSRF 拦截（对照 SSRFSafeRoundTripper） ────────────────────────────
+    // ── SSRF 拦截 ─────────────────────────────────────────────────────────
 
     /**
      * 未放行 loopback 时，连 stub 都不该连上——校验发生在**连接之前**，
-     * 错误文本与 Go 的 {@code outbound request blocked by SSRF policy: %w} 同形。
+     * 错误文本为 {@code outbound request blocked by SSRF policy: <原因>}。
      */
     @Test
     void blocksNonWhitelistedLoopbackBeforeConnecting() {
@@ -300,7 +299,7 @@ class ConnectorHttpTest {
         }
     }
 
-    /** 传输层失败（连不上）也走 {@link ConnectorException}（对照 Go 的 {@code client.Do} 返回 err）。 */
+    /** 传输层失败（连不上）也走 {@link ConnectorException}。 */
     @Test
     void transportFailureThrowsConnectorException() {
         // 端口 1 上不会有服务；host 已放行，失败发生在连接阶段

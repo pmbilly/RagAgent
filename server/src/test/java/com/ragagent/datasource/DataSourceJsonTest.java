@@ -31,39 +31,34 @@ import com.ragagent.datasource.domain.TaskInitiator;
 import org.junit.jupiter.api.Test;
 
 /**
- * datasource 领域类型的**逐字节 JSON 契约**测试（波 0 第 2 步）。
+ * datasource 领域类型的**逐字节 JSON 契约**测试。
  *
  * <h2>期望值的来源（本项目的验收标准）</h2>
- * <p>全部是 <b>Go 实录</b>：把 {@code internal/types/datasource.go}、
- * {@code context_helpers.go}（{@code TaskInitiator}）、{@code tracing.go}
- * （{@code TracingContext}）与 {@code json.go}（{@code types.JSON}）里的类型
- * <b>连 json tag 一起原样抄进</b>一个独立 Go 程序，喂同样的输入跑
- * {@code json.Marshal}，输出抄进下面的断言。</p>
- * <p>时间用的是 {@code time.FixedZone("CST", 8*3600)}，因为 JVM 默认时区是
- * {@code Asia/Shanghai}、{@code GoTimeSerializer} 会把时间归一化到那里再输出——
- * 用 UTC 录的话两边字面量会差一个偏移、断言无意义（沿用 memory 模块的做法）。</p>
+ * <p>期望 JSON 全部<b>逐字节钉死</b>：类型定义、序列化配置与下面断言里的
+ * 字面量一一对应，改任何一侧都会被对侧抓住。</p>
+ * <p>时间用的是 JVM 默认时区（{@code Asia/Shanghai}）的墙钟，
+ * 因为 {@code GoTimeSerializer} 会把时间归一化到那里再输出——
+ * 用 UTC 写期望值会差一个偏移、断言无意义（沿用 memory 模块的做法）。</p>
  *
  * <h2>这份语料刻意盯住的六个坑</h2>
  * <ol>
- *   <li><b>{@code DataSource} 一个 omitempty 都没有</b>——连 {@code error_message}
- *       空串、三个 JSON 列 null、{@code total_items_synced} 与 {@code latest_sync_log}
- *       （两个 {@code gorm:"-"}）都恒输出。最容易"顺手加个 omitempty"。</li>
- *   <li><b>{@code SyncItemError} 四个键全 omitempty</b> → 零值对象是 {@code {}}。</li>
- *   <li><b>{@code FetchedItem.content} 是 {@code []byte}</b> → JSON 里是 base64
- *       字符串，且无 omitempty（nil → {@code null}，空数组 → {@code ""}）。</li>
- *   <li><b>{@code FetchedItem.metadata} 无 omitempty</b>（nil → {@code null}），
- *       而 {@code Resource.metadata} **有** omitempty（nil → 键消失）——
- *       两个相邻类型两种处置。</li>
- *   <li><b>{@code DataSourceSyncPayload.initiator} 的 omitempty 是无效的</b>
- *       （Go 的 omitempty 对 struct 一律不生效）→ 空发起人输出 {@code "initiator":{}}。</li>
- *   <li><b>map 里的数字按 Go 的浮点编码器</b>（{@code 1.0 → 1}、{@code 1e21 → 1e+21}）
+ *   <li><b>{@code DataSource} 没有任何条件键</b>——连 {@code error_message}
+ *       空串、三个 JSON 列 null、{@code totalItemsSynced} 与 {@code latestSyncLog}
+ *       （两个不落库的派生字段）都恒输出。最容易"顺手加个非空才输出"。</li>
+ *   <li><b>{@code SyncItemError} 四键恒输出</b>，零值对象也不得缩成 {@code {}}。</li>
+ *   <li><b>{@code FetchedItem.content} 是 {@code byte[]}</b> → JSON 里是 base64
+ *       字符串，且恒输出（null → {@code null}，空数组 → {@code ""}）。</li>
+ *   <li><b>{@code FetchedItem.metadata} 与 {@code Resource.metadata} 都恒输出</b>
+ *       （null → {@code null}，不整键消失）——两个相邻类型同一处置。</li>
+ *   <li><b>{@code DataSourceSyncPayload.initiator} 恒输出</b>——空发起人是
+ *       {@code {"userId":"","role":""}}，不是 {@code {}}。</li>
+ *   <li><b>map 里的数字走专用编码器</b>（{@code 1.0 → 1}、{@code 1e21 → 1e+21}）
  *       ——{@link com.ragagent.datasource.domain.DataSourceMapSerializer} 的存在理由。</li>
  * </ol>
  *
  * <h2>为什么往返断言写在这里而不是 {@code JsonContractRoundTripTest}</h2>
- * <p>本轮任务书只授权改 {@code TestSchema}，其余共享文件（含
- * {@code JsonContractRoundTripTest}）不动。memory 模块把实体往返放在自己的
- * {@code MemoryEntityJsonTest} 里，此处沿用同一处置。</p>
+ * <p>memory 模块把实体往返放在自己的 {@code MemoryEntityJsonTest} 里，
+ * 此处沿用同一处置，模块内自持。</p>
  */
 class DataSourceJsonTest {
 
@@ -77,12 +72,12 @@ class DataSourceJsonTest {
         return MAPPER.writeValueAsString(value);
     }
 
-    /** 与 Go 的 {@code time.FixedZone("CST", 8*3600)} 同墙钟：JVM 默认时区的 10:00。 */
+    /** JVM 默认时区的 10:00。 */
     private static OffsetDateTime ten() {
         return ZonedDateTime.of(2026, 9, 18, 10, 0, 0, 0, ZoneId.systemDefault()).toOffsetDateTime();
     }
 
-    /** 同上，但换一天（对照 Go 录的 {@code 2026-09-17T09:00:00+08:00}）。 */
+    /** 同上，但换一天（2026-09-17T09:00:00+08:00）。 */
     private static OffsetDateTime earlier() {
         return ZonedDateTime.of(2026, 9, 17, 9, 0, 0, 0, ZoneId.systemDefault()).toOffsetDateTime();
     }
@@ -152,7 +147,7 @@ class DataSourceJsonTest {
                         + "\"updatedAt\":\"0001-01-01T00:00:00Z\"}}");
     }
 
-    /** 三个 JSON 列都是 Go 的 {@code types.JSON}：**空就输出 {@code null}**，不省略键。 */
+    /** 三个 JSON 列：**空就输出 {@code null}**，不省略键。 */
     @Test
     void dataSourceKeepsNullJsonColumns() throws Exception {
         String out = write(new DataSource());
@@ -233,8 +228,8 @@ class DataSourceJsonTest {
     }
 
     /**
-     * {@code multimodal_enabled} 是 {@code json:"-"}，而且它**连 jsonb 都不落**
-     * ——JSON 与落库是同一个 {@code json.Marshal}。
+     * {@code multimodalEnabled} 不进 JSON，也**不进落库的 jsonb**
+     * ——JSON 与落库走同一条序列化路径。
      */
     @Test
     void dataSourceConfigNeverExposesMultimodalEnabled() throws Exception {
@@ -260,7 +255,7 @@ class DataSourceJsonTest {
 
     @Test
     void resourceZeroMatchesGo() throws Exception {
-        // §1.6：原先三个 omitempty 键（parentId / hasChildren / metadata）现在**恒输出**
+        // §1.6：parentId / hasChildren / metadata 三键**恒输出**
         assertThat(write(new Resource())).isEqualTo(
                 "{\"externalId\":\"\",\"name\":\"\",\"type\":\"\",\"description\":\"\",\"url\":\"\","
                         + "\"modifiedAt\":\"0001-01-01T00:00:00Z\",\"parentId\":\"\","
@@ -323,27 +318,24 @@ class DataSourceJsonTest {
     }
 
     /**
-     * {@code []byte} 的 base64 字母表必须是 **标准表**（含 {@code +} 与 {@code /}
-     * 且带 {@code =} 填充）。Go 用 {@code base64.StdEncoding}；
-     * Jackson 的默认变体 {@code MIME_NO_LINEFEEDS} 与它同字母表、同填充、同样不折行。
+     * {@code content} 的 base64 字母表必须是**标准表**（含 {@code +} 与 {@code /}
+     * 且带 {@code =} 填充）；Jackson 的默认变体 {@code MIME_NO_LINEFEEDS}
+     * 满足：同字母表、同填充、同样不折行。
      */
     @Test
     void fetchedItemContentUsesGoBase64Alphabet() throws Exception {
         FetchedItem f = new FetchedItem();
         f.setContent(new byte[]{(byte) 0xfb, (byte) 0xff, 0x3e, 0x41});
-        // Go 实录：json.Marshal([]byte{0xfb,0xff,0x3e,0x41}) → "+/8+QQ=="
+        // 字节 0xfb,0xff,0x3e,0x41 → "+/8+QQ=="
         assertThat(write(f)).contains("\"content\":\"+/8+QQ==\"");
 
-        // 空但非 nil 的切片在 Go 里是 ""（不是 null）
+        // 空但非 null 的数组输出 ""（不是 null）
         f.setContent(new byte[0]);
         assertThat(write(f)).contains("\"content\":\"\"");
     }
 
     /**
-     * §14.9q D2 后字段名即键名：只输出 {@code deleted}，**没有** {@code is_deleted} 这个并生属性。
-     *
-     * <p>（修正一条从未生效的断言：原文第二条子句写的是 {@code doesNotContain("\"deleted\":")}，
-     * 与第一条自相矛盾，等于没断言。）</p>
+     * 字段名即键名：只输出 {@code deleted}，**没有** {@code is_deleted} 这个并生属性。
      */
     @Test
     void fetchedItemDoesNotLeakIsDeletedProperty() throws Exception {
@@ -414,7 +406,7 @@ class DataSourceJsonTest {
                         + "\"connectorCursor\":null,\"lastSchemaHash\":\"h\"}}");
     }
 
-    /** §1.6：空集合、零值与 null 一律**照写**（旧 Go 的三种 omitempty 都已退役）。 */
+    /** §1.6：空集合、零值与 null 一律**照写**。 */
     @Test
     void syncResultKeepsEmptyCollectionsAndZeroDeletionFailed() throws Exception {
         SyncResult r = new SyncResult();
@@ -432,7 +424,7 @@ class DataSourceJsonTest {
                 .contains("\"deletionFailed\":0");
     }
 
-    /** §1.6：四键恒输出（旧 Go 的 omitempty 会让零值对象成为 {@code {}}）。 */
+    /** §1.6：四键恒输出（零值对象也不缩成 {@code {}}）。 */
     @Test
     void syncItemErrorZeroMatchesGoAsFullObject() throws Exception {
         assertThat(write(new SyncItemError())).isEqualTo(
@@ -468,7 +460,7 @@ class DataSourceJsonTest {
         assertThat(obj.getMessage()).isEmpty();
     }
 
-    /** 未知键必须被忽略（Go 的 {@code json.Unmarshal} 默认如此）。 */
+    /** 未知键必须被忽略（读路径宽容未知属性）。 */
     @Test
     void syncItemErrorToleratesUnknownKeys() throws Exception {
         SyncItemError e = JSONB.readValue(
@@ -476,7 +468,7 @@ class DataSourceJsonTest {
         assertThat(e.getTitle()).isEqualTo("t");
     }
 
-    /** {@code Display()} 的四条分支（对照 Go 的 switch）。 */
+    /** {@code display()} 的四条分支。 */
     @Test
     void syncItemErrorDisplayMatchesGo() {
         SyncItemError both = new SyncItemError();
@@ -499,7 +491,7 @@ class DataSourceJsonTest {
 
     @Test
     void taskInitiatorMatchesGo() throws Exception {
-        // §14.9q D3：键名＝组件名（空发起人是两个空串，不再是 {}）
+        // 键名＝组件名（空发起人是两个空串，不是 {}）
         assertThat(write(TaskInitiator.empty())).isEqualTo(
                 "{\"userId\":\"\",\"role\":\"\"}");
         assertThat(write(new TaskInitiator("user-1", "admin")))
@@ -537,16 +529,15 @@ class DataSourceJsonTest {
         assertThat(back).isEqualTo(p);
     }
 
-    // ── map 里的数字：Go 的浮点编码器 ──────────────────────────────────────
+    // ── map 里的数字：专用浮点编码器 ──────────────────────────────────────
 
     /**
-     * Go 对 {@code map[string]interface{}} 里的 {@code float64} 用**专用编码器**：
-     * 整数值不补 {@code .0}、大数走指数且带 {@code +}。Jackson 走
-     * {@code Double.toString}，两者系统性不同——这是
+     * map 里的数字（{@code Double}）走**专用编码器**：整数值不补 {@code .0}、
+     * 大数走指数且带 {@code +}。Jackson 默认的 {@code Double.toString} 与之
+     * 系统性不同——这是
      * {@link com.ragagent.datasource.domain.DataSourceMapSerializer} 的存在理由。
      *
-     * <p>语料是 Go 实录：
-     * {@code {"a":1e21,"nested":{"a":[3,1e-7],"b":2},"s":"x","z":1}}。</p>
+     * <p>语料：{@code {"a":1e21,"nested":{"a":[3,1e-7],"b":2},"s":"x","z":1}}。</p>
      */
     @Test
     void mapValuesUseGoFloatEncoding() throws Exception {
@@ -578,7 +569,7 @@ class DataSourceJsonTest {
 
     // ── 派生访问器 / 便捷方法 ──────────────────────────────────────────────
 
-    /** Go 的三个 {@code DataSourceConfig} 方法与 {@code SubtreeChild*} 都是方法，不是字段。 */
+    /** 三个 {@code DataSourceConfig} 便捷方法与 {@code SubtreeChild*} 都是方法，不是字段。 */
     @Test
     void dataSourceConfigHelperSemanticsMatchGo() {
         DataSourceConfig c = new DataSourceConfig();
@@ -607,7 +598,7 @@ class DataSourceJsonTest {
         assertThat(blank.hasConfiguredCredentials("rss")).isFalse();
     }
 
-    /** {@code stripNonSecretCredentials} 对 nil 接收者是 no-op（Go 的 {@code d == nil} 判定）。 */
+    /** {@code stripNonSecretCredentials} 在 credentials 为 null 时是 no-op。 */
     @Test
     void stripNonSecretCredentialsIsNoOpOnEmpty() {
         DataSourceConfig c = new DataSourceConfig();
@@ -657,7 +648,7 @@ class DataSourceJsonTest {
         result.setNextCursor(cursor);
         assertRoundTripsNaked(result, SyncResult.class);
 
-        // ⚠️ 含未知键的历史行也必须读得出来（Go 的 json.Unmarshal 默认忽略）
+        // ⚠️ 含未知键的历史行也必须读得出来（读路径宽容未知属性）
         DataSourceConfig tolerant = JSONB.readValue(
                 "{\"type\":\"rss\",\"future\":1}", DataSourceConfig.class);
         assertThat(tolerant.getType()).isEqualTo("rss");
@@ -675,7 +666,7 @@ class DataSourceJsonTest {
 
     /**
      * 逐类型核对键序与键数，抓两类往返测试抓不到的问题：派生访问器多吐一个键、
-     * 字段漏进 JSON（§14.9q D1 后键名＝Java 字段名，声明序＝输出序）。
+     * 字段漏进 JSON（键名＝Java 字段名，声明序＝输出序）。
      */
     @Test
     void entityKeyOrderAndCountMatchGoDeclarationOrder() throws Exception {
@@ -849,7 +840,7 @@ class DataSourceJsonTest {
 
     // ── JSON 编码器的键名/零值细节 ─────────────────────────────────────────
 
-    /** {@code deleted_at} 有值时输出 RFC3339——与 {@code gorm.DeletedAt.MarshalJSON} 一致。 */
+    /** {@code deletedAt} 有值时输出 RFC3339。 */
     @Test
     void dataSourceDeletedAtSerializesWhenSet() throws Exception {
         DataSource ds = new DataSource();
@@ -857,7 +848,7 @@ class DataSourceJsonTest {
         assertThat(write(ds)).contains("\"deletedAt\":\"2026-09-18T10:00:00+08:00\"");
     }
 
-    /** {@code DataSourceConfig.toJSON()} 与 Go 的 {@code json.Marshal} 同形。 */
+    /** {@code DataSourceConfig.toJSON()} 的输出形状。 */
     @Test
     void dataSourceConfigToJsonMatchesGoMarshal() throws Exception {
         DataSourceConfig empty = new DataSourceConfig();
@@ -870,13 +861,13 @@ class DataSourceJsonTest {
         c.setSettings(new LinkedHashMap<>(Map.of("feed_urls", "u")));
         c.setMultimodalEnabled(true);
 
-        // 没有 SYSTEM_AES_KEY 时凭据原样落库（与 Go 的 GetAESKey()==nil 分支一致）
+        // 没有 SYSTEM_AES_KEY 时凭据原样落库（不加密）
         assertThat(MAPPER.writeValueAsString(c.toJSON())).isEqualTo(
                 "{\"type\":\"rss\",\"credentials\":{\"auth_headers\":\"h\"},"
                         + "\"resourceIds\":null,\"settings\":{\"feed_urls\":\"u\"}}");
     }
 
-    /** {@code toJSON()} 不得改动调用方的内存 map（Go 的浅拷贝理由）。 */
+    /** {@code toJSON()} 不得改动调用方的内存 map（内部用浅拷贝）。 */
     @Test
     void dataSourceConfigToJsonDoesNotMutateCaller() throws Exception {
         DataSourceConfig c = new DataSourceConfig();
@@ -899,7 +890,7 @@ class DataSourceJsonTest {
                         + "\"lastSchemaHash\":\"\"}");
     }
 
-    /** 解析方法的两态：SQL NULL（Java null）→ Go 的 {@code len == 0} 短路。 */
+    /** 解析方法的两态：SQL NULL（Java null）与 JSON null 字面量。 */
     @Test
     void parseHelpersDistinguishSqlNullFromJsonNull() {
         DataSource ds = new DataSource();
@@ -910,7 +901,7 @@ class DataSourceJsonTest {
         ds.setConfig(jsonUnchecked("null"));
         ds.setLastSyncCursor(jsonUnchecked("null"));
         ds.setLastSyncResult(jsonUnchecked("null"));
-        // 字面量 null → json.Unmarshal 成功且留下零值（不是 nil）
+        // 字面量 null → 解析成功，得到零值对象（非 null）
         assertThat(ds.parseConfig()).isNotNull();
         assertThat(ds.parseSyncCursor()).isNotNull();
         assertThat(ds.parseSyncResult()).isNotNull();

@@ -8,13 +8,11 @@ import java.util.Map;
 import com.ragagent.common.retrieval.SearchResult;
 
 /**
- * 检索观测的纯函数族（对照 Go internal/tracing/langfuse/retrieval_obs.go 的
- * TruncateRunes / SummarizeSearchResults / SummarizeRankScores / SummarizePassagePreviews）。
+ * 检索观测的纯函数族：码点截断、命中预览、分数汇总、段落预览。
  *
- * <p>4.6a 的 langfuse seam 只收了引擎三个调用点；chat_pipeline 还消费这四个纯函数
- * （rerank.go / memory_recall.go / search.go 的 span 输入与 query_preview）。
- * 它们是纯本地计算、无 IO，放本包避免为纯函数动 langfuse seam。
- * 产出只进 span（Java 侧恒 no-op），行为契约由 rerank 实录组经 span 输入钉住。</p>
+ * <p>chat_pipeline 消费这四个纯函数（rerank / memory_recall / search 的 span 输入与
+ * query_preview）。它们是纯本地计算、无 IO，放本包避免为纯函数动 langfuse seam。
+ * 产出只进 span（Java 侧恒 no-op），行为契约由 rerank 的 span 输入测试钉住。</p>
  */
 public final class RetrievalObs {
 
@@ -22,7 +20,7 @@ public final class RetrievalObs {
 
     private RetrievalObs() {}
 
-    /** 对照 TruncateRunes：截到 maxRunes 个码点，截断时追加 "..."。 */
+    /** 截到 maxRunes 个码点，截断时追加 "..."。 */
     public static String truncateRunes(String s, int maxRunes) {
         if (maxRunes <= 0) {
             return "";
@@ -38,7 +36,7 @@ public final class RetrievalObs {
     }
 
     /**
-     * 对照 SummarizeSearchResults：重排后的紧凑预览（分数降序，ID 决序；
+     * 重排后的紧凑预览（分数降序，ID 决序；
      * metadata 里的 base_score/model_score/faq_* 透出）。
      */
     public static Map<String, Object> summarizeSearchResults(List<SearchResult> results, int limit) {
@@ -98,7 +96,7 @@ public final class RetrievalObs {
         return out;
     }
 
-    /** 对照 SummarizeRankScores：超过 limit 时截前 limit 行。 */
+    /** 分数汇总：超过 limit 时截前 limit 行。 */
     public static List<Map<String, Object>> summarizeRankScores(List<Map<String, Object>> results, int limit) {
         int effective = limit <= 0 ? DEFAULT_HIT_PREVIEW_LIMIT : limit;
         if (results == null || results.size() <= effective) {
@@ -107,7 +105,7 @@ public final class RetrievalObs {
         return new ArrayList<>(results.subList(0, effective));
     }
 
-    /** 对照 SummarizePassagePreviews：与候选对齐的段落预览行。 */
+    /** 与候选对齐的段落预览行。 */
     public static List<Map<String, Object>> summarizePassagePreviews(
             List<SearchResult> candidates, List<String> passages, int limit) {
         int effective = limit <= 0 ? DEFAULT_HIT_PREVIEW_LIMIT : limit;
@@ -134,17 +132,17 @@ public final class RetrievalObs {
         return out;
     }
 
-    /** Go 的 fmt.Sprintf("%.4f")（四舍五入到 4 位小数，toFixed 语义）。 */
+    /** 四舍五入到 4 位小数（toFixed 语义）。 */
     public static String goFmt4(double v) {
         return String.format(java.util.Locale.ROOT, "%.4f", v);
     }
 
     /**
-     * 对照 SummarizeRetrieveOutput（retrieval_obs.go L24-61）：检索 span 的输出——
+     * 检索 span 的输出——
      * 多组命中汇总（total/vector/keyword + by_retriever 逐组计数）+ 前 25 条命中预览。
      *
      * <p>空输入返回全零（{@code by_retriever} 空数组、{@code top_hits} 为 null——
-     * 照抄 Go 的 nil slice 语义）。</p>
+     * 空结果序列化为 null 的语义）。</p>
      */
     public static Map<String, Object> summarizeRetrieveOutput(
             List<com.ragagent.retrieval.engine.PgVectorRetrieveRepository.RetrieveResult> results) {
@@ -186,7 +184,7 @@ public final class RetrievalObs {
         return out;
     }
 
-    /** 对照 summarizeIndexHits：分数降序、chunk_id 决序，截前 limit 条（空 → null）。 */
+    /** 分数降序、chunk_id 决序，截前 limit 条（空 → null）。 */
     public static List<Map<String, Object>> summarizeIndexHits(
             List<com.ragagent.retrieval.engine.PgVectorRetrieveRepository.IndexHit> hits, int limit) {
         if (hits == null || hits.isEmpty()) {

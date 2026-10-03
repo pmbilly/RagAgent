@@ -17,14 +17,12 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 
 /**
- * {@link DefaultWikiKnowledgeFinalizer} 的对等测试（对照 Go
- * {@code knowledgeRepository.FinalizeSubtask}，internal/application/repository/knowledge.go
- * L600-650）。
+ * {@link DefaultWikiKnowledgeFinalizer} 的行为测试。
  *
- * <p><b>为什么值得单测</b>：这是本轮接线的三处"卡死"接缝之一——没有它，文档会永远
+ * <p><b>为什么值得单测</b>：没有它，文档会永远
  * 停在 {@code finalizing}。它的正确性完全体现在<b>两条 UPDATE 的 WHERE 子句</b>上：
- * 递减必须钳在零、晋升必须"无 SELECT、无条件尝试"（Go 注释里的
- * "stuck pending_subtasks_count" bug 就是被一次滞后的 SELECT 造成的）。</p>
+ * 递减必须钳在零、晋升必须"无 SELECT、无条件尝试"——先 SELECT 再决定曾导致
+ * pending_subtasks_count 卡死。</p>
  */
 class WikiKnowledgeFinalizerTest {
 
@@ -104,7 +102,7 @@ class WikiKnowledgeFinalizerTest {
         verify(knowledgeMapper, org.mockito.Mockito.times(2)).update(isNull(), any(Wrapper.class));
     }
 
-    /** 递减报错时不再尝试晋升（对照 Go 的 early return） */
+    /** 递减报错时提前返回，不再尝试晋升 */
     @Test
     @DisplayName("递减报错时提前返回")
     void decrementFailureShortCircuits() {
@@ -117,7 +115,7 @@ class WikiKnowledgeFinalizerTest {
         verify(knowledgeMapper, org.mockito.Mockito.times(1)).update(isNull(), any(Wrapper.class));
     }
 
-    /** 空 id 是安全 no-op（对照 Go 的 {@code knowledgeID == ""} 短路） */
+    /** 空 id 是安全 no-op（直接短路） */
     @Test
     @DisplayName("空 id 短路")
     void emptyIdShortCircuits() {
@@ -126,7 +124,7 @@ class WikiKnowledgeFinalizerTest {
         verify(knowledgeMapper, never()).update(any(), any(Wrapper.class));
     }
 
-    /** 端口方法不抛异常（对照 Go 的 detached 路径：失败只记日志） */
+    /** 端口方法不抛异常（失败只记日志） */
     @Test
     @DisplayName("端口方法吞掉失败")
     void portMethodSwallowsFailures() {

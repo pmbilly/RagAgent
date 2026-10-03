@@ -5,21 +5,18 @@ import java.util.List;
 import com.ragagent.common.session.PipelineMessageAttachmentView;
 
 /**
- * 附件列表 → LLM 提示词段（对照 Go {@code MessageAttachments.BuildPrompt}，
- * internal/types/message.go:156-195 逐行移植）。
+ * 附件列表 → LLM 提示词段。
  *
- * <p>Java 的 session 域没有这个列表级方法（BuildPrompt 定义在切片类型上），
- * 故落在 {@code common/prompt} 作为两侧共用的静态工具，入参用跨域载荷
- * （{@link PipelineMessageAttachmentView}）；HTML 转义复刻 Go stdlib html.EscapeString
- * （五字符 &lt; &gt; &amp; ' " → &lt; &gt; &amp;amp; &amp;#39; &amp;#34;——同
- * modelcontext.GoHtml，但那个类是包私有，此处不跨包借用）。
- * size_kb 用 Go 的 %.2f 格式。</p>
+ * <p>落在 {@code common/prompt} 作为各域共用的静态工具，入参用跨域载荷
+ * （{@link PipelineMessageAttachmentView}）；HTML 转义为五字符
+ * &lt; &gt; &amp; ' " → &lt; &gt; &amp;amp; &amp;#39; &amp;#34;。
+ * size_kb 用 {@code %.2f} 格式。</p>
  */
 public final class MessageAttachmentsPrompt {
 
     private MessageAttachmentsPrompt() {}
 
-    /** Go html.EscapeString 的五字符转义。 */
+    /** 五字符 HTML 转义。 */
     public static String escapeHtml(String s) {
         String v = s == null ? "" : s;
         StringBuilder sb = new StringBuilder(v.length());

@@ -16,8 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 /**
- * Redis Pub/Sub 跨实例语义（对照 Go gate.go 的 runSubscriber / Resolve / resolveCrossInstance）——
- * Go 侧没有对应测试（需要真 Redis），这里用内存 pubsub 覆盖：
+ * Redis Pub/Sub 跨实例语义（覆盖 {@code Gate} 的 runSubscriber / resolve / resolveCrossInstance）——
+ * 真 Redis 不在测试矩阵里，这里用内存 pubsub 覆盖：
  *
  * <ul>
  *   <li>pending 在别的实例上：Resolve 经广播投递，并由持有者回 ack（调用方返回成功）；</li>
@@ -163,7 +163,7 @@ class GateCrossInstanceTest {
 
     /**
      * nonce 隔离：同回复频道上，属于别的并发 Resolve 的 ack 必须被忽略
-     * （对照 Go {@code if ack.RequestNonce != "" && ack.RequestNonce != nonce { continue }}）。
+     * （nonce 不匹配的 ack 直接跳过）。
      *
      * <p>做法：抢在持有实例回复之前，往回复频道塞一条 nonce 不匹配、状态为 tenant_mismatch 的假 ack。
      * 若 nonce 过滤失效，调用方就会拿到 TENANT_MISMATCH；正确实现应忽略它并等到真 ack（成功）。</p>

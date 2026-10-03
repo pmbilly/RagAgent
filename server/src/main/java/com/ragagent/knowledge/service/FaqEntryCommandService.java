@@ -191,8 +191,8 @@ public class FaqEntryCommandService {
     // ══════════════════ 更新 / 相似问 ══════════════════════════════════
 
     /**
-     * * <b>先落库后失败</b>：UpdateChunk 在 GetEmbeddingModel 之前——无模型 KB 上
-     * 返回 plain 500 但变更已持久化（契约样例 faq-get-after-update 钉住，照抄别修）。
+     * <b>先落库后失败</b>：chunk 更新先于 embedding 模型解析——无模型 KB 上
+     * 返回 plain 500 但变更已持久化（契约样例 faq-get-after-update 锁定该行为）。
      */
     public FaqEntry updateEntry(String kbId, long entrySeqId, FaqEntryPayload payload) {
         KnowledgeBase kb = faqGuard.writableFAQKnowledgeBase(kbId);
@@ -683,8 +683,7 @@ public class FaqEntryCommandService {
 
     // ══════════════════ 私有：重复检查 ══════════════════════
 
-    /** ；1-3 步本地判定、
-     *  4 步一条 DB 查询、5-7 步报错语义照抄。 */
+    /** 1-3 步本地判定、4 步一条 DB 查询、5-7 步报错语义。 */
     private void checkFAQQuestionDuplicate(long tenantId, String kbId, String excludeChunkId,
                                            FaqChunkMetadata meta) {
         List<String> similar = meta.similarQuestions == null ? List.of() : meta.similarQuestions;

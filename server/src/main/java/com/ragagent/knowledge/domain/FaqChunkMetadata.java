@@ -260,7 +260,7 @@ public class FaqChunkMetadata {
     }
 
     /**
-     * 差 U+0085/U+00A0，与 ChunkRepository.trimSpace 同款显式复刻。
+     * 空白集与 Java 默认差 U+0085/U+00A0 两项；与 ChunkRepository.trimSpace 同一套表。
      */
     @JsonIgnore
     public static String trimSpace(String s) {

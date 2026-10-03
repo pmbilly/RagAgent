@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.MiniMaxProvider（minimax.go）。
+ * MiniMax。
  * 默认 URL 用国内版（MiniMaxCNBaseURL），国际版常量另有其名（见 ProviderBaseURLs）。
  */
 public class MiniMaxProvider implements Provider {

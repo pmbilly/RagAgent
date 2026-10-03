@@ -12,9 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 本地文件系统后端（对照 Go {@code localFileService}，application/service/file/local.go 全文 313 行）。
+ * 本地文件系统后端。
  *
- * <h2>布局与路径（逐条照抄）</h2>
+ * <h2>布局与路径</h2>
  * <ul>
  *   <li>{@code SaveFile} → {@code {baseDir}/{tenantId}/{knowledgeId}/{nanoTime}{ext}}，
  *       返回 {@code local://{斜杠相对路径}}；</li>
@@ -26,15 +26,14 @@ import org.slf4j.LoggerFactory;
  * </ul>
  *
  * <h2>GetFileURL</h2>
- * <p>配了 {@code externalURL}（Go 的 {@code APP_EXTERNAL_URL}）时走预签名 URL；
- * Java 侧预签名尚未接线（Go 是 {@code utils.SignFileURL} + {@code SYSTEM_AES_KEY}），
- * 因此与 Go **未配密钥**时的降级一致：记警告并返回 {@code local://} 路径。</p>
+ * <p>配了 {@code externalURL}（{@code APP_EXTERNAL_URL}）时走预签名 URL；
+ * 未注入 {@link UrlSigner}（预签名未接线）时记警告并返回 {@code local://} 路径。</p>
  */
 public class LocalFileService implements FileService {
 
     private static final Logger log = LoggerFactory.getLogger(LocalFileService.class);
 
-    /** 对照 Go {@code localScheme}。 */
+    /** {@code local://} 前缀。 */
     public static final String LOCAL_SCHEME = "local://";
 
     /** 预签名接缝（对照 {@code utils.SignFileURL}）：未注入 = 未接线，返回 provider 路径。 */
@@ -166,7 +165,7 @@ public class LocalFileService implements FileService {
         if (!externalURL.isEmpty()) {
             long tenantId = parseTenantIdFromStoragePath(normalized);
             if (signer == null) {
-                // 对照 Go：SignFileURL 失败（未配 SYSTEM_AES_KEY）→ 记警告 + 返回 local:// 路径
+                // 预签名未接线（未配 SYSTEM_AES_KEY）→ 记警告 + 返回 local:// 路径
                 log.warn("Failed to generate presigned URL for {}: presign not wired, "
                         + "returning local:// path", normalized);
                 return normalized;

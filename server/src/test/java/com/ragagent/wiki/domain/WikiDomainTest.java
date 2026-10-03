@@ -13,17 +13,16 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.junit.jupiter.api.Test;
 
 /**
- * 对照 Go internal/types/wiki_page_test.go（332 行）的语义对等测试。
+ * Wiki 领域类型的语义测试。
  *
- * <p>与 Go 版本的对应关系逐条标注在方法注释里。Go 测试里有两项在本模块不可覆盖，
- * 已在报告中说明：{@code TestKnowledgeBaseEnsureDefaultsWiki}（属于知识库模块的
- * EnsureDefaults）与 {@code TestChunkTypeWikiPage}（属于 chunk 模块的类型常量）。</p>
+ * <p>知识库默认值（EnsureDefaults）与 chunk 类型常量分属知识库/chunk 模块，
+ * 不在本模块覆盖范围。</p>
  */
 class WikiDomainTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    // ── TestWikiPageTypes ──
+    // ── 页类型常量 ──
 
     @Test
     void pageTypeConstantsAreNonEmptyAndUnique() {
@@ -46,7 +45,7 @@ class WikiDomainTest {
         assertThat(WikiConstants.isValidPageStatus("Archived")).isFalse();
     }
 
-    // ── TestWikiConfigValueScan / TestWikiConfigScanNil ──
+    // ── WikiConfig jsonb 编解码 ──
 
     @Test
     void wikiConfigJsonRoundTrip() {
@@ -65,7 +64,7 @@ class WikiDomainTest {
         assertThat(WikiConfig.fromJson("")).isNull();
     }
 
-    // ── TestStringArrayValueScan / TestStringArrayEmpty ──
+    // ── 字符串列表类型处理器 ──
 
     @Test
     void stringArrayJsonRoundTrip() {
@@ -77,8 +76,8 @@ class WikiDomainTest {
 
     @Test
     void emptyStringArrayDecodesToEmptyList() {
-        // 写路径对齐 Go：nil / 空列表都走 SQL NULL（见 handler 类注释），
-        // encode() 的序列化结果对应 Go 的字面量 null；读路径宽容，一律回空列表。
+        // 落库语义：null / 空列表都写 SQL NULL（见 handler 类注释），
+        // encode() 的序列化结果是字面量 null；读路径宽容，一律回空列表。
         assertThat(WikiStringListTypeHandler.encode(null)).isEqualTo("null");
         assertThat(WikiStringListTypeHandler.encode(List.of())).isEqualTo("null");
         assertThat(WikiStringListTypeHandler.decode("[]")).isEmpty();
@@ -87,7 +86,7 @@ class WikiDomainTest {
         assertThat(WikiStringListTypeHandler.decode(null)).isEmpty();
     }
 
-    // ── TestWikiPageJSON ──
+    // ── WikiPage JSON 往返 ──
 
     @Test
     void wikiPageJsonRoundTrip() throws Exception {
@@ -113,8 +112,8 @@ class WikiDomainTest {
     }
 
     /**
-     * 契约钉住：Go struct 的 json tag 是 snake_case，且 omitempty 字段在零值时必须整键省略；
-     * {@code deleted_at} 恒输出（Go 的 gorm.DeletedAt 未删除时是 JSON null）。
+     * 契约钉住：JSON 键名 = Java 字段名；无值字段也显式输出（禁止条件键）；
+     * {@code deletedAt} 恒输出，未删除时是 JSON null。
      */
     @Test
     void wikiPageJsonKeys() throws Exception {
@@ -158,7 +157,7 @@ class WikiDomainTest {
         assertThat(restored.getPageMetadata().get("tag").asText()).isEqualTo("x");
     }
 
-    // ── TestWikiSourceKnowledgeID ──
+    // ── sourceKnowledgeID 提取 ──
 
     @Test
     void wikiSourceKnowledgeIdExtraction() {
@@ -166,7 +165,7 @@ class WikiDomainTest {
         assertThat(WikiCategoryPaths.sourceKnowledgeID("doc-1")).isEqualTo("doc-1");
         assertThat(WikiCategoryPaths.sourceKnowledgeID("  doc-1 | title ")).isEqualTo("doc-1");
         assertThat(WikiCategoryPaths.sourceKnowledgeID("")).isEqualTo("");
-        // 前导竖线（index 0）不切分——对照 Go strings.IndexByte(ref,'|') > 0
+        // 前导竖线（index 0）不切分——首个分隔竖线必须出现在 index > 0 处
         assertThat(WikiCategoryPaths.sourceKnowledgeID("|doc-1")).isEqualTo("|doc-1");
 
         WikiPage page = new WikiPage();
@@ -177,7 +176,7 @@ class WikiDomainTest {
         assertThat(page.sourceKnowledgeIDs()).containsExactly("doc-1", "doc-2");
     }
 
-    // ── TestWikiGraphDataJSON ──
+    // ── WikiGraph JSON 往返 ──
 
     @Test
     void wikiGraphDataJsonRoundTrip() throws Exception {
@@ -202,7 +201,7 @@ class WikiDomainTest {
         assertThat(restored.getEdges().get(0).getTarget()).isEqualTo("concept/b");
     }
 
-    // ── TestWikiExtractionGranularity_IsValid / Normalize ──
+    // ── 粒度枚举的合法性 / 归一化 ──
 
     @Test
     void extractionGranularityIsValid() {
@@ -231,7 +230,7 @@ class WikiDomainTest {
         assertThat(WikiExtractionGranularity.normalize(null)).isEqualTo("standard");
     }
 
-    // ── TestWikiConfig_JSONRoundTrip_WithGranularity ──
+    // ── WikiConfig 往返（含粒度） ──
 
     @Test
     void wikiConfigJsonRoundTripWithGranularity() {
@@ -243,7 +242,7 @@ class WikiDomainTest {
                 .isEqualTo("focused");
 
         // 历史行：既没有 granularity 字段，还带已退役的 enabled / auto_ingest 键。
-        // Go 的 json.Unmarshal 默认忽略未知字段——Jackson 必须同样宽容（§9）。
+        // 反序列化必须忽略未知字段（§9）。
         String legacy = "{\"enabled\":true,\"auto_ingest\":true,"
                 + "\"synthesis_model_id\":\"\",\"max_pages_per_ingest\":0}";
         WikiConfig old = WikiConfig.fromJson(legacy);
@@ -251,7 +250,7 @@ class WikiDomainTest {
         assertThat(old.normalizedExtractionGranularity()).isEqualTo("standard");
     }
 
-    /** Go 的 Value() 用 omitempty：空串 / 0 的字段整键省略 */
+    /** 空串 / 0 的字段也显式输出（不整键省略） */
     @Test
     void wikiConfigKeepsEmptyOptionalFields() throws Exception {
         WikiConfig config = new WikiConfig();
@@ -274,7 +273,7 @@ class WikiDomainTest {
         assertThat(none.ingestMapParallelOrDefault(10)).isEqualTo(10);
         assertThat(none.ingestReduceParallelOrDefault(10)).isEqualTo(10);
         assertThat(none.ingestMaxInflightOrDefault(4)).isEqualTo(4);
-        // Go 的 nil 接收者语义
+        // null 配置对象直接返回兜底值
         assertThat(WikiConfig.ingestBatchSizeOrDefault(null, 5)).isEqualTo(5);
         assertThat(WikiConfig.ingestMaxInflightOrDefault(null, 4)).isEqualTo(4);
 
@@ -290,7 +289,7 @@ class WikiDomainTest {
         assertThat(WikiConfig.ingestBatchSizeOrDefault(set, 5)).isEqualTo(9);
     }
 
-    // ── TestWikiFolderPathSegmentsKeepTypeLikeFolderNames + 路径清洗纯函数 ──
+    // ── 文件夹路径分段 + 路径清洗纯函数 ──
 
     @Test
     void folderPathSegmentsKeepTypeLikeFolderNames() {
@@ -313,9 +312,9 @@ class WikiDomainTest {
         assertThat(WikiCategoryPaths.cleanCategoryPart("Concepts")).isEmpty();
         assertThat(WikiCategoryPaths.cleanCategoryPart("")).isEmpty();
         assertThat(WikiCategoryPaths.cleanCategoryPart(null)).isEmpty();
-        // 类型标签大小写不敏感 + 允许尾随 s（Go 的 lower + TrimSuffix "s"）。
-        // 注意 Go 只去掉**一个**尾随 s：复数 "Entities"/"Summaries" 折叠成
-        // "entitie"/"summarie" 后并不命中名单——这是 Go 的既有行为，Java 照抄。
+        // 类型标签大小写不敏感 + 允许去掉一个尾随 s。
+        // 注意只去掉**一个**尾随 s：复数 "Entities"/"Summaries" 折叠成
+        // "entitie"/"summarie" 后并不命中名单——这是既有的刻意行为。
         assertThat(WikiCategoryPaths.isTypeCategoryLabel("Entity")).isTrue();
         assertThat(WikiCategoryPaths.isTypeCategoryLabel("ENTITIES")).isFalse();
         assertThat(WikiCategoryPaths.isTypeCategoryLabel("Summaries")).isFalse();
@@ -387,7 +386,7 @@ class WikiDomainTest {
         folder.setParentId("");
         WikiFolderNode node = new WikiFolderNode(folder, 3, true);
         JsonNode json = JSON.readTree(JSON.writeValueAsString(node));
-        // 对照 Go 的匿名嵌入：folder 字段扁平化到顶层
+        // folder 字段扁平化到顶层（无嵌套 folder 键）
         assertThat(json.get("id").asText()).isEqualTo("f-1");
         assertThat(json.get("name").asText()).isEqualTo("AI");
         assertThat(json.get("parentId").asText()).isEmpty();
@@ -408,14 +407,14 @@ class WikiDomainTest {
         // isActive() 读取器推导的键与字段名一致,不得出现第二副本
         assertThat(json.has("isActive")).isFalse();
         assertThat(json.has("is_active")).isFalse();
-        // Go struct 无 omitempty → 全字段恒输出
+        // 全字段恒输出（禁止条件键）
         assertThat(json.has("totalPages")).isTrue();
         assertThat(json.has("pagesByType")).isTrue();
         assertThat(json.has("recentUpdates")).isTrue();
         assertThat(json.has("orphanCount")).isTrue();
     }
 
-    /** 投影类型（MyBatis 映射 + 可能的 JSON 输出）的键名也必须逐字对照 Go tag */
+    /** 投影类型（MyBatis 映射 + 可能的 JSON 输出）的键名也必须与 Java 字段名逐字一致 */
     @Test
     void projectionTypesUseJavaFieldNames() throws Exception {
         WikiPageLite lite = new WikiPageLite();

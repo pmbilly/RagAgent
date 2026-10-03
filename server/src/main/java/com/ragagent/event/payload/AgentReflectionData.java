@@ -4,9 +4,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Agent 反思数据（对照 Go {@code event.AgentReflectionData}，internal/event/event_data.go:233-238）。
+ * Agent 反思数据。
  *
- * <p>四字段全无 omitempty：零值恒输出
+ * <p>四字段全部恒输出：零值输出
  * {@code {"tool_call_id":"","content":"","iteration":0,"done":false}}。</p>
  */
 @JsonPropertyOrder({"tool_call_id", "content", "iteration", "done"})

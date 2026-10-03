@@ -10,7 +10,7 @@ import java.util.function.IntPredicate;
 
 /**
  * Tier 3 legacy（递归字符）切分器。
- * <p>移植自 Python docreader/splitter/splitter.py 递归文本切分：先找保护区域
+ * <p>递归文本切分：先找保护区域
  * （LaTeX / 图片 / 链接 / 表格 / 代码块），其余文本按分隔符优先级递归切分为
  * splitUnit，最后带 overlap 地合并为 chunk，并在表格边界前置活动表头。</p>
  */

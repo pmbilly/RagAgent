@@ -24,38 +24,36 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Ollama 服务管理（对照 Go ollama.OllamaService，
- * internal/models/utils/ollama/ollama.go 全文）。
+ * Ollama 服务管理。
  *
- * <p>与 Go 的差异说明：</p>
+ * <p>实现说明：</p>
  * <ul>
- *   <li>Go 用官方 SDK {@code github.com/ollama/ollama/api}；Java 侧没有该 SDK，
- *       本类直接按 Ollama 的 REST 协议发请求（{@code /api/chat}、{@code /api/tags}、
+ *   <li>直接按 Ollama 的 REST 协议发请求（{@code /api/chat}、{@code /api/tags}、
  *       {@code /api/pull}、{@code /api/show}、{@code /api/create}、{@code /api/delete}、
- *       {@code /api/version}）。<b>线格式与 SDK 一致</b>：流式接口是
+ *       {@code /api/version}）。<b>线格式与官方客户端一致</b>：流式接口是
  *       <b>NDJSON</b>（换行分隔的 JSON）而不是 SSE，请求头 {@code Accept: application/x-ndjson}。</li>
- *   <li>心跳是 {@code HEAD /}（对照 Go 的 {@code Client.Heartbeat}）。</li>
- *   <li>Go 的 SDK 在 OLLAMA_HOST 指向 ollama.com 时会签 Authorization 头；本模块沿用
+ *   <li>心跳是 {@code HEAD /}。</li>
+ *   <li>基址指向 ollama.com 时官方客户端会签 Authorization 头；本模块只服务
  *       私部署路径（与 WeKnora 一致），不实现该分支。</li>
  *   <li>{@code Embeddings} / {@code Generate} 的强类型请求体属于 embedding / rerank
- *       模块（本阶段未翻译），故在这里以原始 JSON 形态提供，避免两处各定一套 DTO。</li>
+ *       模块，故在这里以原始 JSON 形态提供，避免两处各定一套 DTO。</li>
  * </ul>
  *
- * <p>线程安全：{@code isAvailable} / {@code isOptional} 与 Go 一样受一把锁保护。</p>
+ * <p>线程安全：{@code isAvailable} / {@code isOptional} 受一把锁保护。</p>
  */
 public class OllamaService {
 
     private static final Logger log = LoggerFactory.getLogger(OllamaService.class);
 
-    /** 对照 Go 的 {@code "http://localhost:11434"} 兜底。 */
+    /** 缺省基址。 */
     public static final String DEFAULT_BASE_URL = "http://localhost:11434";
 
-    /** 对照 Go 的 {@code bufio.Scanner} 缓冲上限 {@code maxBufferSize = 8MB}。 */
+    /** 单行 NDJSON 的最大字节数。 */
     private static final int MAX_NDJSON_LINE_BYTES = 8 * 1024 * 1024;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 Go 的 {@code sync.Mutex}（只保护 isAvailable 的读写）。 */
+    /** 只保护 isAvailable 的读写。 */
     private final ReentrantLock mu = new ReentrantLock();
 
     private final HttpClient client;
@@ -66,8 +64,7 @@ public class OllamaService {
     public OllamaService(String baseUrl, boolean isOptional) {
         this.baseUrl = baseUrl == null || baseUrl.isEmpty() ? DEFAULT_BASE_URL : trimTrailingSlashes(baseUrl);
         this.isOptional = isOptional;
-        // 对照 Go 的专用 client：拨号 10s 超时、TLS 握手 10s、IdleConn 90s，
-        // 且**不设整体 Timeout**（长流式调用靠取消，不是靠 client 超时）
+        // 连接超时 10s，且**不设整体 Timeout**（长流式调用靠取消，不是靠 client 超时）
         this.client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -75,10 +72,10 @@ public class OllamaService {
     }
 
     /**
-     * 对照 Go GetOllamaService：从环境变量读基址与"可选"标记。
+     * 从环境变量读基址与"可选"标记。
      *
-     * <p>Go 的注释说是单例，实现却是<b>每次新建</b>——照抄实现（每次调用返回新实例），
-     * 单例与否交给上层决定。基址取 {@code OLLAMA_BASE_URL}，缺省
+     * <p><b>每次调用返回新实例</b>（不是单例，单例与否交给上层决定）。基址取
+     * {@code OLLAMA_BASE_URL}，缺省
      * {@code http://localhost:11434}；{@code OLLAMA_OPTIONAL=true} 时服务不可用也不报错。</p>
      */
     public static OllamaService getOllamaService() {
@@ -97,11 +94,11 @@ public class OllamaService {
     }
 
     // ------------------------------------------------------------------
-    // 可用性（对照 ollama.go:73-135）
+    // 可用性
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go StartService：{@code HEAD /} 探活。
+     * {@code HEAD /} 探活。
      * 不可用时：optional 模式吞掉错误（只把 isAvailable 置 false），否则抛。
      */
     public void startService() {
@@ -131,7 +128,7 @@ public class OllamaService {
         }
     }
 
-    /** 对照 Go IsAvailable。 */
+    /** 服务是否可用。 */
     public boolean isAvailable() {
         mu.lock();
         try {
@@ -141,13 +138,13 @@ public class OllamaService {
         }
     }
 
-    /** 对照 Go 的 {@code s.isOptional}（同包可见，供测试构造）。 */
+    /** 是否 optional 模式（服务不可用也不报错）。 */
     public boolean isOptional() {
         return isOptional;
     }
 
     /**
-     * 对照 Go IsModelAvailable：先探活；模型名不带 {@code ":"} 时按
+     * 先探活；模型名不带 {@code ":"} 时按
      * {@code name:latest} 比对（Ollama 列表里的名字总是带 tag 的）。
      */
     public boolean isModelAvailable(String modelName) {
@@ -172,7 +169,7 @@ public class OllamaService {
     }
 
     /**
-     * 对照 Go PullModel：服务不可用且 optional → 记警告后<b>静默返回</b>；
+     * 服务不可用且 optional → 记警告后<b>静默返回</b>；
      * 模型已存在 → 直接返回；否则拉取并打进度日志。
      */
     public void pullModel(String modelName) {
@@ -208,13 +205,11 @@ public class OllamaService {
     }
 
     /**
-     * 对照 Go handler 的 {@code GetClient().Pull(ctx, pullReq, progressFunc)}
-     * （initialization.go pullModelWithProgress 的底层调用）：{@code POST /api/pull}
+     * 拉取模型并回调进度：{@code POST /api/pull}
      * 并把每行 NDJSON 进度原样回调给调用方。与 {@link #pullModel(String)} 的区别：
      * pullModel 固定打日志，本方法把进度交给调用方（下载任务进度条需要它）。
      *
-     * <p>不先探活也不查模型是否已存在——那是 Go handler 在调用前自己做的前置
-     * （StartService / IsModelAvailable），这里保持与裸 {@code Client.Pull} 同形。</p>
+     * <p>不先探活也不查模型是否已存在——前置检查由调用方负责。</p>
      */
     public void pullWithProgress(String modelName, ProgressCallback fn) {
         try {
@@ -225,7 +220,7 @@ public class OllamaService {
     }
 
     /**
-     * 对照 Go EnsureModelAvailable 的完整语义（chat 路径每次调用都走它）：
+     * 确保模型可用的完整语义（chat 路径每次调用都走它）：
      * <ol>
      *   <li>服务不可用但 optional → 直接返回（不拉取、不报错）；</li>
      *   <li>查询模型可用性出错：optional → 记警告后返回；否则向上抛；</li>
@@ -253,10 +248,10 @@ public class OllamaService {
     }
 
     // ------------------------------------------------------------------
-    // 模型管理（对照 ollama.go:214-322）
+    // 模型管理
     // ------------------------------------------------------------------
 
-    /** 对照 Go GetVersion：不可用且 optional → "unavailable"。 */
+    /** 不可用且 optional → "unavailable"。 */
     public String getVersion() {
         if (!isAvailable() && isOptional) {
             return "unavailable";
@@ -272,7 +267,7 @@ public class OllamaService {
         return version;
     }
 
-    /** 对照 Go CreateModel（注意 Go 用的是 {@code template} 字段而不是 modelfile）。 */
+    /** 创建模型（请求体用 {@code template} 字段而不是 modelfile）。 */
     public void createModel(String name, String modelfile) {
         try {
             streamNdjson("/api/create", Map.of("model", name, "template", modelfile == null ? "" : modelfile),
@@ -287,7 +282,7 @@ public class OllamaService {
         }
     }
 
-    /** 对照 Go GetModelInfo：返回 {@code POST /api/show} 的原始响应。 */
+    /** 返回 {@code POST /api/show} 的原始响应。 */
     public JsonNode getModelInfo(String modelName) {
         JsonNode resp = postJson("/api/show", Map.of("name", modelName));
         if (resp == null) {
@@ -296,7 +291,7 @@ public class OllamaService {
         return resp;
     }
 
-    /** 对照 Go ListModels：只要名字。 */
+    /** 列出模型，只要名字。 */
     public List<String> listModels() {
         JsonNode listResp = getJson("/api/tags");
         if (listResp == null) {
@@ -315,7 +310,7 @@ public class OllamaService {
         return names;
     }
 
-    /** 对照 Go ListModelsDetailed（含把原始列表打进日志的那一步）。 */
+    /** 列出模型详情（含把原始列表打进日志）。 */
     public List<OllamaModelInfo> listModelsDetailed() {
         JsonNode listResp = getJson("/api/tags");
         if (listResp == null) {
@@ -344,7 +339,7 @@ public class OllamaService {
         return models;
     }
 
-    /** 对照 Go DeleteModel。 */
+    /** 删除模型。 */
     public void deleteModel(String modelName) {
         try {
             postJson("/api/delete", Map.of("name", modelName));
@@ -353,29 +348,29 @@ public class OllamaService {
         }
     }
 
-    /** 对照 Go IsValidModelName：非空且不含空格。 */
+    /** 合法模型名：非空且不含空格。 */
     public static boolean isValidModelName(String name) {
         return name != null && !name.isEmpty() && !name.contains(" ");
     }
 
     // ------------------------------------------------------------------
-    // 推理（对照 ollama.go:330-360）
+    // 推理
     // ------------------------------------------------------------------
 
-    /** 每收到一行 NDJSON 就回调一次（对照 {@code api.ChatResponseFunc}）。 */
+    /** 每收到一行 NDJSON 就回调一次。 */
     @FunctionalInterface
     public interface ChatCallback {
         void onResponse(OllamaChatResponse response);
     }
 
-    /** 进度回调（对照 {@code api.PullProgressFunc} / {@code api.ProgressResponseFunc}）。 */
+    /** 进度回调。 */
     @FunctionalInterface
     public interface ProgressCallback {
         void onProgress(JsonNode progress);
     }
 
     /**
-     * 对照 Go OllamaService.Chat：先探活，再 {@code POST /api/chat}。
+     * 先探活，再 {@code POST /api/chat}。
      *
      * <p>流式与否由请求体的 {@code stream} 决定；响应一律按 NDJSON 逐行回调
      * （{@code stream=false} 时服务端只会回一行）。</p>
@@ -386,10 +381,10 @@ public class OllamaService {
     }
 
     /**
-     * 对照 Go OllamaService.Embeddings（{@code POST /api/embed}）。
+     * Embeddings（{@code POST /api/embed}）。
      *
-     * <p>请求/响应的强类型 DTO 属于 embedding 模块的翻译范围，故这里以原始 JSON 出入
-     * （线格式不变：{@code {"model":..., "input":...}} → {@code {"embeddings":[...]}}）。</p>
+     * <p>强类型 DTO 属于 embedding 模块，故这里以原始 JSON 出入
+     * （线格式：{@code {"model":..., "input":...}} → {@code {"embeddings":[...]}}）。</p>
      */
     public JsonNode embeddings(JsonNode request) {
         startService();
@@ -397,7 +392,7 @@ public class OllamaService {
     }
 
     /**
-     * 对照 Go OllamaService.Generate（{@code POST /api/generate}，rerank 路径在用）。
+     * Generate（{@code POST /api/generate}，rerank 路径在用）。
      * 与 chat 一样按 NDJSON 逐行回调。
      */
     public void generate(JsonNode request, ProgressCallback fn) {
@@ -406,10 +401,10 @@ public class OllamaService {
     }
 
     // ------------------------------------------------------------------
-    // HTTP 细节（对照 ollama@v0.23.2/api/client.go 的 do / stream）
+    // HTTP 细节
     // ------------------------------------------------------------------
 
-    /** 对照 {@code Client.do}：整段读取 + {@code checkError}。 */
+    /** POST 并整段读取响应 + {@code checkError}。 */
     private JsonNode postJson(String path, Object body) {
         byte[] payload = serialize(body);
         HttpResponse<InputStream> resp = send(HttpRequest.newBuilder(uri(path))
@@ -429,7 +424,7 @@ public class OllamaService {
         }
     }
 
-    /** 对照 {@code Client.do} 的 GET 变体（List / Version）。 */
+    /** GET 并整段读取响应 + {@code checkError}。 */
     private JsonNode getJson(String path) {
         HttpResponse<InputStream> resp = send(HttpRequest.newBuilder(uri(path))
                 .header("Accept", "application/json")
@@ -448,11 +443,10 @@ public class OllamaService {
     }
 
     /**
-     * 对照 {@code Client.stream}：请求头 {@code Accept: application/x-ndjson}，
+     * 流式读取：请求头 {@code Accept: application/x-ndjson}，
      * 响应体逐行解析；每行先看有没有 {@code error} 字段与状态码。
      *
-     * <p>与 Go 的差异：Go 用 {@code bufio.Scanner} 且<b>从不检查 {@code scanner.Err()} </b>，
-     * 所以超长行会静默截断流；Java 侧改为抛错（宁可显式失败，也不要静默半截流）。</p>
+     * <p>超长行直接抛错（宁可显式失败，也不要静默半截流）。</p>
      */
     private void streamNdjson(String path, Object body, java.util.function.Consumer<JsonNode> onLine) {
         byte[] payload = serialize(body);
@@ -476,7 +470,7 @@ public class OllamaService {
                 try {
                     node = MAPPER.readTree(line);
                 } catch (IOException e) {
-                    // 对照 Go：解析不了就用整行当错误消息（状态码 >=400 时带状态）
+                    // 解析不了就按错误处理（状态码 >=400 时带状态）
                     throw statusError(resp.statusCode(), line, e);
                 }
                 String error = textOrNull(node.get("error"));
@@ -497,7 +491,7 @@ public class OllamaService {
     }
 
     /**
-     * 对照 {@code checkError}：>=400 时，body 能解析成 JSON 就取其中的 {@code error} 字段
+     * 错误检查：>=400 时，body 能解析成 JSON 就取其中的 {@code error} 字段
      * （<b>没有该字段就是空消息，不是整段 body</b>）；解析不了才用整段 body 当消息。
      */
     private static void checkError(int statusCode, byte[] body) {
@@ -505,7 +499,7 @@ public class OllamaService {
             return;
         }
         if (statusCode == 401) {
-            // 对照 Go 的 AuthorizationError：不含服务端消息
+            // 401 不含服务端消息
             throw statusError(statusCode, "", null);
         }
         String message;
@@ -520,7 +514,7 @@ public class OllamaService {
     }
 
     /**
-     * 对照 Go 的 {@code StatusError.Error()}：{@code "404 Not Found: model not found"}。
+     * 错误消息形如 {@code "404 Not Found: model not found"}。
      * JDK 的 HttpResponse 不提供 reason phrase，故这里用一张小表补常见的几个，
      * 表外只带状态码（消息文本本身的前缀，不影响调用方判断）。
      */
@@ -548,7 +542,7 @@ public class OllamaService {
         };
     }
 
-    /** 对照 Go {@code c.base.JoinPath(path)}：基址的路径前缀要保留。 */
+    /** 基址的路径前缀要保留。 */
     private URI uri(String path) {
         return URI.create(baseUrl + path);
     }

@@ -21,7 +21,7 @@ import com.ragagent.storage.support.StorageBackendResolver;
  *
  * <p>解析失败的处置刻意<b>不回传错误</b>：{@code Resolved} 只有服务位，
  * 而 {@code FileServiceResolver} 在拿到 null 时会打 WARN 并回落进程级默认服务
- * （对照 Go 的 nil 分支）——错误细节留在 {@link StorageFileResolver} 自己的日志里。</p>
+ * ——错误细节留在 {@link StorageFileResolver} 自己的日志里。</p>
  */
 @Component
 public class FileserveStorageBackendResolver implements StorageBackendResolver {
@@ -39,7 +39,7 @@ public class FileserveStorageBackendResolver implements StorageBackendResolver {
     public Resolved resolveFileService(long tenantId, String backendId, String provider,
             String localBaseDir) {
         if (tenantId <= 0) {
-            // 对照 Go：workspace context missing（无租户 → 调用方回落）
+            // 无租户（workspace context missing）→ 调用方回落
             return new Resolved(null);
         }
         Tenant tenant = tenantService.getTenantById(tenantId);

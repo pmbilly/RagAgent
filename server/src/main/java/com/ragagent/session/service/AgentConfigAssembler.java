@@ -12,14 +12,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 
 /**
- * {@code SessionAgentQaService} 的**配置装配簇**（§14.9c 刀 2）：从请求 + 知识库/文档信息构造
+ * {@code SessionAgentQaService} 的**配置装配簇**：从请求 + 知识库/文档信息构造
  * {@code QaAgentConfig}（系统提示词、per-request skill/MCP 范围收敛、rerank 模型按需装配），
  * 以及 skill 模板文件的读取（{@code templateContentByIdAndFile} + YAML 前置元数据）。
  *
  * <p>为什么单独一类：这一簇只管"把请求装配成引擎配置"，与引擎创建、工具注册、历史装配三簇无交集。
  * 两个共享项随构造器注入：{@code knowledgeQa}（KB 解析/检索面）与 {@code hostSkillDirs}（skill 模板
  * 目录）。边界按调用点定——{@code stringListOf} 与 {@code YAML_JSON} 虽在文件尾部，调用点全在
- * {@code buildAgentConfig}，故随本簇走（§11.17 口径）。</p>
+ * {@code buildAgentConfig}，故随本簇走。</p>
  */
 final class AgentConfigAssembler {
 
@@ -38,8 +38,8 @@ final class AgentConfigAssembler {
         ObjectNode c = AgentConfigJson.ensureDefaults(req.agentConfig);
         QaAgentConfig ac = new QaAgentConfig();
         ac.setMaxIterations(c.path("maxIterations").asInt(0));
-        // Go 零值 = 未配置；RemoteApiChat 对 temperature==0 不出键（openai-go omitempty
-        // 同形）。内建 agent 的 0.7 来自 agent_type_presets.yaml 显式配置，不靠此缺省。
+        // temperature==0 视为未配置（0 不单独出键）。内建 agent 的 0.7 来自
+        // agent_type_presets.yaml 显式配置，不靠此缺省。
         ac.setTemperature(c.path("temperature").asDouble(0.0));
         ac.setWebSearchEnabled(c.path("webSearchEnabled").asBoolean(false) && req.webSearchEnabled);
         ac.setWebSearchMaxResults(c.path("webSearchMaxResults").asInt(0));
@@ -48,7 +48,7 @@ final class AgentConfigAssembler {
         ac.setHistoryTurns(c.path("historyTurns").asInt(0));
         ac.setMemoryEnabled(c.path("memoryEnabled").asBoolean(false));
         ac.setMcpSelectionMode(c.path("mcpSelectionMode").asText(""));
-        // Go session_agent_qa.go L309：MCPServices 直取 agent config 的 mcp_services
+        // MCPServices 直取 agent config 的 mcp_services
         // （mode=selected 时按 ID 列表注册；mode=all 由注册处列全租户）
         ac.setMcpServices(stringListOf(c.get("mcpServices")));
         ac.setMcpAuthWaitTimeout(c.path("mcpAuthWaitTimeout").asInt(0));

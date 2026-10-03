@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.QianfanProvider（qianfan.go）：百度千帆。
+ * 百度千帆。
  */
 public class QianfanProvider implements Provider {
 

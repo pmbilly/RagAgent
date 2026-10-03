@@ -5,8 +5,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 多内容消息的一部分（对照 Go chat.MessageContentPart）。
- * 字段序 = Go 声明序：type 恒输出，text/image_url omitempty。
+ * 多内容消息的一部分。
+ * JSON 字段序 = 声明序：type 恒输出，text/image_url 为空时省略。
  */
 @JsonPropertyOrder({"type", "text", "image_url"})
 public class MessageContentPart {

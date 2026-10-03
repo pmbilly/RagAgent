@@ -15,24 +15,23 @@ import com.ragagent.llm.domain.TokenUsage;
 import com.ragagent.common.retrieval.SearchResult;
 
 /**
- * messages 表实体（对照 Go {@code types.Message}，internal/types/message.go L308-378）。
+ * messages 表实体。
  *
- * <p><b>响应形态（§14.9l S2 换锚后）</b>：加载消息返回**裸数组** {@code [Message]}（无信封）；
+ * <p><b>响应形态</b>：加载消息返回**裸数组** {@code [Message]}（无信封）；
  * JSON 键名＝Java 字段名、键序＝声明序、**全部键恒输出**（§1.6：空列表写 {@code []}、缺值写 {@code null}）。</p>
  *
- * <h2>GORM 隐式行为 → Java 的等效清单（约定 §3 要求显式列出）</h2>
+ * <h2>落库隐式行为清单</h2>
  * <ol>
  *   <li><b>钩子 BeforeCreate</b>（Go L463-484）：无条件生成新 UUID，并把
  *       KnowledgeReferences / AgentSteps / MentionedItems / Images / Attachments / Artifacts
  *       这六个 nil 切片**就地置为空切片**——所以落库时写的是 {@code []} 而不是 SQL NULL
  *       （各类型的 {@code Value()} 也做同样的 nil→[] 兜底）。<br>
  *       等效 Java：这六个字段**默认值是空列表**，实体的 create 路径无条件覆盖 ID。</li>
- *   <li><b>软删除</b>：{@code gorm.DeletedAt}。按 §9 既定做法不用 {@code @TableLogic}，
+ *   <li><b>软删除</b>：deleted_at 列。不用 {@code @TableLogic}，
  *       查询显式 {@code deleted_at IS NULL}，删除是 UPDATE。</li>
- *   <li><b>⚠️ UpdateMessage 用 {@code Updates(结构体)}</b>（Go L139-143）——GORM 对
- *       **结构体** 的 Updates 会**跳过零值字段**（string ""、数值 0、bool false、
- *       指针 nil、切片 nil）。所以"把 content 改成空串"在这条路径上**不会生效**。
- *       这不是缺陷而是 Go 的既有行为，Java 侧必须照抄（见 {@code MessageRepository.update}）。</li>
+ *   <li><b>⚠️ updateMessage 的落库语义</b>：实体式整行更新会**跳过零值字段**（string ""、数值 0、
+ *       bool false、指针 null、集合 null）。所以"把 content 改成空串"在这条路径上**不会生效**。
+ *       这是既定落库行为，不是缺陷（见 {@code MessageRepository.update}）。</li>
  *   <li><b>默认排序</b>：各查询自带 {@code created_at ASC/DESC}（Go L54/L68/L94/L121/L134）。</li>
  *   <li><b>各 jsonb 列</b>：元素类型已知的走 {@code AbstractJsonListTypeHandler} 的
  *       子类（泛型擦除会让元素退化成 map）；{@code usage} / {@code execution_context}
@@ -40,11 +39,10 @@ import com.ragagent.common.retrieval.SearchResult;
  * </ol>
  *
  * <h2>跨模块类型的处置</h2>
- * <p>{@code knowledge_references} 与 {@code agent_steps} 原先按**不透明**的
- * {@code List<Object>} 透传，阶段 5.2 步 3 起已收紧成有类型的列表
+ * <p>{@code knowledge_references} 与 {@code agent_steps} 是有类型的列表
  * （{@link com.ragagent.common.retrieval.SearchResult} / {@link AgentStep}）——
- * 二者都直接出现在消息响应体里，透传时读回来的元素是 {@code LinkedHashMap}，
- * 键序变成 PG jsonb 的规范化序而非 Go 的 struct 声明序，**是实打实的契约偏差**。</p>
+ * 二者都直接出现在消息响应体里；若按不透明的 {@code List<Object>} 透传，读回来的元素
+ * 会退化成 {@code LinkedHashMap}，键序变成 PG jsonb 的规范化序，**是实打实的契约偏差**。</p>
  * <p>仍按不透明类型处理的一处：{@code execution_context} 的字段本身是 {@code json:"-"}，
  * 不出响应，子结构见 {@link MessageExecutionContext}。</p>
  */
@@ -153,10 +151,8 @@ public class Message {
     }
 
     /**
-     * 对照 Go {@code Message.BeforeCreate} 的切片初始化部分。
-     *
-     * <p>Go 的钩子在创建前把六个 nil 切片置空；Java 侧这些字段的**默认值本就是空列表**
-     * （见字段声明），所以这里只需要保证调用方显式 setNull 之后不会退化成 SQL NULL。</p>
+     * 落库前的列表字段兜底：调用方显式 setNull 之后这里把六个列表字段
+     * 置回空列表，不会退化成 SQL NULL（字段默认值本就是空列表，见字段声明）。
      */
     public void normalizeListsForInsert() {
         if (knowledgeReferences == null) {

@@ -12,19 +12,16 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.retrieval.domain.WebSearchResult;
 
 /**
- * 网络检索结果 → SearchResult 转换（对照 Go
- * {@code internal/searchutil/conversion.go} 全文）。
+ * 网络检索结果 → SearchResult 转换。
  *
- * <p>Java 侧去掉了 Go 的 option 模式：service 层的调用
- * {@code WithSeqFunc(func(idx) int { return idx })} 用
- * {@link #convert(List, SeqFunc)} 传入；缺省 seqFunc 恒返回 1（对照 Go 默认值）。</p>
+ * <p>序号由 {@link #convert(List, SeqFunc)} 传入；缺省 seqFunc 恒返回 1。</p>
  */
 public final class WebResultConverter {
 
     private WebResultConverter() {
     }
 
-    /** 对照 WithSeqFunc 的函数形态。 */
+    /** 序号函数（可自定义）。 */
     public interface SeqFunc {
         int seq(int idx);
     }
@@ -34,7 +31,7 @@ public final class WebResultConverter {
         return convert(webResults, idx -> 1);
     }
 
-    /** 对照 ConvertWebSearchResults 主转换。 */
+    /** 主转换。 */
     public static List<SearchResult> convert(List<WebSearchResult> webResults, SeqFunc seqFunc) {
         List<SearchResult> results = new ArrayList<>(webResults == null ? 0 : webResults.size());
         for (int i = 0; i < (webResults == null ? 0 : webResults.size()); i++) {
@@ -85,12 +82,12 @@ public final class WebResultConverter {
         return results;
     }
 
-    /** Go 的 types.MatchTypeWebSearch（embedding.go iota 序第 8 项 = 7）。 */
+    /** 网络检索命中的 matchType 常量（= 7）。 */
     static int webSearchMatchType() {
         return 7;
     }
 
-    /** Go 的 time.RFC3339 输出（秒精度 UTC 'Z'）。 */
+    /** RFC3339 输出（秒精度 UTC 'Z'）。 */
     public static String formatRfc3339(OffsetDateTime t) {
         return t.atZoneSameInstant(ZoneOffset.UTC)
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));

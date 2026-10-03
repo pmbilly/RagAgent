@@ -8,18 +8,17 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * agent 用 HTML → Markdown 抽取（对照 Go
- * {@code internal/infrastructure/web_fetch/markdown.go} 全文）。
+ * agent 用 HTML → Markdown 抽取。
  *
- * <h2>两个接缝（与波 0 RSS 同类的显式降级，报告已列明）</h2>
+ * <h2>两个接缝（显式降级路径）</h2>
  * <ol>
- *   <li><b>readability</b>（go-readability）：无 Java 等价物 → 恒走 Go 自己的
+ *   <li><b>readability</b>：无 Java 等价物 → 恒走显式
  *       "Readability 失败" 回退路径（body 或 main/article/[role=main]/.content/#content
- *       候选 + fallback 清理）。控制流与 Go 的 readErr != nil 分支逐行对应。</li>
- *   <li><b>html-to-markdown v2</b>（commonmark+table 插件）：复用波 0 的有界实现
- *       {@code datasource.connector.rss.JdkHtmlToMarkdown}（同一 Go 库的有界替代，
- *       覆盖段落/标题/列表/链接/代码/图片，表格按未知标签透传内容）。其类注释
- *       逐条列出与 Go 库的输出差。</li>
+ *       候选 + fallback 清理）。</li>
+ *   <li><b>html-to-markdown v2</b>（commonmark+table 插件）：复用有界实现
+ *       {@code datasource.connector.rss.JdkHtmlToMarkdown}
+ *       （覆盖段落/标题/列表/链接/代码/图片，表格按未知标签透传内容）。输出差
+ *       逐条见其类注释。</li>
  * </ol>
  *
  * <p>标题抽取、块清理、链接绝对化（{@code pageURL.ResolveReference}，剥非 http(s)）、
@@ -44,12 +43,12 @@ public final class AgentMarkdown {
             Pattern.compile("(?is)<iframe\\b[^>]*>.*?</iframe>"),
             Pattern.compile("(?is)<svg\\b[^>]*>.*?</svg>"),
             Pattern.compile("(?is)<form\\b[^>]*>.*?</form>"),
-            // Readability 失败路径额外剥 header（Go 的两个 Remove() 集合的并集——
-            // 提取成功时 header 已在 readability 输出里被处理，恒剥等价）
+            // Readability 失败路径额外剥 header（提取成功时 header 已在
+            // readability 输出里被处理，恒剥等价）
             Pattern.compile("(?is)<header\\b[^>]*>.*?</header>"),
     };
 
-    /** 对照 htmlToMarkdown(source, rawURL)。 */
+    /** HTML → Markdown 抽取入口。 */
     public static String htmlToMarkdown(String source, String rawUrl) {
         URI pageUrl;
         try {
@@ -88,10 +87,10 @@ public final class AgentMarkdown {
             main = doc;
         }
 
-        // 空文本链接删除（对照 main.Find("a").Each...Remove）
+        // 空文本链接删除
         main = main.replaceAll("(?is)<a\\b[^>]*>\\s*</a>", "");
 
-        // 取内层 HTML（对照 main.Html()）：剥掉最外层标签
+        // 取内层 HTML：剥掉最外层标签
         String inner = innerHtml(main);
 
         String markdown;
@@ -111,7 +110,7 @@ public final class AgentMarkdown {
         return markdown;
     }
 
-    /** <title> 的 TrimSpace 文本（有界正则；实体解码与 goquery 一致的常见集）。 */
+    /** <title> 去首尾空白后的文本（有界正则；实体解码覆盖常见 HTML 实体集）。 */
     static String extractTitle(String source) {
         Matcher m = Pattern.compile("(?is)<title\\b[^>]*>(.*?)</title>").matcher(source);
         if (!m.find()) {
@@ -135,7 +134,7 @@ public final class AgentMarkdown {
     private static final Pattern SRC = Pattern.compile(
             "(?is)(<img\\b[^>]*?\\ssrc\\s*=\\s*)([\"'])([^\"']*)\\2");
 
-    /** 对照 a[href], img[src] 的绝对化循环。 */
+    /** 把 a[href]、img[src] 的相对地址改写为基于页面的绝对 URL。 */
     static String resolveLinks(String html, URI pageUrl) {
         html = resolveAttr(HREF, html, pageUrl);
         html = resolveAttr(SRC, html, pageUrl);
@@ -221,7 +220,7 @@ public final class AgentMarkdown {
         return null;
     }
 
-    /** 最外层元素的内层 HTML（对照 goquery 的 .Html()）。 */
+    /** 最外层元素的内层 HTML（不含外层标签）。 */
     static String innerHtml(String element) {
         if (element == null) {
             return "";

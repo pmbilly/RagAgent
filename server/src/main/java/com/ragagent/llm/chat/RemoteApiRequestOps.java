@@ -16,7 +16,7 @@ import com.ragagent.llm.domain.MessageContentPart;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * 出站组装协作者（对照 openai_request.go 段，自 {@link RemoteApiChat} 机械搬出）：
+ * 出站组装协作者（自 {@link RemoteApiChat} 拆出）：
  * 消息转换与标准 OpenAI 请求体组装。持门面回引用 adapter/modelName/provider——
  * adapter 是可变字段（测试 setAdapter 替换），必须每处经 {@code service.adapter()} 取当前值。
  */
@@ -29,13 +29,13 @@ final class RemoteApiRequestOps {
     }
 
     // ------------------------------------------------------------------
-    // 出站组装（对照 openai_request.go）
+    // 出站组装
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go ConvertMessages：把消息转成 OpenAI 格式。
+     * 把消息转成 OpenAI 格式。
      *
-     * <p>保真要点：</p>
+     * <p>要点：</p>
      * <ol>
      *   <li>MultiContent 优先于 Images 优先于纯文本（三分支互斥）；</li>
      *   <li>Images 只在 <b>user</b> 角色下展开为 image_url part（detail 固定 auto），
@@ -68,7 +68,7 @@ final class RemoteApiRequestOps {
                             }
                         }
                         default -> {
-                            // 对照 Go：未知 part 类型静默丢弃
+                            // 未知 part 类型静默丢弃
                         }
                     }
                 }
@@ -103,10 +103,10 @@ final class RemoteApiRequestOps {
     }
 
     /**
-     * 对照 Go BuildChatCompletionRequest：标准聊天请求参数（导出供子类使用）。
+     * 标准聊天请求参数。
      *
-     * <p>采样参数按 opts 直接映射（注意 go-openai 的 struct 带 omitempty：0 值字段不上线，
-     * 故这里只在非零时写入）；完成预算经 {@link CompletionBudget} 收成一个值，再按供应商
+     * <p>采样参数按 opts 直接映射（0 值字段不上线，故只在非零时写入）；完成预算经
+     * {@link CompletionBudget} 收成一个值，再按供应商
      * 只写入 max_tokens 或 max_completion_tokens 之一（二者互斥，见 #3014）。
      * 其余供应商特判（o-series / GPT-5 采样参数、Moonshot 固定温度等）仍由
      * {@link ProviderAdapter#shapeRequest} 在事后施加，见 {@link ProviderAdapters}。</p>
@@ -116,7 +116,7 @@ final class RemoteApiRequestOps {
     }
 
     /**
-     * 对照 Go shapedRequest：标准请求 + 适配器的消息变换与参数整形
+     * 标准请求 + 适配器的消息变换与参数整形
      * （不含 thinking——它可能包一层 body）。
      */
     public ObjectNode shapedRequest(List<ChatMessage> messages, ChatOptions opts, boolean isStream) {
@@ -127,7 +127,7 @@ final class RemoteApiRequestOps {
         return body;
     }
 
-    /** 已转消息 → 请求体（对照 BuildChatCompletionRequest 的主体）。 */
+    /** 已转消息 → 请求体。 */
     private ObjectNode buildBodyFromConverted(List<ChatMessage> converted, ChatOptions opts, boolean isStream) {
         ObjectNode body = RemoteApiChat.MAPPER.createObjectNode();
         body.put("model", service.modelName);
@@ -137,7 +137,7 @@ final class RemoteApiRequestOps {
         }
         if (isStream) {
             body.put("stream", true);
-            // 对照 Go：isStream 时 StreamOptions{IncludeUsage: true} → 末片带 usage
+            // isStream 时带 stream_options.include_usage → 末片带 usage
             body.putObject("stream_options").put("include_usage", true);
         }
         if (opts == null) {
@@ -157,7 +157,7 @@ final class RemoteApiRequestOps {
             body.put("presence_penalty", opts.getPresencePenalty());
         }
 
-        // 恰好一个 token 字段（Go 同位置：applyCompletionBudget）
+        // 恰好一个 token 字段
         CompletionBudget.wireField(service.provider, service.modelName).apply(body, opts.completionBudget());
 
         if (opts.getTools() != null && !opts.getTools().isEmpty()) {
@@ -165,14 +165,14 @@ final class RemoteApiRequestOps {
             for (ChatTool tool : opts.getTools()) {
                 FunctionDef fn = tool.getFunction() == null ? new FunctionDef() : tool.getFunction();
                 ObjectNode toolNode = tools.addObject();
-                // ⚠️ 键序对照 Go 的 map 序列化（字母序）：function < type；
-                // description < name < parameters（2026-09-23 A/B 逐字节对拍修正）。
+                // ⚠️ 键序按字母序：function < type；
+                // description < name < parameters。
                 ObjectNode fnNode = toolNode.putObject("function");
                 if (fn.getDescription() != null && !fn.getDescription().isEmpty()) {
                     fnNode.put("description", fn.getDescription());
                 }
                 fnNode.put("name", fn.getName());
-                // 对照 go-openai FunctionDefinition：parameters 无 omitempty → nil 时输出 null
+                // parameters 恒输出：null 时输出 JSON null（对齐 openai-go FunctionDefinition）
                 fnNode.set("parameters", fn.getParameters() == null ? NullNode.getInstance() : fn.getParameters());
                 toolNode.put("type", tool.getType());
             }
@@ -197,7 +197,7 @@ final class RemoteApiRequestOps {
         JsonNode format = opts.getFormat();
         if (format != null && !format.isNull()) {
             body.putObject("response_format").put("type", "json_object");
-            // 对照 Go：把 schema 拼到最后一条 message 的 content 尾部
+            // 把 schema 提示拼到最后一条 message 的 content 尾部
             JsonNode messagesNodeRaw = body.get("messages");
             if (messagesNodeRaw instanceof ArrayNode arr && !arr.isEmpty()) {
                 JsonNode last = arr.get(arr.size() - 1);
@@ -210,9 +210,8 @@ final class RemoteApiRequestOps {
     }
 
     /**
-     * 对照 Go {@code req.Messages[len-1].Content += fmt.Sprintf("\nUse this JSON schema: %s", opts.Format)}。
-     * Go 在 content 已是 multi-content 数组时会 marshal 失败（Content 与 MultiContent 同时非空）；
-     * Java 侧退化为追加一个 text part，比整请求失败更稳。
+     * 把 JSON schema 提示拼到最后一条 message 的 content 尾部：
+     * 字符串 content 直接追加；content 已是数组时追加一个 text part（不失败）。
      */
     private static void applyJsonSchemaHint(ObjectNode lastMessage, JsonNode format) {
         String hint = "\nUse this JSON schema: " + format;
@@ -233,12 +232,11 @@ final class RemoteApiRequestOps {
     }
 
     /**
-     * 消息 → OpenAI 线上 JSON（对照 go-openai {@code ChatCompletionMessage.MarshalJSON}）。
+     * 消息 → OpenAI 线上 JSON（对齐 openai-go 的 ChatCompletionMessage 序列化）。
      *
      * <p>注意与域对象序列化的差别：multi_content 在线上是 <b>content 数组</b>，
-     * 且 content 为空串时整个键省略（go-openai 的 omitempty），tool_calls 的厂商特有状态
-     * 由 {@link ProviderAdapter#injectToolCallMetadata} 就地注入（对照 Go 的
-     * buildProviderOpenAIRequest——Java 单路径下总是注入，等价于 Go 里 ForceRawHTTP 的行为）。</p>
+     * 且 content 为空串时整个键省略；tool_calls 的厂商特有状态
+     * 由 {@link ProviderAdapter#injectToolCallMetadata} 就地注入（总是注入）。</p>
      */
     private ObjectNode messageToJson(ChatMessage msg) {
         ObjectNode node = RemoteApiChat.MAPPER.createObjectNode();
@@ -286,7 +284,7 @@ final class RemoteApiRequestOps {
                 if (tc.getId() != null && !tc.getId().isEmpty()) {
                     call.put("id", tc.getId());
                 }
-                // go-openai ToolCall.Type 无 omitempty（空串也上线）
+                // type 恒输出（空串也上线）
                 call.put("type", tc.getType() == null ? "" : tc.getType());
                 ObjectNode fn = call.putObject("function");
                 FunctionCall fc = tc.getFunction();

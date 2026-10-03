@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * 函数定义（对照 Go chat.FunctionDef）。字段序 = Go 声明序，三者均恒输出。
+ * 函数定义。JSON 字段序 = 声明序，三者均恒输出。
  */
 @JsonPropertyOrder({"name", "description", "parameters"})
 public class FunctionDef {
@@ -14,7 +14,7 @@ public class FunctionDef {
     private String name = "";
     @JsonProperty("description")
     private String description = "";
-    /** JSON Schema（Go 侧为 json.RawMessage，Java 用 JsonNode 自由构造） */
+    /** JSON Schema（JsonNode 自由构造，原样透传） */
     @JsonProperty("parameters")
     private JsonNode parameters;
 

@@ -7,25 +7,24 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * VLM（视觉语言模型）Predict 客户端（对照 Go internal/models/vlm/{vlm.go,
- * remote_api.go} 全文的确定性面，收尾批 2026-09-22 翻译）。
+ * VLM（视觉语言模型）Predict 客户端。
  *
  * <p>OpenAI 兼容 chat.completions：multipart 内容（text prompt 先行 + 每张图
  * base64 data-URI，detail=auto）、max_tokens=5000、temperature 缺省 0.1
  * （extra_config.temperature 覆盖）、reasoning/GPT5 模型请求整形
  * （max_tokens→max_completion_tokens，采样参数清零）、错误族
  * （no choices / 空 content + finish_reason=length 的截断语义）。
- * <b>ollama interface</b>：照 Go {@code vlm/ollama.go} 经既有 {@code OllamaService} 走
- * {@code POST /api/chat}（images 为原始字节，Jackson 序列化成 base64——Go 的
- * {@code []ImageData = [][]byte} 同款），stream=false、temperature=0.1，取响应的
- * {@code message.content}；weknoracloud 源随云契约批（仍是 XDEP）。</p>
+ * <b>ollama interface</b>：经既有 {@code OllamaService} 走
+ * {@code POST /api/chat}（images 为原始字节，Jackson 序列化成 base64），
+ * stream=false、temperature=0.1，取响应的
+ * {@code message.content}；weknoracloud 走云契约。</p>
  */
 public final class VlmClient {
 
     private static final int DEFAULT_MAX_TOKS = 5000;
     private static final double DEFAULT_TEMP = 0.1;
 
-    /** 对照 types.VLM 的 Config（消费面子集；appId/appSecret 为 WeKnoraCloud 已解密凭证）。 */
+    /** VLM 消费面配置（appId/appSecret 为 WeKnoraCloud 已解密凭证）。 */
     public record VlmConfig(String source, String baseUrl, String modelName, String apiKey,
             String modelId, String interfaceType, String provider,
             Map<String, String> extra, String appId, String appSecret) {
@@ -48,7 +47,7 @@ public final class VlmClient {
                 try {
                     return Double.parseDouble(v);
                 } catch (NumberFormatException ignored) {
-                    // Go ParseFloat 失败保持缺省
+                    // 解析失败保持缺省
                 }
             }
             return DEFAULT_TEMP;
@@ -89,7 +88,7 @@ public final class VlmClient {
         }
     }
 
-    /** Predict 失败（Go 的 error 返回；message 对照 Go 原文）。 */
+    /** Predict 失败（受检异常）。 */
     public static final class VlmException extends Exception {
         public VlmException(String message) {
             super(message);
@@ -97,7 +96,7 @@ public final class VlmClient {
     }
 
     /**
-     * 对照 RemoteAPIVLM.Predict（remote_api.go L110-186）。
+     * OpenAI 兼容预测入口。
      *
      * @param transport POST {base}/chat/completions 的出站通道（注入以便测试与
      *                  provider 接线）
@@ -112,7 +111,7 @@ public final class VlmClient {
         if (config != null && config.isWeKnoraCloud()) {
             return predictWeKnoraCloud(config, transport, imgBytesList, prompt);
         }
-        // 请求体构建：与 Go openai.ChatCompletionRequest 字段一一对应
+        // 请求体构建（chat.completions 标准字段）
         List<Object> parts = new ArrayList<>();
         Map<String, Object> textPart = new LinkedHashMap<>();
         textPart.put("type", "text");
@@ -173,10 +172,10 @@ public final class VlmClient {
     }
 
     /**
-     * 对照 Go {@code vlm/ollama.go} 的 {@code Predict}：本地 Ollama 的 {@code /api/chat}——
+     * 本地 Ollama 预测：{@code /api/chat}——
      * 单条 user 消息（prompt + 各图原始字节）、{@code stream=false}、
      * {@code options.temperature=0.1}，回调里取最后一次响应的 {@code message.content}。
-     * 错误族照 Go：{@code Ollama VLM request: %w}。
+     * 错误文案：{@code Ollama VLM request: …}。
      */
     static String predictOllama(com.ragagent.llm.ollama.OllamaService service, VlmConfig config,
             byte[][] imgBytesList, String prompt) throws VlmException {
@@ -203,7 +202,7 @@ public final class VlmClient {
 
         final String[] result = new String[1];
         try {
-            // 照 Go 的日志口径：model / numImages / totalImageSize
+            // 日志口径：model / numImages / totalImageSize
             service.chat(request, response -> {
                 if (response != null && response.getMessage() != null) {
                     result[0] = response.getMessage().getContent();
@@ -215,17 +214,16 @@ public final class VlmClient {
         return result[0] == null ? "" : result[0];
     }
 
-    /** WeKnoraCloud 的 VLM 端点（照 Go {@code weKnoraCloudVLMPath}）。 */
+    /** WeKnoraCloud 的 VLM 端点路径。 */
     static final String WEKNORA_CLOUD_VLM_PATH = "/api/v1/chat/completions";
 
     /**
-     * 对照 Go {@code vlm/weknoracloud.go} 的 {@code Predict}：WeKnoraCloud 的
-     * {@code POST /api/v1/chat/completions}——multipart 内容（text + 每图 data URI）、
-     * {@code max_tokens=5000}、{@code temperature=0.1}（**用常量，不读 extra 覆盖**，照 Go）、
+     * WeKnoraCloud 预测：{@code POST /api/v1/chat/completions}——multipart 内容（text + 每图 data URI）、
+     * {@code max_tokens=5000}、{@code temperature=0.1}（**用常量，不读 extra 覆盖**）、
      * {@code stream=false}；鉴权走 {@code WeknoraCloudSign}（与 embedding/rerank/chat 同一份
      * 实现）；模型名可被 {@code extra.remote_model_name} 覆盖（{@code effectiveModelName}）。
      *
-     * <p>错误族照 Go：构造期 {@code WeKnoraCloud VLM: AppID is required} /
+     * <p>错误族：构造期 {@code WeKnoraCloud VLM: AppID is required} /
      * {@code AppSecret is required}；运行期 {@code weknoracloud VLM: status %d: %s} /
      * {@code WeKnoraCloud VLM: no choices in response}。</p>
      */
@@ -279,7 +277,7 @@ public final class VlmClient {
         try {
             respBody = transport.postWithHeaders(baseUrl + WEKNORA_CLOUD_VLM_PATH, headers, req);
         } catch (HttpStatusException e) {
-            // 照 Go：weknoracloud VLM: status %d: %s
+            // weknoracloud VLM: status %d: %s
             throw new VlmException("weknoracloud VLM: status " + e.status() + ": " + e.body());
         } catch (Exception e) {
             throw new VlmException("weknoracloud VLM: do request: " + e.getMessage());
@@ -298,7 +296,7 @@ public final class VlmClient {
         return choices.get(0).path("message").path("content").asText("");
     }
 
-    /** 对照 {@code effectiveModelName}：{@code extra.remote_model_name} 优先。 */
+    /** 云端模型名：{@code extra.remote_model_name} 优先。 */
     static String effectiveCloudModelName(VlmConfig config) {
         String remote = config.extra() == null ? null : config.extra().get("remote_model_name");
         if (remote != null && !remote.trim().isEmpty()) {
@@ -308,7 +306,7 @@ public final class VlmClient {
     }
 
     /**
-     * 对照 shapeReasoningVLMRequest（remote_api.go L190-202）：OpenAI reasoning /
+     * 请求整形：OpenAI reasoning /
      * GPT5 家族把 max_tokens 平移到 max_completion_tokens，采样参数清零。
      */
     static void shapeReasoningVlmRequest(String modelName, Map<String, Object> req) {
@@ -323,7 +321,7 @@ public final class VlmClient {
         req.put("temperature", 0);
     }
 
-    /** 对照 provider.IsOpenAIReasoningOrGPT5Model（provider/openai.go L70-86）。 */
+    /** OpenAI reasoning / GPT5 家族判定。 */
     static boolean isReasoningOrGpt5(String modelName) {
         String name = modelName == null ? "" : modelName.strip().toLowerCase();
         if (name.isEmpty()) {
@@ -340,14 +338,14 @@ public final class VlmClient {
         return false;
     }
 
-    /** 对照 detectImageMIME（remote_api.go L208-214，http.DetectContentType 子集）。 */
+    /** 图片 MIME 嗅探（非 image/ 前缀时回落 image/png）。 */
     static String detectImageMime(byte[] data) {
         String ct = sniff(data);
         return ct.startsWith("image/") ? ct : "image/png";
     }
 
     private static String sniff(byte[] b) {
-        // Go http.DetectContentType 嗅探表的相关子集（JPEG 3B / PNG 8B / GIF 6B /
+        // 魔数嗅探表的相关子集（JPEG 3B / PNG 8B / GIF 6B /
         // WEBP 12B / XML 前缀）
         if (b.length >= 3 && b[0] == (byte) 0xFF && b[1] == (byte) 0xD8 && b[2] == (byte) 0xFF) {
             return "image/jpeg";

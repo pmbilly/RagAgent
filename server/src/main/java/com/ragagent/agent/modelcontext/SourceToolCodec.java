@@ -17,8 +17,7 @@ import com.ragagent.llm.domain.ToolCall;
 import com.ragagent.common.web.GoJsonCodec;
 
 /**
- * source 句柄的<b>工具参数编解码</b>（Go toolArgument encode/decode 族，
- * 自 {@code SourceRegistry} 的同名段外提）。
+ * source 句柄的<b>工具参数编解码</b>（自 {@code SourceRegistry} 的同名段外提）。
  *
  * <p>职责：把模型回显的短句柄还原成真实标识（decode）、把本轮注册过的真实标识
  * 压缩成句柄（encode/compact）、按工具契约键闸注册与报告未知句柄。
@@ -35,12 +34,12 @@ final class SourceToolCodec {
 
     // ---- 工具参数编解码 ----
 
-    /** 工具参数策略（Go toolArgumentPolicy）：某 tool 的某 key 是否归该工具契约。 */
+    /** 工具参数策略：某 tool 的某 key 是否归该工具契约。 */
     interface KeyPolicy {
         boolean allowed(String toolName, String key);
     }
 
-    /** 只还原具名工具显式拥有的字段里的句柄（对照 DecodeToolCallsWithPolicy）。 */
+    /** 只还原具名工具显式拥有的字段里的句柄。 */
     void decodeToolCallsWithPolicy(List<ToolCall> toolCalls, KeyPolicy policy) {
         for (ToolCall call : toolCalls) {
             String toolName = call.getFunction().getName();
@@ -50,7 +49,7 @@ final class SourceToolCodec {
         }
     }
 
-    /** 只在具名工具声明的 source 契约字段里报告未知句柄（对照 UnresolvedToolHandlesWithPolicy）。 */
+    /** 只在具名工具声明的 source 契约字段里报告未知句柄。 */
     List<String> unresolvedToolHandlesWithPolicy(String toolName, String raw, KeyPolicy policy) {
         if (raw == null || raw.strip().isEmpty()) {
             return null;
@@ -91,8 +90,8 @@ final class SourceToolCodec {
     }
 
     /**
-     * 压缩回放消息中的已知真实标识，并按工具名闸住 tool 结果的 source 处理
-     * （对照 EncodeMessagesWithPolicies）。nil 策略保留旧的通用行为。
+     * 压缩回放消息中的已知真实标识，并按工具名闸住 tool 结果的 source 处理。
+     * 策略为 null 时保留旧的通用行为。
      */
     List<ChatMessage> encodeMessagesWithPolicies(List<ChatMessage> messages, KeyPolicy argumentPolicy, java.util.function.Predicate<String> resultPolicy) {
         if (messages == null || messages.isEmpty()) {
@@ -175,7 +174,7 @@ final class SourceToolCodec {
         });
     }
 
-    /** 只还原单/双引号或反引号包裹段内的 source 句柄（对照 DecodeKnownQuotedText）。 */
+    /** 只还原单/双引号或反引号包裹段内的 source 句柄。 */
     String decodeKnownQuotedText(String text) {
         if (text == null || text.isEmpty()) {
             return text;
@@ -186,7 +185,7 @@ final class SourceToolCodec {
         }));
     }
 
-    /** 引号结构文本段内不在本请求 registry 的 handle 形状值（对照 UnresolvedQuotedTextHandles）。 */
+    /** 引号结构文本段内不在本请求 registry 的 handle 形状值。 */
     List<String> unresolvedQuotedTextHandles(String text) {
         if (text == null || text.isEmpty()) {
             return null;
@@ -206,7 +205,7 @@ final class SourceToolCodec {
         return result;
     }
 
-    /** 引号段扫描（对照 rewriteQuotedText）：单引号/双引号/反引号，'' 双写与 \\ 转义都留在同一段里。 */
+    /** 引号段扫描：单引号/双引号/反引号，'' 双写与 \\ 转义都留在同一段里。 */
     static String rewriteQuotedText(String text, java.util.function.UnaryOperator<String> rewrite) {
         StringBuilder out = new StringBuilder(text.length());
         int i = 0;
@@ -271,7 +270,7 @@ final class SourceToolCodec {
     }
 
     /**
-     * key→source 空间的唯一分派（对照 registerSourceIDByKey），由 sourceKeySpaces 驱动，
+     * key→source 空间的唯一分派，由 sourceKeySpaces 驱动，
      * 注册与解码的键集合（以及 web 引用的 http/https 守卫）不会漂移。
      */
     void registerSourceIDByKey(String key, String value, boolean evidence) {
@@ -314,7 +313,7 @@ final class SourceToolCodec {
         if (v.toLowerCase().startsWith("http://") || v.toLowerCase().startsWith("https://")) {
             return true;
         }
-        // 对照 Go：url.Parse(value) 后检查 parsed.Scheme——scheme 解析失败（含控制字符等）不算 http(s)
+        // scheme 非法（含控制字符等）的值不算 http(s)
         return false;
     }
 
@@ -383,8 +382,7 @@ final class SourceToolCodec {
             return handle;
         }
         handle = reg.webs.handleForKey(reg.canonicalWebURL(real));
-        // 对照 Go 的 (handle, ok) 双返回：未命中即零值 ""，不能把 null 留给
-        // 调用方（walkJSON 的 encode 分支对返回值直接 isEmpty——MCP 工具参数
+        // 未命中必须返回空串而不是 null（调用方对返回值直接判空——MCP 工具参数
         // 经此路径时曾 NPE）。
         return handle == null ? "" : handle;
     }
@@ -410,7 +408,7 @@ final class SourceToolCodec {
         return "";
     }
 
-    /** 只压缩已从结构化运行时/工具数据注册过的标识（对照 CompactKnownText）。 */
+    /** 只压缩已从结构化运行时/工具数据注册过的标识。 */
     String compactKnownText(String text) {
         if (text == null || text.isEmpty()) {
             return text;

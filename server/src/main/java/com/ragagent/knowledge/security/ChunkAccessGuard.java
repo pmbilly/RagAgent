@@ -34,7 +34,7 @@ import org.springframework.stereotype.Component;
  * <p>Wiki 守卫（{@code WikiKbAccessGuard#requireWikiKB}）已确立同样的模式；
  * chunk 与 wiki 的差别在解析链多一跳（knowledge_id/chunk_id → kb_id），且
  * by-id 路由的 ownership 查找显式重校验租户（GetChunkByIDOnly 无空间过滤）。</p>
- * <p><b>判定顺序必须逐层复刻</b>（契约样例依赖顺序）：</p>
+ * <p><b>判定顺序必须逐层保持</b>（契约样例依赖顺序）：</p>
  * <ul>
  *   <li>写路由（:knowledge_id）：ownership（缺失→放行）→ KB 访问（knowledge 缺失→404
  *       "Knowledge not found"；KB 缺失→404 "knowledge base not found"；跨租户→403）→
@@ -43,7 +43,7 @@ import org.springframework.stereotype.Component;
  *   <li>by-id 写路由：ownership（chunk 缺失/跨租户→放行）→ KB 访问（chunk 缺失→404
  *       "Chunk not found"）→ handler。</li>
  * </ul>
- * 还认 org-share 与 shared-agent 两条路径，Java 侧 kb_shares / agent shares 未翻译，
+ * org-share 与 shared-agent 两条路径未实现（kb_shares / agent shares 未接入）。
  */
 @Component
 public class ChunkAccessGuard {
@@ -152,7 +152,7 @@ public class ChunkAccessGuard {
         }
         Long tenantId = TenantContext.currentTenantId();
         if (tenantId == null || c.getTenantId() == null || !tenantId.equals(c.getTenantId())) {
-            return; // 跨租户撞库挡在 ownership（照抄显式重校验）
+            return; // 跨租户撞库挡在 ownership（显式重校验租户）
         }
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, c.getKnowledgeBaseId())

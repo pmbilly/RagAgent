@@ -17,26 +17,22 @@ import com.ragagent.memory.domain.MemoryTopicView;
 import org.junit.jupiter.api.Test;
 
 /**
- * memory 模块**响应契约**的逐字节测试（波 0 第 1 步：settings 切片）。
- *
- * <h2>期望值来源</h2>
- * <p>Go 实录——把 {@code internal/types/memory.go} 的这几个类型原样抄进一个独立 Go 程序，
- * 喂同样的输入打印 {@code json.Marshal}，再抄进来。</p>
+ * memory 模块**响应契约**的逐字节测试（settings 切片）。
  *
  * <p>语料刻意覆盖三个最容易看走眼的地方：</p>
  * <ol>
- *   <li>{@link MemoryConfig} 的**三态** {@code *bool}——{@code null} 要写出去
- *       （"没配"≠"显式配成 false"），且全类型无 omitempty；</li>
- *   <li>{@link MemoryConsolidationResult#getSkipped()} 换锚后**恒输出**：
+ *   <li>{@link MemoryConfig} 的**三态**布尔——{@code null} 要写出去
+ *       （"没配"≠"显式配成 false"），且各键恒输出；</li>
+ *   <li>{@link MemoryConsolidationResult#getSkipped()} **恒输出**：
  *       没跳过时是 {@code null}，空串就是空串（§1.5 可空字段显式 null）；</li>
- *   <li>{@link MemoryTopicView} 的 {@code aliases} 无 omitempty，nil 输出 {@code null}
+ *   <li>{@link MemoryTopicView} 的 {@code aliases} 键恒出现，null 输出 {@code null}
  *       （而投影函数补空列表，两种形态并存）。</li>
  * </ol>
  *
- * <p>响应体三个类型（{@link MemorySettings} / {@link MemoryConsolidationResult} /
- * {@link MemoryTopicView} / {@link MemoryDocView}）已随 §14.9k M1 换锚：JSON 字段名＝
- * Java 字段名（camelCase）。{@link MemoryConfig} 是 tenants 的 jsonb 载荷，属 M2 范围，
- * 这里仍是库内键名。</p>
+ * <p>响应体的各视图类型（{@link MemorySettings} / {@link MemoryConsolidationResult} /
+ * {@link MemoryTopicView} / {@link MemoryDocView}）JSON 字段名＝
+ * Java 字段名（camelCase，契约 §1.1）。{@link MemoryConfig} 是 tenants 的 jsonb 载荷，
+ * 仍按库内键名断言。</p>
  */
 class MemoryContractTest {
 
@@ -117,7 +113,7 @@ class MemoryContractTest {
                         + "\"writeMode\":\"explicit_only\",\"itemCount\":7,\"maxItems\":200}");
     }
 
-    /** {@code skipped} 换锚后恒输出：没跳过时是 {@code null}（旧 Go 的 omitempty 退役）。 */
+    /** {@code skipped} 恒输出：没跳过时是 {@code null}（契约 §1.6 禁止条件键）。 */
     @Test
     void consolidationResultAlwaysEmitsSkipped() throws Exception {
         assertThat(write(new MemoryConsolidationResult())).isEqualTo(
@@ -183,7 +179,7 @@ class MemoryContractTest {
                         + "\"lastUsedAt\":\"2026-09-18T10:00:00+08:00\"}");
     }
 
-    /** 零值时间必须输出 Go 的 year-1 字面量，而不是 {@code null}。 */
+    /** 零值时间必须输出 year-1 字面量（0001-01-01），而不是 {@code null}。 */
     @Test
     void viewsEmitGoZeroTimeRatherThanNull() throws Exception {
         assertThat(write(new MemoryTopicView())).contains("\"lastSeenAt\":\"0001-01-01T00:00:00Z\"");

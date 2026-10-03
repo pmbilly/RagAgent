@@ -26,17 +26,17 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 /**
- * 对照 Go internal/application/service/user.go 的 UserService（阶段 1 子集）。
+ * 用户 service。
  *
- * 已翻译方法及其 Go 对照：
- * - login                 ← Login（L228）：失败不抛异常，编码在 LoginResult.success/message
- * - validateToken         ← ValidateToken（L1221）：JWT 校验 + DB 撤销检查
- * - buildLoginMemberships ← buildMembershipsForUser（L328）
+ * 方法面：
+ * - login：失败不抛异常，编码在 LoginResult.success/message
+ * - validateToken：JWT 校验 + DB 撤销检查
+ * - buildLoginMemberships：登录响应的空间成员组装
  * - resolveLoginTenantID / homeOrFirstMembershipTenant / resolveFirstMembershipTenant
- *   / clearStaleHomeTenant / clearLastActiveTenantPreference ← L884-L1043
- * - generateTokensForTenant ← generateTokensForTenant（L1049）：签发 + 落 auth_tokens（错误忽略，同 Go `_ =`）
+ *   / clearStaleHomeTenant / clearLastActiveTenantPreference：登录空间解析
+ * - generateTokensForTenant：签发 + 落 auth_tokens（错误忽略）
  *
- * bcrypt：Go bcrypt.DefaultCost=10 ↔ BCryptPasswordEncoder 默认 cost=10。
+ * bcrypt：BCryptPasswordEncoder 默认 cost=10。
  */
 @Service
 public class UserService {
@@ -72,8 +72,8 @@ public class UserService {
     // ── 登录 ─────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go Login（L228-307）。失败路径返回 success=false 的 LoginResult
-     * （Go 同样不返回 error），由 controller 决定 401。
+     * 登录。失败路径返回 success=false 的 LoginResult
+     * （不抛异常），由 controller 决定 401。
      */
     public LoginResult login(LoginRequest req) {
         User user = getUserByEmail(req.email());
@@ -118,10 +118,10 @@ public class UserService {
     // ── Token 校验（AuthFilter 通道 2 入口） ──────────────────────────────
 
     /**
-     * 对照 Go ValidateToken（L1221-1270）。
+     * 校验访问令牌（JWT 校验 + 撤销检查）。
      *
      * @return 校验通过的用户与 JWT tenant_id claim
-     * @throws TokenValidationException 任一校验失败（消息 = Go error 原文）
+     * @throws TokenValidationException 任一校验失败（消息 = 锁定原文）
      */
     public ValidatedToken validateToken(String tokenString) {
         Claims claims = jwtService.parseSigned(tokenString);
@@ -149,7 +149,7 @@ public class UserService {
 
         User user = getUserById(userId);
         if (user == null) {
-            // 对照 Go：GetUserByID err 原样上抛（GORM record not found）
+            // 用户记录不存在 → 同样抛 "record not found"
             throw new TokenValidationException("record not found");
         }
 
@@ -170,10 +170,10 @@ public class UserService {
     }
 
     /**
-     * 对照 GetUserByTenantID（repository/user.go L102-111）：租户内 created_at
+     * 取租户内 created_at
      * 最早的用户（软删除过滤）；找不到返回 null。API Key 认证的
      * {@code attachAPIKeyAuthContext} 用它取租户首位用户身份，查不到时
-     * 走 Go 的合成用户兜底 {@code system-<tenantId>}。
+     * 走合成用户兜底 {@code system-<tenantId>}。
      */
     public User getUserByTenantIdFirst(long tenantId) {
         return userMapper.selectOne(new LambdaQueryWrapper<User>()
@@ -192,8 +192,8 @@ public class UserService {
     }
 
     /**
-     * 对照 GetUsersByIDs：批量按 id 查（map 形态，供成员/邀请列表 hydrate）。
-     * GORM Find 的软删除过滤 → isNull(deleted_at)。
+     * 批量按 id 查（map 形态，供成员/邀请列表 hydrate）。
+     * 软删除过滤 → isNull(deleted_at)。
      */
     public java.util.Map<String, User> getUsersByIds(java.util.Collection<String> ids) {
         java.util.Map<String, User> out = new java.util.HashMap<>();
@@ -208,14 +208,13 @@ public class UserService {
         return out;
     }
 
-    /** 对照 UpdateUser：整行写回。调用方负责设置 updatedAt（Go Save 自动刷）。 */
+    /** 整行写回。调用方负责设置 updatedAt（写回不会自动刷新该列）。 */
     public void updateUser(User user) {
         userMapper.updateById(user);
     }
 
     /**
-     * 对照 UpdateUser 的 tenantID==0 分支（repository/user.go L114-126）：
-     * Omit(tenant_id) Save + UpdateColumn(NULL)——⚠️ 直接写 0 会炸 FK fk_users_tenant。
+     * tenant_id 置空写回：必须显式写 SQL NULL——⚠️ 直接写 0 会炸 FK fk_users_tenant。
      * register-by-invite 的 accept 失败修复路径专用。
      */
     public void restoreTenantless(User user) {
@@ -235,8 +234,7 @@ public class UserService {
     // ── memberships 组装 ──────────────────────────────────────────────────
 
     /**
-     * 对照 buildMembershipsForUser（L328-396）。
-     * 错误不传播：membership 查不到 → 空数组（Go 返回 []types.Membership{}）。
+     * 错误不传播：membership 查不到 → 空数组。
      * 仅 status=active 且 tenant 行存在（名字非空白）的行进入响应。
      */
     public List<Membership> buildLoginMemberships(User user, Tenant activeTenant) {
@@ -273,7 +271,7 @@ public class UserService {
                     name = t.getName();
                 }
             }
-            // tenant 行已删除/名字空白 → 丢弃该 membership（对照 Go strings.TrimSpace(name) == ""）
+            // tenant 行已删除/名字空白 → 丢弃该 membership
             if (name == null || name.trim().isEmpty()) {
                 continue;
             }
@@ -284,7 +282,7 @@ public class UserService {
 
     // ── 登录空间解析（preference → home → 首个 membership） ────────────────
 
-    /** 对照 resolveLoginTenantID（L884-927） */
+    /** 解析登录目标空间：last-active 偏好优先，偏好失效即清除并回退。 */
     long resolveLoginTenantId(User user) {
         if (user == null) {
             return 0;
@@ -316,7 +314,7 @@ public class UserService {
         return preferred;
     }
 
-    /** 对照 homeOrFirstMembershipTenant（L944-964） */
+    /** home 空间优先；无 home 或 home 失去 active 成员资格时回退首个 membership。 */
     private long homeOrFirstMembershipTenant(User user) {
         if (user == null) {
             return 0;
@@ -338,7 +336,7 @@ public class UserService {
         return resolveFirstMembershipTenant(user);
     }
 
-    /** 对照 clearStaleHomeTenant（L970-987）：零值 users.tenant_id 并落库（失败仅记日志） */
+    /** 清掉失效 home：tenant_id 归零并落库（失败仅记日志） */
     private void clearStaleHomeTenant(User user) {
         long staleHome = user.getTenantId() == null ? 0 : user.getTenantId();
         user.setTenantId(0L);
@@ -348,9 +346,9 @@ public class UserService {
             user.getPreferences().setLastActiveTenantId(null);
         }
         try {
-            // Go UpdateUser：tenant_id==0 时 Omit("tenant_id").Save + UpdateColumn(NULL)。
+            // tenant_id 置空必须显式写 SQL NULL。
             // ⚠️ 两个坑：tenant_id=0 写进 UPDATE 会炸 FK fk_users_tenant；preferences 是
-            // jsonb 列，两参 set 带 typeHandler 字段会 MyBatisSystemException（§9 三参规则）。
+            // jsonb 列，两参 set 带 typeHandler 字段会 MyBatisSystemException（须用三参 set）。
             // 只写 tenant_id=NULL——preferences.last_active_tenant_id 的存量偏差无害
             // （pref==home 与 home 走同一条解析路径，净行为一致；已记录为已知偏差）。
             userMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<User>()
@@ -363,7 +361,7 @@ public class UserService {
     }
 
     /**
-     * 对照 resolveFirstMembershipTenant（L995-1027）：tenantless 身份采用最早 active membership，
+     * tenantless 身份采用最早 active membership，
      * 并尽力持久化为 home（持久化失败不阻塞，仍返回该 membership 的 tenant）。
      */
     private long resolveFirstMembershipTenant(User user) {
@@ -396,7 +394,7 @@ public class UserService {
         return 0;
     }
 
-    /** 对照 clearLastActiveTenantPreference（L1033-1043）：清偏好并落库（失败仅记日志） */
+    /** 清 last-active 偏好并落库（失败仅记日志） */
     private void clearLastActiveTenantPreference(User user) {
         if (user.getPreferences() != null) {
             user.getPreferences().setLastActiveTenantId(null);
@@ -412,8 +410,7 @@ public class UserService {
     // ── Token 签发 ────────────────────────────────────────────────────────
 
     /**
-     * 对照 generateTokensForTenant（L1049-1109）：
-     * 签发 access(24h)/refresh(7d) 并各插一条 auth_tokens（插入错误忽略，同 Go `_ =`）。
+     * 签发 access(24h)/refresh(7d) 并各插一条 auth_tokens（插入错误忽略，不使调用失败）。
      */
     String[] generateTokensForTenant(User user, long activeTenantId) {
         String accessToken = jwtService.generateAccessToken(user, activeTenantId);
@@ -434,18 +431,18 @@ public class UserService {
             record.setExpiresAt(expiresAt);
             authTokenMapper.insert(record);
         } catch (RuntimeException e) {
-            // 对照 Go `_ = s.tokenRepo.CreateToken(...)`：落库失败不使登录失败
+            // 落库失败不使登录失败
             log.warn("Failed to persist {} (user={}): {}", tokenType, userId, e.toString());
         }
     }
 
-    // ── 注册（对照 Register，user.go L132-225） ────────────────────────────
+    // ── 注册 ─────────────────────────────────────────────────────────────
 
-    /** 对照 types.TenantProvisioningMode。 */
+    /** provisioning 模式取值（服务端控制，不从请求 JSON 读）。 */
     public static final String PROVISIONING_CREATE_PERSONAL = "create_personal";
     public static final String PROVISIONING_TENANTLESS = "tenantless";
 
-    /** 注册失败：message = Go error 原文（handler 包成 400 BadRequest）。 */
+    /** 注册失败：message = 服务端错误原文（controller 包成 400 BadRequest）。 */
     public static final class RegistrationException extends RuntimeException {
         public RegistrationException(String message) {
             super(message);
@@ -453,8 +450,8 @@ public class UserService {
     }
 
     /**
-     * 对照 Register。创建顺序：租户（含默认存储后端）→ 用户 → Owner 成员行；
-     * 任一步失败按 Go 顺序回滚（删用户/删租户），错误消息逐字符对照。
+     * 创建顺序：租户（含默认存储后端）→ 用户 → Owner 成员行；
+     * 任一步失败按既定顺序回滚（先删用户、再删租户），错误消息逐字符保持既有文案。
      */
     public User register(String username, String email, String password, String provisioning) {
         if (username.isEmpty() || email.isEmpty() || password.isEmpty()) {
@@ -479,7 +476,7 @@ public class UserService {
         Tenant createdTenant = null;
         if (PROVISIONING_CREATE_PERSONAL.equals(mode)) {
             Tenant tenant = new Tenant();
-            // 对照：租户名再过一遍 SanitizeForLog（req.Username 已在 handler 消毒，幂等）
+            // 租户名再过一遍 sanitizeForLog（入口已对 username 消毒，此处幂等）
             tenant.setName(sanitizeForLog(username) + "'s Workspace");
             tenant.setDescription("Default workspace");
             tenant.setStatus("active");
@@ -496,7 +493,7 @@ public class UserService {
         user.setUsername(username);
         user.setEmail(email);
         user.setPasswordHash(hashedPassword);
-        // 对照 CreateUser（repository/user.go L33-43）：tenant_id=0 → Omit → SQL NULL
+        // tenantless 时 tenant_id 落库为 SQL NULL
         // （写 0 会违反 fk_users_tenant）；读回时由领域层归一为 0
         user.setTenantId(createdTenant != null ? createdTenant.getId() : null);
         user.setIsActive(true);
@@ -507,8 +504,8 @@ public class UserService {
 
         try {
             if (createdTenant == null) {
-                // tenantless：getter 会把 null 归一成 0，必须省略 tenant_id 列
-                // （对照 Go Omit → SQL NULL；写 0 在真 PG 违反 fk_users_tenant）
+                // tenantless：getter 会把 null 归一成 0，必须走省略 tenant_id 列的插入
+                // （落 SQL NULL；写 0 在真 PG 违反 fk_users_tenant）
                 userMapper.insertTenantless(user);
             } else {
                 userMapper.insert(user);
@@ -526,7 +523,7 @@ public class UserService {
             throw new RegistrationException("failed to create user");
         }
 
-        // 对照 EnsureOwner 引导：失败则删用户+删租户并报错
+        // Owner 成员行引导：失败则删用户+删租户并报错
         if (createdTenant != null) {
             try {
                 memberService.addMember(user.getId(), createdTenant.getId(), TenantRole.OWNER.value(), null);
@@ -536,7 +533,7 @@ public class UserService {
                 try {
                     userMapper.deleteById(user.getId());
                 } catch (RuntimeException ignored) {
-                    // 尽力回滚，对照 Go `_ =`
+                    // 尽力回滚，失败忽略
                 }
                 try {
                     tenantService.deleteTenant(createdTenant.getId());
@@ -558,7 +555,7 @@ public class UserService {
                 .last("LIMIT 1"));
     }
 
-    /** 对照 GetCurrentUser（user.go L1451）：从请求上下文取用户（AuthFilter 已鉴权）。 */
+    /** 从请求上下文取当前用户（AuthFilter 已鉴权）。 */
     public User getCurrentUser() {
         String userId = TenantContext.currentUserId();
         if (userId == null || userId.isEmpty()) {
@@ -567,10 +564,10 @@ public class UserService {
         return getUserById(userId);
     }
 
-    // ── 偏好（对照 UpdateUserPreferences，user.go L619-662） ───────────────
+    // ── 偏好 ─────────────────────────────────────────────────────────────
 
     /**
-     * 对照 UpdateUserPreferences：PATCH 语义合并（null = 未携带，保持原值）。
+     * PATCH 语义合并（null = 未携带，保持原值）。
      * last_active_tenant_id=0 → 清偏好。
      */
     public UserPreferences updateUserPreferences(String userId, UserPreferences patch) {
@@ -590,16 +587,16 @@ public class UserService {
         return merged;
     }
 
-    /** 偏好更新失败：message = Go error 原文（handler 包成 400 BadRequest "Failed to update preferences"）。 */
+    /** 偏好更新失败：message = 服务端错误原文（controller 包成 400 BadRequest "Failed to update preferences"）。 */
     public static final class PreferencesException extends RuntimeException {
         public PreferencesException(String message) {
             super(message);
         }
     }
 
-    // ── 修改密码（对照 ChangePassword，user.go L674-714） ──────────────────
+    // ── 修改密码 ──────────────────────────────────────────────────────────
 
-    /** change-password 的失败分类（对照 handler/auth.go L777-798 的分派）。 */
+    /** change-password 的失败分类（controller 按此分派 HTTP 状态与文案）。 */
     public enum ChangePasswordFailure {NONE, INVALID_OLD, SAME_AS_OLD, POLICY, OTHER}
 
     public static final class ChangePasswordException extends RuntimeException {
@@ -616,7 +613,7 @@ public class UserService {
     }
 
     /**
-     * 对照 ChangePassword：先验旧密码（错误凭据不被策略错误掩盖）→ 新旧相同 →
+     * 先验旧密码（错误凭据不被策略错误掩盖）→ 新旧相同 →
      * 策略 → 落库 → 吊销全部会话。成功改密会清掉 OIDC 自动 provisioning 的
      * oidc_only_login 标记。
      */
@@ -651,7 +648,7 @@ public class UserService {
         revokeTokensByUserId(userId);
     }
 
-    /** 对照 RevokeTokensByUserID（repository/user.go L344-347）：is_revoked=true（GORM 同时刷 updated_at）。 */
+    /** 吊销该用户全部令牌：is_revoked=true，同时刷 updated_at。 */
     public void revokeTokensByUserId(String userId) {
         authTokenMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<AuthToken>()
                 .eq(AuthToken::getUserId, userId)
@@ -659,36 +656,36 @@ public class UserService {
                 .set(AuthToken::getUpdatedAt, OffsetDateTime.now(ZoneOffset.UTC)));
     }
 
-    // ── W5a：logout / refresh / switch-tenant（实现外提至 {@link UserSessionOps}） ────
+    // ── logout / refresh / switch-tenant（实现外提至 {@link UserSessionOps}） ────
 
-    /** 对照 Logout：解出 user_id 后吊销该用户全部会话（失败通道见本类 LogoutException）。 */
+    /** 解出 user_id 后吊销该用户全部会话（失败通道见本类 LogoutException）。 */
     public void logout(String tokenString) {
         sessionOps.logout(tokenString);
     }
 
-    /** 对照 RefreshToken：校验并吊销旧 refresh，按 last-active 偏好签发新令牌对。 */
+    /** 校验并吊销旧 refresh，按 last-active 偏好签发新令牌对。 */
     public String[] refreshToken(String refreshTokenString) {
         return sessionOps.refreshToken(refreshTokenString);
     }
 
-    /** 对照 SwitchTenant：校验成员关系 → 记偏好 → 签发 → 尽力吊销旧 refresh。 */
+    /** 校验成员关系 → 记偏好 → 签发 → 尽力吊销旧 refresh。 */
     public LoginResult switchTenant(User user, long targetTenantId, String currentRefreshToken) {
         return sessionOps.switchTenant(user, targetTenantId, currentRefreshToken);
     }
 
-    /** logout 的失败通道（对照 handler 的 NewInternalServerError("Logout failed").WithDetails(err)）。 */
+    /** logout 的失败通道（controller 包成 500 "Logout failed"）。 */
     public static final class LogoutException extends RuntimeException {
         public LogoutException(String message) {
             super(message);
         }
     }
-    /** refresh 的失败通道（对照 handler 的 NewUnauthorizedError("Token refresh failed")）。 */
+    /** refresh 的失败通道（controller 包成 401 "Token refresh failed"）。 */
     public static final class RefreshTokenException extends RuntimeException {
         public RefreshTokenException(String message) {
             super(message);
         }
     }
-    /** switch-tenant 的失败通道（对照 handler 的 NewForbiddenError("workspace switch failed")）。 */
+    /** switch-tenant 的失败通道（controller 包成 403 "workspace switch failed"）。 */
     public static final class SwitchTenantException extends RuntimeException {
         public SwitchTenantException(String message) {
             super(message);
@@ -697,20 +694,20 @@ public class UserService {
 
     // ── Token 签发（对外） ─────────────────────────────────────────────────
 
-    /** 对照 GenerateTokens（user.go L861-866）：按登录空间解析结果签发。 */
+    /** 按登录空间解析结果签发令牌对。 */
     public String[] generateTokens(User user) {
         return generateTokensForTenant(user, resolveLoginTenantId(user));
     }
 
     // ── 工具 ──────────────────────────────────────────────────────────────
 
-    /** 对照 ResolveComplexPasswordEnabled（password_policy.go）：DB > ENV > false。 */
+    /** 复杂密码开关的解析顺序：系统设置 > 环境变量 > 默认 false。 */
     public boolean complexPasswordEnabled() {
         return settingService.getBool(
                 "auth.complex_password_enabled", "WEKNORA_AUTH_COMPLEX_PASSWORD_ENABLED", false);
     }
 
-    /** 对照 secutils.SanitizeForLog：\n \r \t → 空格，其余控制字符（<32）剔除。 */
+    /** 日志消毒：\n \r \t → 空格，其余控制字符（<32）剔除。 */
     public static String sanitizeForLog(String input) {
         if (input == null || input.isEmpty()) {
             return "";
@@ -726,8 +723,8 @@ public class UserService {
     }
 
     /**
-     * 对照 Go strings.TrimSpace（unicode.IsSpace）：Java trim/strip 都不含 U+00A0，
-     * 这里按 unicode.IsSpace 的字符集显式处理（与 §9 的 `\s` 差异同族）。
+     * 全 Unicode 空白 trim：String 的 trim/strip 都不含 U+00A0，
+     * 这里按完整空白字符集显式处理（正则 `\s` 同样不含这些）。
      */
     public static String goTrimSpace(String s) {
         int start = 0;
@@ -742,7 +739,7 @@ public class UserService {
     }
 
     private static boolean isGoSpace(char c) {
-        // Go unicode.IsSpace：'\t' '\n' '\v' '\f' '\r' ' ' U+0085 U+00A0 + Unicode 空白
+        // 空白全集：'\t' '\n' '\v' '\f' '\r' ' ' U+0085 U+00A0 + 其他 Unicode 空白
         return Character.isWhitespace(c) || Character.isSpaceChar(c) || c == '\u0085' || c == '\u00A0';
     }
 }

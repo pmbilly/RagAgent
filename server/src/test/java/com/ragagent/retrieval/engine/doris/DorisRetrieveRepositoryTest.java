@@ -20,13 +20,13 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 
 /**
- * Doris 仓储对照 Go {@code retriever/doris} 全包（repository.go / schema.go / compat.go）：
+ * Doris 仓储：
  * 兼容模式解析（显式/探测/既有表探测/混用拒收）、惰性建表与缓存、
  * BatchSave 的分组/字面量内联/替换语义、三种删除、向量与关键词检索的 SQL 形状、
  * CopyIndices 三态改写、批量更新的整行重写、move 的模式拒收、存储估算。
  *
- * <p>桩是记账用的假 SQL 执行器：断言"发出去的 SQL / 参数序长什么样"（该批无 golden 面，
- * 逐句断言即本批的字节契约）。Stream Load 面在 {@code DorisStreamLoadTest}。</p>
+ * <p>桩是记账用的假 SQL 执行器：断言"发出去的 SQL / 参数序长什么样"（该面无 golden fixture，
+ * 逐句断言即字节契约）。Stream Load 面在 {@code DorisStreamLoadTest}。</p>
  */
 class DorisRetrieveRepositoryTest {
 

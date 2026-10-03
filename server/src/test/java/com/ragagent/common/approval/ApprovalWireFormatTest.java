@@ -58,7 +58,7 @@ class ApprovalWireFormatTest {
         assertEquals("tc1", node.get("toolCallId").asText());
         assertEquals("r1", node.get("requestId").asText());
 
-        // 空值省略（Go 的 omitempty）：args/args_json/request_id
+        // 空值省略：args/argsJson/request_id
         String minimal = ApprovalJson.write(new ToolApprovalRequiredData(
                 "p1", 7, "s1", "m1", "svc", "svcname", "tool", "mcp_tool",
                 "desc", null, "", 60, 1700000000L, "tc1", ""));
@@ -77,7 +77,7 @@ class ApprovalWireFormatTest {
         assertTrue(node.get("timedOut").asBoolean());
         assertFalse(node.get("canceled").asBoolean());
 
-        // reason 为空 → omitempty 缺席
+        // reason 为空 → 键缺席
         assertFalse(ApprovalJson.write(new ToolApprovalResolvedData("p1", true, "", false, false))
                 .contains("reason"));
     }
@@ -113,7 +113,7 @@ class ApprovalWireFormatTest {
         assertEquals("reply-chan", node.get("replyChannel").asText());
         assertEquals("origin-1", node.get("originId").asText());
         assertEquals("nonce-1", node.get("requestNonce").asText());
-        // timed_out / canceled 为 false → omitempty 缺席
+        // timedOut / canceled 为 false → 键缺席
         assertFalse(node.has("timedOut"));
         assertFalse(node.has("canceled"));
         assertFalse(node.has("reason"));
@@ -141,7 +141,7 @@ class ApprovalWireFormatTest {
         assertEquals("B", node.get("originId").asText());
         assertEquals("nonce", node.get("requestNonce").asText());
 
-        // 非法 JSON 不应抛异常，只返回 null（对照 Go：log.Warnf + continue）
+        // 非法 JSON 不应抛异常，只返回 null
         assertNull(ApprovalJson.read("{not json", ResolveAck.class));
     }
 
@@ -153,7 +153,7 @@ class ApprovalWireFormatTest {
     }
 
     /**
-     * 事件包络本身（id/type/sessionId/data/metadata/requestId）与 Go event.Event 对齐；
+     * 事件包络本身（id/type/sessionId/data/metadata/requestId）是固定线格式；
      * response_type 的字符串取值是前端契约（见 ResponseType）。
      */
     @Test

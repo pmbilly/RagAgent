@@ -1,8 +1,7 @@
 package com.ragagent.im.runtime;
 
 /**
- * 一条 IM 流文本缓冲的换行状态（对照 Go internal/im/stream_section.go 全文，
- * 波 5 W5γ1 逐行翻译）。
+ * 一条 IM 流文本缓冲的换行状态。
  */
 public final class StreamSection {
 
@@ -24,7 +23,7 @@ public final class StreamSection {
         }
     }
 
-    /** 累积文本（对照 Go 的 text.String()）。 */
+    /** 累积文本。 */
     public String text() {
         return text.toString();
     }

@@ -20,31 +20,28 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 用户收藏的 HTTP 层（对照 Go {@code internal/handler/user_resource_favorite.go} 全文，
- * 路由对照 {@code internal/router/routes_agent.go} 的 RegisterUserFavoriteRoutes——
- * 实际是 3 条路由：GET/POST /user/favorites + DELETE /user/favorites/{type}/{id}）。
+ * 用户收藏的 HTTP 层：3 条路由——GET/POST {@code /api/v1/user/favorites} +
+ * DELETE {@code /api/v1/user/favorites/{type}/{id}}。
  *
- * <h2>授权模型（Go 类注释原文）</h2>
+ * <h2>授权模型</h2>
  * <p>handler 永远从 auth 上下文推导 (user_id, tenant_id)，没有"看别人收藏"的路径；
  * favorites 属于<b>做收藏动作的人</b>而非资源创建者，不走 OwnedXOrAdmin。
  * Viewer+ 即可，API key 默认拒绝（路由未对 API key 声明）。</p>
  *
- * <h2>响应形态：gin.H = map = 键字母序（§9 JSON 键序规则）</h2>
+ * <h2>响应形态</h2>
  * <ul>
- *   <li>列表：{@code {"data":[…],"success":true}}（data &lt; success；GORM Find
- *       空结果序列化为 {@code []} 而非 null——golden fav-list-empty-kb.json）</li>
- *   <li>add/remove：恒 {@code {"success":true}}——幽灵删除也是 200 true</li>
+ *   <li>列表：裸数组；空结果序列化为 {@code []} 而非 null</li>
+ *   <li>add：201 无响应体；remove：204（幽灵删除也是 204）</li>
  * </ul>
  *
- * <h2>错误形态：AppError 信封 + binding 细节进 details</h2>
+ * <h2>错误形态：AppError + binding 细节进 details</h2>
  * <pre>
- *   非法 body → 400 message="invalid request body" details=Go 解码措辞（EOF / invalid character…）
+ *   非法 body → 400 message="invalid request body" details=解码措辞（EOF / invalid character…）
  *   非法类型  → 400 message="invalid favorite resource type" details=null
  *   空 id     → 400 message="favorite resource id is required" details=null
  * </pre>
- * <p>Go handler 里 favoriteContext 的 401（"user ID not found" / "workspace ID
- * not found"）在中间件保证租户与 principal 之后是<b>不可达死代码</b>（陷阱 §5.5）；
- * Java 侧同位保留防御分支。</p>
+ * <p>auth 中间件保证租户与 principal 之后，401 防御分支（"user ID not found" /
+ * "workspace ID not found"）<b>不可达</b>；同位保留。</p>
  */
 @RestController
 public class UserFavoriteController {
@@ -81,7 +78,7 @@ public class UserFavoriteController {
         return ResponseEntity.noContent().build();
     }
 
-    /** 对照 Go AddFavoriteRequest：json tag 是小写 type/id。 */
+    /** 请求体键为小写 {@code type}/{@code id}。 */
     private record AddFavoriteRequest(String type, String id) {
     }
 
@@ -96,12 +93,12 @@ public class UserFavoriteController {
         }
     }
 
-    /** 对照 NewBadRequestError("invalid request body").WithDetails(err.Error())。 */
+    /** 400 "invalid request body"，解码错误措辞进 details。 */
     private static BizException invalidBody(String details) {
         return new BizException(AppError.badRequest("invalid request body").withDetails(details));
     }
 
-    /** 对照 favoriteContext：userId 缺失 → 401 "user ID not found"（防御位）。 */
+    /** userId 缺失 → 401 "user ID not found"（防御位，中间件完备时不可达）。 */
     private static String favoriteUserId() {
         String userId = TenantContext.currentUserId();
         if (userId == null || userId.isEmpty()) {
@@ -110,7 +107,7 @@ public class UserFavoriteController {
         return userId;
     }
 
-    /** 对照 favoriteContext：tenant 缺失 → 401 "workspace ID not found"（防御位）。 */
+    /** tenant 缺失 → 401 "workspace ID not found"（防御位，中间件完备时不可达）。 */
     private static Long favoriteTenantId() {
         Long tenantId = TenantContext.currentTenantId();
         if (tenantId == null || tenantId == 0L) {

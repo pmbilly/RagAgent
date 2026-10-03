@@ -6,24 +6,23 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
- * MCP 服务鉴权配置（对照 Go types.MCPAuthConfig）。
+ * MCP 服务鉴权配置。
  *
  * **密钥处理契约**：
  * - 秘密字段（apiKey / token）持久化在本结构里，但**绝不**经主资源响应返回——
  *   响应走 dto.McpServiceResponse，它在**构造期**就没有这些字段（编译期保证，
  *   不靠 handler 记得脱敏）。凭据变更走专用的 /credentials 子资源。
- * - 落库加密由 {@link com.ragagent.mcp.domain.McpAuthConfigTypeHandler} 负责
- *   （对照 Go 的 driver.Valuer / sql.Scanner）。
+ * - 落库加密由 {@link com.ragagent.mcp.domain.McpAuthConfigTypeHandler} 负责。
  *
  * OAuth 说明：OAuth 策略**不在本结构存秘密**。按用户的 access/refresh token 存
  * mcp_oauth_tokens，动态注册的客户端存 mcp_oauth_clients。这里只有
  * scopes / authServerMetadataUrl 这类非秘密配置。
  *
- * <p>⚠️ <b>键名必须是蛇形</b>（对照 Go 的 json tag）。这些注解不是装饰：
+ * <p>⚠️ <b>键名必须是蛇形</b>。这些注解不是装饰：
  * 本结构既走 HTTP 请求/响应，也经 {@link McpAuthConfigTypeHandler} 落到 auth_config
  * jsonb 列——键名一旦写成 Java 字段名（apiKey/customHeaders），
  * 既接不住前端按契约发来的 {@code api_key}/{@code custom_headers}，
- * 也读不出 Go 写的行（只有 {@code token} / {@code scopes} 这类单词字段侥幸对上）。</p>
+ * 也读不出既有行（只有 {@code token} / {@code scopes} 这类单词字段侥幸对上）。</p>
  */
 public class McpAuthConfig {
 
@@ -47,11 +46,11 @@ public class McpAuthConfig {
     private String authServerMetadataUrl;
 
     /**
-     * 是否使用 OAuth 策略（对照 Go IsOAuth）。
+     * 是否使用 OAuth 策略。
      *
-     * @JsonIgnore 是**必须的**：Go 的方法是方法、不参与 JSON；Java 的 isXxx 会被 Jackson
+     * @JsonIgnore 是**必须的**：Java 的 isXxx 会被 Jackson
      * 当属性序列化成 "oauth":true，落库后再回读就抛 UnrecognizedPropertyException，
-     * 导致整个 auth_config 列不可用（阶段 3 的 isAborted / isMultimodalEnabled 踩过同一个坑）。
+     * 导致整个 auth_config 列不可用（其他实体的 isAborted / isMultimodalEnabled 踩过同一个坑）。
      */
     @JsonIgnore
     public boolean isOAuth() {

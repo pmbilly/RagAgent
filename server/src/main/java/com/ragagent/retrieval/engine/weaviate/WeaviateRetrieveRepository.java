@@ -25,41 +25,36 @@ import com.ragagent.retrieval.engine.weaviate.WeaviateRestClient.Json;
 import com.ragagent.vectorstore.domain.IndexConfig;
 
 /**
- * Weaviate 检索引擎仓储——对照 Go {@code repository/retriever/weaviate/} 全包
- * （repository.go 1064 + structs.go 33 + move.go 77，约 1,170 行非测试）。
+ * Weaviate 检索引擎仓储。
  *
  * <h2>协议口径</h2>
- * Go 的 weaviate-go-client v5：GraphQL 检索/列举与批量删除<b>本就是 REST</b>，批量创建默认
- * 走 gRPC（无 gRPC 客户端时同样回落 REST {@code POST /v1/batch/objects}）。本仓统一自持
- * REST（见 {@link WeaviateRestClient}），GraphQL 查询串逐字节对照客户端 {@code Build()}
- * 的 Go 实录（{@code WeaviateGql}）。类名默认 {@code Weknora_embeddings}——<b>照 Go 原文的
- * 拼写</b>（"Weknora"，不是 WeKnora），改名会与既有部署的类名不匹配。
+ * 本仓统一自持 REST（见 {@link WeaviateRestClient}），GraphQL 查询串逐字节对齐客户端
+ * {@code Build()} 的实测形态（{@code WeaviateGql}）。类名默认 {@code Weknora_embeddings}——
+ * <b>沿用既有部署的拼写</b>（"Weknora"，不是 WeKnora），改名会与既有部署的类名不匹配。
  *
- * <h2>语义要点（照 Go）</h2>
+ * <h2>语义要点</h2>
  * <ul>
  *   <li>类按维度命名 {@code <base>_<dim>}；建类时命名向量 {@code embedding}（hnsw + cosine +
- *       efConstruction 128 / maxConnections 32 / ef 64、vectorizer none）、content 用 gse 分词、
+ *       efConstruction 128 / maxConnections 32 / ef 64、vectorizer none）、content 用服务端 gse 分词、
  *       chunk/knowledge/kb/tag/is_enabled 可过滤；</li>
  *   <li>对象 ID = chunkID（Weaviate 要求 UUID —— 本仓的 chunk id 即 UUID）；</li>
  *   <li>删除走批量删除（{@code ContainsAny} + output minimal）；</li>
  *   <li>关键词检索用 BM25（properties=[content]，中文依赖服务端 gse 分词）；</li>
  *   <li>向量检索结果分数取 {@code _additional.certainty}，关键词结果有 score 时恒记 1.0
- *       （缺失则 0.0——照 Go 的三元分支）。</li>
+ *       （缺失则 0.0）。</li>
  * </ul>
  *
- * <h2>与 Go 的差异（备案 + 两处有意修正）</h2>
+ * <h2>实现差异（两处有意修正）</h2>
  * <ol>
  *   <li><b>修正</b>：{@code BatchUpdateChunkEnabledStatus}/{@code BatchUpdateChunkTagID} 用
- *       <b>PATCH merge</b>（Go 的 {@code Updater} 无 merge → PUT 整对象替换——实测会清掉未提供的
- *       属性<b>与向量</b>，是真实数据丢失缺陷）；错误语义仍照 Go：逐对象失败只记日志不冒泡。</li>
+ *       <b>PATCH merge</b>（PUT 整对象替换——实测会清掉未提供的
+ *       属性<b>与向量</b>，是真实数据丢失缺陷）；错误语义不变：逐对象失败只记日志不冒泡。</li>
  *   <li><b>修正</b>：{@code CopyIndices} 的分页用 {@code where + limit + offset} 且取
- *       {@code _additional{vectors{embedding}}}（Go 用 {@code where + limit + after}——服务端
+ *       {@code _additional{vectors{embedding}}}（旧客户端的 {@code where + limit + after}——服务端
  *       直接拒绝 "where cannot be set with after and limit parameters"，且命名向量类下
- *       {@code _additional{vector}} 恒空 → Go 的拷贝在本仓服务端版本上必失败）。</li>
- *   <li>批量创建走 REST（Go 默认 gRPC；per-object 错误在 BatchSave 里 Go 不检查，本仓记 WARN）。</li>
+ *       {@code _additional{vector}} 恒空 → 旧拷贝路径在本仓服务端版本上必失败）。</li>
+ *   <li>批量创建走 REST（per-object 错误在 BatchSave 里记 WARN）。</li>
  *   <li>{@code grpc_address} 不参与本实现（REST 无 gRPC 面）；地址策略与配置字段保持不变。</li>
- *   <li>Go 的 {@code weaviate.tokenizeQuery} 是死代码（无调用点），未翻译。</li>
- *   <li>Go 的批量更新里有 {@code if err != nil}（用的是上一个调用的陈旧 err）死分支，未复刻。</li>
  * </ol>
  */
 public class WeaviateRetrieveRepository
@@ -67,9 +62,9 @@ public class WeaviateRetrieveRepository
 
     private static final Logger log = LoggerFactory.getLogger(WeaviateRetrieveRepository.class);
 
-    /** 对照 {@code defaultCollectionName}（Go 原文拼写）。 */
+    /** 缺省 collection 名（沿用既有部署的拼写）。 */
     public static final String DEFAULT_COLLECTION_NAME = "Weknora_embeddings";
-    /** 对照 {@code envWeaviateCollection}。 */
+    /** collection 名环境键。 */
     public static final String ENV_WEAVIATE_COLLECTION = "WEAVIATE_COLLECTION";
 
     static final String FIELD_CONTENT = "content";
@@ -82,9 +77,9 @@ public class WeaviateRetrieveRepository
     static final String FIELD_EMBEDDING = "embedding";
     static final String FIELD_IS_ENABLED = "is_enabled";
 
-    /** 对照 CopyIndices 的 {@code batchSize := 64}。 */
+    /** CopyIndices 分页大小。 */
     static final int COPY_PAGE_SIZE = 64;
-    /** 对照 move 的每页 100。 */
+    /** move 的每页条数。 */
     static final int MOVE_PAGE_SIZE = 100;
 
     final WeaviateRestClient client;
@@ -95,7 +90,7 @@ public class WeaviateRetrieveRepository
     final WeaviateSearchOps searchOps;
     final WeaviateWriteOps writeOps;
 
-    /** 对照 {@code initializedCollections sync.Map}：dim -> true。 */
+    /** 已初始化集合表：dim -> true。 */
     private final ConcurrentHashMap<Integer, Boolean> initializedCollections =
             new ConcurrentHashMap<>();
 
@@ -110,7 +105,7 @@ public class WeaviateRetrieveRepository
         this.writeOps = new WeaviateWriteOps(this);
     }
 
-    /** 照 Go {@code NewWeaviateRetrieveEngineRepository} + {@code createWeaviateEngine}。 */
+    /** 构造入口：建 client + 解析 collection 名。 */
     public static WeaviateRetrieveRepository create(String host, String scheme, String apiKey,
                                                     IndexConfig indexCfg, SsrfGuard guard) {
         log.info("[Weaviate] Initializing Weaviate retriever engine repository");
@@ -123,7 +118,7 @@ public class WeaviateRetrieveRepository
         return repo;
     }
 
-    /** 对照 {@code types.ResolveCollectionName(indexCfg, WEAVIATE_COLLECTION, default)}。 */
+    /** collection 名解析：indexCfg 前缀/名称 > env {@code WEAVIATE_COLLECTION} > 缺省。 */
     static String resolveCollectionName(IndexConfig indexCfg) {
         if (indexCfg != null) {
             if (indexCfg.collectionPrefix != null && !indexCfg.collectionPrefix.isEmpty()) {
@@ -152,7 +147,7 @@ public class WeaviateRetrieveRepository
         return List.of(EngineTypes.RETRIEVER_KEYWORDS, EngineTypes.RETRIEVER_VECTOR);
     }
 
-    /** 对照 {@code EstimateStorageSize}（HNSW M=32；payload 不含 tag_id——照 Go）。 */
+    /** 存储估算（HNSW M=32；payload 不含 tag_id）。 */
     @Override
     public long estimateStorageSize(List<IndexInfo> indexInfoList, Map<String, Object> params) {
         if (indexInfoList == null) {
@@ -204,7 +199,7 @@ public class WeaviateRetrieveRepository
         return bytes;
     }
 
-    // ── 类管理（照 ensureCollection） ──────────────────────────────────────
+    // ── 类管理 ──────────────────────────────────────────────────────────────
 
     String collectionName(int dimension) {
         return collectionBaseName + "_" + dimension;
@@ -237,7 +232,7 @@ public class WeaviateRetrieveRepository
         initializedCollections.put(dimension, true);
     }
 
-    /** 对照 {@code models.Class}：命名向量 + gse 分词 + 可过滤属性（字段名与值逐条照 Go）。 */
+    /** 类 schema：命名向量 + 服务端 gse 分词 + 可过滤属性（字段名与值固定）。 */
     static ObjectNode classBody(String className, int dimension) {
         ObjectNode body = Json.object();
         body.put("class", className);
@@ -293,7 +288,7 @@ public class WeaviateRetrieveRepository
         return node;
     }
 
-    /** 建类请求体 + 可选 replicationConfig / shardingConfig（照 {@code ensureCollection} 后段）。 */
+    /** 建类请求体 + 可选 replicationConfig / shardingConfig。 */
     private ObjectNode classBodyWithClusterOptions(String className, int dimension) {
         ObjectNode body = classBody(className, dimension);
         if (replicationFactor > 0) {
@@ -306,7 +301,7 @@ public class WeaviateRetrieveRepository
     }
 
 
-    /** 对照 {@code BatchSave}：按维度分组 → 每维一次批量创建（REST，照客户端的回落路径）。 */
+    /** 批量保存：按维度分组 → 每维一次批量创建（REST）。 */
 
 
     List<String> listCollectionsOrThrow() {
@@ -318,7 +313,7 @@ public class WeaviateRetrieveRepository
         }
     }
 
-    /** 对照 {@code ListCollections}（{@code Schema().Getter()}；错误文案照 Go 的中文原文）。 */
+    /** 列举集合；错误文案为既有契约。 */
     List<String> listCollections() {
         JsonNode schema;
         try {
@@ -337,7 +332,7 @@ public class WeaviateRetrieveRepository
         return names;
     }
 
-    /** 照 Go 的集合名前缀过滤：严格长于 base 且以此为前缀。 */
+    /** 集合名前缀过滤：严格长于 base 且以此为前缀。 */
     boolean isPrefixed(String collection) {
         return collection.length() > collectionBaseName.length()
                 && collection.startsWith(collectionBaseName);
@@ -347,7 +342,7 @@ public class WeaviateRetrieveRepository
 
     /**
      * 取 {@code data.Get.<collection>}：GraphQL errors → {@code graphql search failed: <first>}；
-     * 缺 data/缺类 → null（照 Go 的 continue/空结果分支）；类存在但空集 → 空数组。
+     * 缺 data/缺类 → null（调用方跳过）；类存在但空集 → 空数组。
      */
     static JsonNode extractItems(JsonNode response, String collection) {
         if (response == null) {
@@ -426,7 +421,7 @@ public class WeaviateRetrieveRepository
     }
 
 
-    // ── move（照 move.go：seen-set 循环 + merge） ──────────────────────────
+    // ── move（seen-set 循环 + merge） ───────────────────────────────────────
 
     @Override
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
@@ -487,7 +482,7 @@ public class WeaviateRetrieveRepository
 
     // ── 行映射与辅助 ───────────────────────────────────────────────────────
 
-    /** 对照 {@code toWeaviateVectorEmbedding}：embedding 按 SourceID 取（缺失 → null）。 */
+    /** embedding 按 SourceID 取（缺失 → null）。 */
     static WeaviateVectorEmbedding toEmbedding(IndexInfo info, Map<String, Object> params) {
         WeaviateVectorEmbedding row = new WeaviateVectorEmbedding();
         row.content = info.content == null ? "" : info.content;
@@ -522,7 +517,7 @@ public class WeaviateRetrieveRepository
     }
 
     /**
-     * 对照 {@code translateSourceID} 的三态（与 Qdrant/Doris 实现镜像）：
+     * SourceID 三态改写（与 Qdrant/Doris 实现镜像）：
      * 普通 chunk（{@code SourceID == ChunkID}）→ targetChunkID；生成型问题
      * （{@code "<chunkID>-<questionID>"}）→ 换前缀；其他 → 新 UUID。
      */
@@ -539,12 +534,12 @@ public class WeaviateRetrieveRepository
         return UUID.randomUUID().toString();
     }
 
-    // ── test-connection 探针（照 testWeaviateConnection） ──────────────────
+    // ── test-connection 探针 ────────────────────────────────────────────────
 
     /**
      * 连通性探针：ready 检查（失败 → 异常，调用方折叠成
      * "failed to connect to weaviate: server not ready or authentication failed"）；
-     * 再取 {@code /v1/meta} 的 version（失败 → ""，照 Go 的"连上了但版本未知"）。
+     * 再取 {@code /v1/meta} 的 version（失败 → ""，连上了但版本未知）。
      */
     public static String testConnection(String host, String scheme, String apiKey,
                                         SsrfGuard guard) {

@@ -5,14 +5,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 会话内 MCP OAuth 授权提示事件体（对照 Go {@code event.MCPOAuthRequiredData}，
- * internal/event/event_data.go:284-296）。
- * emit 点：agent/approval/gate.go:479（{@code <pendingID>-mcp-oauth-required}）与
- * agent/tools/mcp_oauth.go:201（{@code mcp-oauth-notice-<serviceID>}，仅提示形态、
- * {@code timeout_seconds=0}），见包注释 emit 表 #12/#23。
+ * 会话内 MCP OAuth 授权提示事件体。
+ * emit 点：common/approval/Gate（{@code <pendingID>-mcp-oauth-required}）与
+ * agent/tools/McpOAuthSupport（{@code mcp-oauth-notice-<serviceID>}，仅提示形态、
+ * {@code timeout_seconds=0}），见包注释 emit 表 #12/#22。
  *
  * <p>对话中调用了带 OAuth 的 MCP 服务但当前用户尚未授权时发出；UI 弹"授权"卡片，
- * agent 暂停等待。实录锚点：仅 {@code request_id} 带 omitempty，其余恒输出
+ * agent 暂停等待。仅 {@code request_id} 空串省略，其余恒输出
  * （noticeOnly 形态的 {@code timeout_seconds:0} 也输出）。</p>
  */
 @JsonPropertyOrder({"pending_id", "tenant_id", "session_id", "assistant_message_id",
@@ -23,7 +22,7 @@ public class MCPOAuthRequiredData {
     @JsonProperty("pending_id")
     private String pendingId = "";
 
-    /** Go uint64；无 omitempty：0 恒输出 */
+    /** 0 恒输出 */
     @JsonProperty("tenant_id")
     private long tenantId;
 
@@ -42,18 +41,18 @@ public class MCPOAuthRequiredData {
     @JsonProperty("mcp_tool_name")
     private String mcpToolName = "";
 
-    /** 无 omitempty：0（仅提示形态）也输出 */
+    /** 0（仅提示形态）也输出 */
     @JsonProperty("timeout_seconds")
     private int timeoutSeconds;
 
-    /** Go {@code RequestedAtUnix int64 `json:"requested_at"`}；无 omitempty */
+    /** 请求发出时间（unix 秒）；恒输出 */
     @JsonProperty("requested_at")
     private long requestedAtUnix;
 
     @JsonProperty("tool_call_id")
     private String toolCallId = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("request_id")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String requestId = "";

@@ -29,9 +29,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * chunk 模块契约测试（波 2 第一批，10 条路由）。golden：record-chunk-golden.sh。
+ * chunk 模块契约测试（10 条路由）。golden：record-chunk-golden.sh。
  *
- * <p>种子数据严格复刻录制脚本（scripts/record-chunk-golden.sh）：KB 关掉
+ * <p>种子数据与录制脚本（scripts/record-chunk-golden.sh）一致：KB 关掉
  * vector/keyword 索引（syncChunkIndex 早退 → index_status=ready 全确定性）、
  * C1..C5 的 seq_id 与 golden 逐字一致（数字不在掩码范围）、contributor/viewer
  * 用户用于 ownership 守卫的 403 纯字符串。</p>
@@ -210,7 +210,7 @@ class ChunkContractTest {
         assertEquals(mask(golden("chunk-list-paged.json")), mask(raw(r)));
     }
 
-    /** page=0 被 omitempty 跳过（200 且归一化成 1）——波 1 G1 同款契约。 */
+    /** page=0 视为未传（200 且归一化成 1）。 */
     @Test
     void listPageZeroMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(get("/api/v1/chunks/" + KG1)
@@ -236,7 +236,7 @@ class ChunkContractTest {
         assertEquals(golden("chunk-list-badsize.json"), raw(r));
     }
 
-    /** 空仓库 → "data":[]（GORM Find 的非 nil 切片语义）。 */
+    /** 空仓库 → "data":[]（空结果也输出数组，不落 null）。 */
     @Test
     void listEmptyMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(get("/api/v1/chunks/" + KG3)
@@ -294,7 +294,7 @@ class ChunkContractTest {
         assertEquals(golden("chunk-update-conflict.json"), raw(c));
     }
 
-    /** 空内容在 Go 是 fmt.Errorf → 500 信封 code=1007 且 message=原文（不是 400）。 */
+    /** 空内容 → 500 信封 code=1007 且 message=原文（不是 400）。 */
     @Test
     void updateEmptyContentIs500() throws Exception {
         MvcResult r = mockMvc.perform(jsonBody(
@@ -398,7 +398,7 @@ class ChunkContractTest {
         assertEquals(golden("chunk-revert-negative.json"), raw(n));
     }
 
-    /** 未知 revision → gorm 原文 "record not found"（400，不是 404）。 */
+    /** 未知 revision → 400 且 message 为上游原文 "record not found"（不是 404）。 */
     @Test
     void revertUnknownRevisionMatchesGo() throws Exception {
         MvcResult r = mockMvc.perform(jsonBody(
@@ -471,7 +471,7 @@ class ChunkContractTest {
     @Test
     void questionDeleteWithoutModelMatchesGo() throws Exception {
         String path = "/api/v1/chunks/by-id/" + C4 + "/questions";
-        // 录制脚本在此前已创建过一个问题（chunk-q-create）；先复刻创建并取回其 id
+        // 录制序此前已创建过一个问题（chunk-q-create）；先同样创建一个并取回其 id
         MvcResult created = mockMvc.perform(jsonBody(put(path), owner,
                 "{\"question\":\"新问题?\"}")).andReturn();
         Matcher cm = Pattern.compile(

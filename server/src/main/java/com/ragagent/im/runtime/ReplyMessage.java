@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * WeKnora 发回 IM 平台的回复（对照 Go {@code im.ReplyMessage}，adapter.go L114-123）。
+ * WeKnora 发回 IM 平台的回复。
  */
 public final class ReplyMessage {
 

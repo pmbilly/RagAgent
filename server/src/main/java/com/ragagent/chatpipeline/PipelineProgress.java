@@ -16,15 +16,15 @@ import com.ragagent.event.payload.AgentToolResultData;
 import com.ragagent.common.retrieval.SearchResult;
 
 /**
- * 管线进度事件（对照 Go chat_pipeline/progress.go）。
+ * 管线进度事件。
  *
  * <p>合并检索窗口：SEARCH_PARALLEL/RERANK/MERGE/FILTER_TOP_K（+ web_fetch/data_analysis
  * 条件生效）共用一个 {@code knowledge_search} 工具的 pending/tool_result 事件对；
  * ErrSearchNothing 短路时窗口照关（候选数进 data.candidate_count，命中数清零——
  * "检索到 N 条" 不能许诺回答从未见过引用）。query_understand 有独立窗口。</p>
  *
- * <p>tool_call_id 是 uuid（实录组 progress 以 MASKED-UUID 掩码比对）；duration 是
- * omitempty 键（两侧同删）。事件经 EventBus emit，失败恒忽略（{@code _ =}）。</p>
+ * <p>tool_call_id 是 uuid；duration 为零值时输出省略该键。事件经 EventBus emit，
+ * 失败恒忽略。</p>
  */
 public final class PipelineProgress {
 
@@ -40,7 +40,7 @@ public final class PipelineProgress {
 
     private PipelineProgress() {}
 
-    /** 阶段进行中的进度工具调用（对照 StageProgress）。 */
+    /** 阶段进行中的进度工具调用状态。 */
     public static final class StageProgress {
         final String toolCallId;
         final String toolName;
@@ -51,7 +51,6 @@ public final class PipelineProgress {
         }
     }
 
-    /** 对照 ShouldEmitQueryUnderstandProgress。 */
     public static boolean shouldEmitQueryUnderstandProgress(ChatManage chatManage) {
         if (chatManage == null) {
             return false;
@@ -60,7 +59,7 @@ public final class PipelineProgress {
                 || (chatManage.getImages() != null && !chatManage.getImages().isEmpty());
     }
 
-    /** 对照 IsConsolidatedRetrievalStage。 */
+    /** 是否属于共用检索进度窗口的阶段。 */
     public static boolean isConsolidatedRetrievalStage(String stage, ChatManage chatManage) {
         if (chatManage == null) {
             return false;
@@ -80,7 +79,7 @@ public final class PipelineProgress {
         }
     }
 
-    /** 对照 LastConsolidatedRetrievalStage（无命中返回 ""）。 */
+    /** 最后一个共用检索进度窗口的阶段（无命中返回 ""）。 */
     public static String lastConsolidatedRetrievalStage(List<String> eventList, ChatManage chatManage) {
         String last = "";
         for (String stage : eventList) {
@@ -91,13 +90,13 @@ public final class PipelineProgress {
         return last;
     }
 
-    /** 对照 ShouldCloseRetrievalProgress（ErrSearchNothing 引用比较在此生效）。 */
+    /** 检索进度窗口是否该关闭（ErrSearchNothing 引用比较在此生效）。 */
     public static boolean shouldCloseRetrievalProgress(String stage, String lastRetrievalStage,
                                                        PluginError stageErr) {
         return stage.equals(lastRetrievalStage) || stageErr != null;
     }
 
-    /** 对照 BeginRetrievalProgress：发单个 pending knowledge_search tool_call。 */
+    /** 发单个 pending knowledge_search tool_call。 */
     public static StageProgress beginRetrievalProgress(ChatManage chatManage) {
         if (chatManage == null || chatManage.getEventBus() == null) {
             return null;
@@ -115,7 +114,6 @@ public final class PipelineProgress {
         return new StageProgress(toolCallId, RETRIEVAL_PROGRESS_TOOL);
     }
 
-    /** 对照 BeginQueryUnderstandProgress。 */
     public static StageProgress beginQueryUnderstandProgress(ChatManage chatManage) {
         if (chatManage == null || chatManage.getEventBus() == null
                 || !shouldEmitQueryUnderstandProgress(chatManage)) {
@@ -134,7 +132,6 @@ public final class PipelineProgress {
         return new StageProgress(toolCallId, QUERY_UNDERSTAND_PROGRESS_TOOL);
     }
 
-    /** 对照 EndQueryUnderstandProgress。 */
     public static void endQueryUnderstandProgress(ChatManage chatManage, StageProgress progress,
                                                   long startMillis, PluginError stageErr) {
         if (progress == null || chatManage == null || chatManage.getEventBus() == null) {
@@ -156,7 +153,7 @@ public final class PipelineProgress {
         emit(chatManage.getEventBus(), toolResultEvent(chatManage.getSessionId(), data));
     }
 
-    /** 对照 EndRetrievalProgress：命中分档文案 + search_source + ErrSearchNothing 候选语义。 */
+    /** 命中分档文案 + search_source + ErrSearchNothing 候选语义。 */
     public static void endRetrievalProgress(ChatManage chatManage, StageProgress progress,
                                             long startMillis, PluginError stageErr) {
         if (progress == null || chatManage == null || chatManage.getEventBus() == null) {
@@ -220,7 +217,7 @@ public final class PipelineProgress {
         emit(chatManage.getEventBus(), toolResultEvent(chatManage.getSessionId(), data));
     }
 
-    // ----- 内部（progress.go:251-306） -----
+    // ----- 内部 -----
 
     static boolean hasKBRetrievalTargets(ChatManage chatManage) {
         if (chatManage == null) {
@@ -308,7 +305,7 @@ public final class PipelineProgress {
         try {
             bus.emit(evt);
         } catch (RuntimeException ignored) {
-            // 对照 `_ = bus.Emit(...)`：进度事件失败不影响回答
+            // 进度事件失败不影响回答
         }
     }
 }

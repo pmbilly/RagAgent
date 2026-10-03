@@ -10,38 +10,33 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 
 /**
- * IMA 连接器的**纯函数与常量**（对照 Go {@code ima/types.go} 的
- * {@code logicalKey} / 媒体类型枚举 / {@code extensionForMediaType} /
- * {@code extensionForContentType} / {@code mimeForExtension} / {@code isSkippableMediaType} /
- * {@code sanitizeFileName}）。
+ * IMA 连接器的**纯函数与常量**（身份键、媒体类型枚举、扩展名/MIME 映射、
+ * 文件名净化）。
  *
- * <p>集中在一个不可实例化的类里，是因为这些函数的期望值全部来自
- * <b>Go 实录程序</b>（把 Go 源码原样抄进独立程序跑出来的真值），测试
- * {@code ImaFormatsTest} 逐条钉住——放在连接器主体里会让它们被
- * HTTP 逻辑淹没。</p>
+ * <p>集中在一个不可实例化的类里：测试 {@code ImaFormatsTest} 逐条钉住这些
+ * 纯函数——放在连接器主体里会让它们被 HTTP 逻辑淹没。</p>
  *
- * <h2>⚠️ 跨语言的身份契约：{@link #logicalKey}</h2>
+ * <h2>⚠️ 身份契约：{@link #logicalKey}</h2>
  * <p>它算出来的字符串会作为 {@code FetchedItem.external_id} 落进
- * {@code knowledges.external_id}。Go 写下的行必须能被 Java 认出是同一条
- * ——所以这里的实现是**逐字节照抄**，不是"等价实现"：分隔符是
- * {@code \x1f}（Go 的 {@code "\x1f"} 是一个字节），哈希对象是
+ * {@code knowledges.external_id}，必须与既有数据逐字节一致：分隔符是
+ * {@code \x1f}（单字节），哈希对象是
  * {@code "%s\x1f%s\x1f%s"} 的 UTF-8 字节，取 SHA-256 十六进制小写的前 32 位。
  * 测试里钉了 14 组真值，任何"顺手改成 {@code |} 分隔"或"改成
  * {@code HexFormat} 大写"的改动都会被立刻抓到。</p>
  *
  * <h2>{@code sanitizeFileName} 与飞书的那一份**写法不同**</h2>
  * <p>飞书连接器的同名函数带"保留扩展名"的逻辑，IMA 与语雀都没有——
- * 三份刻意各自独立，不要统一（约定 §7.5 的"逐模块照抄"原则）。</p>
+ * 三份刻意各自独立，不要统一。</p>
  */
 public final class ImaFormats {
 
-    /** 对照 Go {@code ima.DefaultBaseURL}：用户只配 host 时回落的地址。 */
+    /** 用户只配 host 时回落的地址。 */
     public static final String DEFAULT_BASE_URL = "https://ima.qq.com";
 
     private ImaFormats() {
     }
 
-    // ── 媒体类型枚举（对照 Go 的 mediaType* 常量） ─────────────────────────
+    // ── 媒体类型枚举 ───────────────────────────────────────────────────────
 
     public static final int MEDIA_TYPE_PDF = 1;
     public static final int MEDIA_TYPE_WEB = 2;
@@ -63,7 +58,7 @@ public final class ImaFormats {
     // ── 纯函数 ────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code extensionForMediaType}：IMA 媒体类型 → 文件扩展名。
+     * IMA 媒体类型 → 文件扩展名。
      * 无固定扩展名的类型（网页 / 笔记 / AI 会话 / 视频解析）回空串。
      */
     public static String extensionForMediaType(int mediaType) {
@@ -84,7 +79,7 @@ public final class ImaFormats {
     }
 
     /**
-     * 对照 Go {@code extensionForContentType}：响应 {@code Content-Type} → 扩展名，
+     * 响应 {@code Content-Type} → 扩展名，
      * 忽略 {@code "; charset=..."} 尾巴。
      *
      * <p>IMA 把所有图片都报成 {@code media_type=9}，只有下载响应的
@@ -109,7 +104,7 @@ public final class ImaFormats {
     }
 
     /**
-     * 对照 Go {@code mimeForExtension}：扩展名 → 规范 MIME。
+     * 扩展名 → 规范 MIME。
      * 下载响应的 Content-Type 缺失（或被报成 {@code application/octet-stream}）时用它补齐。
      */
     public static String mimeForExtension(String ext) {
@@ -149,7 +144,7 @@ public final class ImaFormats {
     }
 
     /**
-     * 对照 Go {@code isSkippableMediaType}：IMA 根本不提供读该类型内容的途径。
+     * IMA 根本不提供读该类型内容的途径。
      * AI 会话只有 session_id、视频解析在桌面端之外连加都加不进去。
      * <b>笔记不在此列</b>——它走 note 命名空间读，见 {@code fetchNote}。
      */
@@ -158,13 +153,11 @@ public final class ImaFormats {
     }
 
     /**
-     * 对照 Go 的 {@code strings.TrimSpace(x) == ""}。
+     * 空白判定（含 U+00A0 与 U+3000）。
      *
-     * <p>Go 的 {@code unicode.IsSpace} 含 U+00A0 与 U+3000，而 Java 的
-     * {@code String.isBlank()} / {@code strip()} 走 {@code Character.isWhitespace}
-     * （<b>不含</b> U+00A0）——与 memory 模块记录的 {@code isGoSpace} 是同一族差异，
-     * 这里显式补上。凭据字段实际只可能是 ASCII，但这条判据同时服务笔记正文的
-     * "空内容"判定，值得对齐。</p>
+     * <p>{@code String.isBlank()} / {@code strip()} 走 {@code Character.isWhitespace}
+     * （<b>不含</b> U+00A0），所以这里显式补上。凭据字段实际只可能是 ASCII，
+     * 但这条判据同时服务笔记正文的"空内容"判定。</p>
      */
     public static boolean isGoBlank(String s) {
         if (s == null) {
@@ -174,11 +167,11 @@ public final class ImaFormats {
                 || cp == 0x00A0 || cp == 0x3000);
     }
 
-    /** 限定在 ASCII 字符集内的 SHA-256 十六进制（小写），与 Go 的 {@code hex.EncodeToString} 同字母表。 */
+    /** 限定在 ASCII 字符集内的 SHA-256 十六进制（小写）。 */
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
 
     /**
-     * 对照 Go {@code logicalKey}：能扛住"同名替换"的稳定身份（IMA 在服务端就地替换
+     * 能扛住"同名替换"的稳定身份（IMA 在服务端就地替换
      * 同名文件时会重新分配 media_id）。
      *
      * <p>键是 {@code (kb_id, parent_folder_id, title)} 的短 SHA-256 十六进制，
@@ -208,17 +201,17 @@ public final class ImaFormats {
         return sb.toString();
     }
 
-    /** 对照 Go 的字符串零值：nil 与 "" 等价（Java 侧允许 null 进来）。 */
+    /** null 与空串等价。 */
     private static String nullSafe(String s) {
         return s == null ? "" : s;
     }
 
     /**
-     * 对照 Go {@code sanitizeFileName}：剔掉文件系统敌意字符、在安全 UTF-8 边界上截断。
+     * 剔掉文件系统敌意字符、在安全 UTF-8 边界上截断。
      *
-     * <p><b>长度上限是 200 字节而不是 200 个字符</b>（Go 的 {@code len(string)} 数的是字节）。
-     * 中文标题按字符数截会放宽三倍，且 Go 的截断点之后的"剥半个 rune"逻辑也必须照抄——
-     * 否则 {@code utf8.ValidString} 会拒绝下游文件名。</p>
+     * <p><b>长度上限是 200 字节而不是 200 个字符</b>。
+     * 中文标题按字符数截会放宽三倍；截断点之后必须剥掉残缺的多字节序列，
+     * 保证结果始终是合法 UTF-8。</p>
      */
     public static String sanitizeFileName(String name) {
         if (name == null || name.isEmpty()) {
@@ -245,8 +238,7 @@ public final class ImaFormats {
     }
 
     /**
-     * 把字节前缀切成"仍是合法 UTF-8"的最长前缀（对照 Go 里那段
-     * {@code utf8.DecodeLastRuneInString} 的剥离循环：一个 rune 最多 4 字节，
+     * 把字节前缀切成"仍是合法 UTF-8"的最长前缀（一个码点最多 4 字节，
      * 所以要剥的尾巴不超过 3 字节）。
      */
     static byte[] truncateToValidUtf8(byte[] bytes, int maxBytes) {

@@ -8,24 +8,23 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * 按 principal 隔离的 MCP OAuth token（对照 Go types.MCPOAuthToken，
- * internal/types/mcp_oauth.go:77-95）。
+ * 按 principal 隔离的 MCP OAuth token。
  *
  * <p>Agent 代表**发起调用的 principal** 连接 MCP 服务，所以 token 按
  * (tenant_id, principal_type, principal_id, service_id) 隔离——
  * 不是按 user 隔离。</p>
  *
- * <p>⚠️ 保真要点：Go struct 已从 (tenant, user, service) 演进为
+ * <p>⚠️ 历史要点：隔离维度已从 (tenant, user, service) 演进为
  * (tenant, principal_type, principal_id, service)，索引名为
  * {@code idx_mcp_oauth_tokens_tenant_principal_svc}，user_id 放宽到 VARCHAR(512)。
- * <b>迁移脚本（000062 未含 principal 列、000064 才补）落后于 struct，
- * 以 struct 为准。</b></p>
+ * <b>迁移脚本（000062 未含 principal 列、000064 才补）曾落后于模型，
+ * 以当前模型为准。</b></p>
  *
  * <p>另有 refresh 租约 CAS：RefreshLeaseID / RefreshLeaseUntil 协调**跨实例**的
  * refresh-token 轮换，保证同一时刻只有一个所有者能拿旧 refresh token 去换新，
  * 这是纯运维字段，永不对外暴露。</p>
  *
- * GORM 隐式行为清单（约定 §3）：
+ * 落库行为清单：
  * <ul>
  *   <li>表名 {@code mcp_oauth_tokens}（Go 显式 TableName）</li>
  *   <li>钩子 BeforeCreate/BeforeSave：加密 access_token / refresh_token → TypeHandler</li>
@@ -41,23 +40,23 @@ public class McpOAuthToken {
     private Long tenantId;
     /**
      * 历史遗留的「所有者 id」列。新代码以 principal_type/principal_id 为准；
-     * 为空时由仓储层填 principal.StorageID()（对照 Go SaveTokenForPrincipal）。
+     * 为空时由仓储层填 principal.StorageID()。
      */
     private String userId;
     private String principalType;
     private String principalId;
     private String serviceId;
-    /** 秘密：落库加密、读回宽容解密（对照 Go tag `json:"-"`） */
+    /** 秘密：落库加密、读回宽容解密 */
     @TableField(typeHandler = McpSecretTypeHandler.class)
     private String accessToken;
-    /** 秘密：落库加密、读回宽容解密（对照 Go tag `json:"-"`） */
+    /** 秘密：落库加密、读回宽容解密 */
     @TableField(typeHandler = McpSecretTypeHandler.class)
     private String refreshToken;
     private String tokenType;
     private OffsetDateTime expiresAt;
-    /** 运维字段，永不暴露（对照 Go tag `json:"-"`） */
+    /** 运维字段，永不暴露 */
     private String refreshLeaseId;
-    /** 运维字段，永不暴露（对照 Go tag `json:"-"`） */
+    /** 运维字段，永不暴露 */
     private OffsetDateTime refreshLeaseUntil;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

@@ -11,8 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.mcp.protocol.McpContext;
 
 /**
- * OAuth2 授权码流程客户端：发现 → 动态客户端注册 → 授权跳转 → code 交换 → 刷新
- * （对照 mcp-go {@code client/transport.OAuthHandler}，oauth.go:170-1101）。
+ * OAuth2 授权码流程客户端：发现 → 动态客户端注册 → 授权跳转 → code 交换 → 刷新。
  *
  * <p>这是本项目<b>自研</b>的实现，替代 mcp-go 依赖；协议语义逐条对照，其中：
  * <ul>
@@ -29,13 +28,12 @@ import com.ragagent.mcp.protocol.McpContext;
  *   <li><b>GitHub 兼容</b>：HTTP 200 也可能带 {@code error} 字段，故先探 OAuthError 再解析 Token。</li>
  * </ul>
  *
- * <p><b>与 Go 的差异（仅出站实现）</b>：Go 用 {@code *http.Client}（SSRF-safe dialer）+
- * 完整 {@code http.Request}；Java 侧统一走 {@link OAuthHttp}（基于 {@code McpHttp} 的
- * "发送前校验 + 逐跳重定向校验 + 跨域剥凭据头"）。协议行为一致。</p>
+ * <p><b>出站实现</b>：统一走 {@link OAuthHttp}（基于 {@code McpHttp} 的
+ * "发送前校验 + 逐跳重定向校验 + 跨域剥凭据头"）。协议行为与既有契约一致。</p>
  */
 public class OAuthHandler {
 
-    /** 对照 mcp-go {@code ErrInvalidState}。 */
+    /** state 不匹配时的固定错误文案（CSRF 防线）。 */
     public static final String INVALID_STATE_MESSAGE = "invalid state parameter, possible CSRF attack";
 
     static final ObjectMapper MAPPER = new ObjectMapper()
@@ -45,10 +43,10 @@ public class OAuthHandler {
 
     final OAuthConfig config;
 
-    /** 元数据发现协作者（对照 Go metadataOnce 段）。 */
+    /** 元数据发现协作者。 */
     final OAuthDiscovery discovery;
 
-    /** 协议交换协作者（对照 Go 刷新/注册/授权/code 交换段）。 */
+    /** 协议交换协作者（刷新/注册/授权/code 交换）。 */
     final OAuthTokenOps tokenOps;
     final Duration timeout;
 
@@ -137,19 +135,19 @@ public class OAuthHandler {
 
     // ── 配置读写 ───────────────────────────────────────────────────────
 
-    /** 对照 Go {@code GetClientID}。 */
+    /** 当前注册的 client_id。 */
     public String getClientId() {
         return config.clientId();
     }
 
-    /** 对照 Go {@code GetClientSecret}。 */
+    /** 当前注册的 client_secret。 */
     public String getClientSecret() {
         return config.clientSecret();
     }
 
     // ── CSRF：expected state ───────────────────────────────────────────
 
-    /** 对照 Go {@code SetExpectedState}。 */
+    /** 记录本次授权流程的期望 state（跨请求重建 handler 后校验用）。 */
     public void setExpectedState(String value) {
         stateLock.lock();
         try {
@@ -159,7 +157,7 @@ public class OAuthHandler {
         }
     }
 
-    /** 对照 Go {@code GetExpectedState}。 */
+    /** 读取期望 state。 */
     public String getExpectedState() {
         stateLock.lock();
         try {
@@ -172,11 +170,11 @@ public class OAuthHandler {
     // ── 授权头 ─────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code GetAuthorizationHeader}：取当前 token 拼 {@code "<type> <access>"}。
+     * 取当前 token 拼 {@code "<type> <access>"}。
      *
-     * <p>RFC 6749 §5.1 规定 token_type 大小写不敏感，Go 把 {@code bearer} 归一成
-     * {@code Bearer} 以适配严格实现；此处一致。token_type 为空时 Go 会拼出
-     * {@code " <token>"}（前导空格），Java 同样保留，不做"修正"。</p>
+     * <p>RFC 6749 §5.1 规定 token_type 大小写不敏感，{@code bearer} 归一成
+     * {@code Bearer} 以适配严格实现。token_type 为空时会拼出
+     * {@code " <token>"}（前导空格），刻意保留该形态，不做"修正"。</p>
      */
     public String getAuthorizationHeader(McpContext ctx) {
         OAuthToken token = getValidToken(ctx);
@@ -187,13 +185,13 @@ public class OAuthHandler {
         return tokenType + " " + token.accessToken();
     }
 
-    /** 对照 Go {@code getValidToken}：能直接用就返回；有 refresh token 就试一次刷新；否则要授权。 */
+    /** 能直接用就返回；有 refresh token 就试一次刷新；否则抛"需要授权"。 */
     private OAuthToken getValidToken(McpContext ctx) {
         OAuthToken token = null;
         try {
             token = config.tokenStore().getToken(ctx);
         } catch (RuntimeException e) {
-            // 对照 Go `if err != nil && !errors.Is(err, ErrNoToken) { return nil, err }`
+            // "无 token"以外的存储故障必须上抛，不能当作未授权
             if (!OAuthNoTokenException.isNoToken(e)) {
                 throw e;
             }
@@ -205,7 +203,7 @@ public class OAuthHandler {
             try {
                 return refreshToken(ctx, token.refreshToken());
             } catch (RuntimeException ignored) {
-                // 对照 Go：刷新失败就继续走授权流程
+                // 刷新失败就继续走授权流程
             }
         }
         throw new OAuthAuthorizationRequiredException(this);

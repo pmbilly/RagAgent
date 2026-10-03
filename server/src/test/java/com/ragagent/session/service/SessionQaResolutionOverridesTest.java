@@ -9,12 +9,11 @@ import com.ragagent.chatpipeline.ChatManage;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code SessionQaResolution.applyAgentOverridesToChatManage} 的契约测试
- * （§11.37 第 1 步：动刀前先铺网）。
+ * {@code SessionQaResolution.applyAgentOverridesToChatManage} 的契约测试。
  *
  * <p>本类是 413 行的"平铺 20 个 if"，先用最小契约钉住两件事：① {@code agentConfig == null} 必须安全早返回；
  * ② 给了 agentConfig（含 system_prompt）也不能抛异常。更强的逐键断言（temperature / topK / prompts 落点）
- * 留到第 2 步抽 applier 时逐步加密。</p>
+ * 留到抽 applier 时逐步加密。</p>
  */
 class SessionQaResolutionOverridesTest {
 

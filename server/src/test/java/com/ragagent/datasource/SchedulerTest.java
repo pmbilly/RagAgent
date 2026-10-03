@@ -35,18 +35,16 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.Trigger;
 
 /**
- * {@link Scheduler} 的语义测试（对照 Go {@code internal/datasource/scheduler.go}）。
+ * {@link Scheduler} 的语义测试。
  *
- * <h2>为什么用真仓储 + H2，而不是 Go 那样的内存 fake</h2>
- * <p>Go 的 {@code scheduler_test.go} 用 {@code fakeDataSourceRepo} / {@code fakeSyncLogRepo}
- * 替身。Java 侧的 {@code DataSourceRepository} / {@code SyncLogRepository} 是**具体类**
+ * <h2>为什么用真仓储 + H2，而不是内存 fake</h2>
+ * <p>Java 侧的 {@code DataSourceRepository} / {@code SyncLogRepository} 是**具体类**
  * （不是接口），且 {@code TestSchema} 里已有 {@code data_sources} / {@code sync_logs} 两张表
  * ——直接跑真仓储更强：{@code triggerSync} 里"创建 running 日志 → 按结果改写状态"这条
  * 落库路径本来就是它的关键行为之一（与 {@code DataSourceRepositoryTest} 同一处置）。</p>
  *
  * <h2>⚠️ 不靠墙钟造时间</h2>
- * <p>Go 的测试靠 6 字段 cron 等真实触发（{@code "*&#47;2 * * * * *"}——用 {@code &#47;}
- * 是因为 Javadoc 注释里不能出现字面的"星号斜杠"，那会提前结束注释）。Java 侧改为
+ * <p>不靠 6 字段 cron 等真实触发，而是
  * <b>注入一个假的 {@link TaskScheduler}</b>（Mockito）：它只记录"注册了哪个 Runnable +
  * 哪个 Trigger"，由测试在自己挑选的时刻手动调用那个 Runnable。于是"cron 注册"与
  * "触发逻辑"分成两条互不依赖计时的断言，不会出现单跑绿、全量红的抖动。</p>
@@ -144,8 +142,9 @@ class SchedulerTest {
     }
 
     /**
-     * 单个数据源的 cron 表达式非法只记 warn 并继续（对照 Go 的
-     * {@code failed to register cron for ds=%s schedule=%q}），不整体失败。
+     * 单个数据源的 cron 表达式非法只记 warn 并继续
+     * （warn 文案形如 {@code failed to register cron for ds=<id> schedule=<expr>}），
+     * 不整体失败。
      */
     @Test
     void startSkipsInvalidCronWithoutFailing() {
@@ -157,7 +156,7 @@ class SchedulerTest {
         assertThat(scheduler.entryCount()).isEqualTo(1);
     }
 
-    /** 表达式非法时 {@code addOrUpdate} 直接抛，错误文本与 Go 的 {@code %q} 同形。 */
+    /** 表达式非法时 {@code addOrUpdate} 直接抛，错误文本带引号包住的表达式。 */
     @Test
     void addOrUpdateThrowsOnInvalidCronWithGoMessage() {
         DataSource ds = newDataSource("bad", "not a cron", null);
@@ -225,7 +224,7 @@ class SchedulerTest {
         assertThat(enqueued).isEmpty();
     }
 
-    /** 第 1 层去重：上一次同步还在跑就跳过（对照 Go 的 {@code HasRunningSync}）。 */
+    /** 第 1 层去重：上一次同步还在跑就跳过（{@code hasRunningSync}）。 */
     @Test
     void triggerSkipsWhenPreviousSyncStillRunning() {
         DataSource ds = newDataSource("a", "0 0 * * * *", null);
@@ -273,7 +272,7 @@ class SchedulerTest {
         assertThat(enqueuedTaskIds.get(0)).isEqualTo(expected);
     }
 
-    /** 第 2 层去重：TaskID 冲突 → sync_log 落 canceled + Go 的原文案。 */
+    /** 第 2 层去重：TaskID 冲突 → sync_log 落 canceled + 固定文案。 */
     @Test
     void triggerMarksLogCanceledOnTaskIdConflict() {
         DataSource ds = newDataSource("a", "0 0 * * * *", null);
@@ -304,7 +303,7 @@ class SchedulerTest {
         assertThat(logs.get(0).getFinishedAt()).isNotNull();
     }
 
-    /** 成功入队后不再改写 sync log（对照 Go：只在两个失败分支里 Update）。 */
+    /** 成功入队后不再改写 sync log（只在两个失败分支里更新）。 */
     @Test
     void successfulTriggerLeavesLogRunning() {
         DataSource ds = newDataSource("a", "0 0 * * * *", null);

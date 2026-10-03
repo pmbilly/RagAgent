@@ -5,12 +5,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 用户决定（或超时/取消）的确认事件体
- * （对照 Go {@code event.ToolApprovalResolvedData}，internal/event/event_data.go:273-279）。
- * emit 点：agent/approval/gate.go:399（{@code <pendingID>-approval-resolved}），见包注释 emit 表 #11。
+ * 用户决定（或超时/取消）的确认事件体。
+ * emit 点：common/approval/Gate（{@code <pendingID>-approval-resolved}），见包注释 emit 表 #11。
  *
- * <p>实录锚点：零值输出 {@code {"pending_id":"","approved":false}}；
- * {@code reason}/{@code timed_out}/{@code canceled} 带 omitempty。</p>
+ * <p>零值输出 {@code {"pending_id":"","approved":false}}；
+ * {@code reason}/{@code timed_out}/{@code canceled} 空则省略。</p>
  */
 @JsonPropertyOrder({"pending_id", "approved", "reason", "timed_out", "canceled"})
 public class ToolApprovalResolvedData {
@@ -18,21 +17,21 @@ public class ToolApprovalResolvedData {
     @JsonProperty("pending_id")
     private String pendingId = "";
 
-    /** 无 omitempty：false 恒输出 */
+    /** false 恒输出 */
     @JsonProperty("approved")
     private boolean approved;
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("reason")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String reason = "";
 
-    /** Go omitempty */
+    /** false 省略 */
     @JsonProperty("timed_out")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean timedOut;
 
-    /** Go omitempty */
+    /** false 省略 */
     @JsonProperty("canceled")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private boolean canceled;

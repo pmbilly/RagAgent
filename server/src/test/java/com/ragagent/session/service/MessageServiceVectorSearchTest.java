@@ -43,8 +43,7 @@ import com.ragagent.session.mapper.MessageSuggestionRepository;
 import com.ragagent.session.mapper.SessionRepository;
 
 /**
- * 消息搜索的**向量路径**（对照 Go {@code vectorSearchViaKB} / {@code rerankResults} /
- * {@code getChatHistoryConfig} / {@code getRetrievalConfig}，message.go L344-368 + L651-773）。
+ * 消息搜索的**向量路径**。
  *
  * <p>HybridSearchService 与仓储全部 mock——这组测试钉的是**管线语义**，
  * 不是 SQL：未配置跳过、vector-only 参数映射、失败降级/上抛的分模式行为、
@@ -139,7 +138,7 @@ class MessageServiceVectorSearchTest {
                 .thenReturn(owned);
     }
 
-    // ── 未配置：向量路径恒空，行为与 Go 的 nil, nil 分支一致 ─────────────────
+    // ── 未配置：向量路径恒空（静默跳过） ────────────────────────────────────
 
     @Test
     void hybridModeWithoutChatHistoryConfigNeverTouchesTheVectorPath() {
@@ -195,7 +194,7 @@ class MessageServiceVectorSearchTest {
 
         MessageSearchResult result = service.searchMessages("question", "vector", 20, null);
 
-        // vector-only 参数逐字段对照 Go vectorSearchViaKB
+        // vector-only 参数逐字段钉住
         ArgumentCaptor<SearchParams> captor = ArgumentCaptor.forClass(SearchParams.class);
         verify(hybridSearchService).hybridSearch(eq("kb-chat-1"), captor.capture());
         SearchParams sp = captor.getValue();
@@ -204,7 +203,7 @@ class MessageServiceVectorSearchTest {
         assertThat(sp.getVectorThreshold()).isEqualTo(0.25);
         assertThat(sp.isDisableKeywordsMatch()).isTrue();
         assertThat(sp.isDisableVectorMatch()).isFalse();
-        // rerank_model_id 为空 → 不取模型（Go: rc.RerankModelID == "" 直接返回）
+        // rerank_model_id 为空 → 不取模型，直接返回
         verifyNoInteractions(modelRuntimeFactory);
 
         assertThat(result.getTotal()).isEqualTo(2);
@@ -230,7 +229,7 @@ class MessageServiceVectorSearchTest {
         assertThatThrownBy(() -> service.searchMessages("q", "vector", 20, null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("KB hybrid search failed: kb engine offline");
-        // Go：vector 模式不做关键词兜底，直接 return nil, err
+        // vector 模式不做关键词兜底：失败直接上抛
         verify(messageRepository, never()).searchMessagesByKeyword(anyLong(), anyString(),
                 anyString(), anyList(), anyInt());
     }
@@ -274,7 +273,7 @@ class MessageServiceVectorSearchTest {
         assertThat(result.getTotal()).isEqualTo(1);
         assertThat(result.getItems().get(0).getSessionId()).isEqualTo("s2");
         assertThat(result.getItems().get(0).getScore()).isEqualTo(0.7);
-        // 归属复核只查过滤后剩下的会话（Go：sessionIDs 从过滤后的 items 里收集）
+        // 归属复核只查过滤后剩下的会话（sessionIDs 从过滤后的 items 里收集）
         verify(messageRepository).ownedSessionIds(TENANT, "u-1", List.of("s2"));
     }
 
@@ -326,7 +325,7 @@ class MessageServiceVectorSearchTest {
         assertThat(result.getItems().get(0).getScore()).isEqualTo(0.6);
         assertThat(result.getItems().get(0).getMatchType()).isEqualTo("vector");
         assertThat(result.getItems().get(0).getAnswerContent()).isEqualTo("c3 answer");
-        // Go 是 struct 值拷贝：原命中对象的分不被改写
+        // 重排写的是值拷贝：原命中对象的分不被改写
         assertThat(hit1.getScore()).isEqualTo(0.9);
         assertThat(hit3.getScore()).isEqualTo(0.7);
     }
@@ -354,7 +353,7 @@ class MessageServiceVectorSearchTest {
 
         MessageSearchResult result = service.searchMessages("q", "vector", 20, null);
 
-        // Go：Rerank 失败 Warnf 后 return results——两条原始命中原样走完管线
+        // Rerank 失败只告警不抛：两条原始命中原样走完管线
         assertThat(result.getTotal()).isEqualTo(2);
         assertThat(result.getItems().get(0).getScore()).isEqualTo(0.9);
         assertThat(result.getItems().get(1).getScore()).isEqualTo(0.7);

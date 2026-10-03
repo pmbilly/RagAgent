@@ -62,7 +62,7 @@ public class ChunkVectorIndexer {
     private final VectorStoreService vectorStore;
     private final KnowledgeVectorWrites vectorWrites;
     private final ModelRuntimeFactory modelRuntimeFactory;
-    /** 批量向量化批大小（B6 批 5：属性绑定）。 */
+    /** 批量向量化批大小（属性绑定）。 */
     private final BatchEmbedProperties batchEmbedProperties;
 
     public ChunkVectorIndexer(KnowledgeBaseMapper kbMapper,

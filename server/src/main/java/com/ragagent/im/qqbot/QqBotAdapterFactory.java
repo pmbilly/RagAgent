@@ -14,11 +14,11 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.service.ImService;
 
 /**
- * QQ 机器人渠道工厂（对照 Go {@code internal/im/qqbot/factory.go}）。
+ * QQ 机器人渠道工厂。
  *
- * <p><b>只支持 websocket</b>（长连接，照 Go 的 {@code ResolveMode(channel,"websocket")}
- * + 非 websocket 即报错）；凭据 {@code app_id}/{@code client_secret}/{@code api_base_url}/
- * {@code gateway_url}，其中后两者经 {@link QqBotClient} 的 SSRF 白名单校验（照 Go）。</p>
+ * <p><b>只支持 websocket</b>（长连接，非 websocket 即报错）；凭据
+ * {@code app_id}/{@code client_secret}/{@code api_base_url}/
+ * {@code gateway_url}，其中后两者经 {@link QqBotClient} 的 SSRF 白名单校验。</p>
  */
 @Component
 public class QqBotAdapterFactory implements ImService.AdapterFactory {

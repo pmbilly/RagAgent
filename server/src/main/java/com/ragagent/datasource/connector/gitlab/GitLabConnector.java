@@ -12,7 +12,6 @@ import java.util.Set;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.ragagent.datasource.Connector;
 import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.StreamHandler;
 import com.ragagent.datasource.StreamingConnector;
@@ -23,39 +22,33 @@ import com.ragagent.datasource.domain.Resource;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * GitLab 数据源连接器（对照 Go {@code internal/datasource/connector/gitlab} 包的
- * {@code connector.go} 全文）。
+ * GitLab 数据源连接器。
  *
  * <h2>无状态</h2>
  * <p>每个数据源自带 base_url 与 access_token（存在加密后的 credentials 里）。
- * Go 的 {@code configured(ds)} 每次都新建一个 {@code *client}——<b>刻意不复用</b>注册表里的实例</b>，
- * 否则两个数据源会共用第一次拿到的 token（Go 的
- * {@code TestConnectorConfiguredDoesNotReuseRegistryClient} 钉的就是这条）。
- * Java 侧同理：{@link #configured} 每次调用都造一个新 client，连接器本身不持有任何字段。</p>
+ * <b>刻意不复用</b>注册表里的实例，
+ * 否则两个数据源会共用第一次拿到的 token。
+ * {@link #configured} 每次调用都造一个新 client，连接器本身不持有任何字段。</p>
  *
- * <h2>ctx 的处置</h2>
- * <p>Go 的每个方法第一个参数是 {@code context.Context}；Java 接口没有它（约定 §5）。
- * 取消靠线程中断，请求级超时落在 {@link GitLabClient} 的 30s 上。
- * Go 的 {@code c, err = c.configured(ds)} 是对<b>无状态接收者</b>的局部改写，
- * Java 侧改写成一个局部变量 {@link Configured}。</p>
+ * <h2>取消与超时</h2>
+ * <p>取消靠线程中断，请求级超时落在 {@link GitLabClient} 的 30s 上。
+ * 每次方法调用经 {@link #configured} 现场取一个配置好的客户端。</p>
  *
  * <h2>流式同步是生产路径</h2>
  * <p>{@link #fetchStream} 每读到一个受支持的文件就立刻 emit，大型项目的内容不会
  * 在内存里堆积；{@link #fetchAll} / {@link #fetchIncremental} 是基接口要求的
- * 兼容方法，语义与 Go 完全一致（service 层优先用
+ * 兼容方法（service 层优先用
  * {@code instanceof StreamingConnector} 走流式）。</p>
  *
- * <h2>nil 语义（照抄）</h2>
- * <p>Go 的 {@code var out []types.FetchedItem} 在"一条都没追加"时仍是 nil，
- * 序列化出去是 {@code null}（不是 {@code []}）。Java 侧 {@link #fetchAll} /
- * {@link #fetchIncremental} 因此<b>返回 {@code null}</b>，调用方必须按 Go 的
- * {@code len(items)} 那样容忍空值。这一条与本项目其它模块
- * （如 Wiki 的 {@code ListIssues} 归一为 {@code []}）是<b>相反</b>的取舍：
- * 这里对齐 Go 的 nil，因为 {@code FetchedItem} 的 JSON 形态本身就是契约。</p>
+ * <h2>空结果返回 {@code null}</h2>
+ * <p>{@link #fetchAll} / {@link #fetchIncremental} 在"一条都没有"时
+ * <b>返回 {@code null}</b>（不是空列表）——{@code FetchedItem} 的 JSON 形态
+ * 本身就是契约，调用方必须容忍空值。这一条与本项目其它模块
+ * （如 Wiki 的 {@code ListIssues} 归一为 {@code []}）是<b>相反</b>的取舍。</p>
  */
 public class GitLabConnector implements StreamingConnector {
 
-    /** 对照 Go 的 {@code gitLabSupportedFileExtensions}（26 项）。 */
+    /** 受支持的文件扩展名（26 项）。 */
     static final Set<String> SUPPORTED_FILE_EXTENSIONS = Set.of(
             ".pdf", ".txt", ".docx", ".doc", ".epub",
             ".html", ".htm", ".mhtml", ".md", ".markdown", ".mdx",
@@ -64,17 +57,16 @@ public class GitLabConnector implements StreamingConnector {
             ".mp3", ".wav", ".m4a", ".flac", ".ogg");
 
     /**
-     * 对照 Go 的 {@code cursor} 结构体，以及 {@code GitLabCursor} 那个
-     * {@code map[string]interface{}{"projects": …, "raw": string(raw)}} 的包装。
+     * cursor 载荷的形状：{@code {"projects": …, "raw": "<再序列化一次的 JSON 字符串>"}}。
      *
-     * <p>序列化用<b>按键排序</b>的 mapper：Go 的 {@code json.Marshal} 对 map 恒排序，
-     * 而 {@code raw} 字段是一个<b>被再序列化一次</b>的 JSON 字符串——它落
-     * {@code data_sources.last_sync_cursor} 这个 jsonb 列，字节必须与 Go 一致。</p>
+     * <p>序列化用<b>按键排序</b>的 mapper，{@code raw} 字段是一个<b>被再序列化一次</b>
+     * 的 JSON 字符串——它落
+     * {@code data_sources.last_sync_cursor} 这个 jsonb 列，字节必须与既有数据一致。</p>
      */
     private static final ObjectMapper RAW_MAPPER = new ObjectMapper()
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
-    /** 仅用于读回 cursor（对照 Go 的 {@code json.Unmarshal}）。 */
+    /** 仅用于读回 cursor。 */
     private static final ObjectMapper READ_MAPPER = new ObjectMapper();
 
     private record Configured(GitLabClient client, String canonicalBase) {
@@ -90,7 +82,7 @@ public class GitLabConnector implements StreamingConnector {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code (*Connector).configured}：用数据源自己的凭据建一个客户端。
+     * 用数据源自己的凭据建一个客户端。
      *
      * @throws ConnectorException.InvalidConfig {@code config == null}（裸哨兵，无细节）
      */
@@ -105,7 +97,7 @@ public class GitLabConnector implements StreamingConnector {
         return new Configured(client, client.baseUrl());
     }
 
-    /** 对照 Go 的 {@code ds.Credentials[k].(string)}：非字符串（含缺失）当 {@code ""}。 */
+    /** 非字符串（含缺失）当 {@code ""}。 */
     private static String asString(Map<String, Object> map, String key) {
         if (map == null) {
             return "";
@@ -119,7 +111,7 @@ public class GitLabConnector implements StreamingConnector {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code Validate}：先建客户端（凭据缺失优先于配置错误报出），
+     * 先建客户端（凭据缺失优先于配置错误报出），
      * 再 ping，最后<b>只在用户已经填了 {@code settings.projects}</b> 时校验它。
      *
      * <p>那个"只在填了才校验"的条件是刻意的：保存数据源的第一步允许只填凭据。</p>
@@ -137,7 +129,7 @@ public class GitLabConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code ListResources}：{@code parent == ""} 列出 token 可见的项目；
+     * {@code parent == ""} 列出 token 可见的项目；
      * 否则列出该项目默认分支下的<b>直接子目录</b>（只回 {@code tree} 类型，
      * blob 不在选择器里出现）。
      */
@@ -181,23 +173,23 @@ public class GitLabConnector implements StreamingConnector {
         return out;
     }
 
-    /** 对照 Go {@code ResolveResourceAncestors}：整棵树一次给到，无需揭示祖先，回空列表。 */
+    /** 整棵树一次给到，无需揭示祖先，回空列表。 */
     @Override
     public List<String> resolveResourceAncestors(DataSourceConfig config, List<String> resourceIds) {
         return new ArrayList<>();
     }
 
     /**
-     * 对照 Go {@code FetchAll}：对每个选择取 ref（空则回落 {@code default_branch}），
+     * 对每个选择取 ref（空则回落 {@code default_branch}），
      * 递归遍历配置的目录、逐个文件拉正文。
      *
-     * <p><b>注意 id 的不对称</b>（照抄 Go）：{@code tree} 走的是<b>选择里的</b>
+     * <p><b>注意 id 的不对称</b>：{@code tree} 走的是<b>选择里的</b>
      * {@code project_id} 原文（可以是 {@code group/project}），而 {@code raw}
      * 走的是 API 返回的<b>数字 ID</b>。{@link #fetchStream} 则两者都用数字 ID
      * （它先调了 {@code project}）。这不是笔误，改任一处都会让请求打到别的 URL 上。</p>
      *
-     * @param resourceIds 未使用（对照 Go 的 {@code _ []string}）
-     * @return 一条都没有时返回 {@code null}（对照 Go 的 nil slice）
+     * @param resourceIds 未使用
+     * @return 一条都没有时返回 {@code null}
      */
     @Override
     public List<FetchedItem> fetchAll(DataSourceConfig config, List<String> resourceIds) {
@@ -218,7 +210,7 @@ public class GitLabConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code FetchIncremental}。
+     * 增量同步。
      *
      * <p>每个项目单独比 commit：cursor 里没记录 → 全量枚举；
      * 记录的 SHA 与 head 不同 → 走 {@code compare} 拿增删改；
@@ -227,7 +219,7 @@ public class GitLabConnector implements StreamingConnector {
      *
      * <p>返回的 cursor 形状是
      * {@code {"projects": {projectId: sha}, "raw": "<再序列化一次的 JSON 字符串>"}}。
-     * 那个 {@code raw} 看着冗余，但它是 Go 的原样行为，且会落 jsonb 列——
+     * 那个 {@code raw} 看着冗余，但它是既有线格式且会落 jsonb 列——
      * 别顺手去掉。</p>
      */
     @Override
@@ -255,7 +247,7 @@ public class GitLabConnector implements StreamingConnector {
                 try {
                     diff = c.client().compare(selectionId, previous, head);
                 } catch (ConnectorException err) {
-                    // 对照 Go 的 `if err != nil || diff.CompareTimeout`：两种情况同一分支
+                    // compare 失败与 compare_timeout 两种情况同一分支
                     diff = null;
                 }
                 if (diff == null || diff.compareTimeout()) {
@@ -293,13 +285,12 @@ public class GitLabConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code FetchStream}：生产同步路径。
+     * 生产同步路径。
      *
-     * <p>与 {@link #fetchIncremental} 的两处不同，都要照抄：</p>
+     * <p>与 {@link #fetchIncremental} 的两处不同：</p>
      * <ol>
-     *   <li>{@code next} 先<b>拷贝 {@code prev.Projects}</b> 再按选择覆盖——
-     *       于是"这次没被 sync 到的项目"的 SHA 不会被抹掉（Go 的
-     *       {@code FetchIncremental} 是从空 map 起手的，两者行为不同）；</li>
+     *   <li>{@code next} 先<b>拷贝 prev</b> 再按选择覆盖——
+     *       于是"这次没被 sync 到的项目"的 SHA 不会被抹掉；</li>
      *   <li>每个 selection 结束（<b>包括一次都没同步的</b>）就 {@code checkpoint}
      *       一次，这样超时中断能从最后一个检查点续跑。</li>
      * </ol>
@@ -341,9 +332,9 @@ public class GitLabConnector implements StreamingConnector {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code streamChanges}：按 compare 的 diff 逐条 emit。
+     * 按 compare 的 diff 逐条 emit。
      *
-     * <p>删除/重命名的判定（照抄）：{@code deleted_file} → 若 old_path 在范围内且类型受支持，
+     * <p>删除/重命名的判定：{@code deleted_file} → 若 old_path 在范围内且类型受支持，
      * emit 一条删除项后 {@code continue}；{@code renamed_file} → 先按<b>老路径</b> emit 删除项
      * （同一条件），<b>然后不 return</b>，继续按 {@code new_path} 走新增分支
      * （于是重命名 = 删 + 增两条）。</p>
@@ -380,7 +371,7 @@ public class GitLabConnector implements StreamingConnector {
         }
     }
 
-    /** 对照 Go {@code streamFiles}：遍历目录，每个受支持的文件读正文后 emit。 */
+    /** 遍历目录，每个受支持的文件读正文后 emit。 */
     private void streamFiles(Configured c, GitLabClient.Project project, String ref,
                              List<String> roots, StreamHandler handler) {
         walkFiles(c, Long.toString(project.id()), ref, roots,
@@ -394,7 +385,7 @@ public class GitLabConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code walkFiles}：递归遍历选中的目录。
+     * 递归遍历选中的目录。
      *
      * <p>刻意<b>不</b>收集路径——流式同步的内存只与遍历深度和当前文件体量有关。
      * {@code roots} 为空时等价于根目录（{@code [""]}）。</p>
@@ -427,11 +418,11 @@ public class GitLabConnector implements StreamingConnector {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code (*Connector).item}。
+     * 构造一个文件条目。
      *
-     * <p><b>{@code UpdatedAt} 刻意不设</b>（Go 的注释原文：文件最后提交时间没取，
-     * 取 fetch 时间就是伪造的源时间）——于是它保持 Go 的零值
-     * {@code "0001-01-01T00:00:00Z"}。照抄，注释也照抄。</p>
+     * <p><b>{@code UpdatedAt} 刻意不设</b>：文件最后提交时间没取，
+     * 取 fetch 时间就是伪造的源时间——它保持零值
+     * {@code "0001-01-01T00:00:00Z"}。</p>
      */
     private FetchedItem item(Configured c, GitLabClient.Project p, String ref, String file) {
         byte[] body = c.client().raw(Long.toString(p.id()), ref, file);
@@ -457,7 +448,7 @@ public class GitLabConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code (*Connector).deleted}：删除项的 {@code external_id} 与
+     * 删除项的 {@code external_id} 与
      * 原条目<b>完全一致</b>——service 层靠它定位要删的那一行。
      * 其余字段保持零值（{@code content} 为 {@code null}）。
      */
@@ -473,16 +464,16 @@ public class GitLabConnector implements StreamingConnector {
     }
 
     // ------------------------------------------------------------------
-    // 纯函数（对照 Go 的包级函数，全部按 Go 实录钉住）
+    // 纯函数
     // ------------------------------------------------------------------
 
-    /** 对照 Go {@code isSupportedFile}：取 {@code path.Ext} 再 {@code ToLower} 查表。 */
+    /** 取扩展名（小写）后查支持表。 */
     static boolean isSupportedFile(String file) {
         return SUPPORTED_FILE_EXTENSIONS.contains(goPathExt(file).toLowerCase(java.util.Locale.ROOT));
     }
 
     /**
-     * 对照 Go {@code path.Ext}：从末尾往前找<b>最后一个 {@code '.'}</b>，
+     * 取文件扩展名：从末尾往前找<b>最后一个 {@code '.'}</b>，
      * 遇到 {@code '/'} 就停；都没命中就回空串。
      *
      * <p>注意它<b>不是</b>"最后一个点之后"，两点要区分：{@code ".hidden"} 会回
@@ -498,12 +489,12 @@ public class GitLabConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code knowledgeRelativePath}：把仓库文件映射成 KB 的目录约定
+     * 把仓库文件映射成 KB 的目录约定
      * {@code <项目名>-<分支>/<仓库内相对路径>}（分支里的 {@code /} 换成 {@code -}）。
      *
-     * <p>最后一步是 {@code path.Join}（= {@code path.Clean}），所以 {@code ref} 或
+     * <p>最后一步经 {@link GoPath#join}（会做 clean），所以 {@code ref} 或
      * {@code projectName} 为空时根名会退化成 {@code "docs-"} / {@code "-main"}，
-     * 而 {@code "/a.md"} 这种绝对形态会被 Clean 掉前导斜杠挂到根名下面。</p>
+     * 而 {@code "/a.md"} 这种绝对形态会被 clean 掉前导斜杠挂到根名下面。</p>
      */
     static String knowledgeRelativePath(String projectName, String ref, String file) {
         String root = GoStrings.trimSpace(projectName) + "-"
@@ -512,7 +503,7 @@ public class GitLabConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code (*Connector).inScope}：{@code roots} 为空即全项目；
+     * {@code roots} 为空即全项目；
      * 否则要求"完全相等或以 {@code root + "/"} 开头"。
      *
      * <p>末尾那个 {@code "/"} 是关键：{@code "ab/c" } 不被根 {@code "a"} 覆盖。</p>
@@ -530,7 +521,7 @@ public class GitLabConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code splitResourceID}：按<b>第一个</b> {@code ':'} 切成两段。
+     * 按<b>第一个</b> {@code ':'} 切成两段。
      * 没有冒号时第二段是空串（不是 null）。
      */
     static String[] splitResourceId(String value) {
@@ -546,18 +537,18 @@ public class GitLabConnector implements StreamingConnector {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code gitLabCursor}：把 {@code cursor{Projects}} 包成
+     * 把 {@code projects} 映射包成
      * {@code {"projects": …, "raw": "<json>"}}。
      *
-     * <p>{@code raw} 是<b>再序列化一次</b>的 {@code {"projects":{…}}} 字符串。
-     * Go 的原样行为，且这个 map 会落 jsonb 列，别"顺手去掉"。</p>
+     * <p>{@code raw} 是<b>再序列化一次</b>的 {@code {"projects":{…}}} 字符串，
+     * 会落 jsonb 列，别"顺手去掉"。</p>
      */
     static SyncCursor gitLabCursor(Map<String, String> projects) {
         String raw;
         try {
             raw = RAW_MAPPER.writeValueAsString(Map.of("projects", projects));
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            // 值全是 String，这里不可达；Go 是 `raw, _ := json.Marshal(next)` 忽略错误
+            // 值全是 String，这里不可达
             raw = "";
         }
         Map<String, Object> connectorCursor = new LinkedHashMap<>();
@@ -570,12 +561,12 @@ public class GitLabConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go 的 {@code json.Marshal(old.ConnectorCursor)} + {@code json.Unmarshal(…, &prev)}：
      * 从 cursor 里取回 {@code projects}，取不到（缺失 / 类型不对）时回空 map。
      *
-     * <p>类型不对时 Go 保留<b>已经解出来的部分</b>再放弃剩余键——这里用
-     * {@code break} 复刻同一条路径（{@code {"projects":{"a":1,"b":"x"}}} 会得到
-     * {@code {}}，而 {@code {"projects":{"a":"x","b":1}}} 会得到 {@code {a:x}}）。</p>
+     * <p>遇到非字符串值时<b>保留已解出的部分</b>、放弃剩余键（{@code break}）：
+     * {@code {"projects":{"a":1,"b":"x"}}} 会得到
+     * {@code {}}，而 {@code {"projects":{"a":"x","b":1}}} 会得到 {@code {a:x}}。
+     * 这是与既有游标数据保持一致的读取语义。</p>
      */
     static Map<String, String> decodeCursorProjects(SyncCursor cursor) {
         Map<String, String> out = new LinkedHashMap<>();
@@ -598,7 +589,7 @@ public class GitLabConnector implements StreamingConnector {
         return out;
     }
 
-    /** 对照 Go 的 {@code out = append(out, item)}：nil 切片在第一次 append 时才分配。 */
+    /** {@code null} 时在第一次追加时才分配列表（保持"一条都没有 = null"的契约）。 */
     private static List<FetchedItem> append(List<FetchedItem> out, FetchedItem item) {
         if (out == null) {
             out = new ArrayList<>();

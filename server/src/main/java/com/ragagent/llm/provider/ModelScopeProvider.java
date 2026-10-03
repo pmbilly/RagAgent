@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.ModelScopeProvider（modelscope.go）：魔搭 ModelScope，OpenAI 兼容模式。
+ * 魔搭 ModelScope，OpenAI 兼容模式。
  */
 public class ModelScopeProvider implements Provider {
 

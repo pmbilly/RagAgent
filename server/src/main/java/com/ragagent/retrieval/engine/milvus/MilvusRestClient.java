@@ -16,8 +16,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * Milvus REST v2 传输层（{@code /v2/vectordb/…}）——本仓的"协议决策"落点：Go 用 milvus-sdk-go
- * v2（gRPC），本仓自持 REST v2（零新依赖）。覆盖度已对<b>真服务端</b>（compose 钉的
+ * Milvus REST v2 传输层（{@code /v2/vectordb/…}）——本仓自持 REST v2（零新依赖）。
+ * 覆盖度已对<b>真服务端</b>（compose 钉的
  * {@code milvusdb/milvus:v2.6.11}）逐端点实测：建集合（BM25 函数 + SparseFloatVector +
  * indexParams 内联）、load、list、upsert、query（含向量输出）、search（向量与
  * <b>BM25 文本检索</b>）、delete（过滤表达式）全部可用（见 known-issues）。
@@ -142,7 +142,7 @@ public final class MilvusRestClient {
 
     // ── 集合面 ─────────────────────────────────────────────────────────────
 
-    /** {@code collections/has}（照 {@code HasCollection}）。 */
+    /** {@code collections/has}。 */
     boolean hasCollection(String collectionName) {
         ObjectNode body = Json.object();
         body.put("collectionName", collectionName);
@@ -150,12 +150,12 @@ public final class MilvusRestClient {
         return data != null && data.path("has").asBoolean(false);
     }
 
-    /** {@code collections/create}（schema + indexParams 一次带齐，照 SDK 的 WithIndexOptions）。 */
+    /** {@code collections/create}（schema + indexParams 一次带齐）。 */
     void createCollection(ObjectNode body) {
         post("/collections/create", body);
     }
 
-    /** {@code collections/load}（replicaNumber > 0 才带，照 SDK 的 WithReplica）。 */
+    /** {@code collections/load}（replicaNumber > 0 才带）。 */
     void loadCollection(String collectionName, int replicaNumber) {
         ObjectNode body = Json.object();
         body.put("collectionName", collectionName);
@@ -165,7 +165,7 @@ public final class MilvusRestClient {
         post("/collections/load", body);
     }
 
-    /** {@code collections/list}（照 {@code ListCollections}）。 */
+    /** {@code collections/list}。 */
     List<String> listCollections() {
         JsonNode data = post("/collections/list", Json.object());
         List<String> names = new ArrayList<>();
@@ -179,7 +179,7 @@ public final class MilvusRestClient {
 
     // ── 数据面 ─────────────────────────────────────────────────────────────
 
-    /** {@code entities/upsert}（逐行 JSON 形态；SDK 的列式换成 REST 的行式）。 */
+    /** {@code entities/upsert}（逐行 JSON 形态）。 */
     JsonNode upsert(String collectionName, ArrayNode rows) {
         ObjectNode body = Json.object();
         body.put("collectionName", collectionName);
@@ -211,7 +211,7 @@ public final class MilvusRestClient {
     /**
      * {@code entities/search}：{@code data} 既可以是向量数组（向量检索），也可以是
      * 文本字符串数组（BM25 全文检索，{@code annsField=content_sparse}）。
-     * {@code radius}（>0 时）走 {@code searchParams.radius}（照 SDK 的 AnnParam radius）。
+     * {@code radius}（>0 时）走 {@code searchParams.radius}。
      */
     JsonNode search(String collectionName, JsonNode data, String annsField, String filter,
                     int limit, List<String> outputFields, Double radius) {
@@ -233,7 +233,7 @@ public final class MilvusRestClient {
         return post("/entities/search", body);
     }
 
-    /** {@code entities/delete}（过滤表达式；照 SDK 的 {@code field in [...]} 形态）。 */
+    /** {@code entities/delete}（过滤表达式，如 {@code field in [...]}）。 */
     JsonNode delete(String collectionName, String filter) {
         ObjectNode body = Json.object();
         body.put("collectionName", collectionName);

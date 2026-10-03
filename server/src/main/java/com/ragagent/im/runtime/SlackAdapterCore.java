@@ -8,10 +8,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Slack 适配器的确定性核心（对照 Go internal/im/slack/adapter.go，波 5 W5γ3 翻译）：
+ * Slack 适配器的确定性核心：
  * URL verification 挑战回显、事件解析（AppMention/Message 分支、bot/subType 过滤、
  * thread_ts 语义、&lt;@U…&gt; 提及剥离）。出站发送（chat.postMessage 等 HTTP 调用）
- * 属 provider-XDEP。
+ * 不在此类。
  */
 public final class SlackAdapterCore {
 
@@ -21,7 +21,7 @@ public final class SlackAdapterCore {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /**
-     * 对照 HandleURLVerification（adapter.go L?-?）：type=url_verification →
+     * type=url_verification →
      * 写 {"challenge": <challenge>} 返回 true。非挑战请求不动响应。
      *
      * @return true 表示该请求是 URL 验证且已处理
@@ -42,7 +42,7 @@ public final class SlackAdapterCore {
     }
 
     /**
-     * 对照 ParseCallback 的 CallbackEvent 分支：AppMention（群内提及）与
+     * event_callback 的消息事件分支：AppMention（群内提及）与
      * Message（私聊/频道消息；bot 或带 subType 的系统事件 → null）。非消息
      * 事件（如 app_home_opened）→ null。
      */
@@ -80,8 +80,7 @@ public final class SlackAdapterCore {
                 if (threadTs.isEmpty()) {
                     threadTs = event.path("ts").asText("");
                 }
-                // Go 把 threadTs 传给 parseIncomingMessage 的 ts 参数——
-                // MessageID 与 ThreadID 都是它（adapter.go L162-166）。
+                // threadTs 同时作 MessageID 与 ThreadID。
                 return parseIncomingMessage(event.path("user").asText(""),
                         event.path("channel").asText(""), event.path("text").asText(""),
                         threadTs, chatType);
@@ -91,7 +90,7 @@ public final class SlackAdapterCore {
         }
     }
 
-    /** Go L52-75 逐行：群聊剥离前导 &lt;@U…&gt; 提及；ts 即 MessageID 与 ThreadID。 */
+    /** 群聊剥离前导 &lt;@U…&gt; 提及；ts 即 MessageID 与 ThreadID。 */
     static IncomingMessage parseIncomingMessage(String user, String channel, String text,
             String ts, String chatType) {
         String content = text == null ? "" : text;
@@ -116,7 +115,7 @@ public final class SlackAdapterCore {
         return msg;
     }
 
-    /** 对照 outgoing payload 解析（mattermost/adapter.go）：form/JSON 双态取 token/text。 */
+    /** outgoing payload 解析：form/JSON 双态取 token/text。 */
     public static Map<String, String> parseOutgoingBody(String contentType, byte[] bodyBytes) {
         Map<String, String> out = new LinkedHashMap<>();
         String ct = contentType == null ? "" : contentType.toLowerCase();
@@ -140,7 +139,7 @@ public final class SlackAdapterCore {
                 }
             }
         } catch (Exception ignored) {
-            // 坏 JSON：空 map（Go 的 Unmarshal error 上抛 → parse failed；调用方处理）
+            // 坏 JSON：空 map（调用方按 parse failed 处理）
         }
         return out;
     }

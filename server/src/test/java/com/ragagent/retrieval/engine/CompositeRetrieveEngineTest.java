@@ -19,7 +19,7 @@ import com.ragagent.retrieval.engine.RetrievalEngineTestSupport.FakeEngineServic
 import com.ragagent.retrieval.engine.RetrievalEngineTestSupport.MoverFakeEngineService;
 
 /**
- * 复合引擎（W5γ4.5）对照 Go {@code service/retriever/composite.go}：按检索类型分派、
+ * 复合引擎：按检索类型分派、
  * 对全部引擎扇出、首个错误上抛、估算求和取部分和、迁移前整体预检。
  */
 class CompositeRetrieveEngineTest {

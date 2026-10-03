@@ -25,8 +25,7 @@ import com.ragagent.retrieval.engine.VectorStoreRepoOwnership;
 import com.ragagent.vectorstore.mapper.VectorStoreRepository;
 
 /**
- * 检索引擎层的生产装配——对照 Go {@code container.BuildContainer} 的
- * {@code initRetrieveEngineRegistry}（container.go L1122-1200+）。
+ * 检索引擎层的生产装配。
  *
  * <h2>装配三件</h2>
  * <ul>
@@ -42,7 +41,7 @@ import com.ragagent.vectorstore.mapper.VectorStoreRepository;
  *   <li>{@link TenantStoreOwnership}：store 归属查表（工厂的跨租户防御）。</li>
  * </ul>
  *
- * <p>注册失败只记日志继续（照 Go 的 {@code Register ... failed: %v}）——注册表缺一个
+ * <p>注册失败只记日志继续——注册表缺一个
  * env-store 时检索按"租户有效引擎里挑得到谁"运行，不阻塞启动。</p>
  */
 @Configuration
@@ -51,7 +50,7 @@ public class RetrievalEngineWiringConfig {
     private static final Logger log = LoggerFactory.getLogger(RetrievalEngineWiringConfig.class);
 
     /**
-     * 安装检索域环境查找面（B6 批 9）。
+     * 安装检索域环境查找面。
      *
      * <p>刻意的安装点：本域引擎在其 {@code @Bean} 方法里构造，而构造期就要读集合/索引名等
      * env 回落值——放在本类构造器里装，必然早于任何引擎 bean；放进通用快照装配类则
@@ -73,11 +72,10 @@ public class RetrievalEngineWiringConfig {
                                                   PgVectorEngineRepository pgAdapter,
                                                   OpenSearchAuditSinkAdapter osAuditSink,
                                                   RetrievalDriverProperties driverProperties) {
-        // DB-store 工厂带 OpenSearch 的 audit sink（照 Go createOpenSearchEngine 的
-        // WithAuditSink；其它引擎忽略 sink——Go 同）
+        // DB-store 工厂带 OpenSearch 的 audit sink；其它引擎忽略 sink
         EngineRegistry registry = new EngineRegistry(storeRepo,
                 store -> EngineFactory.createFromStore(store, guard, osAuditSink));
-        // Go: strings.Split(os.Getenv("RETRIEVE_DRIVER"), ",")——不 trim，精确匹配
+        // RETRIEVE_DRIVER 按逗号分段——不 trim，精确匹配
         String driver = driverProperties.driver();
         String[] drivers = driver == null ? new String[] {""} : driver.split(",");
         registerEnvStores(registry, drivers, pgAdapter, osAuditSink, guard);
@@ -132,11 +130,11 @@ public class RetrievalEngineWiringConfig {
     }
 
     /**
-     * env-path 的 OpenSearch 注册——照 Go container.go L1205-1227：连接配置取
+     * env-path 的 OpenSearch 注册——连接配置取
      * OPENSEARCH_ADDR/USERNAME/PASSWORD/OPENSEARCH_INSECURE_SKIP_VERIFY（equalFold
      * "true"）；client 失败 / repository 失败（探针：版本 + 每节点 k-NN 插件）/
      * Register 失败分段记 error，互不掩盖。与 ES 的 env-path 不同：OpenSearch 的
-     * 客户端构造<b>无条件过 SSRF 校验</b>（Go 的 NewOpenSearchClient 内置）→ 传 guard。
+     * 客户端构造<b>无条件过 SSRF 校验</b> → 传 guard。
      */
     private static void envOpenSearch(EngineRegistry registry, OpenSearchAuditSinkAdapter sink,
                                       SsrfGuard guard) {
@@ -163,11 +161,11 @@ public class RetrievalEngineWiringConfig {
     }
 
     /**
-     * env-path 的 Doris 注册——照 Go container.go L1355-1400：{@code DORIS_ADDR}（缺省
+     * env-path 的 Doris 注册——{@code DORIS_ADDR}（缺省
      * {@code doris-fe:9030}）/ {@code DORIS_DATABASE}（缺省 {@code weknora}）/
      * {@code DORIS_USERNAME}（缺省 {@code root}）/ {@code DORIS_PASSWORD} /
      * {@code DORIS_HTTP_PORT}（缺省 8030）；Stream Load 的 HTTP base = addr 的 host + 该端口。
-     * 地址过 SSRF 校验（Go 的全局 MySQL dialer 在拨号时校验；本仓在构造期校验一次——同
+     * 地址在构造期过一次 SSRF 校验（同
      * ES/OpenSearch 驱动的姿态）。
      */
     private static void envDoris(EngineRegistry registry, SsrfGuard guard) {
@@ -191,7 +189,7 @@ public class RetrievalEngineWiringConfig {
             try {
                 httpPort = Integer.parseInt(rawPort);
             } catch (NumberFormatException ignored) {
-                // Go：strconv.Atoi 失败 → 保留缺省
+                // 端口解析失败 → 保留缺省
             }
         }
         String httpBase = "http://"
@@ -209,10 +207,10 @@ public class RetrievalEngineWiringConfig {
     }
 
     /**
-     * env-path 的 Qdrant 注册——照 Go container.go L1228-1270：{@code QDRANT_HOST}（缺省
+     * env-path 的 Qdrant 注册——{@code QDRANT_HOST}（缺省
      * {@code localhost}）/ {@code QDRANT_PORT}（缺省 6334，Atoi 失败保缺省）/
      * {@code QDRANT_API_KEY} / {@code QDRANT_USE_TLS}（非 "false"/"0" 即开，大小写不敏感 +
-     * trim）。地址过 SSRF 校验（Go 的 gRPC dialer 在拨号时校验；本仓构造期一次）。
+     * trim）。地址在构造期过一次 SSRF 校验。
      */
     private static void envQdrant(EngineRegistry registry, SsrfGuard guard) {
         String label = "qdrant";
@@ -226,7 +224,7 @@ public class RetrievalEngineWiringConfig {
             try {
                 port = Integer.parseInt(rawPort);
             } catch (NumberFormatException ignored) {
-                // Go：strconv.Atoi 失败 → 保留缺省
+                // 端口解析失败 → 保留缺省
             }
         }
         boolean useTls = false;
@@ -247,11 +245,11 @@ public class RetrievalEngineWiringConfig {
     }
 
     /**
-     * env-path 的 Weaviate 注册——照 Go container.go L1280-1315：{@code WEAVIATE_HOST}
+     * env-path 的 Weaviate 注册——{@code WEAVIATE_HOST}
      * （缺省 {@code weaviate:8080}）/ {@code WEAVIATE_GRPC_ADDRESS}（缺省
      * {@code weaviate:50051}；本实现走 REST，仅作配置面保留）/ {@code WEAVIATE_SCHEME}
      * （缺省 http）/ {@code WEAVIATE_AUTH_ENABLED}（equalFold "true" 且 API key 非空才带）
-     * + {@code WEAVIATE_API_KEY}。地址过 SSRF 校验（Go 是自定义 HTTP 客户端逐请求校验）。
+     * + {@code WEAVIATE_API_KEY}。地址过 SSRF 校验。
      */
     private static void envWeaviate(EngineRegistry registry, SsrfGuard guard) {
         String label = "weaviate";
@@ -279,9 +277,9 @@ public class RetrievalEngineWiringConfig {
     }
 
     /**
-     * env-path 的 Milvus 注册——照 Go container.go L1318-1355：{@code MILVUS_ADDRESS}
+     * env-path 的 Milvus 注册——{@code MILVUS_ADDRESS}
      * （缺省 {@code localhost:19530}）/ {@code MILVUS_USERNAME} / {@code MILVUS_PASSWORD} /
-     * {@code MILVUS_DB_NAME}（均非空才设，照 Go）。地址过 SSRF 校验（Go 是 gRPC dialer 逐拨号）。
+     * {@code MILVUS_DB_NAME}（均非空才设）。地址过 SSRF 校验（构造期一次）。
      */
     private static void envMilvus(EngineRegistry registry, SsrfGuard guard) {
         String label = "milvus";
@@ -302,9 +300,9 @@ public class RetrievalEngineWiringConfig {
     }
 
     /**
-     * env-path 的腾讯 VectorDB 注册——照 Go container.go L1402-1432：{@code TENCENT_VECTORDB_ADDR}
+     * env-path 的腾讯 VectorDB 注册——{@code TENCENT_VECTORDB_ADDR}
      * / {@code TENCENT_VECTORDB_USERNAME} / {@code TENCENT_VECTORDB_API_KEY} <b>三者缺一即拒</b>
-     * （Go 只打 "Missing Tencent VectorDB configuration" 日志并跳过）+ {@code TENCENT_VECTORDB_DATABASE}
+     * （打 "Missing Tencent VectorDB configuration" 日志并跳过）+ {@code TENCENT_VECTORDB_DATABASE}
      * （缺省 {@code weknora}）。HTTP 客户端构造不拨号（首个请求才连）。
      */
     private static void envTencentVectorDb(EngineRegistry registry, SsrfGuard guard) {
@@ -329,10 +327,9 @@ public class RetrievalEngineWiringConfig {
     }
 
     /**
-     * env-path 的 SQLite 注册——照 Go container.go L1151-1160（直接用产品库的 {@code db}）。
-     * 本仓产品库是 PG：改为一颗独立 SQLite 文件，路径 {@code SQLITE_PATH}（缺省
-     * {@code ./data/weknora-retrieval.sqlite}）。建表/建 FTS 在构造期完成（照 Go 的
-     * AutoMigrate + initFTS5）；失败只记日志不炸装配（照 Go 的 Register 失败分支）。
+     * env-path 的 SQLite 注册。独立 SQLite 文件，路径 {@code SQLITE_PATH}（缺省
+     * {@code ./data/weknora-retrieval.sqlite}）。建表/建 FTS 在构造期完成；
+     * 失败只记日志不炸装配。
      */
     private static void envSqlite(EngineRegistry registry) {
         try {
@@ -364,9 +361,8 @@ public class RetrievalEngineWiringConfig {
     }
 
     /**
-     * env-path 的 ES 注册——照 Go：客户端从 ELASTICSEARCH_* env 建，索引名/shards/replicas
-     * 走缺省（indexCfg=nil 的语义）；地址是运维给的，不走 SSRF 组件（guard 传 null，
-     * 与 Go 的 env-path 无 SSRF RoundTripper 一致——SSRF 校验属 DB-store 工厂路径）。
+     * env-path 的 ES 注册——客户端从 ELASTICSEARCH_* env 建，索引名/shards/replicas
+     * 走缺省；地址是运维给的，不走 SSRF 组件（guard 传 null——SSRF 校验属 DB-store 工厂路径）。
      */
     private static void envElasticsearch(EngineRegistry registry, boolean v7) {
         String label = v7 ? "elasticsearch_v7" : "elasticsearch_v8";

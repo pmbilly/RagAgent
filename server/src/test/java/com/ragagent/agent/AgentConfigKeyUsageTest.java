@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 /**
  * agent 配置树的**键名守卫**：主代码里不许再出现"以 snake 字面量读写 agent 配置"的地方。
  *
- * <p><b>为什么需要它</b>：B18 把 {@code custom_agents.config} 的键迁到 camel（= Java 字段名）后，
+ * <p><b>为什么需要它</b>：{@code custom_agents.config} 的键已迁到 camel（= Java 字段名）后，
  * 仍有读取点按 snake 取值——{@code ModelService.agentBindings} 就是漏网的一个（它扫 agent 配置算
  * "模型被谁引用"，键名不对 ⇒ 绑定**静默丢失**，而当时 4711 条测试全绿、毫无提示）。这类缺陷只有
  * 源码级扫描能兜住。</p>

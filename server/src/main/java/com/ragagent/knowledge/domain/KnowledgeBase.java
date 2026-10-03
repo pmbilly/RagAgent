@@ -147,7 +147,7 @@ public class KnowledgeBase {
     public KnowledgeBaseIndexingStrategy getIndexingStrategy() {
         // NULL→Default 分支实际到不了）；IsZero→Default 只发生在 service 读路径的
         // EnsureDefaults 调用点（KB list/get），chunk 等路径不做此默认。
-        // 历史近似（null→Default）与既有 契约样例 全兼容，仅补 w5s 实录钉住的 carve-out：
+        // 历史近似（null→Default）与既有契约样例全兼容，仅补一处 carve-out：
         // faq 且 faq_config 为 NULL → EnsureDefaults 提前 return，策略保持零值。
         if (indexingStrategy != null) {
             return indexingStrategy;

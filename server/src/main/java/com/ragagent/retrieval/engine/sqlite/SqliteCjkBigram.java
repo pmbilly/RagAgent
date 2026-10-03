@@ -6,9 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * SQLite 关键词面的纯函数族——对照 Go {@code retriever/sqlite/repository.go}：
- * {@code tokenizeCJKBigram}（L588-635）与 {@code sanitizeFTS5Query}（L637-661），
- * 外加 sqlite-vec 的 float32 序列化（{@code sqlite_vec.SerializeFloat32} 等价：小端 float32）。
+ * SQLite 关键词面的纯函数族：CJK 二元切分与 FTS5 查询串净化，
+ * 外加 sqlite-vec 的 float32 序列化（小端 float32）。
  *
  * <p>口径要点：连续汉字串切成 <b>重叠二元组</b>（单字串保留原样）；非 CJK 段原样成词；
  * 空白/标点/符号是分隔符。查询串同样切二元组后用 {@code "tok" OR "tok"} 连接（模糊匹配）。</p>
@@ -18,7 +17,7 @@ public final class SqliteCjkBigram {
     private SqliteCjkBigram() {
     }
 
-    /** 对照 {@code tokenizeCJKBigram}：连续 Han 段 → 重叠二元组；其余按分隔符切词。 */
+    /** 连续 Han 段 → 重叠二元组；其余按分隔符切词。 */
     public static String tokenize(String text) {
         if (text == null || text.isEmpty()) {
             return "";
@@ -45,7 +44,7 @@ public final class SqliteCjkBigram {
         return String.join(" ", parts);
     }
 
-    /** 对照 {@code sanitizeFTS5Query}：切成 {@code "a" OR "b"} 形态；无词元 → ""。 */
+    /** 查询串净化：切成 {@code "a" OR "b"} 形态；无词元 → ""。 */
     public static String sanitizeQuery(String query) {
         String trimmed = query == null ? "" : query.trim();
         if (trimmed.isEmpty()) {
@@ -63,7 +62,7 @@ public final class SqliteCjkBigram {
         return String.join(" OR ", parts);
     }
 
-    /** 对照 {@code sqlite_vec.SerializeFloat32}：小端 float32 字节序。 */
+    /** 小端 float32 字节序。 */
     public static byte[] serializeFloat32(float[] vector) {
         ByteBuffer buffer = ByteBuffer.allocate(vector.length * 4).order(ByteOrder.LITTLE_ENDIAN);
         for (float v : vector) {
@@ -90,7 +89,7 @@ public final class SqliteCjkBigram {
         return script == Character.UnicodeScript.HAN;
     }
 
-    /** 对照 Go 的 {@code unicode.IsSpace || IsPunct || IsSymbol} 三分支。 */
+    /** Unicode 空白/标点/符号三分判定。 */
     private static boolean isDelimiter(int codePoint) {
         return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint)
                 || isPunctOrSymbol(codePoint);

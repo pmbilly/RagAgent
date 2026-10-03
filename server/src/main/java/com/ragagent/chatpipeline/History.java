@@ -7,10 +7,9 @@ import java.util.List;
 import com.ragagent.common.retrieval.SearchResult;
 
 /**
- * 一轮问答历史（对照 Go {@code types.History}，internal/types/message.go:17-24）。
+ * 一轮问答历史。
  *
- * <p>Go 无 json tag（结构体不直接对外序列化）；KnowledgeReferences 是
- * {@code References = []*SearchResult}。</p>
+ * <p>本类型不直接对外序列化。</p>
  */
 public final class History {
 
@@ -35,7 +34,7 @@ public final class History {
     public List<SearchResult> getKnowledgeReferences() { return knowledgeReferences; }
     public void setKnowledgeReferences(List<SearchResult> v) { knowledgeReferences = v; }
 
-    /** 浅拷贝（列表字段共享引用，与 Go 的指针切片语义一致）。 */
+    /** 浅拷贝（新建列表，元素引用共享）。 */
     public History copy() {
         History h = new History();
         h.query = query;

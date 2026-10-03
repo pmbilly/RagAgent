@@ -4,8 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * IM 斜杠命令基建（对照 Go internal/im/{command.go,command_registry.go} 全文，
- * 波 5 W5γ1 逐行翻译）。命令声明意图（Action 枚举），副作用由 Service 执行——
+ * IM 斜杠命令基建。命令声明意图（Action 枚举），副作用由 Service 执行——
  * 命令本身不碰 DB/服务。
  */
 public final class Commands {
@@ -13,7 +12,7 @@ public final class Commands {
     private Commands() {
     }
 
-    // ── CommandAction（command.go L11-24） ───────────────────────────────
+    // ── CommandAction ─────────────────────────────────────────────────────
     /** 除回复外无副作用。 */
     public static final int ACTION_NONE = 0;
     /** 软删当前 ChannelSession 并清 LLM 上下文，下条消息全新会话。 */
@@ -21,7 +20,7 @@ public final class Commands {
     /** 取消该 user+chat 的在途 QA 请求。 */
     public static final int ACTION_STOP = 2;
 
-    /** 命令产出（对照 Go {@code im.CommandResult}，L27-34）。 */
+    /** 命令产出。 */
     public static final class CommandResult {
         /** 发回用户的 Markdown 回复。 */
         public final String content;
@@ -38,10 +37,10 @@ public final class Commands {
         }
     }
 
-    /** 命令运行时数据（对照 Go {@code im.CommandContext}，L37-54）。服务不放这里。 */
+    /** 命令运行时数据。服务不放这里。 */
     public static final class CommandContext {
         public IncomingMessage incoming;
-        /** IM 渠道会话（user×chat 组合）。γ2 落地前命令测试可留空。 */
+        /** IM 渠道会话（user×chat 组合）。命令测试可留空。 */
         public com.ragagent.im.domain.ChannelSessionEntity session;
         public long tenantId;
         /** 绑定 agent 的显示名（未绑定为空）。 */
@@ -52,7 +51,7 @@ public final class Commands {
         public String channelOutputMode = "";
     }
 
-    /** 每个斜杠命令的接口（对照 Go {@code im.Command}，L57-70）。 */
+    /** 每个斜杠命令的接口。 */
     public interface ImCommand {
         /** "/" 后的主 token（如 "kb"、"mode"）。 */
         String name();
@@ -64,9 +63,9 @@ public final class Commands {
         CommandResult execute(CommandContext cmdCtx, List<String> args) throws Exception;
     }
 
-    // ── CommandRegistry（command_registry.go 全文） ──────────────────────
+    // ── CommandRegistry ───────────────────────────────────────────────────
 
-    /** 斜杠命令名 → 处理器（对照 Go {@code im.CommandRegistry}）。 */
+    /** 斜杠命令名 → 处理器。 */
     public static final class CommandRegistry {
 
         private final java.util.Map<String, ImCommand> commands = new java.util.HashMap<>();
@@ -124,7 +123,7 @@ public final class Commands {
         }
     }
 
-    /** Go 的 (cmd, args, ok) 三元组。 */
+    /** parse 的结果三元组：命令、参数、是否命中。 */
     public record ParseResult(ImCommand command, List<String> args, boolean matched) {
         public static final ParseResult NO_MATCH = new ParseResult(null, List.of(), false);
     }

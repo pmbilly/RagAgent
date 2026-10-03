@@ -6,29 +6,28 @@ import java.util.regex.Pattern;
 
 
 /**
- * service.go 里的**纯**出站内容助手（波 5 W5γ1 收进一处；service.go 的方法段注释
- * 逐条对照）。带 IO 依赖的部分（rewriteStorageURLs/cleanIMContent 的 resolver 段）
- * 留在 γ2 的 Service。
+ * 纯出站内容助手。带 IO 依赖的部分（rewriteStorageURLs/cleanIMContent 的 resolver 段）
+ * 留在 Service。
  */
 public final class ImFormat {
 
     private ImFormat() {
     }
 
-    // ── 兜底文案与限额（service.go L41-60） ──────────────────────────────
+    // ── 兜底文案与限额 ───────────────────────────────────────────────────
     public static final String IM_NO_ANSWER_FALLBACK = "抱歉，我暂时无法回答这个问题。";
     public static final String IM_ERROR_FALLBACK = "抱歉，处理您的问题时出现了异常，请稍后再试。";
     public static final String IM_CANCELLED_FALLBACK = "抱歉，回答已被取消。";
 
     public static final int MAX_CONTENT_LENGTH = 4096;
-    /** 引用消息最多收进的 rune 数。 */
+    /** 引用消息最多收进的字符数（code point）。 */
     public static final int MAX_QUOTE_CONTENT_LENGTH = 500;
     public static final int MAX_IM_ATTACHMENT_BYTES = 32 << 20; // 32 MiB
     public static final int MAX_IM_VISION_ATTACHMENT_BYTES = 8 << 20; // 8 MiB
     public static final int MAX_IM_ATTACHMENT_LINES = 500;
     public static final int MAX_IM_ATTACHMENT_CONTENT_BYTES = 32 << 10; // 32 KiB
 
-    // ── 引用/XML 清理（service.go L74-101） ──────────────────────────────
+    // ── 引用/XML 清理 ────────────────────────────────────────────────────
 
     private static final Pattern CITATION_TAG_RE = Pattern.compile("<(?:kb|web)\\b[^>]*/?>");
     private static final Pattern IMAGE_XML_BLOCK_RE = Pattern.compile("(?s)<image\\b[^>]*>.*?</image>");
@@ -41,7 +40,7 @@ public final class ImFormat {
 
     /**
      * 把 &lt;image&gt; 块收回普通 markdown：有 &lt;image_original&gt; 时提取原始
-     * ![alt](url)，否则整块删除（service.go L92-101 逐行）。
+     * ![alt](url)，否则整块删除。
      */
     public static String stripImageXMLTags(String s) {
         java.util.regex.Matcher blockMatcher = IMAGE_XML_BLOCK_RE.matcher(s);
@@ -60,17 +59,16 @@ public final class ImFormat {
         return out.toString();
     }
 
-    // ── 流式 holdback（service.go L119-143） ─────────────────────────────
+    // ── 流式 holdback ────────────────────────────────────────────────────
 
     /**
-     * 匹配在串尾未闭合的 &lt;image…/&lt;kb…/&lt;web… 开标签（service.go L119-122）。
+     * 匹配在串尾未闭合的 &lt;image…/&lt;kb…/&lt;web… 开标签。
      */
     private static final Pattern INCOMPLETE_XML_TAG_RE =
             Pattern.compile("<(?:image|image_original|image_caption|image_ocr|kb|web)[^>]*$");
 
-    /** 串尾可能被截断的 XML 标签的**字节偏移**，没有则 -1。
-     *  Java String 是 UTF-16：等价偏移按 code point 数换算（Go 索引字节；本仓库
-     *  storageurl 的 holdback 同款换算先例）。 */
+    /** 串尾可能被截断的 XML 标签的偏移（按 code point 计），没有则 -1。
+     *  本仓库 storageurl 的 holdback 同款换算。 */
     public static int findIncompleteXMLTag(String s) {
         java.util.regex.Matcher m = INCOMPLETE_XML_TAG_RE.matcher(s);
         if (!m.find()) {
@@ -89,12 +87,12 @@ public final class ImFormat {
         return cutoff;
     }
 
-    // ── QA 失败兜底（service.go L174-186） ───────────────────────────────
+    // ── QA 失败兜底 ──────────────────────────────────────────────────────
 
     /**
-     * QA 错误 → 用户可见 IM 兜底文案：null→无答案；取消/超时（对照 Go
-     * errors.Is(context.Canceled/DeadlineExceeded)——Java 对应 CancellationException/
-     * TimeoutException/InterruptedException，含 cause 链）→已取消；其余→异常。
+     * QA 错误 → 用户可见 IM 兜底文案：null→无答案；取消/超时
+     * （CancellationException/TimeoutException/InterruptedException，含 cause 链）
+     * →已取消；其余→异常。
      */
     public static String imQAFailureReply(Throwable err) {
         if (err == null) {
@@ -120,7 +118,7 @@ public final class ImFormat {
         return false;
     }
 
-    // ── userKey / 引用上下文（service.go L369-423） ──────────────────────
+    // ── userKey / 引用上下文 ──────────────────────────────────────────────
 
     /** "channelID:userID:chatID[:threadID]"，用于每用户限额与 /stop。 */
     public static String makeUserKey(String channelId, String userId, String chatId,
@@ -131,7 +129,7 @@ public final class ImFormat {
         return channelId + ":" + userId + ":" + chatId;
     }
 
-    /** 消息类型 → 中文标签（LLM 指令用；service.go L377-387）。 */
+    /** 消息类型 → 中文标签（LLM 指令用）。 */
     private static final Map<String, String> NON_TEXT_TYPE_LABEL = buildNonTextLabel();
 
     private static Map<String, String> buildNonTextLabel() {
@@ -144,7 +142,7 @@ public final class ImFormat {
     }
 
     /**
-     * QuotedMessage → LLM 上下文的带标签字符串；nil 返回空。非文本引用生成
+     * QuotedMessage → LLM 上下文的带标签字符串；null 返回空。非文本引用生成
      * "告知用户无法处理"的指令，而非会诱发幻觉的内容占位符。
      */
     public static String formatQuotedContext(IncomingMessage.QuotedMessage quote) {
@@ -177,7 +175,7 @@ public final class ImFormat {
         return label + "\n<quoted_message>\n" + content + "\n</quoted_message>";
     }
 
-    // ── 工具可见性（service.go L2438-2451） ──────────────────────────────
+    // ── 工具可见性 ───────────────────────────────────────────────────────
 
     private static final java.util.Set<String> INTERNAL_TOOL_NAMES =
             java.util.Set.of("thinking", "todo_write");
@@ -187,7 +185,7 @@ public final class ImFormat {
         return !INTERNAL_TOOL_NAMES.contains(toolName);
     }
 
-    // ── 文件消息/扩展名/平台映射（service.go L3344-3425） ─────────────────
+    // ── 文件消息/扩展名/平台映射 ─────────────────────────────────────────
 
     /**
      * 文件型平台事件 → 合法 QA 查询：有 caption 用 caption；否则确认收到并
@@ -213,7 +211,7 @@ public final class ImFormat {
         return parts[parts.length - 1].toLowerCase();
     }
 
-    /** 文件消息入库支持的扩展名（service.go L3331-3338）。 */
+    /** 文件消息入库支持的扩展名。 */
     public static final java.util.Set<String> SUPPORTED_KB_FILE_EXTS = java.util.Set.of(
             "pdf", "txt", "docx", "doc",
             "md", "markdown",
@@ -221,7 +219,7 @@ public final class ImFormat {
             "csv", "xlsx", "xls",
             "pptx", "ppt");
 
-    /** IM 平台标识 → Knowledge.Channel 常量（service.go L3407-3425）。 */
+    /** IM 平台标识 → Knowledge.Channel 常量。 */
     public static String imPlatformToChannel(String platform) {
         switch (platform == null ? "" : platform.toLowerCase()) {
             case "wechat":
@@ -239,7 +237,7 @@ public final class ImFormat {
         }
     }
 
-    // ── 会话标题（service.go L2237-2293） ────────────────────────────────
+    // ── 会话标题 ─────────────────────────────────────────────────────────
 
     /** user 模式标题："名字"/"user xxxxxxxx"/"user" + 群/私聊后缀。 */
     public static String buildUserSessionTitle(IncomingMessage msg) {

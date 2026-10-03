@@ -2,7 +2,7 @@ package com.ragagent.mcp.domain;
 
 
 /**
- * MCP 服务暴露的工具（对照 Go types.MCPTool）。
+ * MCP 服务暴露的工具。
  *
  * 注意 {@code inputSchema} 是**驼峰**——这是 MCP 协议规范的字段名，别按项目惯例改成 snake_case。
  */
@@ -11,11 +11,10 @@ public class McpTool {
     private String name = "";
     private String description = "";
     /** 工具参数的 JSON Schema；协议字段名为 inputSchema（驼峰） */
-    /** MCP 协议字段名（spec 用 camelCase，故与 Go tag 一致），刻意保持原样。 */
     private Object inputSchema;
     /**
      * 为 true 时 agent 执行会暂停，等用户在 UI 批准（issue #1173）。
-     * 键名是 {@code require_approval}（对照 Go 的 json tag）——本对象既走
+     * 键名是 {@code require_approval}——本对象既走
      * GET /{id}/tools 响应，也存进 mcp_metadata.tools 的 jsonb。
      */
         private boolean requireApproval;

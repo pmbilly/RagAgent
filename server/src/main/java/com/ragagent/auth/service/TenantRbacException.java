@@ -4,45 +4,43 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 
 /**
- * 成员/邀请域的 service 哨兵异常（对照 Go tenant_member.go / tenant_invitation.go
- * 的 sentinel errors + handler 的 errors.Is 分派）。
+ * 成员/邀请域的 service 哨兵异常。
  *
- * <p><b>为什么不用统一异常映射</b>：同一个哨兵在不同端点的 HTTP 形态不同
- * （§9 波 2 chunk 第 1 条的同族教训）——如 {@code ErrMembershipNotFound} 在
- * UpdateMemberRole/RemoveMember 是 404 "membership not found"，在 LeaveTenant
+ * <p><b>为什么不用统一异常映射</b>：同一个哨兵在不同端点的 HTTP 形态不同——
+ * 如 MEMBERSHIP_NOT_FOUND 在
+ * updateRole/removeMember 是 404 "membership not found"，在 leave
  * 是 404 "you are not a member of this workspace"。因此 service 只抛带 Kind 的
- * 领域异常，HTTP 状态与文案由 controller 的 switch 逐端点决定（对照 Go 的
- * {@code errors.Is(err, service.ErrXxx)} 链）。</p>
+ * 领域异常，HTTP 状态与文案由 controller 的 switch 逐端点决定。</p>
  *
- * <p>{@link #message} 一律是 Go 哨兵的原文（"tenant membership not found" 等），
+ * <p>{@link #getMessage()} 一律是锁定原文（"tenant membership not found" 等），
  * controller 直接用它当响应 message。</p>
  */
 public class TenantRbacException extends RuntimeException {
 
     public enum Kind {
-        /** ErrMembershipNotFound："tenant membership not found" */
+        /** "tenant membership not found" */
         MEMBERSHIP_NOT_FOUND,
-        /** ErrMembershipAlreadyExists："tenant membership already exists" */
+        /** "tenant membership already exists" */
         MEMBERSHIP_ALREADY_EXISTS,
-        /** ErrInvalidTenantRole："invalid tenant role" */
+        /** "invalid tenant role" */
         INVALID_TENANT_ROLE,
-        /** ErrAPIKeyCannotAssignOwner："API keys cannot assign the owner role" */
+        /** "API keys cannot assign the owner role" */
         API_KEY_CANNOT_ASSIGN_OWNER,
-        /** ErrLastOwner："cannot demote or remove the last active owner of the tenant" */
+        /** "cannot demote or remove the last active owner of the tenant" */
         LAST_OWNER,
-        /** ErrPendingInvitationExists："a pending invitation for this user already exists" */
+        /** "a pending invitation for this user already exists" */
         PENDING_INVITATION_EXISTS,
-        /** ErrAlreadyMember："user is already an active member of the tenant" */
+        /** "user is already an active member of the tenant" */
         ALREADY_MEMBER,
-        /** ErrInvitationNotFound："invitation not found" */
+        /** "invitation not found" */
         INVITATION_NOT_FOUND,
-        /** ErrInvitationNotPending："invitation is no longer pending" */
+        /** "invitation is no longer pending" */
         INVITATION_NOT_PENDING,
-        /** ErrInvitationExpired："invitation has expired" */
+        /** "invitation has expired" */
         INVITATION_EXPIRED,
-        /** ErrInvitationForbidden："only the invitee can accept or decline this invitation" */
+        /** "only the invitee can accept or decline this invitation" */
         INVITATION_FORBIDDEN,
-        /** ErrInvitationTokenInvalid："invitation token is invalid or has been revoked" */
+        /** "invitation token is invalid or has been revoked" */
         INVITATION_TOKEN_INVALID
     }
 
@@ -57,7 +55,7 @@ public class TenantRbacException extends RuntimeException {
         return kind;
     }
 
-    // ── Go 哨兵原文（controller 直接当 message 用） ─────────────────────────
+    // ── 哨兵原文（controller 直接当 message 用） ───────────────────────────
 
     public static TenantRbacException membershipNotFound() {
         return new TenantRbacException(Kind.MEMBERSHIP_NOT_FOUND, "tenant membership not found");
@@ -113,7 +111,7 @@ public class TenantRbacException extends RuntimeException {
                 "invitation token is invalid or has been revoked");
     }
 
-    /** 哨兵 → Go handler 里的默认 AppError 映射（供需要"码 + 原文"的端点复用） */
+    /** 哨兵 → 默认 AppError 映射（供需要"码 + 原文"的端点复用） */
     public BizException asConflict() {
         return new BizException(AppError.conflict(getMessage()));
     }

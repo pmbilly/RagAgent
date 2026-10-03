@@ -26,32 +26,27 @@ import com.ragagent.memory.domain.MemoryTopicStat;
 import org.junit.jupiter.api.Test;
 
 /**
- * memory 实体 / jsonb 值的**逐字节 JSON 契约**测试（波 0）。
+ * memory 实体 / jsonb 值的**逐字节 JSON 契约**测试。
  *
- * <h2>期望值的来源</h2>
- * <p>Go 实录——把 {@code internal/types/memory.go} 与 {@code memory_extraction.go}
- * 里的这几个类型**原样抄进**一个独立 Go 程序（连 json/gorm tag 一起），
- * 喂同样的输入跑 {@code json.Marshal}，输出抄进下面的断言。
- * 程序里时间用的是 {@code time.FixedZone("CST", 8*3600)}，因为 JVM 默认时区是
- * {@code Asia/Shanghai}，{@code GoTimeSerializer} 会把时间归一化到那里再输出——
- * 用 UTC 录的话两边字面量会差一个偏移、断言无意义。</p>
+ * <p>时间字面量按 JVM 默认时区写：{@code GoTimeSerializer} 会把时间归一化到那里
+ * （本机为 {@code Asia/Shanghai}）再输出——用 UTC 写期望值会差一个偏移、断言无意义。</p>
  *
  * <h2>这份语料刻意盯住的五个坑</h2>
  * <ol>
- *   <li>（换锚后已统一）{@code replacesId} 与 {@code supersededBy} 都**恒输出**空串——
- *       旧 Go 的 {@code omitempty} 随 §1.6「禁止条件键」退役，两种处置不再并存。</li>
- *   <li>{@code inference}（Go {@code Inferred}）是 {@code json:"-" gorm:"-"}：
- *       **既不出响应也不落库**——Java 侧 {@code @JsonIgnore} + {@code @TableField(exist=false)} 缺一不可。</li>
+ *   <li>{@code replacesId} 与 {@code supersededBy} 都**恒输出**空串（§1.6「禁止条件键」，
+ *       不允许"有时出现有时消失"的键）。</li>
+ *   <li>{@code inference} **既不出响应也不落库**——{@code @JsonIgnore} +
+ *       {@code @TableField(exist=false)} 缺一不可。</li>
  *   <li>{@code MemorySubject.pendingSessions} 与 {@code MemoryTopicStat.aliases}
- *       的**响应是 {@code null}、落库是 {@code []}**——Go 的 {@code Value()} 与
- *       {@code json.Marshal} 是两条路，别混。（落库侧由 {@code MemoryRepositoryTest} 用真库钉。）</li>
- *   <li>{@code MemoryExtractionState} 的 {@code leaseUntil} **永远输出**（Go 判 omitempty 时
- *       struct 值不算"空"），零值是 year-1 字面量；{@code leaseId} 换锚后也恒输出。</li>
+ *       的**响应是 {@code null}、落库是 {@code []}**——序列化与落库是两条路，别混。
+ *       （落库侧由 {@code MemoryRepositoryTest} 用真库钉。）</li>
+ *   <li>{@code MemoryExtractionState} 的 {@code leaseUntil} **永远输出**，
+ *       零值是 year-1 字面量；{@code leaseId} 也恒输出。</li>
  *   <li>{@code MemoryExtractionSession} 的游标在 JSON 里是**嵌套对象** {@code cursor}，
  *       在库里是**两个平列** {@code cursor_at}/{@code cursor_id}。这里只钉 JSON 那一半。</li>
  * </ol>
  *
- * <p>§14.9k M2 换锚后，本文件里**所有**类型的 JSON 键名都＝Java 字段名（camelCase）。</p>
+ * <p>本文件里**所有**类型的 JSON 键名都＝Java 字段名（camelCase，契约 §1.1）。</p>
  */
 class MemoryEntityJsonTest {
 
@@ -66,12 +61,12 @@ class MemoryEntityJsonTest {
         return MAPPER.writeValueAsString(value);
     }
 
-    /** 与 Go 的 {@code time.FixedZone("CST", 8*3600)} 同墙钟：JVM 默认时区的 10:00。 */
+    /** JVM 默认时区的 10:00（期望值语料统一用这个墙钟）。 */
     private static OffsetDateTime ten() {
         return ZonedDateTime.of(2026, 9, 18, 10, 0, 0, 0, ZoneId.systemDefault()).toOffsetDateTime();
     }
 
-    // ── 零值（最容易被"顺手补 omitempty"改坏） ─────────────────────────────
+    // ── 零值（最容易被"顺手省键"改坏） ─────────────────────────────
 
     @Test
     void memorySubjectZeroMatchesGo() throws Exception {
@@ -164,10 +159,8 @@ class MemoryEntityJsonTest {
     }
 
     /**
-     * 换锚后 {@code replacesId} 与 {@code supersededBy} **一视同仁**：未取代时都是空串但键都在。
-     *
-     * <p>旧 Go 里前者带 {@code omitempty}（空串时整个键消失）、后者没有——那种"条件键"
-     * 随契约 §1.6「禁止条件键」退役，本类型不再有两种处置。</p>
+     * {@code replacesId} 与 {@code supersededBy} **一视同仁**：未取代时都是空串但键都在
+     * （§1.6 禁止条件键）。
      */
     @Test
     void memoryItemAlwaysEmitsReplacesIdAndSupersededBy() throws Exception {
@@ -176,7 +169,7 @@ class MemoryEntityJsonTest {
         assertThat(json).contains("\"supersededBy\":\"\"");
     }
 
-    /** {@code inferred} 在 Go 里是 {@code json:"-"}：绝不能出现在响应里。 */
+    /** {@code inferred} 绝不能出现在响应里（不外泄的内部字段）。 */
     @Test
     void memoryItemNeverExposesInferred() throws Exception {
         MemoryItem i = new MemoryItem();
@@ -260,10 +253,9 @@ class MemoryEntityJsonTest {
 
     /**
      * {@code MemoryExtractionState} 的零值——**两个键都在**：{@code leaseId} 是空串、
-     * {@code leaseUntil} 是 year-1 字面量（旧 Go 的 {@code omitempty} 已随 M2 退役）。
+     * {@code leaseUntil} 是 year-1 字面量（键恒出现，不省略）。
      *
-     * <p>这正是落库 jsonb 的字节（Go 的 {@code Value()} 就是 {@code json.Marshal(s)}），
-     * 所以断言同时钉住了"库里那一列长什么样"。</p>
+     * <p>这也是落库 jsonb 的字节，断言同时钉住了"库里那一列长什么样"。</p>
      */
     @Test
     void memoryExtractionStateZeroWritesBothKeys() throws Exception {
@@ -287,7 +279,7 @@ class MemoryEntityJsonTest {
         assertThat(back.getLeaseUntil().toInstant()).isEqualTo(ten().toInstant());
     }
 
-    /** 历史行里可能有未知键（Go 的 {@code json.Unmarshal} 默认忽略）——读路径必须宽容。 */
+    /** 历史行里可能有未知键——读路径必须宽容（忽略未知属性）。 */
     @Test
     void memoryExtractionStateToleratesUnknownKeysOnRead() throws Exception {
         MemoryExtractionState back = JSONB.readValue(
@@ -307,15 +299,15 @@ class MemoryEntityJsonTest {
     // ── 键序 + 键数（§9：带 is 前缀字段/派生访问器的响应体必须额外钉一条） ──
 
     /**
-     * Go struct 按**声明序**输出；map 才按字母序（§9）。这里逐类型核对键序与键数，
+     * JSON 键序＝DTO 声明序（契约 §1.9；§9）。这里逐类型核对键序与键数，
      * 抓的是两类"往返测试抓不到"的问题：
      * <ul>
      *   <li>派生访问器多吐了一个键（例如把 {@code hasAlias} 起名成 {@code isAlias}）；</li>
-     *   <li>字段漏进/多出响应面（换锚后键名＝Java 字段名，写错就当场显形）——★ 正则必须
+     *   <li>字段漏进/多出响应面（键名＝Java 字段名，写错就当场显形）——★ 正则必须
      *       大小写感知，否则驼峰键会被静默过滤掉（§9 明确记过这个教训）。</li>
      * </ul>
      *
-     * <p>§14.9k M2 换锚后全部类型都用驼峰键名（＝Java 字段名），与声明序一致。</p>
+     * <p>全部类型都用驼峰键名（＝Java 字段名），与声明序一致。</p>
      */
     @Test
     void entityKeyOrderAndCountMatchGoDeclarationOrder() throws Exception {
@@ -467,7 +459,7 @@ class MemoryEntityJsonTest {
                 .isEqualTo(zero);
     }
 
-    /** {@code MemoryMessageCursor.after} 的判定（对照 Go {@code After}）。 */
+    /** {@code MemoryMessageCursor.after} 的判定（先比时间，同刻再比 id）。 */
     @Test
     void messageCursorOrderingMatchesGo() {
         MemoryMessageCursor earlier = new MemoryMessageCursor(ten().minusSeconds(1), "z");

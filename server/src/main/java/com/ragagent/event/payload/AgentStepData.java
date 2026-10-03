@@ -4,9 +4,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Agent 步骤事件数据（对照 Go {@code event.AgentStepData}，internal/event/event_data.go:111-116）。
+ * Agent 步骤事件数据。
  *
- * <p>实录锚点：{@code tool_calls} 与 {@code duration_ms} 均无 omitempty——
+ * <p>{@code tool_calls} 与 {@code duration_ms} 均恒输出——
  * 零值输出 {@code {"iteration":0,"thought":"","tool_calls":null,"duration_ms":0}}。</p>
  */
 @JsonPropertyOrder({"iteration", "thought", "tool_calls", "duration_ms"})
@@ -18,11 +18,11 @@ public class AgentStepData {
     @JsonProperty("thought")
     private String thought = "";
 
-    /** Go {@code []types.ToolCall}；无 omitempty：null 恒输出 */
+    /** null 也输出 null */
     @JsonProperty("tool_calls")
     private Object toolCalls;
 
-    /** 无 omitempty：0 恒输出 */
+    /** 0 恒输出 */
     @JsonProperty("duration_ms")
     private long durationMs;
 

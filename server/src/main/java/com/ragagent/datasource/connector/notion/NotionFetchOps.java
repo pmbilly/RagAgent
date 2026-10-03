@@ -28,7 +28,7 @@ final class NotionFetchOps {
     }
 
     /**
-     * 对照 Go {@code fetchPage}：抓单页的正文与附件；页面本身是数据库记录时
+     * 抓单页的正文与附件；页面本身是数据库记录时
      * 走 {@code buildRecordItem}。
      */
     List<FetchedItem> fetchPage(NotionClient client, NotionPage page,
@@ -156,7 +156,7 @@ final class NotionFetchOps {
     }
 
     /**
-     * 对照 Go {@code fetchDatabase}：把整库同步成**一条**表格条目（全量）。
+     * 把整库同步成**一条**表格条目（全量）。
      * 接受 data_source_id（Search 给的）或 database_id（child_database 块给的）。
      */
     List<FetchedItem> fetchDatabase(NotionClient client, String id,
@@ -196,7 +196,7 @@ final class NotionFetchOps {
         return items;
     }
 
-    /** 对照 Go 的 {@code ([]FetchedItem, map[string]time.Time)} 双返回值。 */
+    /** 整库增量的结果：条目 + "记录 ID → 编辑时间"。 */
     static final class DatabaseIncremental {
         final List<FetchedItem> items;
         final Map<String, OffsetDateTime> recordEditTimes;
@@ -208,7 +208,7 @@ final class NotionFetchOps {
     }
 
     /**
-     * 对照 Go {@code fetchDatabaseIncremental}：只有变化的记录才重抓，
+     * 只有变化的记录才重抓，
      * 返回"记录 ID → 编辑时间"供 cursor 合并。
      */
     DatabaseIncremental fetchDatabaseIncremental(NotionClient client, String id,
@@ -265,7 +265,7 @@ final class NotionFetchOps {
         return new DatabaseIncremental(new ArrayList<>(), recordEditTimes);
     }
 
-    /** 对照 Go 的 {@code (records, dbTitle, queryID, error)} 四返回值。 */
+    /** 一次数据库查询的结果：记录 + 库标题 + 实际查询用的 ID。 */
     static final class QueryDatabaseResult {
         final List<NotionPage> records;
         final String dbTitle;
@@ -278,7 +278,7 @@ final class NotionFetchOps {
         }
     }
 
-    /** 对照 Go {@code queryDatabaseRecords}。 */
+    /** 查询数据库的全部记录。 */
     QueryDatabaseResult queryDatabaseRecords(NotionClient client, String id) {
         NotionDatabaseInfo dbInfo;
         try {
@@ -305,10 +305,10 @@ final class NotionFetchOps {
     }
 
     /**
-     * 对照 Go {@code buildRecordItem}：把一条数据库记录转成知识条目
+     * 把一条数据库记录转成知识条目
      * （属性当抬头、块内容当正文）。
      *
-     * <p>逐字符契约（probe 实录）：</p>
+     * <p>逐字符契约：</p>
      * <pre>
      *   "# Record One\n\n- **Status**: Done\nLine2|Pipe\n- **Tag**: X|Y"
      *   "# WithContent\n\n- **Status**: Deep\n\nrecord body"
@@ -376,9 +376,9 @@ final class NotionFetchOps {
     }
 
     /**
-     * 对照 Go {@code buildDatabaseItem}：整库合成一条 Markdown 表格文档。
+     * 整库合成一条 Markdown 表格文档。
      *
-     * <p>逐字符契约（probe 实录，含 {@code |} 转义与换行转 {@code <br>}）：</p>
+     * <p>逐字符契约（含 {@code |} 转义与换行转 {@code <br>}）：</p>
      * <pre>
      * "# Test Database\n\n| Title | Status | Tag |\n|---|---|---|\n"
      * + "| Record One | Done&lt;br&gt;Line2\\|Pipe | X\\|Y |\n"

@@ -10,7 +10,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * 启动期快照的安装语义（B6 批 6）：装了就生效、装空回落缺省。
+ * 启动期快照的安装语义：装了就生效、装空回落缺省。
  *
  * <p>这批值都是**进程级静态**（纯静态工具族没有 Spring 装配点），故用例结束必须还原——
  * 否则会污染同 JVM 的后续用例（SsrfGuard 白名单互踩是 known-issues W5a 的既有教训）。</p>

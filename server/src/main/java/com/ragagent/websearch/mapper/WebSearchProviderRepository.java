@@ -14,11 +14,11 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * 对照 Go {@code repository.webSearchProviderRepository}（internal/application/repository/web_search_provider.go）。
+ * web_search_providers 表的数据访问。
  *
- * <p>软删走显式 {@code deleted_at IS NULL} 条件（约定 §9，不用 @TableLogic）。
- * List 排序 {@code created_at ASC}（vector/storage 是 DESC，Go 原文如此）。
- * 自定义 SQL 的 parameters 列必须显式声明 typeHandler（§9：注解 SQL 不套实体注解）。</p>
+ * <p>软删走显式 {@code deleted_at IS NULL} 条件（不用 @TableLogic）。
+ * List 排序 {@code created_at ASC}（vector/storage 是 DESC，此处刻意不同）。
+ * 自定义 SQL 的 parameters 列必须显式声明 typeHandler（注解 SQL 不套实体注解）。</p>
  */
 @Mapper
 public interface WebSearchProviderRepository {
@@ -36,7 +36,7 @@ public interface WebSearchProviderRepository {
     })
     WebSearchProvider getByID(@Param("tenantId") long tenantId, @Param("id") String id);
 
-    /** Go List：created_at ASC */
+    /** 列表查询：created_at ASC */
     @Select("SELECT " + COLS + " FROM web_search_providers "
             + "WHERE tenant_id = #{tenantId} AND deleted_at IS NULL ORDER BY created_at ASC")
     @Results(value = {
@@ -52,9 +52,8 @@ public interface WebSearchProviderRepository {
     int create(@Param("p") WebSearchProvider provider, @Param("now") OffsetDateTime now);
 
     /**
-     * 对照 Go {@code Update}：{@code Select("*").Updates(provider)} 写**全部**列——
-     * 含零值 created_at（Go 侧写 year-1）与 deleted_at（NULL）。Java 侧 created_at
-     * 写 SQL NULL（跨语言等价，见实体注释）、updated_at 写 now（GORM autoUpdateTime）。
+     * 全列覆盖更新：created_at 写 SQL NULL（见实体注释）、
+     * deleted_at 写 NULL、updated_at 写 now。
      */
     @Update("UPDATE web_search_providers SET tenant_id = #{p.tenantId}, name = #{p.name}, "
             + "provider = #{p.provider}, description = #{p.description}, "
@@ -68,7 +67,7 @@ public interface WebSearchProviderRepository {
             + "WHERE id = #{id} AND tenant_id = #{tenantId} AND deleted_at IS NULL")
     int delete(@Param("tenantId") long tenantId, @Param("id") String id);
 
-    /** Go ClearDefault：清同租户全部默认（可排除一个 id）；GORM Update 自动刷 updated_at */
+    /** 清同租户全部默认（可排除一个 id）；同语句刷新 updated_at */
     @Update("UPDATE web_search_providers SET is_default = FALSE, updated_at = NOW() "
             + "WHERE tenant_id = #{tenantId} AND is_default = TRUE AND deleted_at IS NULL "
             + "AND (#{excludeId} = '' OR id != #{excludeId})")

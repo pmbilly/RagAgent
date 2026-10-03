@@ -23,7 +23,7 @@ import com.ragagent.llm.domain.ToolCall;
  * </ol>
  *
  * <p><b>编码器</b>：jtokkit 的 {@link EncodingType#CL100K_BASE}——同一份 OpenAI 词表 +
- * 同一 BPE 合并算法，token 数与实录基线逐字节一致（36 条实录语料 + 消息/工具钉住）。
+ * 同一 BPE 合并算法，token 数与基线语料逐字节一致（36 条语料 + 消息/工具样例钉住）。
  * 用 {@code encodeOrdinary}：特殊 token（{@code <|endoftext|>} 等）按普通文本切，
  * 从不查 special token 表。</p>
  *

@@ -15,11 +15,9 @@ import com.ragagent.common.session.PipelineUsedMemoryView;
 import com.ragagent.common.graph.GraphData;
 
 /**
- * 一次 chat 管线执行的全部配置、状态与运行时句柄
- * （对照 Go {@code types.ChatManage} = PipelineRequest + PipelineState + PipelineContext 的三段嵌入，
- * internal/types/chat_manage.go:5-165）。
+ * 一次 chat 管线执行的全部配置、状态与运行时句柄，按请求段、状态段、运行时段三部分组织。
  *
- * <h2>与 Go 的字段对应</h2>
+ * <h2>字段分区</h2>
  * <ul>
  *   <li><b>请求段（不可变配置）</b>：query/sessionId/userId/maxRounds、检索参数、重排参数、
  *       模型参数、改写开关、FAQ 策略、多模态/附件、web 检索开关、summaryConfig。</li>
@@ -29,19 +27,17 @@ import com.ragagent.common.graph.GraphData;
  *   <li><b>运行时段</b>：eventBus/messageId/userMessageID。</li>
  * </ul>
  *
- * <h2>{@link #cloneChatManage()} 的复制面（Go Clone，chat_manage.go:169-265，实录钉住）</h2>
+ * <h2>{@link #cloneChatManage()} 的复制面</h2>
  * <p>请求段全量复制（SearchTarget 不可变，列表换新）；状态段<b>只复制</b> rewriteQuery/intent/
  * imageDescription/quotedContext/systemPromptOverride/memoryPrompt/usedMemories/renderedContexts/
  * entity/entityKBIDs/entityKnowledge——<b>history、searchResult、rerankResult、mergeResult、
- * userContent、chatResponse、renderedContexts 的运行中数据以及运行时段句柄都不复制</b>。
- * 实录组 chat_manage/clone 逐字段钉住。</p>
+ * userContent、chatResponse、renderedContexts 的运行中数据以及运行时段句柄都不复制</b>。</p>
  *
- * <p>本类型不落 jsonb 也不作响应体（Go 侧 json tag 只用于评测注入），不进
- * JsonContractRoundTripTest；行为契约由实录回放钉住。</p>
+ * <p>本类型不落 jsonb 也不作响应体，不进 JsonContractRoundTripTest。</p>
  */
 public final class ChatManage {
 
-    // ===== 请求段（对照 PipelineRequest） =====
+    // ===== 请求段（不可变配置） =====
 
     private String query = "";
     private String sessionId = "";
@@ -96,7 +92,7 @@ public final class ChatManage {
     private int webFetchTopN;
     private String language = "";
 
-    // ===== 状态段（对照 PipelineState） =====
+    // ===== 状态段 =====
 
     private String rewriteQuery = "";
     private String intent = "";
@@ -118,16 +114,12 @@ public final class ChatManage {
     private String memoryPrompt = "";
     private List<PipelineUsedMemoryView> usedMemories;
 
-    // ===== 运行时段（对照 PipelineContext） =====
+    // ===== 运行时段 =====
 
     private EventBusInterface eventBus;
     private String messageId = "";
     private String userMessageId = "";
 
-    /** 对照 types.GraphData（管线只消费 Node/Relation 两个切片）。 */
-    /** 对照 types.GraphNode（name/chunks/attributes 三个被管线消费的字段）。 */
-    /** 对照 types.GraphRelation。 */
-    /** 图检索的命名空间（对照 types.NameSpace，internal/types/extract_graph.go:38-41）。 */
     // ----- 请求段访问器 -----
 
     public String getQuery() { return query; }
@@ -274,7 +266,7 @@ public final class ChatManage {
     // ----- 行为 -----
 
     /**
-     * 对照 {@code ChatManage.NeedsRetrieval}：当前执行是否要跑检索阶段。
+     * 当前执行是否要跑检索阶段。
      * web_search 意图只有开 web 检索才需要；其余委托给 intent 判定。
      */
     public boolean needsRetrieval() {
@@ -284,18 +276,17 @@ public final class ChatManage {
         return QueryIntent.needsKbRetrieval(intent);
     }
 
-    /** 对照 {@code PipelineRequest.CitationsEnabled}：nil 默认 true。 */
+    /** 未指定（null）时默认 true。 */
     public boolean citationsEnabled() {
         return citationEnabled == null || citationEnabled;
     }
 
     /**
-     * 对照 {@code ChatManage.Clone}：复制面见类注释。PipelineContext 字段
+     * 复制面见类注释。运行时段字段
      * （eventBus 等）是逐执行句柄，<b>不复制</b>。
      */
     public ChatManage cloneChatManage() {
         ChatManage c = new ChatManage();
-        // PipelineRequest
         c.query = query;
         c.sessionId = sessionId;
         c.userId = userId;
@@ -337,7 +328,7 @@ public final class ChatManage {
         c.webFetchEnabled = webFetchEnabled;
         c.webFetchTopN = webFetchTopN;
         c.language = language;
-        // PipelineState（只复制 Clone 列出的字段；history/结果集/userContent 等不复制）
+        // 状态段只复制复制面列出的字段；history/结果集/userContent 等不复制
         c.rewriteQuery = rewriteQuery;
         c.intent = intent;
         c.imageDescription = imageDescription;

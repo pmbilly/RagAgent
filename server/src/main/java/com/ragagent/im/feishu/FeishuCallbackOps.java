@@ -16,8 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 飞书回调验签/解析协作者（对照 Go adapter.go 的 VerifyCallback/HandleURLVerification/
- * ParseCallback 段，自 {@link FeishuAdapter} 机械搬出）：加密体先解密、只认
+ * 飞书回调验签/解析协作者：加密体先解密、只认
  * im.message.receive_v1、text/file/image/post 四型。持门面回引取
  * verificationToken/region/encryptKey，{@code MAPPER}/{@code readTree} 经门面类名访问。
  */
@@ -31,7 +30,7 @@ final class FeishuCallbackOps {
         this.service = service;
     }
 
-    /** 对照 {@code VerifyCallback}：未配 token 跳过；加密体先解密，再比 header.token。 */
+    /** 未配 token 跳过；加密体先解密，再比 header.token。 */
     public Exception verifyCallback(CallbackExchange exchange) {
         if (service.verificationToken.isEmpty()) {
             return null;
@@ -64,7 +63,7 @@ final class FeishuCallbackOps {
         return null;
     }
 
-    /** 对照 {@code HandleURLVerification}：含 {@code challenge} 即 200 回显（加密体先解密）。 */
+    /** 含 {@code challenge} 即 200 回显（加密体先解密）。 */
     public boolean handleURLVerification(CallbackExchange exchange) {
         byte[] body = exchange.body();
         JsonNode parsed;
@@ -193,7 +192,7 @@ final class FeishuCallbackOps {
         };
     }
 
-    /** 对照 Go：群聊剥离 {@code @_user_xxx } 前缀（可连续多个）。 */
+    /** 群聊剥离 {@code @_user_xxx } 前缀（可连续多个）。 */
     static String stripBotMention(String content) {
         String value = content == null ? "" : content;
         while (value.startsWith("@_user_")) {
@@ -226,7 +225,7 @@ final class FeishuCallbackOps {
         msg.content = content == null ? "" : content;
         return msg;
     }
-    /** 对照 {@code decrypt}：未配 encrypt_key 直接报错；否则走共享的 feishu 解密（AES-256-CBC）。 */
+    /** 未配 encrypt_key 直接报错；否则走共享的 feishu 解密（AES-256-CBC）。 */
     byte[] decrypt(String encrypted) throws Exception {
         if (service.encryptKey.isEmpty()) {
             throw new IllegalStateException("encrypt_key not configured");

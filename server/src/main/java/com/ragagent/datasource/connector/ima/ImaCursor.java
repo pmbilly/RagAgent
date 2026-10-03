@@ -12,8 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * IMA 连接器的游标载荷（对照 Go {@code ima.imaCursor}，
- * ima/connector.go L259-263）。它装进
+ * IMA 连接器的游标载荷。它装进
  * {@link com.ragagent.datasource.domain.SyncCursor#getConnectorCursor()}，
  * 最终落在 {@code data_sources.last_sync_cursor} 这个 jsonb 列里。
  *
@@ -31,27 +30,24 @@ import com.ragagent.common.web.GoTimeSerializer;
  *
  * <h2>{@code kb_media} 是遗留字段</h2>
  * <p>保留它只为让旧版本写下的游标仍能反序列化；<b>从不写入、从不读取</b>。
- * Java 侧同样保留（{@code omitempty} → 为 null 时不出现）。</p>
+ * 序列化时空值不出现。</p>
  *
  * <h2>为什么要有 to/from connectorCursor</h2>
- * <p>Go 的 {@code FetchIncremental} 是
- * {@code json.Marshal(newCursor)} → {@code json.Unmarshal(..., &cursorMap)}：
- * 把**有类型的**游标转成 {@code types.SyncCursor.ConnectorCursor} 那个
- * {@code map[string]interface{}}。反过来读的时候再 marshal/unmarshal 一次。
- * Java 侧用同一个思路（Jackson 往返），保证"键的取舍"（omitempty）与
- * "值都是字符串"这两个净效果与 Go 完全一致。</p>
+ * <p>游标要落进 {@code SyncCursor} 的扁平 connectorCursor map 里；
+ * Jackson 往返保证"键的取舍"（空值省略）与
+ * "值都是字符串"两个净效果稳定。</p>
  *
  * <h2>内部形状</h2>
  * <p>本类型不直接作响应体；它的 JSON 形态只在
- * {@code last_sync_cursor} 列里出现，且与 Go 逐键一致。</p>
+ * {@code last_sync_cursor} 列里出现，键名与既有数据逐键一致。</p>
  */
 public class ImaCursor {
 
-    /** 与 Go 的 {@code json.Unmarshal} 对齐：容忍未知属性（游标是历史数据的容器）。 */
+    /** 容忍未知属性（游标是历史数据的容器）。 */
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    /** 上次同步时间（Go 的 {@code time.Time} 是值类型，零值也输出字面量）。 */
+    /** 上次同步时间（零值也输出字面量）。 */
     @JsonProperty("last_sync_time")
     private OffsetDateTime lastSyncTime = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
@@ -60,7 +56,7 @@ public class ImaCursor {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Map<String, String>> kbLogical;
 
-    /** 遗留字段：从不写入、从不读取（对照 Go 的注释）。 */
+    /** 遗留字段：从不写入、从不读取。 */
     @JsonProperty("kb_media")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Map<String, String>> kbMedia;
@@ -90,12 +86,10 @@ public class ImaCursor {
     }
 
     /**
-     * 对照 Go 里 {@code json.Marshal(newCursor)} + {@code json.Unmarshal(..., &cursorMap)}
-     * 那两行：把有类型的游标摊成扁平 map。
+     * 把有类型的游标摊成扁平 map。
      *
      * <p>净效果（已在 {@code ImaCursorTest} 中钉住）：{@code last_sync_time} 是一个
-     * <b>RFC3339 字符串</b>（Go 的 roundtrip 会把 {@code time.Time} 变成
-     * {@code string}），{@code kb_logical} 是嵌套的字符串 map；{@code kb_media}
+     * <b>RFC3339 字符串</b>，{@code kb_logical} 是嵌套的字符串 map；{@code kb_media}
      * 为 null 时整个键不出现。</p>
      */
     public Map<String, Object> toConnectorCursor() {
@@ -105,10 +99,9 @@ public class ImaCursor {
     }
 
     /**
-     * 对照 Go 的 {@code json.Marshal(cursor.ConnectorCursor)} + {@code json.Unmarshal(..., &p)}。
+     * 从扁平 map 还原游标。
      *
-     * <p><b>与 Go 的一个已知差异</b>：Go 用 {@code _ = json.Unmarshal(...)} 忽略错误，
-     * 所以形状不对的游标会留下一个**部分填充**的结构；Java 侧解析失败时回
+     * <p>形状不对、解析失败时回
      * {@code null}（等价于"没有上一轮游标"，退化成首次同步——只会多抓一次，
      * 不会漏数据）。</p>
      */

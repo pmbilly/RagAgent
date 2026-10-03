@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.HunyuanProvider（hunyuan.go）：腾讯混元，OpenAI 兼容模式。
+ * 腾讯混元，OpenAI 兼容模式。
  */
 public class HunyuanProvider implements Provider {
 

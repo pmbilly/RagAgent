@@ -1,8 +1,7 @@
 package com.ragagent.retrieval.engine.doris;
 
 /**
- * 落到 Doris 表里的一行的领域模型——对照 Go {@code doris.DorisVectorEmbedding}
- * （structs.go L61-72）。
+ * 落到 Doris 表里的一行的领域模型。
  *
  * <p>字段顺序与 {@link DorisSql#COLUMNS} 的 INSERT 列序保持一致，
  * 调整时需要同时更新 {@code DorisRetrieveRepository.insertRows} 与列常量。</p>

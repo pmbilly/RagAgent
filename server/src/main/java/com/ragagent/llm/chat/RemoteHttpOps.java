@@ -18,8 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 
 /**
- * HTTP 传输协作者（对照 Go chatWithRawHTTP/chatStreamWithRawHTTP 的传输段，
- * 自 {@link RemoteApiChat} 机械搬出）：组请求头、发裸 HTTP 请求与非 200 错误文本。
+ * HTTP 传输协作者（自 {@link RemoteApiChat} 拆出）：组请求头、发请求与非 200 错误文本。
  * 持门面回引用 adapter（可变，测试可替换）/鉴权三值/自定义头/模型名（日志）。
  */
 final class RemoteHttpOps {
@@ -32,12 +31,12 @@ final class RemoteHttpOps {
         this.service = service;
     }
 
-    /** 对照 Go utils.reservedHeaderKeys：不允许被用户自定义头覆盖的关键头。 */
+    /** 不允许被用户自定义头覆盖的关键头。 */
     private static final Set<String> RESERVED_HEADERS = Set.of(
             "authorization", "api-key", "x-api-key", "x-goog-api-key", "content-type",
             "content-length", "accept-encoding", "host", "connection", "transfer-encoding");
 
-    /** 组请求头（对照 Go chatWithRawHTTP/chatStreamWithRawHTTP 的头部设置顺序）。 */
+    /** 组请求头（标准头 → 鉴权 → 流式 Accept → 自定义头 → 缓存亲和头）。 */
     private HttpHeaders buildHeaders(RemoteApiChat.Outbound out, byte[] bodyBytes, boolean isStream) {
         HttpHeaders headers = new HttpHeaders();
         headers.set("Content-Type", "application/json");
@@ -50,12 +49,12 @@ final class RemoteHttpOps {
         return headers;
     }
 
-    /** 对照 Go authCreds()。 */
+    /** 组装鉴权凭据。 */
     private ProviderAdapter.AuthCreds authCreds() {
         return new ProviderAdapter.AuthCreds(service.apiKey, service.appId, service.appSecret);
     }
 
-    /** 对照 Go secutils.ApplyCustomHeaders：保留头跳过，其余覆盖。 */
+    /** 保留头跳过，其余覆盖。 */
     private static void applyCustomHeaders(HttpHeaders headers, Map<String, String> custom) {
         if (custom == null || custom.isEmpty()) {
             return;
@@ -69,7 +68,7 @@ final class RemoteHttpOps {
         });
     }
 
-    /** 发一次裸 HTTP 请求（对照 Go chatWithRawHTTP 的 SSRF 校验 + rawHTTPClient.Do）。 */
+    /** 发一次请求（先过 SSRF 校验）。 */
     HttpResponse<InputStream> sendRequest(RemoteApiChat.Outbound out, Duration timeout, boolean isStream) {
         byte[] bodyBytes = out.bodyBytes();
         try {
@@ -95,8 +94,7 @@ final class RemoteHttpOps {
         try {
             return LlmTransport.send(builder.build());
         } catch (IOException e) {
-            // getMessage() 可能为 null（如 EOFException），对照 Go fmt.Errorf("send request: %w")
-            // 会打出错误名，兜底用异常类名。
+            // getMessage() 可能为 null（如 EOFException），兜底用异常类名。
             throw BizException.internal("send request: " + ioDetail(e));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -108,7 +106,7 @@ final class RemoteHttpOps {
         return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
-    /** 非 200 时读出 body 并抛错（对照 Go 的 "API request failed with status %d: %s"）。 */
+    /** 读出完整响应体。非 200 的错误消息形如 "API request failed with status %d: %s"（见 {@link #statusError}）。 */
     static String readAll(InputStream in) {
         try (in) {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);

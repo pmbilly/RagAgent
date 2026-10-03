@@ -8,12 +8,11 @@ import java.util.Map;
 import com.ragagent.websearch.domain.WebSearchProvider;
 
 /**
- * 对照 Go {@code dto.WebSearchProviderResponse} / {@code WebSearchProviderParametersDTO}
- * （internal/handler/dto/web_search_provider.go）。api_key **按构造摘除**；
- * credentials 恒输出单键 {@code api_key.configured}（map 非 nil，omitempty 不触发）。
+ * provider 响应 DTO。api_key **按构造摘除**；
+ * credentials 恒输出单键 {@code api_key.configured}（map 恒非空，键恒出现）。
  *
  * <p>proxy_url / extra_config 仅 Admin+（或全量/管理租户设置能力的 API key）可见——
- * 对照 {@code CanViewIntegrationSecrets}；不可见时 proxy_url 置空串、extra_config 置 nil。</p>
+ * 判定 {@code dto.CanViewIntegrationSecrets}；不可见时 proxy_url 置空串、extra_config 置 null。</p>
  */
 public class WebSearchProviderResponse {
 
@@ -49,7 +48,7 @@ public class WebSearchProviderResponse {
         r.isDefault = e.isDefault();
         r.createdAt = e.getCreatedAt();
         r.updatedAt = e.getUpdatedAt();
-        // Go 恒构造 map（即使 api_key 为空）→ omitempty 不触发，键恒在
+        // map 恒输出（即使 api_key 为空），键恒在
         Map<String, CredentialFieldMetadata> creds = new LinkedHashMap<>();
         creds.put("apiKey", new CredentialFieldMetadata(params != null && !params.getApiKey().isEmpty()));
         r.credentials = creds;
@@ -57,7 +56,7 @@ public class WebSearchProviderResponse {
     }
 
     public static List<WebSearchProviderResponse> listOf(List<WebSearchProvider> es, boolean canViewSecrets) {
-        // Go NewWebSearchProviderResponses：make(...) → 空仓库序列化为 []（非 null）
+        // 空仓库序列化为 []（非 null）
         java.util.ArrayList<WebSearchProviderResponse> out = new java.util.ArrayList<>();
         if (es != null) {
             for (WebSearchProvider e : es) {
@@ -67,7 +66,7 @@ public class WebSearchProviderResponse {
         return out;
     }
 
-    /** 对照 WebSearchProviderParametersDTO：除 api_key 外的全部参数（非秘密） */
+    /** provider 参数视图：除 api_key 外的全部参数（非秘密） */
         public static class ParametersDTO {
                     public String engineId = "";
                     public String baseUrl = "";
@@ -75,7 +74,7 @@ public class WebSearchProviderResponse {
                     public Map<String, String> extraConfig;
     }
 
-    /** 对照 dto.CredentialFieldMetadata */
+    /** 凭据字段的对外形态（只暴露 configured，不含值） */
     public static class CredentialFieldMetadata {
         public final boolean configured;
 

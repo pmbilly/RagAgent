@@ -8,12 +8,11 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * 对照 Go {@code types.WebSearchProviderEntity}（表 web_search_providers，迁移 000030）。
+ * web_search_providers 表实体（迁移 000030 引入）。
  *
- * <p>时间列在 PG 是 naive TIMESTAMP：写本地墙钟、读按 UTC 解释（pgx 语义）。
- * Go 的 PUT 路径用 {@code Select("*")} 写全新实体 → created_at 被写成 Go 零值——
- * Java 侧把该列写 SQL NULL、读回 null 归一为 Go 零值（响应 {@code 0001-01-01T00:00:00Z}），
- * 跨语言等价（Go 读 NULL → 零值；Java 读 year-1 → 同字面量）。</p>
+ * <p>时间列在 PG 是 naive TIMESTAMP：写本地墙钟、读按 UTC 解释。
+ * created_at 允许 SQL NULL（早期全列覆盖写入的产物）；null 读出后在
+ * 响应里呈现 {@code 0001-01-01T00:00:00Z}。</p>
  */
 @TableName(value = "web_search_providers", autoResultMap = true)
 public class WebSearchProvider {
@@ -27,7 +26,7 @@ public class WebSearchProvider {
     @TableField(typeHandler = WebSearchParamsTypeHandler.class)
     private WebSearchProviderParams parameters;
     /**
-     * §9「is 前缀布尔」坑：字段名保留 isDefault 但显式 @TableField 钉列名，
+     * 「is 前缀布尔」坑：字段名保留 isDefault 但显式 @TableField 钉列名，
      * MP 的列解析不依赖 getter 推断。本实体不作响应体（响应走 dto），无 Jackson 双键风险。
      */
     @TableField("is_default")

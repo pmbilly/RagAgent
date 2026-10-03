@@ -24,10 +24,9 @@ import com.ragagent.knowledge.mapper.ChunkMapper;
 import com.ragagent.knowledge.mapper.ChunkRevisionMapper;
 
 /**
- * chunk 仓储语义（H2）——对照 Go internal/application/repository/chunk.go 的
- * HTTP 面方法闭包。
+ * chunk 仓储语义（H2）——覆盖 HTTP 面用到的全部仓储方法。
  *
- * <p>重点钉住 mock 测不出来的 SQL 行为：租户隔离、GORM 软删的三张面孔
+ * <p>重点钉住 mock 测不出来的 SQL 行为：租户隔离、软删的三张面孔
  * （SELECT/UPDATE/DELETE 都带 {@code deleted_at IS NULL}）、ListPaged 的
  * {@code chunk_type IN} + {@code status IN (2,0)} 与双排序键、乐观锁 UPDATE 的
  * 影响行数判定、Save 的"全字段更新但 Omit seq_id + updated_at 刷成 now"。</p>
@@ -93,7 +92,7 @@ class ChunkRepositoryTest {
         return c;
     }
 
-    /** 把已播种的行软删（模拟 GORM Delete 的产物）。 */
+    /** 把已播种的行软删（写 deleted_at，行仍保留）。 */
     private void softDelete(String chunkId) {
         jdbc.update("UPDATE chunks SET deleted_at = ? WHERE id = ?", OffsetDateTime.now(), chunkId);
     }
@@ -141,7 +140,7 @@ class ChunkRepositoryTest {
         Chunk other = chunk(OTHER_TENANT, "k1", 1, "text", 2);
 
         assertThat(repo.getChunkById(TENANT, mine.getId()).getId()).isEqualTo(mine.getId());
-        // 跨租户不可见（Go 的 tenant_id 过滤）
+        // 跨租户不可见（按 tenant_id 过滤）
         assertThatThrownBy(() -> repo.getChunkById(TENANT, other.getId()))
                 .isInstanceOf(ChunkNotFoundException.class);
         assertThatThrownBy(() -> repo.getChunkById(TENANT, "missing"))
@@ -174,7 +173,7 @@ class ChunkRepositoryTest {
                 List.of(a.getId(), b.getId(), gone.getId(), other.getId()));
         assertThat(out).extracting(Chunk::getId).containsExactlyInAnyOrder(a.getId(), b.getId());
 
-        // Go 的空切片展开成 IN (NULL) 匹配零行——Java 短路为空列表，净效果相同
+        // 空列表短路为空结果，净效果与匹配零行相同
         assertThat(repo.listChunksById(TENANT, List.of())).isEmpty();
     }
 
@@ -247,7 +246,7 @@ class ChunkRepositoryTest {
         assertThat(hit.items()).extracting(Chunk::getContent)
                 .containsExactly("the needle in the haystack");
 
-        // keyword 先 TrimSpace（Go strings.TrimSpace）
+        // keyword 先 trim 首尾空白再匹配
         ChunkRepository.ChunkPage trimmed = repo.listPagedChunksByKnowledgeId(
                 TENANT, "k1", 0, 10, List.of("text"), null, "  needle\t", "", "", "doc", null);
         assertThat(trimmed.total()).isEqualTo(1);
@@ -312,7 +311,7 @@ class ChunkRepositoryTest {
         loaded.setFlags(7);
         loaded.setMetadata(json("{\"b\":2,\"a\":1}"));
         loaded.setRelationChunks(json("[1,2]"));
-        loaded.setIndirectRelationChunks(null); // Go nil JSON → SQL NULL
+        loaded.setIndirectRelationChunks(null); // 传 null 即写 SQL NULL
         loaded.setContextHeader("# heading");
         repo.updateChunk(loaded);
 
@@ -328,7 +327,7 @@ class ChunkRepositoryTest {
         assertThat(after.getMetadata()).isEqualTo(json("{\"b\":2,\"a\":1}"));
         assertThat(after.getRelationChunks()).isEqualTo(json("[1,2]"));
         assertThat(after.getIndirectRelationChunks()).isNull();
-        // GORM autoUpdateTime：Save 把 updated_at 刷成 now 并回写
+        // Save 把 updated_at 刷成 now 并回写
         assertThat(after.getUpdatedAt()).isAfter(PAST);
         // 回写实体（H2 截到微秒，这里只断言"确实被刷新"，不做字节级相等）
         assertThat(loaded.getUpdatedAt()).isAfter(PAST);
@@ -374,7 +373,7 @@ class ChunkRepositoryTest {
                 "SELECT content FROM chunk_revisions WHERE id = ?", String.class, rev.getId()))
                 .isEqualTo("old-content");
 
-        // map 语义不跳零值：把 content 改成空串同样生效（这是 GORM Updates(结构体) 做不到的）
+        // 该更新路径不跳零值：把 content 改成空串同样生效
         loaded.setContent("");
         loaded.setContentRevision(3);
         repo.saveChunkRevision(loaded, buildRevision(TENANT, "k1", c.getId(), 2, "newtext", true), 2);
@@ -431,7 +430,7 @@ class ChunkRepositoryTest {
         assertThat(hit).isNotNull();
         assertThat(hit.getContent()).isEqualTo("v2");
 
-        // 找不到返回 null（Go 把 gorm.ErrRecordNotFound 原样上抛，service 层再翻 404）
+        // 找不到返回 null（service 层再翻 404）
         assertThat(repo.getChunkRevision(TENANT, c.getId(), 9)).isNull();
         // 租户隔离
         assertThat(repo.getChunkRevision(OTHER_TENANT, c.getId(), 2)).isNull();
@@ -524,7 +523,7 @@ class ChunkRepositoryTest {
                 "SELECT deleted_at FROM chunks WHERE id = ?", OffsetDateTime.class, otherTenant.getId()))
                 .isNull();
 
-        // Go 无判空：空列表展开成 IN (NULL) 删不到任何行——Java 短路，净效果相同
+        // 空列表短路：不产生删除，净效果相同
         repo.deleteByKnowledgeList(TENANT, List.of());
     }
 }

@@ -2,12 +2,12 @@ package com.ragagent.mcp.domain;
 
 
 /**
- * MCP 服务高级配置（对照 Go types.MCPAdvancedConfig）。
- * 默认值见 {@link #defaults()}（对照 Go GetDefaultAdvancedConfig）。
+ * MCP 服务高级配置。
+ * 默认值见 {@link #defaults()}。
  *
  * <p>⚠️ 必须保留 {@code retry_count} / {@code retry_delay} 这两个线上的键名：
- * Go 的 json tag 是蛇形，DB 的 jsonb 列里存的也是蛇形。若按 Java 字段名输出
- * （retryCount），既与 Go 写的行不兼容，也会让响应体偏离契约。</p>
+ * DB 的 jsonb 列里存的就是蛇形键名。若按 Java 字段名输出
+ * （retryCount），既无法与既有行兼容，也会让响应体偏离契约。</p>
  */
 public class McpAdvancedConfig {
 
@@ -27,7 +27,7 @@ public class McpAdvancedConfig {
         this.retryDelay = retryDelay;
     }
 
-    /** 对照 Go GetDefaultAdvancedConfig：30 / 3 / 1 */
+    /** 默认值：30 / 3 / 1 */
     public static McpAdvancedConfig defaults() {
         return new McpAdvancedConfig(30, 3, 1);
     }

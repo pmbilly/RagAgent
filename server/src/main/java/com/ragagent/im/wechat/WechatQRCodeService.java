@@ -17,9 +17,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * 微信扫码登录（iLink 接入）——对照 Go {@code internal/im/wechat/qrcode.go} L28-165。
+ * 微信扫码登录（iLink 接入）。
  *
- * <h2>协议（照 Go）</h2>
+ * <h2>协议</h2>
  * <ul>
  *   <li>{@code GET /ilink/bot/get_bot_qrcode?bot_type=3}
  *       → {@code {qrcode, qrcode_img_content}}（{@code qrcode} 空即失败）；</li>
@@ -27,26 +27,26 @@ import com.ragagent.common.security.SsrfGuard;
  *       {@code iLink-App-ClientVersion: 1}——<b>长轮询</b>（服务端最长挂 35s）；
  *       状态 {@code wait/scaned/confirmed/expired}；{@code confirmed} 时带
  *       {@code bot_token/ilink_bot_id/ilink_user_id/baseurl}；</li>
- *   <li><b>客户端超时算"还在等"</b>（返回 {@code status="wait"}，不报错）——照 Go：
- *       用**脱离调用方**的上下文 + 38s 超时，避免 gin 请求上下文先超时。</li>
+ *   <li><b>客户端超时算"还在等"</b>（返回 {@code status="wait"}，不报错）——
+ *       用**脱离调用方**的上下文 + 38s 超时，避免 HTTP 请求上下文先超时。</li>
  * </ul>
  */
 @Component
 public class WechatQRCodeService {
 
-    /** 客户端侧长轮询超时（照 Go {@code pollTimeout}）。 */
+    /** 客户端侧长轮询超时。 */
     public static final long POLL_TIMEOUT_MS = 38_000L;
-    /** 请求端点到 iLink 的固定前缀（照 Go 常量）。 */
+    /** 请求端点到 iLink 的固定前缀。 */
     static final String QRCODE_PATH = "/ilink/bot/get_bot_qrcode";
     static final String QRCODE_STATUS_PATH = "/ilink/bot/get_qrcode_status";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 {@code QRCodeResult}。 */
+    /** 扫码结果。 */
     public record QRCodeResult(String qrcodeUrl, String qrcode) {
     }
 
-    /** 对照 {@code LoginResult}。 */
+    /** 登录状态结果。 */
     public record LoginResult(String status, String botToken, String ilinkBotId,
                               String ilinkUserId, String baseUrl) {
         static LoginResult waiting() {
@@ -83,7 +83,7 @@ public class WechatQRCodeService {
                 .build();
     }
 
-    /** 对照 {@code GetLoginQRCode}。 */
+    /** 拉取登录二维码。 */
     public QRCodeResult getLoginQRCode() throws Exception {
         String url = baseUrl + QRCODE_PATH + "?bot_type="
                 + URLEncoder.encode(WechatAdapter.DEFAULT_BOT_TYPE, StandardCharsets.UTF_8);
@@ -102,7 +102,7 @@ public class WechatQRCodeService {
         return new QRCodeResult(result.path("qrcode_img_content").asText(""), qrcode);
     }
 
-    /** 对照 {@code PollQRCodeStatus}：超时 → wait（不报错）。 */
+    /** 轮询扫码状态；超时 → wait（不报错）。 */
     public LoginResult pollQRCodeStatus(String qrcode) throws Exception {
         String url = baseUrl + QRCODE_STATUS_PATH + "?qrcode="
                 + URLEncoder.encode(qrcode == null ? "" : qrcode, StandardCharsets.UTF_8);

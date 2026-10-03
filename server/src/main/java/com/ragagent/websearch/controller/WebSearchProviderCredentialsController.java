@@ -20,10 +20,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对照 Go {@code handler.WebSearchProviderCredentialsHandler}
- * （internal/handler/web_search_provider_credentials.go；两路由 Admin+）。
+ * web 搜索 provider 凭据面（两路由 Admin+）。
  *
- * <p>**全 AppError 信封**（c.Error 链，与主 controller 的纯字符串 404 刻意不同）：
+ * <p>**全 AppError 信封**（与主 controller 的纯字符串 404 刻意不同）：
  * 租户缺失 → 400 "Workspace ID cannot be empty"（不是 401！）；api_key=null 的查询
  * 语义下查不到 provider → 404 code 1003；未知 field → 400（先于 provider 存在性）；
  * 写/清时 provider 缺失 → **500**（"failed to update credentials: ..." /
@@ -41,7 +40,7 @@ public class WebSearchProviderCredentialsController {
         this.service = service;
     }
 
-    /** 对照 webSearchCredentialsPutRequest：apiKey 为**指针**——null = 查询状态语义 */
+    /** PUT 请求：apiKey 为可空——null = 查询状态语义 */
     @PutMapping("/{id}/credentials")
     public ResponseEntity<?> put(@PathVariable("id") String id,
             @RequestBody(required = false) String rawBody) {
@@ -80,7 +79,7 @@ public class WebSearchProviderCredentialsController {
 
     // ── 内部 ───────────────────────────────────────────────────────────
 
-    /** 对照 tenantID==0 → 400 "Workspace ID cannot be empty"（c.Error，非 401） */
+    /** 租户缺失（含 0）→ 400 "Workspace ID cannot be empty"（非 401） */
     private static long tenantId() {
         Long tenantId = TenantContext.currentTenantId();
         if (tenantId == null || tenantId == 0) {
@@ -116,7 +115,7 @@ public class WebSearchProviderCredentialsController {
         return key == null || key.isNull() ? null : key.asText();
     }
 
-    /** 裸对象 {fields:{apiKey:{configured}}}（对照 D1 的凭据状态形态）。 */
+    /** 裸对象 {fields:{apiKey:{configured}}}（凭据状态形态）。 */
     private static Map<String, Object> fieldsBody(boolean configured) {
         Map<String, Object> field = new LinkedHashMap<>();
         field.put("configured", configured);

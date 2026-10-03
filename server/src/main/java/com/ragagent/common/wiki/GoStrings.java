@@ -24,7 +24,7 @@ public final class GoStrings {
      * 按<b>码点序</b>比较，对合法 UTF-8 字符串等价于 UTF-8 字节序。
      *
      * <p>对合法的 UTF-8 字符串，字节序等价于<b>码点序</b>——因此 Java 侧用码点比较
-     * 即可精确复刻，而<b>不能</b>用 {@link String#compareTo}（那是 UTF-16 码元序）。
+     * 即可精确等价，而<b>不能</b>用 {@link String#compareTo}（那是 UTF-16 码元序）。
      * 两者只在"增补平面字符 vs U+E000–U+FFFF 之间的 BMP 字符"上分歧
      * （UTF-16 里代理对 D800–DFFF 排在 E000 之前，码点序则相反）。
      * 目录名 / slug 里出现 emoji 时这个分歧就会变成实测的顺序差异，

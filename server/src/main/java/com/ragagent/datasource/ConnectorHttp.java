@@ -16,47 +16,43 @@ import java.util.Set;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * 连接器的出站 HTTP 底座（对照 Go {@code internal/datasource/httpclient.go} 全文 +
- * {@code internal/utils/security.go} 里 {@code NewSSRFSafeHTTPClient} /
- * {@code newSSRFCheckRedirect} / {@code SSRFValidatingRoundTripper} 三块）。
+ * 连接器的出站 HTTP 底座（SSRF 防护、限次重定向、整体超时预算）。
  *
- * <h2>Go 侧有三层防护，Java 侧一一对应</h2>
+ * <h2>三层防护</h2>
  * <ol>
- *   <li><b>SSRFValidatingRoundTripper</b>：每个出站请求（含 SDK 自己想发的）都要过
- *       {@code validateURLForSSRFForOutbound} → Java 在 {@link Client#exchange} 里
+ *   <li><b>发送前校验</b>：每个出站请求都要过
+ *       {@code validateURLForSSRFForOutbound} 一类的 URL 策略 → 在 {@link Client#exchange} 里
  *       <b>发送前</b>调 {@link SsrfGuard#validateURLForSSRF}。</li>
- *   <li><b>SSRFSafeDialContext</b>：拨号时再校验解析出的 IP（把 DNS 答案钉死）。
+ *   <li><b>拨号时校验</b>：原设计在拨号时再校验解析出的 IP（把 DNS 答案钉死）。
  *       JDK 的 {@code HttpClient} 不允许替换 dialer（{@code LlmTransport} 里已记录同一取舍），
- *       故 Java 侧保留"发送前校验"这一层，语义上覆盖同一条 URL 策略。</li>
- *   <li><b>CheckRedirect</b>：最多 10 跳、跨域剥凭据头、每一跳都重新做 SSRF 校验
- *       （含 scheme 白名单）→ Java 在 {@link Client#exchange} 里手动跟随，逐跳照做。</li>
+ *       故保留"发送前校验"这一层，语义上覆盖同一条 URL 策略。</li>
+ *   <li><b>重定向防护</b>：最多 10 跳、跨域剥凭据头、每一跳都重新做 SSRF 校验
+ *       （含 scheme 白名单）→ {@link Client#exchange} 里手动跟随，逐跳照做。</li>
  * </ol>
  *
  * <h2>超时映射</h2>
- * <p>Go 的 {@code SSRFSafeHTTPClientConfig.Timeout} 是<b>整个交互</b>（含重定向与读体）
- * 的上限。Java 侧把它落成每次 {@code HttpRequest.timeout(...)}（JDK 的该超时覆盖
- * 到响应体读完），并把每跳消耗的时间从剩余预算里扣掉，效果等价。</p>
+ * <p>{@code timeout} 是<b>整个交互</b>（含重定向与读体）
+ * 的上限。它落成每次 {@code HttpRequest.timeout(...)}（JDK 的该超时覆盖
+ * 到响应体读完），并把每跳消耗的时间从剩余预算里扣掉。</p>
  *
  * <h2>SsrfGuard 是进程级单例，由装配代码注入</h2>
  * <p>与 {@code LlmTransport.setSsrfGuard} / {@code McpHttp.setSsrfGuard} 同一处置：
  * 未注入时用读环境变量的默认实例。<b>测试</b>要打本机 stub server（{@code 127.0.0.1}）
- * 时，必须先把白名单放行——Go 那边是 {@code t.Setenv("SSRF_WHITELIST", "127.0.0.1,::1,localhost")}，
- * Java 侧进程内改不了 env，改用 {@code new SsrfGuard()} + {@code reloadWhitelist(...)}
- * 再 {@link #setSsrfGuard}。</p>
+ * 时，必须先把白名单放行：进程内改不了 env，用 {@code new SsrfGuard()} +
+ * {@code reloadWhitelist(...)} 构造实例后经 {@link #setSsrfGuard} 注入。</p>
  *
  * <h2>与 {@code llm.chat.LlmTransport} 的关系</h2>
  * <p>两者的重定向跟随逻辑刻意<b>各写一份</b>：{@code LlmTransport} 服务的是 LLM 调用
- * （它不设客户端超时、靠 deadline 施加超时），连接器这边要的是 Go 的
- * {@code SSRFSafeHTTPClientConfig.Timeout} 语义。合二为一会让两边的超时策略互相牵制。
- * 这与 §9 里 WeKnoraCloud 签名函数重复实现的取舍同族——建议后续统一到
- * {@code common} 下一个共享底座，本模块先保证行为正确。</p>
+ * （它不设客户端超时、靠 deadline 施加超时），连接器这边要的是"整体超时预算"语义。
+ * 合二为一会让两边的超时策略互相牵制。这与 WeKnoraCloud 签名函数重复实现的取舍同族
+ * ——建议后续统一到 {@code common} 下一个共享底座，本模块先保证行为正确。</p>
  */
 public final class ConnectorHttp {
 
-    /** 对照 Go {@code DefaultSSRFSafeHTTPClientConfig().MaxRedirects}。 */
+    /** 默认最大重定向跳数。 */
     public static final int DEFAULT_MAX_REDIRECTS = 10;
 
-    /** 跨域重定向时必须剥掉的凭据头（对照 Go {@code stripRedirectSensitiveHeaders}）。 */
+    /** 跨域重定向时必须剥掉的凭据头。 */
     private static final Set<String> REDIRECT_SENSITIVE_HEADERS = Set.of(
             "Authorization", "Cookie", "X-Auth-Token", "X-Api-Key", "Api-Key");
 
@@ -65,7 +61,7 @@ public final class ConnectorHttp {
     private ConnectorHttp() {
     }
 
-    /** 注入 Spring 管理的 {@link SsrfGuard}（对照 {@code LlmTransport.setSsrfGuard}）。 */
+    /** 注入 Spring 管理的 {@link SsrfGuard}（与 {@code LlmTransport.setSsrfGuard} 同一模式）。 */
     public static void setSsrfGuard(SsrfGuard guard) {
         if (guard != null) {
             ssrfGuard = guard;
@@ -77,15 +73,15 @@ public final class ConnectorHttp {
     }
 
     // ------------------------------------------------------------------
-    // httpclient.go
+    // base_url 校验与客户端工厂
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go {@code ValidateConnectorBaseURL}：把连接器的 {@code base_url} 过一遍 SSRF 策略。
+     * 把连接器的 {@code base_url} 过一遍 SSRF 策略。
      *
      * <p>空串放行（调用方会在发请求前套上自己的默认值）；没有 scheme 时补 {@code https://}
      * 之后再校验——这一步很关键：{@code evil.internal} 这种裸主机会被补成
-     * {@code https://evil.internal} 再被解析，否则 {@code url.Parse} 会把整串当 path。</p>
+     * {@code https://evil.internal} 再被解析，否则整串会被 URL 解析器当成 path 而绕过主机校验。</p>
      *
      * @throws ConnectorException 消息为 {@code "base_url SSRF validation failed: <SsrfGuard 原文>"}
      */
@@ -105,7 +101,7 @@ public final class ConnectorHttp {
     }
 
     /**
-     * 对照 Go {@code NewConnectorHTTPClient(timeout)}：返回一个带 SSRF 防护、
+     * 返回一个带 SSRF 防护、
      * 限次重定向跟随、以及 {@code timeout} 上限的客户端。
      */
     public static Client newConnectorHttpClient(Duration timeout) {
@@ -117,13 +113,13 @@ public final class ConnectorHttp {
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go 的 {@code *http.Client}。一个实例一个超时预算，可复用（JDK 内部池化连接）。
+     * 出站客户端。一个实例一个超时预算，可复用（JDK 内部池化连接）。
      */
     public static final class Client {
 
         private static final HttpClient SHARED = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
-                // 手动跟随：每一跳都要重新做 SSRF 校验（对照 newSSRFCheckRedirect）
+                // 手动跟随：每一跳都要重新做 SSRF 校验
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
 
@@ -138,9 +134,9 @@ public final class ConnectorHttp {
         }
 
         /**
-         * 对照 Go 的 {@code client.Do(req)}：发送请求、跟随重定向、读完全部响应体。
+         * 发送请求、跟随重定向、读完全部响应体。
          *
-         * <p>连接器侧的失败形态照抄 Go：<b>非 2xx 是正常返回</b>（由调用方判
+         * <p>失败形态：<b>非 2xx 是正常返回</b>（由调用方判
          * {@link Response#status()}），只有传输层失败（连不上 / 超时 / 被 SSRF 拒绝）
          * 才抛 {@link ConnectorException}。</p>
          *
@@ -260,23 +256,23 @@ public final class ConnectorHttp {
 
         private void applyTimeout(HttpRequest.Builder builder, long deadlineNanos) {
             if (timeout.isZero() || timeout.isNegative()) {
-                return; // 不设超时（对照 Go 的 Timeout: 0）
+                return; // 不设超时
             }
             long remaining = deadlineNanos - System.nanoTime();
-            // JDK 不接受非正的 timeout；已经过期就压到 1ms（等价 Go 的 deadline 已过 → 立刻失败）
+            // JDK 不接受非正的 timeout；预算已耗尽就压到 1ms（下一次请求立刻失败）
             builder.timeout(Duration.ofNanos(Math.max(remaining, 1_000_000L)));
         }
     }
 
     /**
-     * 对照 Go 的 {@code *http.Response}（只保留连接器真正用到的部分：
+     * HTTP 响应（只保留连接器真正用到的部分：
      * 状态码、状态行原文、响应头、响应体）。
      */
     public record Response(int status, String statusText, byte[] body,
                            Map<String, List<String>> headers) {
 
         /**
-         * 对照 Go 的 {@code resp.Status}（如 {@code "429 Too Many Requests"}）。
+         * 状态行原文（如 {@code "429 Too Many Requests"}）。
          *
          * <p>方法名刻意不叫 {@code status()}——那是 record 组件 {@code status}（int）
          * 的访问器，同名不同返回类型在 Java 里是编译错误。</p>
@@ -285,7 +281,7 @@ public final class ConnectorHttp {
             return status + " " + statusText;
         }
 
-        /** 对照 Go 的 {@code resp.Header.Get(name)}：取首个值，缺席回空串。 */
+        /** 取首个值，缺席回空串。 */
         public String header(String name) {
             List<String> values = headerValues(name);
             return values.isEmpty() ? "" : values.get(0);
@@ -308,7 +304,7 @@ public final class ConnectorHttp {
             return body == null ? "" : new String(body, java.nio.charset.StandardCharsets.UTF_8);
         }
 
-        /** 对照 Go {@code truncate(s, n)}：超长时截断并补 {@code "..."}。 */
+        /** 超长时截断并补 {@code "..."}。 */
         public String truncatedBody(int maxLen) {
             String s = bodyAsString();
             if (s.length() <= maxLen) {
@@ -319,15 +315,15 @@ public final class ConnectorHttp {
     }
 
     // ------------------------------------------------------------------
-    // 与 Go 逐行对应的私有工具
+    // 私有工具
     // ------------------------------------------------------------------
 
-    /** 对照 Go 的 3xx 判定（Go 只跟随 301/302/303/307/308）。 */
+    /** 3xx 重定向判定（只跟随 301/302/303/307/308）。 */
     private static boolean isRedirect(int status) {
         return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
-    /** 对照 Go：301/302/303 会把非 GET/HEAD 的请求降级为 GET（并丢弃 body）。 */
+    /** 301/302/303 会把非 GET/HEAD 的请求降级为 GET（并丢弃 body）。 */
     private static boolean isMethodDroppingRedirect(int status) {
         return status == 301 || status == 302 || status == 303;
     }
@@ -336,7 +332,7 @@ public final class ConnectorHttp {
         return "GET".equalsIgnoreCase(method) || "HEAD".equalsIgnoreCase(method);
     }
 
-    /** 对照 Go sameHTTPOrigin：scheme + host（含端口）大小写不敏感比较。 */
+    /** 同源判定：scheme + host（含端口）大小写不敏感比较。 */
     private static boolean sameHttpOrigin(URI a, URI b) {
         if (a == null || b == null) {
             return false;
@@ -353,11 +349,10 @@ public final class ConnectorHttp {
     }
 
     /**
-     * 对照 Go 的状态行原因短语表（{@code net/http.StatusText} 的子集 + 兜底）。
+     * 标准状态码的原因短语表（含兜底）。
      *
-     * <p><b>已知差异</b>：Go 的 {@code resp.Status} 直接抄服务端发回的状态行原文
-     * （非标准原因短语会原样保留），JDK 不暴露原因短语，Java 侧只能查标准表。
-     * 真实服务端（含本项目用的 stub server）发的都是标准短语，所以线上等价。</p>
+     * <p>JDK 不暴露响应的原因短语，这里查标准表生成；非标准原因短语不会被保留。
+     * 真实服务端（含本项目用的 stub server）发的都是标准短语，实践中无损。</p>
      */
     static String statusText(int code) {
         switch (code) {

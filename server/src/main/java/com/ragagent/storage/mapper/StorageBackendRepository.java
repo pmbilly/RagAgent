@@ -15,12 +15,12 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * storage_backends 行仓储（对照 Go {@code repository.storageBackendRepository}）。
+ * storage_backends 行仓储。
  *
- * <p>复用阶段 3 的 {@link StorageBackend}（knowledge.domain）行载体；列写法对照 Go：
- * List 是 created_at **DESC**；Update 只写 name/config/status/updated_at（Select 列表）；
+ * <p>行载体 {@link StorageBackend}；查询/写入语义：
+ * List 是 created_at **DESC**；Update 只写 name/config/status/updated_at；
  * 删除是软删（deleted_at = NOW()）。config jsonb 由 service 序列化（含密钥加密）后写字符串
- * ——PG 走 {@code ?::jsonb} 强转（列类型服务端强转，§9 setString 会被拒），H2 直接写。</p>
+ * ——PG 走 {@code ?::jsonb} 强转（列类型服务端强转，setString 会被拒），H2 直接写。</p>
  */
 @Repository
 public class StorageBackendRepository {
@@ -79,8 +79,8 @@ public class StorageBackendRepository {
     }
 
     /**
-     * Go FindLegacyAlias：provider 的 legacy 别名行（<b>不过滤 deleted_at</b>——
-     * Go 源原文如此，别"顺手修好"）；First 按 GORM 默认主键序取第一条。
+     * provider 的 legacy 别名行（<b>不过滤 deleted_at</b>——刻意保留，别"顺手修好"）；
+     * 按主键序取第一条。
      */
     public StorageBackend findLegacyAlias(long tenantId, String provider) {
         return jdbc.sql("SELECT " + COLS + " FROM storage_backends "
@@ -101,7 +101,7 @@ public class StorageBackendRepository {
                 .list();
     }
 
-    /** Go Create（GORM Create 全列；created_at/updated_at 由 service 显式赋值） */
+    /** 全列插入；created_at/updated_at 由 service 显式赋值 */
     public void create(StorageBackend b, String configJson) {
         String cast = postgres ? "?::jsonb" : "?";
         jdbc.sql("INSERT INTO storage_backends (id, tenant_id, name, provider, config, source, "
@@ -148,7 +148,7 @@ public class StorageBackendRepository {
     }
 
     public int countActiveResources(long tenantId, String id) {
-        // Go 的 types.StoredResource.TableName() = "resources"（不是表名字面量）
+        // 资源表名 "resources"（StoredResource 的表名映射，不是按类名推断的字面量）
         Integer n = jdbc.sql("SELECT COUNT(*) FROM resources "
                         + "WHERE tenant_id = ? AND storage_backend_id = ? AND state = 'active'")
                 .params(tenantId, id)
@@ -171,7 +171,7 @@ public class StorageBackendRepository {
                 .update();
     }
 
-    /** 唯一索引冲突探测（对照 Go 的 err contains "unique" → 409；部分唯一索引 deleted_at IS NULL） */
+    /** 名称唯一性预检（只看未删行；命中时 service 折 409）。 */
     public boolean nameExists(long tenantId, String name) {
         Integer n = jdbc.sql("SELECT COUNT(*) FROM storage_backends "
                         + "WHERE tenant_id = ? AND name = ? AND deleted_at IS NULL")

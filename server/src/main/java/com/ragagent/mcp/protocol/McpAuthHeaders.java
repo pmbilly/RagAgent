@@ -7,9 +7,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * MCP 出站鉴权头的注入规则（对照 Go internal/mcp/client.go:80-152）。
+ * MCP 出站鉴权头的注入规则。
  *
- * <p><b>核心不变量（Go 注释明确点名的修复）</b>：{@link #applyAuthHeaders} 只注入
+ * <p><b>核心不变量</b>：{@link #applyAuthHeaders} 只注入
  * <b>被选中的那一种</b>策略——由 {@code AuthType} 驱动，静态 API key 与 bearer
  * <b>互斥</b>。历史实现只要字段有值就两个都发，导致策略切换后出现"双重认证"
  * （服务端可能因此拒绝，或误用陈旧 token）。</p>
@@ -18,17 +18,17 @@ import java.util.Map;
  */
 public final class McpAuthHeaders {
 
-    /** AuthType=api_key 且未指定 APIKeyHeader 时的默认头名（对照 Go 字面量）。 */
+    /** AuthType=api_key 且未指定 APIKeyHeader 时的默认头名。 */
     public static final String DEFAULT_API_KEY_HEADER = "X-API-Key";
 
     private McpAuthHeaders() {
     }
 
     /**
-     * 对照 Go applyAuthHeaders：把选中策略的鉴权头写进 {@code headers}（原地修改）。
+     * 把选中策略的鉴权头写进 {@code headers}（原地修改）。
      *
      * @param headers 待注入的头表（调用方通常已放入 {@code service.headers}）
-     * @param ac      鉴权配置；null = 不注入任何东西（对照 Go 的 {@code if ac == nil return}）
+     * @param ac      鉴权配置；null = 不注入任何东西
      */
     public static void applyAuthHeaders(Map<String, String> headers, McpAuthConfig ac) {
         if (ac == null) {
@@ -60,18 +60,16 @@ public final class McpAuthHeaders {
             }
             case OAUTH -> {
                 // OAuth 策略不注入静态头（由 OAuth 运行时接管，见 McpOAuthSupport）。
-                // Go 的 switch 没有 oauth 分支，落到 default 什么都不做——语义一致。
             }
         }
         if (ac.getCustomHeaders() != null) {
-            // 恒叠加，且可覆盖策略头（Go 用 map 赋值，同 key 覆盖）。
+            // 恒叠加，且可覆盖策略头（同 key 覆盖）。
             headers.putAll(ac.getCustomHeaders());
         }
     }
 
     /**
      * 构造完整的出站头表 = {@code service.headers} 打底 + 选中策略的鉴权头。
-     * 对照 Go {@code NewMCPClient} 里的 headers 装配（client.go:174-178）。
      */
     public static Map<String, String> buildHeaders(Map<String, String> serviceHeaders, McpAuthConfig ac) {
         Map<String, String> headers = new LinkedHashMap<>();
@@ -83,7 +81,7 @@ public final class McpAuthHeaders {
     }
 
     /**
-     * 对照 Go {@code asOAuthRequired}（client.go:143-152）：在异常链里找 401 信号。
+     * 在异常链里找 401 信号。
      *
      * <p>返回非 null 的 {@link McpOAuthRequiredException} <b>当且仅当</b>服务端广告了
      * metadata URL；裸 401 视为普通鉴权失败（比如 API key 写错），返回 null——
@@ -104,7 +102,6 @@ public final class McpAuthHeaders {
     }
 
     /**
-     * 对照 Go {@code extractResourceMetadataURL}（mcp-go streamable_http.go:347-356）：
      * 逐条 {@code WWW-Authenticate} 头，取第一个 {@code resource_metadata} 参数值。
      */
     public static String extractResourceMetadataUrl(java.util.List<String> wwwAuthenticateHeaders) {
@@ -122,7 +119,6 @@ public final class McpAuthHeaders {
     }
 
     /**
-     * 对照 Go {@code extractResourceMetadataURLs}（streamable_http.go:367+）：
      * 一条头值里可能有多个 challenge，每个都可能带 {@code resource_metadata}；
      * 参数名按 RFC 9110 §11.2 大小写不敏感，值支持 quoted-string 与 token 两种形态。
      */
@@ -184,7 +180,7 @@ public final class McpAuthHeaders {
         return out;
     }
 
-    /** 对照 Go isAuthTokenChar（streamable_http.go:455 附近）。 */
+    /** RFC 9110 token 允许的字符判定。 */
     private static boolean isAuthTokenChar(char c) {
         return "!#$%&'*+-.^_`|~".indexOf(c) >= 0
                 || (c >= 'a' && c <= 'z')
@@ -192,7 +188,7 @@ public final class McpAuthHeaders {
                 || (c >= '0' && c <= '9');
     }
 
-    /** 对照 Go 的 {@code ac.APIKey != ""} 判定（null 与空串等价）。 */
+    /** 非空判定（null 与空串等价）。 */
     private static boolean nonEmpty(String s) {
         return s != null && !s.isEmpty();
     }

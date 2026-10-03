@@ -16,14 +16,12 @@ import com.ragagent.mcp.protocol.McpContext;
 import com.ragagent.mcp.protocol.McpServiceUrls;
 
 /**
- * MCP OAuth2 授权码流程编排：发现 → 动态客户端注册 → 授权跳转 → 回调 code 交换
- * （对照 Go internal/mcp/oauth_manager.go:29-47 的 {@code OAuthManager}）。
+ * MCP OAuth2 授权码流程编排：发现 → 动态客户端注册 → 授权跳转 → 回调 code 交换。
  *
  * <p>token 按 (tenant, principal, service) 落库；注册的客户端按 (tenant, service)
  * 落库并<b>复用</b>（避免每次授权都走一轮 RFC 7591 注册）。</p>
  *
- * <p><b>与 Go 的唯一结构差异</b>：Go 的 {@code serviceRepo} 是
- * {@code interfaces.MCPServiceRepository}；Java 直接依赖
+ * <p><b>依赖说明</b>：服务加载直接依赖
  * {@link McpServiceMapper#getByIdForTenant}（同一个查询：租户自有 + 内置 + 未软删）。
  * 刻意<b>不</b>依赖 {@code McpServiceService}——那会在 Spring 里形成
  * "McpServiceService → Optional&lt;McpOAuthSupport&gt; → OAuthManager → McpServiceService"
@@ -31,18 +29,16 @@ import com.ragagent.mcp.protocol.McpServiceUrls;
  */
 public class OAuthManager {
 
-    /** 对照 Go {@code clientRegistrationName}：RFC 7591 的 {@code client_name}。 */
+    /** RFC 7591 动态注册时的 {@code client_name}。 */
     public static final String CLIENT_REGISTRATION_NAME = "WeKnora";
 
     /**
-     * 对照 Go {@code oauthCallbackTimeout}：浏览器落到公开回调路由后，code 交换的时限。
-     * Go 的 Gin 请求上下文在重定向发出后就会被取消，故 Go 用
-     * {@code context.WithoutCancel} 脱离；Java 侧没有请求级取消可脱离，
-     * 改为把这段时限落到内部 {@link McpContext} 的 deadline 上（语义等价：交换被 60s 封顶）。
+     * 浏览器落到公开回调路由后，code 交换的时限。
+     * 该时限落在内部 {@link McpContext} 的 deadline 上（交换被 60s 封顶）。
      */
     public static final Duration CALLBACK_TIMEOUT = Duration.ofSeconds(60);
 
-    /** 对照 Go {@code newHandler} 里的 {@code httpCfg.Timeout = 30 * time.Second}。 */
+    /** OAuth 出站 HTTP 的统一 30s 超时。 */
     public static final Duration HTTP_TIMEOUT = Duration.ofSeconds(30);
 
     private final OAuthRepository repo;
@@ -64,7 +60,7 @@ public class OAuthManager {
     // ── handler 构造 ───────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code newHandler}（oauth_manager.go:50-76）：绑定服务 + 按 principal 的
+     * 绑定服务 + 按 principal 的
      * token 存储，并<b>在这里</b>做 SSRF 校验（两个 URL：服务 URL 与 metadata URL）。
      */
     public OAuthHandler newHandler(McpService service, long tenantId,
@@ -95,12 +91,12 @@ public class OAuthManager {
 
     // ── 发起授权 ───────────────────────────────────────────────────────
 
-    /** 对照 Go {@code StartAuthorization} 的返回三元组。 */
+    /** 发起授权的返回值。 */
     public record StartResult(String authorizationUrl, String attemptId) {
     }
 
     /**
-     * 对照 Go {@code StartAuthorization}（oauth_manager.go:82-151）。
+     * 发起一次授权。
      *
      * <p>{@code redirectUri} 是登记到授权服务器的<b>后端回调</b>地址；
      * {@code frontendRedirect} 是回调结束后把浏览器弹回的前端地址。</p>
@@ -142,7 +138,7 @@ public class OAuthManager {
             try {
                 repo.saveClient(client);
             } catch (RuntimeException e) {
-                // 对照 Go：落库失败只告警，本次授权照常继续
+                // 落库失败只告警，本次授权照常继续
                 org.slf4j.LoggerFactory.getLogger(OAuthManager.class)
                         .warn("failed to persist MCP oauth client: {}", e.getMessage());
             }
@@ -177,7 +173,7 @@ public class OAuthManager {
     }
 
     /**
-     * 对照 Go {@code StartAuthorizationForService}：只持有 serviceID 的调用方
+     * 只持有 serviceID 的调用方
      * （如 IM 渠道）的便捷入口。
      */
     public String startAuthorizationForService(long tenantId, TenantContext.Principal principal,
@@ -198,35 +194,35 @@ public class OAuthManager {
 
     // ── 回调 ───────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code CompleteAuthorization} 的返回三元组。 */
+    /** 回调完成的返回值。 */
     public record CompleteResult(String frontendRedirect, String serviceId) {
     }
 
     /**
-     * 对照 Go {@code CompleteAuthorization}（oauth_manager.go:179-226）。
+     * 完成回调：消费 state → 加载服务 → code 交换 → 记录完成。
      *
-     * <p><b>保真要点 1（本文件最容易被"顺手修掉"的地方）</b>：第 213 行
-     * {@code h.SetExpectedState(state)}。源码里这是一处<b>刻意的</b>处理——
+     * <p><b>要点 1（本文件最容易被"顺手修掉"的地方）</b>：下面的
+     * {@code handler.setExpectedState(state)} 是<b>刻意的</b>——
      * 回调是<b>另一个 HTTP 请求</b>，handler 是重建的，其内部 {@code expectedState}
      * 是空的；若不再设一次，{@code ProcessAuthorizationResponse} 的 CSRF 校验会以
      * "no expected state found / invalid state" 告终。
      * 之所以安全：state 已在<b>服务端</b>由 {@link OAuthStateStore#take} 做过
      * 一次性校验（未知 / 已用过 / 已过期都会在上一行就抛错），能走到这里说明这次回调
-     * 对应的正是服务端签发的那次授权。Java 侧保留完全相同的调用与位置，
+     * 对应的正是服务端签发的那次授权。
      * <b>不要</b>因为"看起来绕过了 CSRF"而删掉它。</p>
      *
-     * <p><b>保真要点 2</b>：{@code completeAttempt} 必须在 code 交换成功<b>之后</b>才调
+     * <p><b>要点 2</b>：{@code completeAttempt} 必须在 code 交换成功<b>之后</b>才调
      * （见 {@link OAuthStateStore}）。</p>
      */
     public CompleteResult completeAuthorization(String state, String code) {
-        // 对照 Go：WithoutCancel + 60s 超时（见 CALLBACK_TIMEOUT 注释）
+        // 60s 超时兜底（见 CALLBACK_TIMEOUT 注释）
         McpContext ctx = McpContext.deadline(Instant.now().plus(CALLBACK_TIMEOUT));
 
         OAuthState st;
         try {
             st = states.take(state);
         } catch (RuntimeException e) {
-            // 对照 Go：state 都消费不了时，前端地址与 serviceID 都还不知道
+            // state 都消费不了时，前端地址与 serviceID 都还不知道
             throw new OAuthCallbackException("", "", e.getMessage(), e);
         }
         String frontendRedirect = st.frontendRedirect();
@@ -286,7 +282,7 @@ public class OAuthManager {
     // ── 状态查询 ───────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code IsAuthorizationAttemptComplete}（oauth_manager.go:231-248）。
+     * 判定一次授权尝试是否完成。
      *
      * <p>语义：<b>这一次</b>授权尝试是否在<b>当前</b> principal + service 上完成。
      * 一行预先存在的 token 绝不能当作新弹窗的成功（否则弹窗一开就"绿"）。
@@ -306,7 +302,7 @@ public class OAuthManager {
         return attempt.completed();
     }
 
-    /** 对照 Go {@code AuthorizationStatus}；传 null 行表示"没有 token 行"。 */
+    /** 查询 token 生命周期状态；无 token 行时按未授权处理。 */
     public OAuthAuthorizationStatus authorizationStatus(long tenantId,
                                                         TenantContext.Principal principal,
                                                         String serviceId) {
@@ -316,14 +312,14 @@ public class OAuthManager {
     }
 
     /**
-     * 对照 Go {@code IsAuthorized}：access token 现在就能用才算已授权。
+     * access token 现在就能用才算已授权。
      * <b>加密列非空但已过期的行不算。</b>
      */
     public boolean isAuthorized(long tenantId, TenantContext.Principal principal, String serviceId) {
         return authorizationStatus(tenantId, principal, serviceId).authorized();
     }
 
-    /** 对照 Go {@code Revoke}：删除该 principal 在该服务上的 token。 */
+    /** 删除该 principal 在该服务上的 token。 */
     public void revoke(long tenantId, TenantContext.Principal principal, String serviceId) {
         repo.deleteTokenForPrincipal(tenantId, principal, serviceId);
     }

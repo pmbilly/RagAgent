@@ -18,7 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 会话仓储语义（H2）——对照 Go internal/application/repository/session.go。
+ * 会话仓储语义（H2）。
  *
  * <p>覆盖的是 SQL 层的真实行为，mock 测不出来的那部分：可见性范围条件、软删除、
  * 影响行数（用于区分"不存在/不可见"与真出错）、以及 {@code is_pinned} 这个
@@ -26,7 +26,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  *
  * <p>⚠️ {@code @AutoConfigureMockMvc} 看似多余，但它让本类与其余契约测试共用同一个
  * Spring 上下文缓存键——多一个独立上下文键会波及 MCP 的静态 SsrfGuard 装配（详见
- * {@code TenantAPIKeyRepositoryTest} 的类注释）。惯例照抄即可。</p>
+ * {@code TenantAPIKeyRepositoryTest} 的类注释）。沿用该惯例即可。</p>
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -60,7 +60,7 @@ class SessionRepositoryTest {
 
     @Test
     void createAlwaysAssignsAFreshId() {
-        // Go 的 BeforeCreate 是**无条件**覆盖 ID，不是"为空才生成"
+        // 创建时**无条件**重新生成 ID，不是"为空才生成"
         Session s = newSession("t", "u1");
         s.setId("caller-supplied-id");
 
@@ -74,7 +74,7 @@ class SessionRepositoryTest {
 
     @Test
     void createPersistsEmptyStringsNotNull() {
-        // 对照 §9「Go 非指针零值在 DB 层同样是 ''」：GORM 写的是空串而非 NULL
+        // 落库语义：缺省（null）的字符串列写空串 '' 而非 NULL
         Session created = repo.create(newSession("t", null));
         String userId = jdbc.queryForObject(
                 "SELECT user_id FROM sessions WHERE id = ?", String.class, created.getId());
@@ -85,7 +85,7 @@ class SessionRepositoryTest {
 
     @Test
     void userScopeAcceptsOwnRowsAndLegacyEmptyOwnerRows() {
-        // 对照 applySessionUserScope：user_id 为空的历史行对所有 owner 都可见
+        // 可见性范围只拦非空 user_id：user_id 为空的历史行对所有 owner 都可见
         Session mine = repo.create(newSession("mine", "u1"));
         Session legacy = repo.create(newSession("legacy", ""));  // user_id = ''
         Session other = repo.create(newSession("other", "u2"));
@@ -143,7 +143,7 @@ class SessionRepositoryTest {
 
     @Test
     void batchDeleteWithEmptyIdsIsANoOp() {
-        // 对照 Go BatchDelete 的显式早退：空 ids 直接 0，**不做**全租户删除
+        // 空 ids 直接返回 0，**不做**全租户删除
         repo.create(newSession("t", "u1"));
         assertThat(repo.batchDelete(TENANT, "u1", List.of())).isZero();
         assertThat(repo.getByTenantId(TENANT, "u1")).hasSize(1);
@@ -185,7 +185,7 @@ class SessionRepositoryTest {
 
     @Test
     void setOwnerIdIgnoresTheUserScope() {
-        // SetOwnerID 刻意不做 user 范围（对照 Go 的注释与 SQL）
+        // setOwnerId 刻意不做 user 范围
         Session s = repo.create(newSession("t", ""));
         assertThat(repo.setOwnerId(TENANT, s.getId(), "u9")).isEqualTo(1);
         assertThat(repo.getById(TENANT, s.getId()).getUserId()).isEqualTo("u9");
@@ -247,7 +247,7 @@ class SessionRepositoryTest {
 
     @Test
     void getImPlatformFindsTheMappingAndIgnoresItsSoftDelete() {
-        // Go 的注释写明：任何映射（活的或被清掉的）都表明这个会话来自 IM——
+        // 任何映射（活的或被清掉的）都表明这个会话来自 IM——
         // 所以这条查询**不筛** im_channel_sessions.deleted_at
         Session s = repo.create(newSession("t", "u1"));
         jdbc.update("INSERT INTO im_channel_sessions "

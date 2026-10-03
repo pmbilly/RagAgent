@@ -15,18 +15,16 @@ import com.ragagent.mcp.protocol.McpContext;
 import com.ragagent.mcp.protocol.McpOAuthRuntime;
 
 /**
- * 运行期 token 生命周期（对照 Go internal/mcp/oauth_lifecycle.go:63-93 的
- * {@code oauthRuntime}）。
+ * 运行期 token 生命周期。
  *
- * <p><b>这是最容易翻错的一处</b>，因为它承担"跨实例单所有者"语义。逐条对照：</p>
+ * <p>核心是"跨实例单所有者"语义，规则逐条如下：</p>
  *
  * <h3>保鲜判定（{@code ensureFresh}）</h3>
  * <ol>
  *   <li>先查库：没有行 / access token 为空 → 要重新授权；</li>
  *   <li>{@code force=false} 且 token 距过期还超过 {@value #REFRESH_SKEW_SECONDS}s → 直接用；</li>
  *   <li><b>没有 refresh token 的行不能被 skew 提前判死</b>：它的寿命就是真实过期时刻，
- *       {@code expiresAt > now} 就仍可用（Go 注释："the refresh skew must not shorten
- *       their lifetime"）；</li>
+ *       {@code expiresAt > now} 就仍可用（刷新 skew 不得缩短其寿命）；</li>
  *   <li>确实要刷新却没有 refresh token → <b>删掉这行</b>再报要重新授权
  *       （留着只会让后续每次调用都以同样方式失败）。</li>
  * </ol>
@@ -54,13 +52,13 @@ import com.ragagent.mcp.protocol.McpOAuthRuntime;
  */
 public class OAuthRuntime implements McpOAuthRuntime {
 
-    /** 对照 Go {@code oauthRefreshSkew}：距过期不足 30s 才提前刷新。 */
+    /** 距过期不足 30s 才提前刷新。 */
     public static final Duration REFRESH_SKEW = Duration.ofSeconds(30);
-    /** 对照 Go {@code oauthRefreshLease}：租约时长下限。 */
+    /** 租约时长下限。 */
     public static final Duration REFRESH_LEASE = Duration.ofSeconds(45);
-    /** 对照 Go {@code oauthRefreshPoll}：抢不到租约时的轮询间隔。 */
+    /** 抢不到租约时的轮询间隔。 */
     public static final long REFRESH_POLL_MILLIS = 100L;
-    /** 对照 Go 释放租约时的 {@code 5 * time.Second} 收尾超时。 */
+    /** 释放租约时的收尾超时（5s）。 */
     static final long RELEASE_GRACE_MILLIS = 5000L;
 
     private static final long REFRESH_SKEW_SECONDS = 30L;
@@ -72,7 +70,7 @@ public class OAuthRuntime implements McpOAuthRuntime {
     private final OAuthHandler handler;
     private final Duration leaseDuration;
 
-    /** 对照 Go {@code newOAuthRuntime}（oauth_lifecycle.go:72-93）。 */
+    /** 构造 runtime：绑定 (tenant, principal, service) 与 handler。 */
     public OAuthRuntime(OAuthRepository repo, long tenantId, TenantContext.Principal principal,
                         String serviceId, String baseUrl, OAuthConfig cfg) {
         this.repo = repo;
@@ -110,11 +108,10 @@ public class OAuthRuntime implements McpOAuthRuntime {
     // ── McpOAuthRuntime ────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code oauthRuntime.ensureFresh}。
+     * 保鲜判定入口。
      *
      * @param forceRefresh 上一次调用因授权失败 → 强制刷新一次再重试
-     * @param trigger      触发强制刷新的原始异常；实现从这里取 handler
-     *                     （对照 Go 的 {@code client.GetOAuthHandler(err)}）。
+     * @param trigger      触发强制刷新的原始异常；实现从这里取 handler。
      *                     注意：{@link OAuthHandler} 的刷新路径不依赖 handler 身份
      *                     （client_id 已在构造期写进配置），故取不到时退回本 runtime 的 handler。
      */
@@ -123,7 +120,7 @@ public class OAuthRuntime implements McpOAuthRuntime {
         ensureFreshWith(ctx, forceRefresh, handlerFrom(trigger));
     }
 
-    /** 对照 Go {@code isOAuthAuthorizationFailure}：本包的两类异常 + 任意 401 信号。 */
+    /** 授权失败判定：本包的两类异常 + 任意 401 信号。 */
     @Override
     public boolean isAuthorizationFailure(Throwable e) {
         if (e == null) {
@@ -140,7 +137,7 @@ public class OAuthRuntime implements McpOAuthRuntime {
         return false;
     }
 
-    /** 对照 Go {@code client.GetOAuthHandler(err)}：从异常链里取回引发 401 的 handler。 */
+    /** 从异常链里取回引发 401 的 handler。 */
     private static OAuthHandler handlerFrom(Throwable trigger) {
         Throwable cur = trigger;
         while (cur != null) {
@@ -155,11 +152,11 @@ public class OAuthRuntime implements McpOAuthRuntime {
     // ── 保鲜 ───────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code ensureFresh}（oauth_lifecycle.go:116-140）。
+     * 保鲜实现。
      *
      * <p>刻意不叫 {@code ensureFresh}：避免与接口的
      * {@code ensureFresh(ctx, boolean, Throwable)} 在 {@code null} 实参下产生重载歧义
-     * （Go 侧是两个不同名字的方法，Java 侧同理）。</p>
+     * （接口方法与实现是两个不同名字）。</p>
      */
     public void ensureFreshWith(McpContext ctx, boolean force, OAuthHandler override) {
         McpOAuthToken row = repo.getTokenForPrincipal(tenantId, principal, serviceId);
@@ -187,7 +184,7 @@ public class OAuthRuntime implements McpOAuthRuntime {
 
     // ── 租约 ───────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code refreshWithLease}（oauth_lifecycle.go:142-181）。 */
+    /** 带租约的刷新循环。 */
     private void refreshWithLease(McpContext ctx, McpOAuthToken observed, OAuthHandler override) {
         while (true) {
             String leaseId = UUID.randomUUID().toString();
@@ -208,7 +205,7 @@ public class OAuthRuntime implements McpOAuthRuntime {
                 return;
             }
 
-            // 对照 Go 的 select { <-ctx.Done(); <-time.After(poll) }
+            // 等待轮询间隔期间响应取消
             if (ctx.isCancelled()) {
                 throw OAuthProtocolException.of("context canceled while waiting for MCP OAuth refresh");
             }
@@ -244,7 +241,7 @@ public class OAuthRuntime implements McpOAuthRuntime {
         }
     }
 
-    /** 对照 Go {@code refreshAsLeaseOwner}（oauth_lifecycle.go:183-230）。 */
+    /** 以租约所有者身份执行刷新。 */
     private void refreshAsLeaseOwner(McpContext ctx, McpOAuthToken observed, String leaseId,
                                      OAuthHandler override) {
         try {
@@ -294,7 +291,7 @@ public class OAuthRuntime implements McpOAuthRuntime {
             }
             throw new OAuthRefreshTemporaryException(refreshError);
         } finally {
-            // 对照 Go：收尾用"脱离父 ctx 取消 + 5s 超时"的上下文，失败只告警
+            // 收尾释放租约，失败只告警
             releaseLeaseQuietly(leaseId);
         }
     }
@@ -309,8 +306,8 @@ public class OAuthRuntime implements McpOAuthRuntime {
     }
 
     /**
-     * 对照 Go {@code oauthTokenMaterialChanged}：token 的"材料"（access / refresh / 过期时刻）
-     * 任一变化即视为被别人换过。<b>过期时刻按瞬时比较</b>（Go 的 {@code time.Time.Equal}），
+     * token 的"材料"（access / refresh / 过期时刻）
+     * 任一变化即视为被别人换过。<b>过期时刻按瞬时比较</b>，
      * 不是按偏移量比较。
      */
     static boolean tokenMaterialChanged(McpOAuthToken current, McpOAuthToken observed) {
@@ -326,7 +323,7 @@ public class OAuthRuntime implements McpOAuthRuntime {
         return t == null ? null : t.toInstant();
     }
 
-    /** 对照 Go {@code invalidateToken}。 */
+    /** 删除失效 token（可选连带客户端注册），并抛"需重新授权"。 */
     private void invalidateToken(McpContext ctx, boolean resetClient, String reason) {
         try {
             repo.deleteTokenForPrincipal(tenantId, principal, serviceId);
@@ -344,12 +341,12 @@ public class OAuthRuntime implements McpOAuthRuntime {
         throw new OAuthReauthorizationRequiredException(reason);
     }
 
-    /** 永久失败判定结果（对照 Go 的两个具名返回值）。 */
+    /** 永久失败判定结果。 */
     record PermanentFailure(boolean permanent, boolean resetClient) {
     }
 
     /**
-     * 对照 Go {@code permanentRefreshFailure}（oauth_lifecycle.go:253-271）。
+     * 永久/临时失败判定。
      *
      * <p>先看结构化 error_code；拿不到才回落到<span>异常消息文本</span>里的
      * {@code "status 400"} / {@code "status 401"} 匹配——后者依赖

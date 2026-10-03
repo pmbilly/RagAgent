@@ -11,19 +11,18 @@ import com.ragagent.agent.tools.web.WebFetchTool;
 import com.ragagent.storage.service.ResourceCatalogService;
 
 /**
- * agent 抓取页的完整快照存取（对照 Go {@code agent_web_pages.go} 全文）。
+ * agent 抓取页的完整快照存取。
  *
  * <p>复用资源目录与文件驱动：一个 {@code web://} 地址不授予一般资源访问——每次读
  * 都必须匹配「本租户 + 本 owner + 本会话中一条活跃 assistant 消息」的 web_page
  * 绑定。实现 {@link WebFetchTool.WebPageSource}。</p>
  *
  * <h2>接缝与备案</h2>
- * <p>文件写字节面（{@code interfaces.FileService.SaveBytes} / 本地 provider 的
- * 资源行创建）尚未翻译（HANDOFF §0.-2 剩余 1，与 ArtifactCollector 生产装配
- * 共栈）——{@link Store} 为其接缝：缺省 null 时 {@link #save} 走 Go 的
- * save-failure 分支（storageError 文案逐字对照），页仍进本轮缓存；
- * {@link #read} 报 "saved web page is no longer available"（Go 的 GetFile 失败
- * 同文案）。存储面落地后把生产 Store 注入即可，无需改本类。</p>
+ * <p>文件写字节面（本地 provider 的资源行创建）未落地，与 ArtifactCollector 生产装配
+ * 共栈——{@link Store} 为其接缝：缺省 null 时 {@link #save} 走保存失败分支
+ * （storageError 固定文案），页仍进本轮缓存；
+ * {@link #read} 报 "saved web page is no longer available"。
+ * 存储面落地后把生产 Store 注入即可，无需改本类。</p>
  */
 public class AgentWebPages implements WebFetchTool.WebPageSource {
 
@@ -32,9 +31,8 @@ public class AgentWebPages implements WebFetchTool.WebPageSource {
     public static final long MAX_SAVED_WEB_PAGE_BYTES = 8L << 20;
 
     /**
-     * 文件存取面（对照 Go files 回调返回的 interfaces.FileService 的 SaveBytes/
-     * GetFile/DeleteFile 三方法）。资源绑定面（对照 interfaces.ResourceCatalog.Bind）。
-     * 二者任一为 null = Go 的 storageResolver/fileService 缺位分支。
+     * 文件存取面（saveBytes/readFile/deleteFile 三方法）与
+     * 资源绑定面。二者任一为 null = 未装配存储写入面（dev 缺省）。
      */
     public interface Store {
         /** 返回 resource:// 引用（对照 SaveBytes）。 */

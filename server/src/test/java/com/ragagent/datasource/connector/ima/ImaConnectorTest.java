@@ -21,12 +21,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
- * IMA 连接器的对等测试（逐条对照 Go {@code ima/connector_test.go}）。
+ * IMA 连接器的语义测试。
  *
  * <h2>不许依赖真实网络</h2>
  * <p>全部打到 {@link FakeIma} 这个绑在 {@code 127.0.0.1} 的 stub 上，
- * 并照 Go 的 {@code TestMain} 放行 loopback（见
- * {@link FakeIma#allowLoopback()}）。</p>
+ * 并放行 loopback（见 {@link FakeIma#allowLoopback()}）。</p>
  *
  * <h2>不许靠墙钟造时间</h2>
  * <p>重试退避一律注入 {@link ImaRetryPolicy#immediate()}（全零），
@@ -48,7 +47,7 @@ class ImaConnectorTest {
         return new ImaConnector(ImaRetryPolicy.immediate());
     }
 
-    // ── 工具（对照 Go 的 findItem / mustFindItem / describeItems / decodeCursor） ──
+    // ── 工具 ──────────────────────────────────────────────────────────────
 
     private static FetchedItem findItem(List<FetchedItem> items, String externalId) {
         for (FetchedItem it : items) {
@@ -75,7 +74,7 @@ class ImaConnectorTest {
         return sb.append(']').toString();
     }
 
-    /** 对照 Go 的 {@code decodeCursor}：把 connector cursor 转回有类型的游标。 */
+    /** 把 connector cursor 转回有类型的游标。 */
     private static ImaCursor decodeCursor(SyncCursor cursor) {
         assertThat(cursor).as("cursor is nil").isNotNull();
         ImaCursor decoded = ImaCursor.fromConnectorCursor(cursor.getConnectorCursor());
@@ -104,7 +103,6 @@ class ImaConnectorTest {
     // ── 回归：临时失败必须被重试（cursor bug） ───────────────────────────
 
     /**
-     * 对照 Go {@code TestFetchIncremental_TransientFailureIsRetried}：
      * cursor 曾经是"抓内容之前用原始列表建的"，于是下载失败的条目被记成
      * "见过这个 media_id"，之后每次增量同步都把它当未变跳过——文档就永远丢了。
      */
@@ -145,7 +143,6 @@ class ImaConnectorTest {
     }
 
     /**
-     * 对照 Go {@code TestFetchIncremental_FailureIsNotADeletion}：
      * 把失败条目挡在 cursor 之外，也不能让下一轮把它误判成"从 IMA 消失了"。
      */
     @Test
@@ -196,7 +193,6 @@ class ImaConnectorTest {
     }
 
     /**
-     * 对照 Go {@code TestFetchIncremental_SameNameReplacementKeepsExternalID}：
      * IMA 就地替换同名文件时会换 {@code media_id}，条目必须以**同一个 external_id**
      * 回来（表现为更新），而不是"删一条 + 加一条"。
      */
@@ -229,7 +225,6 @@ class ImaConnectorTest {
     }
 
     /**
-     * 对照 Go {@code TestFetchIncremental_UnsupportedTypeIsProbedOnce}：
      * 确定性跳过要被记住，否则一个装满笔记的 KB 每次同步都要白付一次
      * {@code get_media_info}。
      */
@@ -257,7 +252,6 @@ class ImaConnectorTest {
     // ── 笔记走 note 命名空间 ─────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code TestFetchAll_NoteBodyIsReadFromNoteNamespace}：
      * 笔记完全没有 url_info，{@code get_media_info} 只给 notebook_id，
      * 正文必须去 {@code /openapi/note/v1/get_doc_content} 读。
      */
@@ -319,7 +313,7 @@ class ImaConnectorTest {
         }
     }
 
-    /** 对照 Go {@code TestFetchAll_AISessionIsStillSkipped}。 */
+    /** AI 会话与视频始终跳过。 */
     @Test
     void aiSessionAndVideoAreStillSkipped() throws Exception {
         try (FakeIma f = new FakeIma()) {
@@ -336,7 +330,7 @@ class ImaConnectorTest {
     // ── fetchOneMedia 的三条分支 ─────────────────────────────────────────
 
     /**
-     * 对照 Go {@code TestFetchAll_AuthenticatedURLIsDownloaded}：没有固定扩展名的
+     * 没有固定扩展名的
      * 媒体类型，当 IMA 附带鉴权头时 URL 指向 IMA 托管存储，WeKnora 自己抓不了，
      * 所以连接器必须在这里下载并把头带上。
      */
@@ -361,7 +355,7 @@ class ImaConnectorTest {
     }
 
     /**
-     * 对照 Go {@code TestFetchAll_PublicURLStaysURLOnly}：没有鉴权头说明链接公网可达，
+     * 没有鉴权头说明链接公网可达，
      * 那就把 URL 交给 ingest 层，让 WeKnora 抓实时页面而不是快照。
      */
     @Test
@@ -379,7 +373,7 @@ class ImaConnectorTest {
     }
 
     /**
-     * 对照 Go {@code TestFetchAll_ImageExtensionFollowsContentType}：IMA 把所有图片
+     * IMA 把所有图片
      * 都报成 media_type=9，只有下载响应的 Content-Type 能揭穿真实格式，
      * 而扩展名驱动 ingest 层的文件类型判定。
      */
@@ -397,7 +391,7 @@ class ImaConnectorTest {
         }
     }
 
-    /** Content-Type 缺失时用扩展名反推 MIME（对照 Go 的 {@code mimeForExtension} 分支）。 */
+    /** Content-Type 缺失时用扩展名反推 MIME（{@code mimeForExtension} 分支）。 */
     @Test
     void missingContentTypeFallsBackToExtensionMime() throws Exception {
         try (FakeIma f = new FakeIma()) {
@@ -425,7 +419,7 @@ class ImaConnectorTest {
 
     // ── 混合数组的 BFS + 文件夹路径 ──────────────────────────────────────
 
-    /** 对照 Go {@code TestFetchAll_ResolvesFolderPath}。 */
+    /** KB 里的 folder 条目要解析出路径。 */
     @Test
     void resolvesFolderPath() throws Exception {
         try (FakeIma f = new FakeIma()) {
@@ -449,7 +443,7 @@ class ImaConnectorTest {
         }
     }
 
-    /** 对照 Go 的 {@code listAllKBFiles}：根级也走 {@code get_knowledge_list}（不传 folder_id）。 */
+    /** 根级也走 {@code get_knowledge_list}（不传 folder_id）。 */
     @Test
     void rootListingOmitsFolderIdAndPassesKbId() throws Exception {
         try (FakeIma f = new FakeIma()) {
@@ -466,7 +460,7 @@ class ImaConnectorTest {
         }
     }
 
-    /** 非根文件夹必须带上 {@code folder_id}（对照 Go 的 {@code if folderID != ""} 分支）。 */
+    /** 非根文件夹必须带上 {@code folder_id}（folderID 非空时）。 */
     @Test
     void nestedListingPassesFolderId() throws Exception {
         try (FakeIma f = new FakeIma()) {
@@ -486,7 +480,7 @@ class ImaConnectorTest {
     // ── baseMetadata 的键集合 ────────────────────────────────────────────
 
     /**
-     * 对照 Go 实录（{@code baseMetadata} 的真值）：
+     * {@code baseMetadata} 的真值：
      * 恒有 {@code channel/media_id/ima_logical_key/knowledge_base_id/folder_path/media_type}
      * 六项；{@code parent_folder_id} 与 {@code notebook_id} 只在非空时出现。
      */
@@ -513,7 +507,7 @@ class ImaConnectorTest {
         }
     }
 
-    /** 笔记的 metadata 会多出 {@code notebook_id}（第三组 Go 实录）。 */
+    /** 笔记的 metadata 会多出 {@code notebook_id}。 */
     @Test
     void baseMetadataAddsNotebookIdForNotes() throws Exception {
         try (FakeIma f = new FakeIma()) {
@@ -530,7 +524,7 @@ class ImaConnectorTest {
 
     // ── ListResources ───────────────────────────────────────────────────
 
-    /** 对照 Go {@code TestListResources_ReturnsAddableBases}。 */
+    /** listResources 返回全部可添加的知识库。 */
     @Test
     void listResourcesReturnsAddableBases() throws Exception {
         try (FakeIma f = new FakeIma()) {
@@ -546,13 +540,13 @@ class ImaConnectorTest {
             assertThat(resources.get(0).getType()).isEqualTo("knowledge_base");
             assertThat(resources.get(0).getMetadata()).containsEntry("cover_url", "");
             assertThat(resources.get(0).getUrl()).isEqualTo(f.baseUrl());
-            // Go 的零值 time.Time → 恒输出的 year-1 字面量（见 Resource 的类注释）
+            // 零值时间 → 恒输出的 year-1 字面量（见 Resource 的类注释）
             assertThat(resources.get(0).getModifiedAt())
                     .isEqualTo(com.ragagent.common.web.GoTimeSerializer.GO_ZERO_DATE_TIME);
         }
     }
 
-    /** 对照 Go {@code TestListResources_FallsBackToSearch}。 */
+    /** 枚举接口失败时回落到搜索接口。 */
     @Test
     void listResourcesFallsBackToSearch() throws Exception {
         try (FakeIma f = new FakeIma()) {
@@ -581,7 +575,7 @@ class ImaConnectorTest {
 
     // ── 校验与参数 ───────────────────────────────────────────────────────
 
-    /** 对照 Go {@code TestValidate_InvalidCredentials}。 */
+    /** 缺 client_id 时 validate 拒绝。 */
     @Test
     void validateRejectsMissingClientId() throws Exception {
         try (FakeIma f = new FakeIma()) {
@@ -594,14 +588,14 @@ class ImaConnectorTest {
         }
     }
 
-    /** 对照 Go {@code TestParseIMAConfig_NilConfig}。 */
+    /** null config 直接拒绝。 */
     @Test
     void parseRejectsNilConfig() {
         assertThatThrownBy(() -> ImaConfig.parse(null))
                 .isInstanceOf(ConnectorException.InvalidConfig.class);
     }
 
-    /** 对照 Go {@code TestParseIMAConfig} 的 SSRF 档：元数据地址必须被拒。 */
+    /** base_url 的 SSRF 档：元数据地址必须被拒。 */
     @Test
     void parseRejectsSsrfBaseUrl() {
         DataSourceConfig cfg = new DataSourceConfig();

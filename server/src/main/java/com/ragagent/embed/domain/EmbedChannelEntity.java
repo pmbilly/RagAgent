@@ -10,23 +10,23 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ragagent.agent.management.mapper.JsonbRawStringTypeHandler;
 
 /**
- * Web embed 渠道（对照 Go {@code types.EmbedChannel}，internal/types/embed_channel.go）。
+ * Web embed 渠道。
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库行为清单</h2>
  * <ol>
- *   <li><b>钩子 BeforeCreate</b>（Go L43-63）：ID 为空生成 UUID、AgentID 兜底
+ *   <li><b>创建钩子</b>：ID 为空生成 UUID、AgentID 兜底
  *       builtin-quick-answer、rate limit 兜底 30/10000、widget/header 兜底——
  *       Java 侧在 service 层显式赋值（service.Create 全部先规范化再落库）。</li>
- *   <li><b>default:true 的零值列在 GORM Create 时被省略 → 落 DB 默认</b>（golden 钉死：
+ *   <li><b>default:true 的零值布尔列落库时被省略 → 取 DB 默认</b>（golden 钉死：
  *       create 请求带 enabled:false / show_suggested_questions:false，落库后仍为 true，
  *       响应也是 true）。Java 在 service.Create 里对这两个布尔做同样归一。</li>
- *   <li><b>软删除</b>：{@code DeletedAt gorm.DeletedAt}——按约定不用 @TableLogic，
- *       查询显式带 {@code deleted_at IS NULL}，删除显式 UPDATE。</li>
- *   <li><b>PublishToken / WebhookSecret 不进 JSON</b>（Go {@code json:"-"}）→
+ *   <li><b>软删除</b>：查询显式带 {@code deleted_at IS NULL}，删除显式 UPDATE
+ *       （不用 @TableLogic）。</li>
+ *   <li><b>PublishToken / WebhookSecret 不进 JSON</b> →
  *       响应体一律手工组 Map，实体本身不作响应。</li>
  *   <li><b>allowed_origins 是 jsonb</b>：raw JSON 文本直通（值可以是
- *       {@code "null"} 字面量——update 不带该键时 Go {@code json.Marshal(nil)="null"}
- *       整列覆写，读回 {@code null}，golden 钉死）。</li>
+ *       {@code "null"} 字面量——update 不带该键时整列覆写为 {@code "null"}，
+ *       读回 {@code null}，golden 钉死）。</li>
  * </ol>
  */
 @TableName(value = "embed_channels", autoResultMap = true)

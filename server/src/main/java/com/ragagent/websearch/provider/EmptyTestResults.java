@@ -1,9 +1,9 @@
 package com.ragagent.websearch.provider;
 
 /**
- * 连通性测试的空结果错误（对照 Go {@code web_search/test_errors.go} 全文）。
+ * 连通性测试的空结果错误。
  *
- * <p>文案逐字对照；searxng 的 detail 由
+ * <p>文案是固定契约；searxng 的 detail 由
  * {@link SearxngProvider#emptyResultDiagnostics()} 提供。</p>
  */
 public final class EmptyTestResults {
@@ -11,7 +11,7 @@ public final class EmptyTestResults {
     private EmptyTestResults() {
     }
 
-    /** 对照 EmptyTestResultsError：返回的异常消息 = Go 的 error 文案。 */
+    /** 空结果的异常消息（固定文案）。 */
     public static SearchHttp.SearchHttpException emptyTestResultsError(String providerType,
                                                                        WebSearchProvider provider) {
         String detail = provider == null ? "" : provider.emptyResultDiagnostics();

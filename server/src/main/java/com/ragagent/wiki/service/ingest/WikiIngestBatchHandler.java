@@ -161,8 +161,8 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
     /**
      * 按 id 取 KB，未找到返回 {@code null}。
      *
-     * <p>软删过滤显式写 {@code deleted_at IS NULL}（约定 §9："soft delete 不用
-     * {@code @TableLogic}"）。此处<b>不</b>按租户过滤（沿用既有查询语义）。</p>
+     * <p>软删过滤显式写 {@code deleted_at IS NULL}（soft delete 不用
+     * {@code @TableLogic}）。此处<b>不</b>按租户过滤（沿用既有查询语义）。</p>
      */
     KnowledgeBase getKnowledgeBaseByIDOnly(String kbId) {
         if (kbId == null || kbId.isEmpty()) {
@@ -220,7 +220,7 @@ public class WikiIngestBatchHandler implements WikiIngestTaskHandler {
      * 构造本次运行使用的
      * <b>懒加载</b> fetcher。
      *
-     * <p>这些取代了历史的"批次前 ListAllPages 全量转储"：不再一上来就把约 100MB 的行
+     * <p>这些取代了旧的"先全量 ListAllPages 转储"：不再一上来就把约 100MB 的行
      * 拉进内存（然后再遍历好几遍），调用方只为它<b>真正碰过</b>的 slug / knowledge id
      * 付费。缓存命中让单次运行内的重复查询免费。缓存是<b>逐次调用</b>的
      * （用锁保证并发安全），因此每个任务拿到一份全新、隔离的视图。</p>

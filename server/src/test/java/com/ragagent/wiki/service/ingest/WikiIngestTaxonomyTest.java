@@ -22,10 +22,8 @@ import com.ragagent.wiki.service.WikiModelResolver;
 import com.ragagent.wiki.service.page.WikiPageService;
 
 /**
- * {@link WikiIngestTaxonomy} 的对等测试（对照 Go
- * internal/application/service/wiki_ingest_taxonomy_test.go，129 行；
- * 另含 wiki_ingest.go L1966-1987 的 {@code formatExistingTaxonomyForPrompt}，
- * 它的 Go 测试就在同一个文件里）。
+ * {@link WikiIngestTaxonomy} 的测试，另含
+ * {@code WikiIngestService.formatExistingTaxonomyForPrompt} 的目录树渲染。
  */
 class WikiIngestTaxonomyTest {
 
@@ -34,11 +32,11 @@ class WikiIngestTaxonomyTest {
     private final WikiIngestTaxonomy taxonomy = new WikiIngestTaxonomy(wikiService, modelResolver);
 
     // ═══════════════════════════════════════════════════════════════
-    // formatExistingTaxonomyForPrompt（Go taxonomy_test L10-32）
+    // formatExistingTaxonomyForPrompt
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code TestFormatExistingTaxonomyForPrompt}：同级标签按<b>码点序</b>输出，
+     * 同级标签按<b>码点序</b>输出，
      * 每层两个空格缩进。
      */
     @Test
@@ -58,7 +56,7 @@ class WikiIngestTaxonomyTest {
         assertThat(got).isEqualTo(want);
     }
 
-    /** 对照 Go {@code TestFormatExistingTaxonomyForPromptEmpty} */
+    /** 空目录树渲染为空串 */
     @Test
     @DisplayName("空目录树渲染为空串（对照 Go TestFormatExistingTaxonomyForPromptEmpty）")
     void formatExistingTaxonomyForPromptEmpty() {
@@ -67,11 +65,11 @@ class WikiIngestTaxonomyTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // parseTaxonomyAssignments（Go taxonomy_test L34-61）
+    // parseTaxonomyAssignments
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code TestParseTaxonomyAssignments}：剥掉 markdown 围栏、丢弃空 slug、
+     * 剥掉 markdown 围栏、丢弃空 slug、
      * 保留空 path 的条目。
      */
     @Test
@@ -92,7 +90,7 @@ class WikiIngestTaxonomyTest {
         assertThat(got.get("entity/unclassified")).isEmpty();
     }
 
-    /** 对照 Go {@code TestParseTaxonomyAssignmentsMalformed}：畸形输出返回 nil */
+    /** 畸形输出返回 null */
     @Test
     @DisplayName("畸形规划输出返回 null（对照 Go TestParseTaxonomyAssignmentsMalformed）")
     void parseTaxonomyAssignmentsMalformed() {
@@ -104,10 +102,10 @@ class WikiIngestTaxonomyTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 向量相似度（Go taxonomy_test L63-109）
+    // 向量相似度
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go {@code TestCosineSimilarity}：全等 ≈1、正交 0、长度不匹配 0、零范数 0 */
+    /** 全等 ≈1、正交 0、长度不匹配 0、零范数 0 */
     @Test
     @DisplayName("余弦相似度（对照 Go TestCosineSimilarity）")
     void cosineSimilarity() {
@@ -122,7 +120,7 @@ class WikiIngestTaxonomyTest {
     }
 
     /**
-     * 对照 Go {@code TestSelectFoldersByVectors}：只保留排进任意条目 top-K 的深层目录，
+     * 只保留排进任意条目 top-K 的深层目录，
      * 并<b>按输入顺序</b>输出。
      */
     @Test
@@ -145,7 +143,7 @@ class WikiIngestTaxonomyTest {
         assertThat(String.join("/", got.get(1))).isEqualTo("AI/模型");
     }
 
-    /** 对照 Go {@code TestSelectFoldersByVectorsGuards}：长度不匹配 / 无条目时返回 nil */
+    /** 长度不匹配 / 无条目 / 上限为 0 时返回空 */
     @Test
     @DisplayName("选夹的防御分支（对照 Go TestSelectFoldersByVectorsGuards）")
     void selectFoldersByVectorsGuards() {
@@ -162,7 +160,7 @@ class WikiIngestTaxonomyTest {
                 .isEmpty();
     }
 
-    /** 对照 Go {@code capFolders}：max<=0 不限，否则截断 */
+    /** max<=0 不限，否则截断 */
     @Test
     @DisplayName("capFolders 截断")
     void capFolders() {
@@ -173,11 +171,11 @@ class WikiIngestTaxonomyTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 条目收集（Go taxonomy_test L111-129）
+    // 条目收集
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code TestCollectTaxonomyItems}：跳过 summary / retract，按确定的 slug
+     * 跳过 summary / retract，按确定的 slug
      * 顺序输出（让分块边界稳定），about 取条目的 description。
      */
     @Test
@@ -218,7 +216,7 @@ class WikiIngestTaxonomyTest {
         return u;
     }
 
-    /** 对照 Go：slug 为空时 title 回落到 slug；条目为空时 title 取 slug */
+    /** name 为空白时 title 回落到 slug */
     @Test
     @DisplayName("收集条目时 title 回落")
     void collectTaxonomyItemsTitleFallback() {
@@ -240,7 +238,7 @@ class WikiIngestTaxonomyTest {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code selectRelevantFolders} 的短路分支：目录池不超过
+     * 目录池不超过
      * {@code TAXONOMY_FEED_ALL_MAX_FOLDERS} 时整体喂入，<b>不</b>调用 embedding。
      */
     @Test
@@ -256,7 +254,7 @@ class WikiIngestTaxonomyTest {
     }
 
     /**
-     * 对照 Go {@code selectRelevantFolders}：KB <b>没有</b> embedding 模型时回落到
+     * KB <b>没有</b> embedding 模型时回落到
      * "限量喂全部"（上限 {@code TAXONOMY_PROMPT_MAX_PATHS}），
      * 一级目录永远保留。
      */
@@ -276,7 +274,7 @@ class WikiIngestTaxonomyTest {
     }
 
     /**
-     * 对照 Go：配置了 embedding 模型时，一级目录永远保留，深层目录按每个条目的
+     * 配置了 embedding 模型时，一级目录永远保留，深层目录按每个条目的
      * top-K 相似度挑选。
      */
     @Test
@@ -316,7 +314,7 @@ class WikiIngestTaxonomyTest {
         assertThat(got).contains(List.of("l1-0"));
     }
 
-    /** 对照 Go：embedding 模型取不到时只记 warn 并回落到喂全部 */
+    /** embedding 模型取不到时只记 warn 并回落到喂全部 */
     @Test
     @DisplayName("embedding 模型不可用时回落")
     void selectRelevantFoldersDegradesWhenEmbedderUnavailable() {
@@ -338,7 +336,7 @@ class WikiIngestTaxonomyTest {
     // 规划 / 实体化
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go：kb == nil 或没有可分类条目时返回 null */
+    /** kb 为 null 或没有可分类条目时返回 null */
     @Test
     @DisplayName("规划短路：kb 为空 / 无条目")
     void planShortCircuits() {
@@ -349,7 +347,7 @@ class WikiIngestTaxonomyTest {
     }
 
     /**
-     * 对照 Go {@code resolvePlannedFolders}：不同路径只解析一次（缓存），
+     * 不同路径只解析一次（缓存），
      * 空路径与解析失败都落到根并省略，负缓存避免逐 slug 重试。
      */
     @Test

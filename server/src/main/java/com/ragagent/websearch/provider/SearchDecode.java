@@ -1,6 +1,6 @@
 package com.ragagent.websearch.provider;
 
-/** 包内小工具（Go strings.TrimSpace 的 unicode 全集表——各包同款小副本）。 */
+/** 包内小工具（Unicode 空白全集的 trim——各包同款小副本）。 */
 final class SearchDecode {
 
     private SearchDecode() {

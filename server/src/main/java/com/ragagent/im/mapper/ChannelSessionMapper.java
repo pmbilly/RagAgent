@@ -12,8 +12,7 @@ import org.apache.ibatis.annotations.Update;
 import com.ragagent.im.domain.ChannelSessionEntity;
 
 /**
- * IM 渠道会话映射的 SQL 面（对照 Go service.go 里 s.db.Where(...) 的直接查询 +
- * /clear 的软删；internal/im/service.go L2295-2444 与 L2080-2193）。
+ * IM 渠道会话映射的 SQL 面（会话解析查询 + /clear 的软删）。
  * 表 DDL：迁移 000021（TestSchema 已有同形）。
  */
 @Mapper
@@ -46,7 +45,7 @@ public interface ChannelSessionMapper {
             + "ORDER BY created_at ASC LIMIT 1")
     ChannelSessionEntity findBySessionId(@Param("sessionId") String sessionId);
 
-    /** 对照 db.Create（BeforeCreate：ID 空时 UUID、status 空兜底 active——service 层做）。 */
+    /** 入库前置字段由 service 层备齐（ID 空时 UUID、status 空兜底 active）。 */
     @Insert("INSERT INTO im_channel_sessions (id, platform, user_id, chat_id, thread_id, "
             + "session_id, tenant_id, agent_id, im_channel_id, status, metadata, "
             + "created_at, updated_at, deleted_at) "

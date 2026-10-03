@@ -14,8 +14,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
- * SSE 读取纪律的逐条对照（Go 侧 sse_reader.go 无独立测试文件，
- * 本测试把该文件注释里列出的兼容性规则逐条钉死）。
+ * SSE 读取的兼容性纪律，逐条钉死。
  */
 class SseReaderTest {
 
@@ -79,7 +78,7 @@ class SseReaderTest {
         assertEquals(Optional.empty(), r.readEvent());
     }
 
-    /** 超长行（> 1MB）与 Go 的 bufio.Scanner 一样报 "bufio.Scanner: token too long"。 */
+    /** 超长行（> 1MB）报 "bufio.Scanner: token too long"。 */
     @Test
     void rejectsOverlongLine() {
         StringBuilder sb = new StringBuilder("data: ");

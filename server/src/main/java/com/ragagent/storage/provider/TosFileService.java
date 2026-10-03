@@ -25,9 +25,9 @@ import com.volcengine.tos.model.object.PreSignedURLOutput;
 import com.volcengine.tos.model.object.PutObjectInput;
 
 /**
- * 火山引擎 TOS 后端（对照 Go {@code tosFileService}，file/tos.go 全文 339 行）。
+ * 火山引擎 TOS 后端。
  *
- * <p>照抄的语义：pathPrefix {@code strings.Trim(pathPrefix, "/")}、对象名用
+ * <p>语义：pathPrefix 去两端 {@code /}、对象名用
  * {@code joinTOSObjectKey}（各段 trim {@code /} 后跳过空段，再以 {@code /} 连接）——
  * 因此 {@code {prefix}/{tenantId}/{knowledgeId}/{uuid}{ext}}、SaveBytes 主桶
  * {@code {prefix}/{tenantId}/exports/{uuid}{ext}} / 临时桶
@@ -40,7 +40,7 @@ public class TosFileService implements FileService {
     private static final Logger log = LoggerFactory.getLogger(TosFileService.class);
 
     static final String SCHEME = "tos://";
-    /** 预签名有效期（对照 Go：24h 的秒数）。 */
+    /** 预签名有效期：24h。 */
     static final int PRESIGN_TTL_SECONDS = 24 * 3600;
 
     private final TOSV2 client;

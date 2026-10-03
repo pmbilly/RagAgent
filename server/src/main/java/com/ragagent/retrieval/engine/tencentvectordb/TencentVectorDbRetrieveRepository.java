@@ -28,16 +28,14 @@ import com.ragagent.retrieval.engine.tencentvectordb.TencentVectorDbRestClient.T
 import com.ragagent.vectorstore.domain.IndexConfig;
 
 /**
- * 腾讯 VectorDB 检索引擎仓储——对照 Go {@code repository/retriever/tencentvectordb/}
- * （repository.go 782 + structs.go 57 + move.go 33，约 870 行非测试）。
+ * 腾讯 VectorDB 检索引擎仓储。
  *
  * <h2>协议口径</h2>
- * Go 用官方 SDK 的 {@code tcvectordb.RpcClient}（集合/文档操作走 gRPC/olama，仅 database 走
- * HTTP）；本仓自持 SDK 的 <b>HTTP 面</b>（{@code /collection/*}、{@code /document/*}，
+ * 本仓自持 SDK 的 <b>HTTP 面</b>（{@code /collection/*}、{@code /document/*}，
  * {@code Authorization: Bearer account=…&api_key=…}）——同一服务端支持的等价接口，零新依赖、
  * 不引 protobuf（详见 {@link TencentVectorDbRestClient}）。
  *
- * <h2>语义要点（照 Go，别"顺手统一"）</h2>
+ * <h2>语义要点（别"顺手统一"）</h2>
  * <ul>
  *   <li>集合命名有<b>开关</b>：{@code indexCfg == nil || collectionName 为空} → 带维度后缀
  *       {@code <base>_<dim>}（默认）；否则<b>单集合</b>（所有维度混存）；前缀匹配也随之变
@@ -47,9 +45,9 @@ import com.ragagent.vectorstore.domain.IndexConfig;
  *       shard/replica 缺省 1/1（replica 可被 {@code TENCENT_VECTORDB_REPLICA_NUMBER} 覆盖）；</li>
  *   <li>写入是 <b>Upsert + buildIndex=true</b>，稀疏向量由<b>客户端 BM25</b> 计算（见
  *       {@link TencentVectorDbBm25}）；id 兜底序 ID→SourceID→ChunkID；</li>
- *   <li>删除用 filter {@code field in ("…")}（照 {@code tcvectordb.In}：双引号 + 圆括号）；</li>
+ *   <li>删除用 filter {@code field in ("…")}（双引号 + 圆括号）；</li>
  *   <li>enabled/tag 批量更新走 <b>Update API</b>（不是查改回写），跨"匹配到的集合"逐个更新；
- *       <b>任一集合失败即返回错误</b>（照 Go，不聚合也不忽略）；</li>
+ *       <b>任一集合失败即返回错误</b>（不聚合也不忽略）；</li>
  *   <li>向量检索：dim=0 → 空；集合不存在 → 空；{@code params:{ef:100}}；
  *       threshold&gt;0 → {@code radius}；TopK ≤ 0 → 10；</li>
  *   <li>关键词检索：BM25 查询向量 + {@code /document/fullTextSearch}（fieldName=sparse_vector），
@@ -87,9 +85,9 @@ public class TencentVectorDbRetrieveRepository
     static final String FIELD_TAG_ID = "tag_id";
     static final String FIELD_IS_ENABLED = "is_enabled";
 
-    /** 对照 {@code copyIndicesQueryPageSize = 500}。 */
+    /** 拷贝的分页大小。 */
     static final int COPY_PAGE_SIZE = 500;
-    /** 对照搜索的 {@code Ef: 100}。 */
+    /** 搜索参数的 ef 值。 */
     static final int SEARCH_EF = 100;
 
     final TencentVectorDbRestClient client;
@@ -121,7 +119,7 @@ public class TencentVectorDbRetrieveRepository
         this.writeOps = new TencentVectorDbWriteOps(this);
     }
 
-    /** 照 {@code NewTencentVectorDBRetrieveEngineRepository} + {@code createTencentVectorDBEngine}。 */
+    /** 构造入口：建 client + 建库/集合名解析。 */
     public static TencentVectorDbRetrieveRepository create(String addr, String username,
                                                            String apiKey, String database,
                                                            IndexConfig indexCfg, SsrfGuard guard) {
@@ -143,7 +141,7 @@ public class TencentVectorDbRetrieveRepository
         return DEFAULT_DATABASE_NAME;
     }
 
-    /** 对照 {@code types.ResolveCollectionName(indexCfg, TENCENT_VECTORDB_COLLECTION, default)}。 */
+    /** collection 名解析：indexCfg 前缀/名称 > env {@code TENCENT_VECTORDB_COLLECTION} > 缺省。 */
     static String resolveCollectionBase(IndexConfig indexCfg) {
         if (indexCfg != null) {
             if (indexCfg.collectionName != null && !indexCfg.collectionName.isEmpty()) {
@@ -160,13 +158,13 @@ public class TencentVectorDbRetrieveRepository
         return DEFAULT_COLLECTION_NAME;
     }
 
-    /** 照 {@code shouldUseDimensionSuffix}：indexCfg 为空或 collectionName 为空 → 带维度后缀。 */
+    /** 维度后缀开关：indexCfg 为空或 collectionName 为空 → 带维度后缀。 */
     static boolean shouldUseDimensionSuffix(IndexConfig indexCfg) {
         return indexCfg == null || indexCfg.collectionName == null
                 || indexCfg.collectionName.isEmpty();
     }
 
-    /** 照 {@code resolveReplicaNumber}：indexCfg > env > 1；env 非法或负数回落缺省。 */
+    /** 副本数解析：indexCfg > env > 1；env 非法或负数回落缺省。 */
     static int resolveReplicaNumber(IndexConfig indexCfg) {
         if (indexCfg != null && indexCfg.replicaNumber > 0) {
             return indexCfg.replicaNumber;
@@ -179,7 +177,7 @@ public class TencentVectorDbRetrieveRepository
                     return replicas;
                 }
             } catch (NumberFormatException ignored) {
-                // 照 Go：失败回落缺省
+                // env 解析失败回落缺省
             }
         }
         return DEFAULT_REPLICA_NUMBER;
@@ -197,7 +195,7 @@ public class TencentVectorDbRetrieveRepository
         return List.of(EngineTypes.RETRIEVER_KEYWORDS, EngineTypes.RETRIEVER_VECTOR);
     }
 
-    /** 照 {@code EstimateStorageSize}（注意 content 计两次：一次字节、一次 ×2）。 */
+    /** 存储估算（注意 content 计两次：一次字节、一次 ×2）。 */
     @Override
     public long estimateStorageSize(List<IndexInfo> indexInfoList, Map<String, Object> params) {
         if (indexInfoList == null) {
@@ -268,13 +266,13 @@ public class TencentVectorDbRetrieveRepository
         initialized.put(dimension, true);
     }
 
-    /** 照 {@code isCollectionAlreadyExistsErr}：含 "code: 15202" 或 "already exist"。 */
+    /** 集合已存在判定：含 "code: 15202" 或 "already exist"。 */
     static boolean isCollectionAlreadyExistsError(RuntimeException e) {
         String msg = e.getMessage() == null ? "" : e.getMessage().toLowerCase(Locale.ROOT);
         return msg.contains("code: 15202") || msg.contains("already exist");
     }
 
-    /** 建集合请求体（照 Go 的 Indexes 三项；字段/索引类型串照 SDK 常量）。 */
+    /** 建集合请求体（Indexes 三项；字段/索引类型串照 SDK 常量）。 */
     ObjectNode createBody(String name, int dimension) {
         ObjectNode body = Json.object();
         body.put("database", databaseName);
@@ -320,7 +318,7 @@ public class TencentVectorDbRetrieveRepository
         node.put("indexType", indexType);
     }
 
-    // ── BM25 编码器（懒加载，照 sync.Once 语义：失败也缓存） ───────────────
+    // ── BM25 编码器（懒加载 once 语义：失败也缓存） ────────────────────────
 
     TencentVectorDbBm25 bm25() {
         TencentVectorDbBm25 local = bm25;
@@ -351,9 +349,9 @@ public class TencentVectorDbRetrieveRepository
     }
 
 
-    /** 照 {@code BatchSave}：按维度分组 → BM25 编码 → Upsert（buildIndex=true）。 */
+    /** 批量写入：按维度分组 → BM25 编码 → Upsert（buildIndex=true）。 */
 
-    /** 照 {@code tcvectordb.In}：{@code key in ("v1","v2")}（双引号 + 圆括号）。 */
+    /** in 过滤器：{@code key in ("v1","v2")}（双引号 + 圆括号）。 */
     static String in(String key, List<String> values) {
         if (values == null || values.isEmpty()) {
             return "";
@@ -483,7 +481,7 @@ public class TencentVectorDbRetrieveRepository
     }
 
 
-    // ── move（照 move.go：Update API 一次搞定，无 seen 守卫） ──────────────
+    // ── move（Update API 一次搞定，无 seen 守卫） ──────────────────────────
 
     @Override
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
@@ -500,7 +498,7 @@ public class TencentVectorDbRetrieveRepository
 
     // ── 映射 ────────────────────────────────────────────────────────────────
 
-    /** 行模型（照 {@code vectorEmbedding}）。 */
+    /** 行模型。 */
     static final class Document {
 
         String id = "";
@@ -517,7 +515,7 @@ public class TencentVectorDbRetrieveRepository
         double score;
     }
 
-    /** 照 {@code toVectorEmbedding}：id 兜底 ID→SourceID→ChunkID；embedding 查 vector/embedding 两个键。 */
+    /** 行装配：id 兜底 ID→SourceID→ChunkID；embedding 查 vector/embedding 两个键。 */
     static Document toDocument(IndexInfo info, Map<String, Object> params) {
         Document doc = new Document();
         doc.id = info.id == null ? "" : info.id;
@@ -600,7 +598,7 @@ public class TencentVectorDbRetrieveRepository
         return out;
     }
 
-    /** 照 Go {@code outputFields()}：9 个字段（不含向量；向量由 retrieveVector 控制）。 */
+    /** 查询输出字段：9 个字段（不含向量；向量由 retrieveVector 控制）。 */
     static ArrayNode outputFields() {
         ArrayNode fields = Json.array();
         for (String name : List.of(FIELD_ID, FIELD_CONTENT, FIELD_SOURCE_ID, FIELD_SOURCE_TYPE,
@@ -611,7 +609,7 @@ public class TencentVectorDbRetrieveRepository
         return fields;
     }
 
-    /** 对照 Go {@code cleanInvalidUTF8}：丢 NUL 与非法序列（Java 侧重点是孤立代理项）。 */
+    /** 丢 NUL 与非法序列（Java 侧重点是孤立代理项）。 */
     static String cleanInvalidUtf8(String s) {
         if (s == null || s.isEmpty()) {
             return "";
@@ -637,7 +635,7 @@ public class TencentVectorDbRetrieveRepository
         return sb.toString();
     }
 
-    // ── 探针（照 testTencentVectorDBConnection：ListDatabase，版本恒 ""） ──
+    // ── 探针（ListDatabase，版本恒 ""） ────────────────────────────────────
 
     public static String testConnection(String addr, String username, String apiKey,
                                         SsrfGuard guard) {

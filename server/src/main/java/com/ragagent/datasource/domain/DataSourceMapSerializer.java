@@ -14,7 +14,7 @@ import com.ragagent.common.web.GoMapSerializer;
 
 /**
  * {@link GoMapSerializer} 的 datasource 版本：在"按键排序且递归"之上，**再把嵌套的
- * {@code Double} 按 Go 的浮点编码器输出**。
+ * {@code Double} 按统一浮点格式（{@link GoDoubleSerializer}）输出**。
  *
  * <h2>为什么不能直接用 {@code GoMapSerializer}</h2>
  * <p>{@code GoMapSerializer} 只重排键序，值<b>原样</b>交给 Jackson。而本模块的 map 字段
@@ -31,16 +31,17 @@ import com.ragagent.common.web.GoMapSerializer;
  * {@code last_sync_result} 原样透给前端——分叉看得见。</p>
  *
  * <h2>为什么不改 {@code GoMapSerializer} 本身</h2>
- * <p>它是阶段 5.2 建立起来、被 MCP / Wiki / stream / llm 共同依赖的<b>共享</b>基础设施，
- * 本轮只授权改 {@code TestSchema}。故在此处收口：本类继承它、复用它的键序比较器
+ * <p>它是被 MCP / Wiki / stream / llm 共同依赖的<b>共享</b>基础设施，
+ * 不宜为单个模块改动。故在此处收口：本类继承它、复用它的键序比较器
  * 与 {@code sortDeep}，只补一层"值归一"。</p>
  *
  * <h2>归一的手段</h2>
  * <p>把 {@code Double}/{@code Float} 换成实现了 {@link JsonSerializable} 的
  * {@link GoNumber}。{@code sortDeep} 对非 Map/Collection 的值原样透传，而 Jackson 对
  * 实现 {@code JsonSerializable} 的对象会调它自己的 {@code serialize}——
- * 于是嵌套在任意深度的数字都能走 Go 的编码器。用 {@code writeRawValue} 而不是
- * {@code writeNumber} 是因为 Go 的 {@code 1e+21} 不是合法的 Java 数字字面量写法。</p>
+ * 于是嵌套在任意深度的数字都能走同一套编码器。用 {@code writeRawValue} 而不是
+ * {@code writeNumber} 是因为 {@code 1e+21} 这类输出不是合法的 Java 数字字面量写法，
+ * 只能原样写出。</p>
  */
 public class DataSourceMapSerializer extends GoMapSerializer {
 

@@ -9,7 +9,7 @@ import java.time.Duration;
 import java.util.Map;
 
 /**
- * MCP 客户端工厂（对照 Go internal/mcp/client.go:154-252 的 {@code NewMCPClient}）。
+ * MCP 客户端工厂。
  *
  * <p><b>六分支 = 3 种传输 × {OAuth, 非 OAuth}</b>（stdio 与未知类型是拒绝分支）：</p>
  * <ol>
@@ -17,16 +17,16 @@ import java.util.Map;
  *   <li>{@code sse} × OAuth → {@link McpOAuthSupport#createTransport}</li>
  *   <li>{@code http-streamable} × 非 OAuth → {@link StreamableHttpTransport}</li>
  *   <li>{@code http-streamable} × OAuth → {@link McpOAuthSupport#createTransport}</li>
- *   <li>{@code stdio} → 硬拒绝（命令注入风险，Go client.go:229-231）</li>
+ *   <li>{@code stdio} → 硬拒绝（命令注入风险）</li>
  *   <li>未知/空类型 → {@code ErrUnsupportedTransport}</li>
  * </ol>
  *
  * <p><b>构造前必做</b>：{@link McpServiceUrls#validateServiceOutboundUrls}——陈旧行/导入行
- * 可能绕过当前 SSRF 策略，构造点必须再查一次（Go 同样在 NewMCPClient 开头就查）。</p>
+ * 可能绕过当前 SSRF 策略，构造点必须再查一次。</p>
  */
 public final class McpClientFactory {
 
-    /** stdio 拒绝文案（与 Go 逐字一致，manager 里也复用同一条）。 */
+    /** stdio 拒绝文案（契约固定，manager 里也复用同一条）。 */
     static final String STDIO_DISABLED_MESSAGE =
             "stdio transport is disabled for security reasons; "
                     + "please use SSE or HTTP Streamable transport instead";
@@ -35,7 +35,7 @@ public final class McpClientFactory {
     }
 
     /**
-     * 对照 Go {@code NewMCPClient}。
+     * 构造客户端。
      *
      * @throws McpException 配置缺失 / SSRF 校验失败 / stdio / 未知传输 / OAuth 未装配
      */
@@ -51,7 +51,7 @@ public final class McpClientFactory {
 
         boolean useOAuth = isOAuth(service);
         if (useOAuth) {
-            // 对照 Go buildOAuthConfig 的位置：OAuth 装配检查发生在传输分支之前
+            // OAuth 装配检查发生在传输分支之前
             McpOAuthSupport support = config.oauthSupport();
             if (support == null || !support.isAvailable()) {
                 throw new McpException("OAuth repository is required for OAuth MCP services");
@@ -86,7 +86,7 @@ public final class McpClientFactory {
                 : null;
         DefaultMcpClient client = new DefaultMcpClient(service, transport, runtime);
         transport.setConnectionLostHandler(err -> {
-            // 对照 Go onConnectionLost：连接丢失即断开，让下次 GetOrCreateClient 重建。
+            // 连接丢失即断开，让下次 GetOrCreateClient 重建。
             client.disconnect();
             org.slf4j.LoggerFactory.getLogger(McpClientFactory.class)
                     .warn("MCP server connection has been lost, URL:{}, error:{}",
@@ -95,7 +95,7 @@ public final class McpClientFactory {
         return client;
     }
 
-    /** 对照 Go 的 "URL is required for %s transport"，在传输分支内校验。 */
+    /** 传输分支内校验 URL 必填（错误文案是契约）。 */
     private static String requireUrl(McpService service, String transportLabel) {
         String url = service.getUrl();
         if (url == null || url.isEmpty()) {
@@ -104,7 +104,7 @@ public final class McpClientFactory {
         return url;
     }
 
-    /** 对照 Go {@code svc.AuthConfig.IsOAuth()}（指针方法，nil 安全）。 */
+    /** OAuth 策略判定（authConfig 缺失视为非 OAuth）。 */
     static boolean isOAuth(McpService service) {
         McpAuthConfig authConfig = service.getAuthConfig();
         return authConfig != null && authConfig.isOAuth();

@@ -40,8 +40,8 @@ import org.slf4j.LoggerFactory;
  * 记忆索引侧读写：话题统计、文档亲和、向量（含 pgvector 列就绪探测与列缺失回退）、
  * 抽取进度，以及本类与仓储共用的内部工具。
  *
- * <p>规模例外（§14.5，2026-10-01 用户定调）：~930 行——六段同属「索引侧读写」
- * 一个关注点，再切不落在自然接缝上，登记不硬切。</p>
+ * <p>规模例外：六段同属「索引侧读写」
+ * 一个关注点，再切不落在自然接缝上。</p>
  *
  * <p>持有 {@link MemoryRepository} 回引以访问各 mapper 与方言判定；本类不得独立实例化。</p>
  */
@@ -155,7 +155,7 @@ final class MemoryIndexStore {
         return true;
     }
 
-    /** 对照 Go {@code MemoryTopicAliases.Has}（作用在裸列表上，投影前的形态）。 */
+    /** 某个表层说法是否已归到这个主题（作用在裸列表上，投影前的形态）。 */
     private static boolean hasAlias(List<String> aliases, String surface) {
         String target = MemoryKeys.normalizeTopicKey(surface);
         if (target.isEmpty()) {
@@ -312,8 +312,8 @@ final class MemoryIndexStore {
      * 对照 {@code UpsertItemEmbedding}：写向量，并在同一个事务里把它同步进
      * 数据库自己的 vector 列。
      *
-     * <p>三项前置短路（Go 也是）：{@code embedding == null}、{@code itemID == ""}、
-     * {@code len(vector) == 0}。</p>
+     * <p>三项前置短路：{@code embedding == null}、{@code itemID == ""}、
+     * {@code vector} 为 null 或长度为 0。</p>
      *
      * <p><b>输入快照</b>：{@code source_content} 非空时会先核对条目现在的
      * content/topic 是否仍是当初输入的那份——不是就**放弃写入**，
@@ -383,7 +383,7 @@ final class MemoryIndexStore {
      * <p>只返回 {@code modelId} 产出的向量——不同模型的向量不可比，
      * 混在一起算出来的就是胡说。</p>
      *
-     * <p>⚠️ 解码后长度为 0 的行被**跳过**（Go 的 {@code if len(vector) > 0}），
+     * <p>⚠️ 解码后长度为 0 的行被**跳过**，
      * 不会以空数组的形式出现在返回值里。</p>
      */
     public Map<String, float[]> itemEmbeddings(MemoryScope scope, List<String> itemIds, String modelId) {
@@ -403,14 +403,13 @@ final class MemoryIndexStore {
     }
 
     /**
-     * 对照 {@code SearchItemsByVector}（memory_vector.go L70-126）：
      * 把一个主体**全部**向量对着一次查询排序。
      *
      * <p>候选集是这个主体拥有的每一个向量，不是其中一个窗口。这个区别是关键：
      * 上一版实现按重要度列出条目、再给列出来的那些打分——于是相关性只能重排
      * 重要度已经选好的东西，窗口之外一条匹配的记忆根本够不到。</p>
      *
-     * <p>条目是**另外查一次**而不是 join 进排名查询：这样两条路径都不必复刻
+     * <p>条目是**另外查一次**而不是 join 进排名查询：这样两条路径都不必重复
      * {@code memory_items} 的列清单，排名查询也窄到能一眼读完。</p>
      */
     public List<MemoryVectorHit> searchItemsByVector(MemoryScope scope, MemoryVectorQuery query) {
@@ -460,7 +459,7 @@ final class MemoryIndexStore {
      * 不能等下次调用 embedding 模型。**没有任何模型调用**：向量已经存在，
      * 落后的只是它的表示形式。</p>
      *
-     * <p>{@code writeVectorColumn} 失败时**只记日志并继续**（Go 也是这样），
+     * <p>{@code writeVectorColumn} 失败时**只记日志并继续**，
      * 所以返回的 moved 可能小于实际扫描到的行数。</p>
      */
     public int syncVectorColumn(MemoryScope scope, int limit) {
@@ -483,7 +482,7 @@ final class MemoryIndexStore {
         return moved;
     }
 
-    // ── 抽取进度（memory_extraction.go） ───────────────────────────────────
+    // ── 抽取进度 ───────────────────────────────────
 
     /** 对照 {@code HasPendingExtraction}。 */
     public boolean hasPendingExtraction(MemoryScope scope) {
@@ -620,8 +619,8 @@ final class MemoryIndexStore {
      * 对照 {@code FinishExtraction}（L205-218）：清掉租约、清掉在途标记、
      * 并记下"这个主体刚抽过"。
      *
-     * <p>⚠️ 这里的租约判定**只看 LeaseID、不看是否过期**——与
-     * {@code validExtractionLease} 不同。照抄，别统一。</p>
+     * <p>⚠️ 这里的租约判定**只看 leaseId、不看是否过期**——与
+     * {@link #validExtractionLease} 不同，别统一。</p>
      */
     public void finishExtraction(MemoryScope scope, String leaseId) {
         repo.tx.withSubject(scope, subject -> {
@@ -658,23 +657,22 @@ final class MemoryIndexStore {
 
     // ── 内部工具 ───────────────────────────────────────────────────────────
 
-    /** 对照 Go 的 {@code validExtractionLease}：租约 id 相同**且**还没过期。 */
+    /** 有效租约：租约 id 相同**且**还没过期。 */
     private static boolean validExtractionLease(MemorySubject subject, String leaseId) {
         return subject.getExtractionState().getLeaseId().equals(leaseId)
                 && subject.getExtractionState().leaseUntilAfter(OffsetDateTime.now());
     }
 
     /**
-     * 对照 Go 的 {@code saveExtractionState}：四列，两个 jsonb 带类型处理器。
+     * 抽取状态四列的落库：两个 jsonb 带类型处理器。
      *
-     * <p>{@code now} 由调用方给：Go 里 {@code saveExtractionState} 自己取
-     * {@code time.Now()}，而调用方在同一事务里也取过一次——两处相差微秒级。
-     * Java 侧统一传同一个 {@code now}，让同一事务里的所有时间戳一致（更严格，不更松）。</p>
+     * <p>{@code now} 由调用方给：统一传同一个 {@code now}，
+     * 让同一事务里的所有时间戳一致（更严格，不更松）。</p>
      */
     private void saveExtractionState(MemoryScope scope, MemorySubject subject, OffsetDateTime now) {
-        // ⚠️ null → 空列表：Go 的 MemoryPendingSessions.Value() 对 nil 写 `[]`（**不是** NULL），
+        // ⚠️ null → 空列表：这一列的落库语义是 null 写 `[]`（**不是** NULL），
         // 而 MyBatis 的 BaseTypeHandler 对 null 参数走的是 setNull。
-        // 这一列在 Go 里从不 NULL，所以必须在这里归一。
+        // 所以必须在这里归一。
         List<String> pending = subject.getPendingSessions() == null
                 ? new ArrayList<>() : subject.getPendingSessions();
         repo.subjectMapper.saveExtractionState(scope.tenantId(), scope.subjectId(),
@@ -682,11 +680,11 @@ final class MemoryIndexStore {
     }
 
     /**
-     * 对照 Go 的 {@code importLegacySessions}：把遗留的
+     * 把遗留的
      * {@code pending_sessions} 数组一次性导入有索引的进度行，然后把数组清空。
      *
      * <p>清空这一步**由紧随其后的 {@code saveExtractionState} 落库**
-     * （Go 也是：函数只改内存里的 subject）。</p>
+     * （本方法只改内存里的 subject）。</p>
      */
     private void importLegacySessions(MemoryScope scope, MemorySubject subject) {
         List<String> legacy = subject.getPendingSessions();
@@ -699,7 +697,7 @@ final class MemoryIndexStore {
     }
 
     /**
-     * 对照 Go 的 {@code enqueueExtractionSession}：
+     * 插入一条抽取进度行：
      * {@code revision} 恒为 1、{@code pending} 恒为 true，
      * 游标从主体的 {@code extract_cursor} 继承（升级边界，**冻结**不再推进）。
      *
@@ -736,8 +734,8 @@ final class MemoryIndexStore {
     }
 
     /**
-     * 对照 GORM 在 CREATE 时对**带字面量 default tag 的零值字段**做的替换
-     * （{@code callbacks/create.go} L336-341）：用默认值填入，**并回写结构体**。
+     * 落库插入时对**零值字段**用默认值填入**并回写实体**
+     * （importance → 3、origin → extracted、status → active）。
      *
      * <p>对 {@code memory_items} 真正生效的只有三个字段——
      * 其余（{@code topic}/{@code normalized_key}/{@code replaces_id}/{@code use_count}）
@@ -756,8 +754,8 @@ final class MemoryIndexStore {
     }
 
     /**
-     * 对照 GORM 在 CREATE 时的时间戳规则：{@code created_at} **零值才补 now**，
-     * {@code updated_at} **无论传什么都被覆盖成 now**（{@code callbacks/create.go} L336-349）。
+     * CREATE 时的时间戳规则：{@code created_at} **零值才补 now**，
+     * {@code updated_at} **无论传什么都被覆盖成 now**。
      *
      * <p>这是 {@code memory_subjects} / {@code memory_items} / {@code memory_topic_stats} /
      * {@code memory_doc_affinity} / {@code memory_item_embeddings} 五张表的共同规则
@@ -780,7 +778,7 @@ final class MemoryIndexStore {
         item.setUpdatedAt(now);
     }
 
-    /** 对照 Go 的 {@code *item = replacement} / {@code *item = *old}（就地改写调用方的对象）。 */
+    /** 就地用 {@code source} 的内容改写 {@code target}（调用方的对象）。 */
     static void copyInto(MemoryItem target, MemoryItem source) {
         target.setId(source.getId());
         target.setTenantId(source.getTenantId());
@@ -806,15 +804,15 @@ final class MemoryIndexStore {
         target.setUpdatedAt(source.getUpdatedAt());
     }
 
-    // ── pgvector 列就绪探测（memory_vector.go L20-55） ──────────────────────
+    // ── pgvector 列就绪探测 ──────────────────────
 
     /**
-     * 对照 Go {@code vectorColumnReady}：数据库能不能自己做距离运算。
+     * 数据库能不能自己做距离运算。
      *
      * <p>只探一次并缓存。没有装 pgvector 的 PostgreSQL 部署上是 false，
      * 两条路径都仍然可用，只是每个向量都要过一遍网络——这也正是它必须被缓存的原因。</p>
      *
-     * <p>判据与 Go 一致：方言必须是 repo.postgres，**且** {@code memory_item_embeddings}
+     * <p>判据：方言必须是 postgres，**且** {@code memory_item_embeddings}
      * 上有 {@code embedding} 列（迁移 000095 是条件执行的，光看方言决定不了）。</p>
      */
     boolean vectorColumnReady() {
@@ -830,7 +828,7 @@ final class MemoryIndexStore {
     }
 
     /**
-     * 对照 Go {@code writeVectorColumn}：让数据库自己的 vector 类型跟上那个 blob。
+     * 让数据库自己的 vector 类型跟上那个 blob。
      *
      * <p>在调用方的事务里尽力而为：**blob 才是源真值**，vector 列落后的行
      * 会被 {@link #syncVectorColumn} 捡回来，不会丢。</p>
@@ -858,7 +856,7 @@ final class MemoryIndexStore {
     }
 
     /**
-     * 对照 {@code rankInProcess}：可移植的那条路——把这个主体的向量读出来、在这里打分。
+     * 不依赖 pgvector 的那条路——把这个主体的向量读出来、在这里打分。
      *
      * <p>它受与主体本身相同的容量上限约束，所以**仍然看得到全部**，
      * 只是要付传输的代价。</p>
@@ -887,17 +885,17 @@ final class MemoryIndexStore {
     }
 
     /**
-     * 对照 {@code sortVectorHitsDesc}：{@code sort.SliceStable} 按 score 降序。
+     * 按 score 降序的**稳定**排序。
      *
-     * <p>Java 的 {@code List.sort} 也是稳定排序，所以相同分数的相对次序与 Go 一致。
-     * （NaN 在两边都会让"严格弱序"不成立；实际不可达——{@code cosineSimilarity}
+     * <p>稳定排序保证相同分数的相对次序不变。
+     * （NaN 会让"严格弱序"不成立；实际不可达——{@code cosineSimilarity}
      * 在所有退化输入上都提前回 0，而 NaN 需要输入向量里本身含 NaN。）</p>
      */
     private static void sortVectorHitsDesc(List<VectorHitRow> rows) {
         rows.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
     }
 
-    /** 对照 Go 的 {@code r.db.Dialector.Name() == "postgres"}（同 session/wiki/mcp 的探测写法）。 */
+    /** 探测数据源是不是 PostgreSQL。 */
     static boolean detectPostgres(DataSource dataSource) {
         try (Connection c = dataSource.getConnection()) {
             String product = c.getMetaData().getDatabaseProductName();
@@ -908,7 +906,7 @@ final class MemoryIndexStore {
     }
 
     /**
-     * JDBC 元数据探列（对照 GORM 的 {@code Migrator().HasColumn}）。
+     * JDBC 元数据探列。
      *
      * <p>PG 的 {@code getColumns} 要小写表名、H2 要大写——两轮都试一遍，
      * 都比调用方的方言猜测可靠。探测失败记日志并按"没有这一列"处理（保守：

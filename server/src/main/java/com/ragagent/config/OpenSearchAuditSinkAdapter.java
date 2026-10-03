@@ -14,14 +14,13 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.retrieval.engine.opensearch.OpenSearchRetrieveRepository;
 
 /**
- * OpenSearch 驱动审计事件的适配器——对照 Go {@code container/audit_sink.go} 的
- * {@code auditSinkAdapter}（driver 自有 AuditSink 接口，依赖箭头单向；
- * 服务层实现它，驱动只调用）。
+ * OpenSearch 驱动审计事件的适配器——driver 自有 AuditSink 接口，依赖箭头单向；
+ * 服务层实现它，驱动只调用。
  *
- * <p>emit 语义照 Go：审计服务缺失 → no-op；上下文无租户 → WARN + 跳过
+ * <p>emit 语义：审计服务缺失 → no-op；上下文无租户 → WARN + 跳过
  * （后台任务上下文可能触发惰性建索引，写 tenant_id=0 会污染审计线）；
  * details 只装受限的非敏感字段（alias/dim/src_dst/docs——绝不带集群 reason
- * 或连接密钥）。注册期上下文（env-path）无租户 → 自跳过（Go 同款行为）。</p>
+ * 或连接密钥）。注册期上下文（env-path）无租户 → 自跳过。</p>
  */
 @Component
 public class OpenSearchAuditSinkAdapter implements OpenSearchRetrieveRepository.AuditSink {
@@ -29,7 +28,6 @@ public class OpenSearchAuditSinkAdapter implements OpenSearchRetrieveRepository.
     private static final Logger log = LoggerFactory.getLogger(OpenSearchAuditSinkAdapter.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 Go 的 target_type 常量（audit_sink_adapter emit）。 */
     static final String TARGET_TYPE_OPENSEARCH_INDEX = "opensearch_index";
 
     private final AuditLogService audit;

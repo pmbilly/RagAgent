@@ -27,16 +27,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对照 Go {@code handler.StorageBackendHandler}（internal/handler/storagebackend.go，
- * routes_infra.go L271-284 的 9 条路由；读 Viewer+ / 写与测试 Admin+）。
+ * 存储后端管理面：9 条路由；读 Viewer+ / 写与测试 Admin+。
  *
  * <p>**全 AppError 信封**（与 wsp/vs 的纯字符串 404 刻意不同）：404 = code 1003。
- * PUT 在 Go 里**先绑 body 再进 service**（与 wsp 的 ownership-first 相反——
+ * PUT **先绑 body 再进 service**（与 wsp 的 ownership-first 相反——
  * 未知 id + 坏 body 落 400 EOF）。TestRaw/TestByID 的连通失败是 **200** +
  * {@code {"success":false,"error":清洗后文案}}（storageTestErrorMessage：AppError 取
  * message、其余经 SanitizeStorageConnectivityError 映射）；校验/SSRF 失败走信封
- * （1000/1010）。Go 的 storage handler **不校验租户缺失**（tenantId=0 时 list 为空、
- * get 404）——照抄。</p>
+ * （1000/1010）。storage handler **不校验租户缺失**（tenantId=0 时 list 为空、
+ * get 404）。</p>
  */
 @RestController
 @RequestMapping("/api/v1/storage-backends")
@@ -52,7 +51,7 @@ public class StorageBackendController {
         this.allowList = allowList;
     }
 
-    /** 对照 storageBackendRequest：name/provider required */
+    /** 请求体：name/provider required */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record StorageBackendRequest(
             String name,
@@ -83,7 +82,7 @@ public class StorageBackendController {
         return ResponseEntity.ok(connectedBody(true));
     }
 
-    /** 创建后端：201 + 裸资源（§2.1）。 */
+    /** 创建后端：201 + 裸资源。 */
     @PostMapping
     public ResponseEntity<?> create(@RequestBody(required = false) String rawBody) {
         long tenantId = tenantId();

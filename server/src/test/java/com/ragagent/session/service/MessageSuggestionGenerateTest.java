@@ -11,13 +11,12 @@ import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.SuggestionItem;
 
 /**
- * 追问建议生成的纯函数面（对照 Go message_suggestion.go 的
- * parseGeneratedSuggestions / merge / rank / history-render 家族）。
- * LLM 步经 stub chat 客户端另行覆盖（A/B 用）。
+ * 追问建议生成的纯函数面（parseGeneratedSuggestions / merge / rank /
+ * history-render 家族）。LLM 步经 stub chat 客户端另行覆盖。
  */
 class MessageSuggestionGenerateTest {
 
-    // 纯函数管道已随切片移到 MessageSuggestionPipeline（§14 步骤 2）；
+    // 纯函数管道在 MessageSuggestionPipeline；
     // GenerationContext / Evidence 两个 record 仍留在门面。
 
 
@@ -47,7 +46,7 @@ class MessageSuggestionGenerateTest {
         assertThat(items.get(0).getText()).isEqualTo("什么是 RAG？");
         assertThat(items.get(0).getCategory()).isEqualTo("clarify");
         assertThat(items.get(0).getSource()).isEqualTo("model");
-        // 白名单外的类别置空但条目保留（Go: category = ""）
+        // 白名单外的类别置空但条目保留（category = ""）
         assertThat(items.get(1).getText()).isEqualTo("如何部署？");
         assertThat(items.get(1).getCategory()).isEmpty();
         assertThat(items.get(2).getText()).isEqualTo("如何评测？");

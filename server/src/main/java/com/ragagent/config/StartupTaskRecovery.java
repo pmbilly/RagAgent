@@ -16,30 +16,29 @@ import com.ragagent.knowledge.domain.Knowledge;
 import com.ragagent.knowledge.repository.KnowledgeSpanRepository;
 
 /**
- * 启动恢复——对照 Go {@code container/reset_pending_tasks.go}（188 行）的
- * {@code resetPendingTasks}（2026-09-25 follow-up 落地）。
+ * 启动恢复。
  *
  * <p>应用重启后把卡在处理态的任务复位为失败，让前端不再显示永远转圈的行：</p>
  * <ol>
  *   <li><b>知识解析</b>（仅 Lite——REDIS_ADDR 未配置）：parse_status ∈
  *       {pending, processing, finalizing, deleting} 的行 → failed +
  *       "Task interrupted due to application restart" + pending_subtasks_count=0。
- *       Go 原文对「finalizing 且唯一未决子槽是持久化 wiki op」的行做了 NOT-EXISTS 排除
- *       （理由：wiki ingest 独立落库、启动后能重建触发器收尾）——单机形态下该理由不成立，
- *       故 Lite 路径已改为一并复位（详见 {@link #listStuckKnowledgeIds(boolean)}）；复位
+ *       分布式实现另有「finalizing 且唯一未决子槽是持久化 wiki op」的 NOT-EXISTS 排除
+ *       （分布式队列持久化、重启后能收尾）——单机形态下该理由不成立，
+ *       故 Lite 路径一并复位（详见 {@link #listStuckKnowledgeIds(boolean)}）；复位
  *       成功后按行取消孤儿 span（LatestAttempt + CancelAllOpenSpans，errorCode=SERVER_RESTART）。</li>
  *   <li><b>摘要生成</b>（仅 Lite）：summary_status ∈ {pending, processing} → failed。</li>
  *   <li><b>数据源同步日志</b>（两种模式都跑）：status=running → failed +
  *       "Sync interrupted due to application restart" + finished_at=now；分布式模式
- *       加 30 分钟陈旧窗（resetPendingStaleWindow）——asynq 持久化队列里可能还有
+ *       加 30 分钟陈旧窗——持久化队列里可能还有
  *       未开 span 的积压任务，只有明显陈旧的才敢判死。</li>
  * </ol>
  *
- * <p><b>分布式模式（REDIS_ADDR 已配置）刻意不复位知识/摘要行</b>（照 Go 的注释原文）：
+ * <p><b>分布式模式（REDIS_ADDR 已配置）刻意不复位知识/摘要行</b>：
  * 队列任务持久化、且另一副本可能仍在执行同一知识，启动钩子无法区分孤儿与积压——
  * 那是 HousekeepingService 的职责（检查 span 活动与真队列）。</p>
  *
- * <p>失败只 WARN 不阻塞启动（照 Go 的 Warnf 语义）。此处写下的
+ * <p>失败只 WARN 不阻塞启动。此处写下的
  * "Task interrupted due to application restart" 文案即 {@code KnowledgeService}
  * 重启文案映射的消费对象——此前该映射只读不写、错误码永不可产生。</p>
  */
@@ -48,14 +47,14 @@ public class StartupTaskRecovery {
 
     private static final Logger log = LoggerFactory.getLogger(StartupTaskRecovery.class);
 
-    /** 对照 resetPendingStaleWindow = 30 * time.Minute。 */
+    /** 陈旧窗：30 分钟。 */
     static final long STALE_WINDOW_MINUTES = 30;
 
-    /** 对照 restartInterruptedMessage。 */
+    /** 知识/摘要行复位时的 error_message 文案。 */
     public static final String RESTART_INTERRUPTED_MESSAGE =
             "Task interrupted due to application restart";
 
-    /** 对照 sync 清理的 error_message（reset_pending_tasks.go L150）。 */
+    /** 数据源同步日志复位时的 error_message 文案。 */
     public static final String SYNC_INTERRUPTED_MESSAGE =
             "Sync interrupted due to application restart";
 
@@ -98,11 +97,11 @@ public class StartupTaskRecovery {
     }
 
     /**
-     * 照 stuckKnowledgeParseQuery：可复位状态 + wiki 独槽排除（NOT-EXISTS 子查询照抄）。
+     * 分布式查询条件：可复位状态 + wiki 独槽排除（NOT-EXISTS 子查询）。
      *
-     * <p>Lite（{@code distributed=false}）<b>不再排除</b> wiki 独槽行：Go 原文的排除理由是
-     * 「wiki ingest 独立落库，启动后能重建触发器收尾」，而单机形态下队列在进程内、随重启消失，
-     * <b>没有任何组件会重建触发器</b>（B0 走查实测：重启后该 wiki op 一直躺着，文档永远停在
+     * <p>Lite（{@code distributed=false}）<b>不排除</b> wiki 独槽行：分布式侧的排除理由是
+     * 「wiki ingest 独立落库，重启后能收尾」，而单机形态下队列在进程内、随重启消失，
+     * <b>没有任何组件会重建触发器</b>（重启后该 wiki op 会一直躺着，文档永远停在
      * finalizing、卡片一直显示「优化中」）。复位为失败让用户可手动重试（重试即重新触发 ingest）。</p>
      */
     private List<String> listStuckKnowledgeIds(boolean distributed) {
@@ -148,7 +147,7 @@ public class StartupTaskRecovery {
         }
         log.info("Reset {} stuck knowledge parsing tasks to failed state (distributed=false)",
                 reset);
-        // 行复位为终态后才取消孤儿 span（照 Go：防止 UI 在后续手动重试时出现重复的
+        // 行复位为终态后才取消孤儿 span（防止 UI 在后续手动重试时出现重复的
         // running 子 span；重读成功复位的行，SELECT/UPDATE 缝隙里状态变化的行不误取消）
         Object[] recheckArgs = new Object[stuckIds.size() + 2];
         for (int i = 0; i < stuckIds.size(); i++) {

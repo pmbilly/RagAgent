@@ -9,13 +9,11 @@ import org.springframework.stereotype.Component;
 import com.ragagent.common.pipeline.SearchParams;
 
 /**
- * PostgreSQL 检索引擎仓库（对照 Go internal/application/repository/retriever/
- * postgres/repository.go 的 **Retrieve 面**，检索引擎批 2026-09-22 翻译）。
+ * PostgreSQL 检索引擎仓库（keywords/vector 两个读面）。
  *
  * <p>表 {@code embeddings}：halfvec 多维度列 + ParadeDB pg_search BM25 索引。
- * 两侧 SQL 逐字对照（含 expandedTopK 钳位、distance 阈值、ef_search/iterative_scan
- * 的 SET LOCAL + 降级重试）。写面（Index/CopyIndices/BatchUpdate*）属入库管线，
- * 随知识处理批。</p>
+ * 含 expandedTopK 钳位、distance 阈值、ef_search/iterative_scan 的 SET LOCAL +
+ * 降级重试。写面（Index/CopyIndices/BatchUpdate*）属入库管线，由知识库写入件承担。</p>
  */
 @Component
 public class PgVectorRetrieveRepository {
@@ -27,12 +25,12 @@ public class PgVectorRetrieveRepository {
             org.springframework.transaction.PlatformTransactionManager txManager) {
         this.jdbc = jdbc;
         // SET LOCAL 是事务级 GUC：自动提交连接上只发 WARNING 即被丢弃（不报错），
-        // ef_search/iterative_scan 从未生效。包一层事务让 SET LOCAL 真正落在事务内
-        // （对照 Go 在 tx 内设置 GUC）；降级重试分支同样在事务外直查。
+        // ef_search/iterative_scan 从未生效。包一层事务让 SET LOCAL 真正落在事务内；
+        // 降级重试分支同样在事务外直查。
         this.tx = new org.springframework.transaction.support.TransactionTemplate(txManager);
     }
 
-    /** 对照 types.IndexWithScore（检索命中一行）。 */
+    /** 检索命中一行。 */
     public static final class IndexHit {
         public String id = "";
         public String sourceId = "";
@@ -63,7 +61,7 @@ public class PgVectorRetrieveRepository {
         }
     }
 
-    /** 对照 types.RetrieveResult：一个引擎一次检索的整包结果。 */
+    /** 一个引擎一次检索的整包结果。 */
     public record RetrieveResult(List<IndexHit> results, String retrieverEngineType,
             String retrieverType) {
         public static RetrieveResult of(List<IndexHit> results, String engine, String type) {
@@ -74,14 +72,14 @@ public class PgVectorRetrieveRepository {
     public static final String ENGINE_POSTGRES = "postgres";
     public static final String RETRIEVER_VECTOR = "vector";
     public static final String RETRIEVER_KEYWORDS = "keywords";
-    /** 对照 types.MatchType（iota 序）。 */
+    /** 命中类型常量。 */
     public static final int MATCH_EMBEDDING = 0;
     public static final int MATCH_KEYWORDS = 1;
 
     /**
-     * 对照 KeywordsRetrieve（repository.go L164-261）：ParadeDB BM25，
+     * 关键词检索：ParadeDB BM25，
      * {@code content ||| ?} 匹配任意 token，paradedb.score(id) 打分，score DESC。
-     * 条件序与 Go 一致：kb IN → knowledge IN → tag IN → content ||| → is_enabled。
+     * 条件拼装序：kb IN → knowledge IN → tag IN → content ||| → is_enabled。
      */
     public RetrieveResult keywordsRetrieve(SearchParams params, List<String> knowledgeBaseIds,
             List<String> knowledgeIds, List<String> tagIds, int topK, String query) {
@@ -137,7 +135,7 @@ public class PgVectorRetrieveRepository {
     }
 
     /**
-     * 对照 VectorRetrieve（repository.go L265-483）：halfvec 表达式 HNSW 检索。
+     * 向量检索：halfvec 表达式 HNSW 检索。
      * expandedTopK = clamp(TopK*2, 100..200, ≥TopK)；distance 阈值 = 1-Threshold；
      * SET LOCAL hnsw.ef_search / hnsw.iterative_scan 在事务内设置，GUC 不可用降级重试。
      */
@@ -179,9 +177,9 @@ public class PgVectorRetrieveRepository {
             expandedTopK = topK;
         }
         int efSearch = Math.max(expandedTopK, 40);
-        // JDBC 只认 ? 占位且同一参数不能绑定两次——Go 里 $1（向量）被 WHERE 之外
+        // JDBC 只认 ? 占位且同一参数不能绑定两次，而向量要在 WHERE 之外
         // 的 ORDER BY 再引用一次。改为把 halfvec 文本字面量内联（pgvector 文本
-        // 输入与二进制传输语义等值，见 toHalfVecLiteral），其余参数照 ? 序绑定。
+        // 输入与二进制传输语义等值，见 toHalfVecLiteral），其余参数按 ? 序绑定。
         String vectorLit = "'" + queryVector + "'::halfvec(" + dimension + ")";
         String sql = "SELECT id, content, source_id, source_type, chunk_id, knowledge_id, "
                 + "knowledge_base_id, tag_id, (1 - distance) as score FROM ( "
@@ -209,7 +207,7 @@ public class PgVectorRetrieveRepository {
         return RetrieveResult.of(results, ENGINE_POSTGRES, RETRIEVER_VECTOR);
     }
 
-    /** 向量查询 + HNSW GUC 事务（降级重试路径对照 Go L435-443）。 */
+    /** 向量查询 + HNSW GUC 事务（GUC 不可用时降级为事务外直查）。 */
     private List<IndexHit> queryVectorRows(String sql, Object[] vars, int efSearch) {
         try {
             return tx.execute(status -> jdbc.execute(
@@ -218,7 +216,7 @@ public class PgVectorRetrieveRepository {
                             st.execute("SET LOCAL hnsw.ef_search = " + efSearch);
                             st.execute("SET LOCAL hnsw.iterative_scan = strict_order");
                         } catch (Exception gucErr) {
-                            // 对照 Go：GUC 失败 → 中止事务 → 外层降级重试
+                            // GUC 失败 → 中止事务 → 外层降级重试
                             throw gucErr;
                         }
                         try (var ps = conn.prepareStatement(sql)) {

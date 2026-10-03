@@ -17,8 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 飞书 CardKit 流式卡片协作者（对照 Go adapter.go 的流式段，
- * 自 {@link FeishuAdapter} 机械搬出）：建卡 → interactive 发出 → 严格递增 seq
+ * 飞书 CardKit 流式卡片协作者：建卡 → interactive 发出 → 严格递增 seq
  * 逐次 PUT 元素 → EndStream 关 streaming_mode 并回填摘要；markdown 图片
  * 先换 image_key（外部缓存仍在门面）。孤儿流惰性回收（STREAMS 流表留门面，
  * 测试直摸）。持门面回引取 http/token/region 等。
@@ -107,13 +106,13 @@ final class FeishuCardStreamOps {
         log.info("[{}] Streaming ended: card_id={}", service.region.label(), streamId);
     }
 
-    /** 对照 Go 的 ticker 回收：惰性清掉超过 TTL 的孤儿流。 */
+    /** 惰性清掉超过 TTL 的孤儿流。 */
     static void purgeOrphans() {
         long cutoff = System.currentTimeMillis() - STREAM_ORPHAN_TTL_MS;
         FeishuAdapter.STREAMS.entrySet().removeIf(e -> e.getValue().createdAt < cutoff);
     }
 
-    /** 对照 {@code cardSummaryPreview}：去图片/链接语法 → 折叠空白 → 截 120 字符。 */
+    /** 去图片/链接语法 → 折叠空白 → 截 120 字符。 */
     static String cardSummaryPreview(String content) {
         String value = content == null ? "" : content;
         value = FeishuAdapter.MD_IMAGE_RE.matcher(value).replaceAll("$1");
@@ -122,7 +121,7 @@ final class FeishuCardStreamOps {
         return collapsed.length() > 120 ? collapsed.substring(0, 120) : collapsed;
     }
 
-    /** 对照 {@code buildStreamingCardJSON}：schema 2.0 + streaming_mode + 区域占位文案。 */
+    /** schema 2.0 + streaming_mode + 区域占位文案。 */
     static String buildStreamingCardJson(FeishuRegion region) throws Exception {
         ObjectNode card = FeishuAdapter.MAPPER.createObjectNode();
         card.put("schema", "2.0");
@@ -152,7 +151,7 @@ final class FeishuCardStreamOps {
         return FeishuAdapter.MAPPER.writeValueAsString(card);
     }
 
-    /** 对照 {@code cardkitCreate}：POST cardkit/v1/cards（type=card_json）→ card_id。 */
+    /** POST cardkit/v1/cards（type=card_json）→ card_id。 */
     private String cardkitCreate(String accessToken, String cardJson) throws Exception {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "card_json");
@@ -179,7 +178,7 @@ final class FeishuCardStreamOps {
         return cardId;
     }
 
-    /** 对照 {@code sendCardByCardID}：interactive 消息（content.type=card）+ 回落。 */
+    /** interactive 消息（content.type=card）+ 回落。 */
     private void sendCardByCardId(String accessToken, IncomingMessage incoming, String cardId)
             throws Exception {
         String[] receive = FeishuAdapter.resolveReceiveId(incoming);
@@ -200,7 +199,7 @@ final class FeishuCardStreamOps {
         service.sendWithFallback(accessToken, incoming, replyPayload, fallbackPayload, receive[0]);
     }
 
-    /** 对照 {@code cardkitUpdateElement}：PUT 元素内容（带 sequence）。 */
+    /** PUT 元素内容（带 sequence）。 */
     private void cardkitUpdateElement(String accessToken, String cardId, String elementId,
                                       String content, int sequence) throws Exception {
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -225,7 +224,7 @@ final class FeishuCardStreamOps {
         }
     }
 
-    /** 对照 {@code cardkitSetStreaming}：PATCH settings（config.streaming_mode + 可选 summary）。 */
+    /** PATCH settings（config.streaming_mode + 可选 summary）。 */
     private void cardkitSetStreaming(String accessToken, String cardId, boolean streaming,
                                      String finalSummary, int sequence) throws Exception {
         ObjectNode config = FeishuAdapter.MAPPER.createObjectNode();

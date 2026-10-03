@@ -36,24 +36,20 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 跨会话长期记忆的写入、召回与记忆管理器（对照 Go
- * {@code internal/application/service/memory/service.go} 全文 +
- * {@code search.go} 的 {@code SearchMemory} / {@code MemoryAvailable} +
- * {@code recall_trace.go} 的 {@code scopeDisableReason} / {@code recallEmptyMeta}）。
+ * 跨会话长期记忆的写入、召回与记忆管理器。
  *
- * <h2>本 Java 类与 Go 其他文件的边界</h2>
+ * <h2>本类与兄弟类的边界</h2>
  * <ul>
- *   <li>召回装配 → {@link MemoryRecallOps}（recall_trace.go 的 Recall / recallEmptyMeta /
- *       residentItemsWithinBlock）</li>
- *   <li>向量运算 → {@link MemoryVectorService}（vector.go）</li>
- *   <li>排序与选取 → {@link MemoryRecallSelector}（recall_trace.go + lexical.go）</li>
- *   <li>话题解析 → {@link MemoryTopicResolver}（topic_resolve.go）</li>
+ *   <li>召回装配 → {@link MemoryRecallOps}</li>
+ *   <li>向量运算 → {@link MemoryVectorService}</li>
+ *   <li>排序与选取 → {@link MemoryRecallSelector}</li>
+ *   <li>话题解析 → {@link MemoryTopicResolver}</li>
  *   <li>后台蒸馏与整仓回顾 → {@link MemoryExtractionService} /
- *       {@link MemoryConsolidationService}（extract.go / consolidate.go）</li>
+ *       {@link MemoryConsolidationService}</li>
  * </ul>
  * <p>它们都是同一个包里的兄弟类，靠<b>包级可见性</b>调用本类里的写路径
  * （{@code write*} / {@code rebuildBlock} / {@code enforceCapacity} / {@code observeTopics}）
- * ——Go 里这些是同一个 {@code Service} 上的未导出方法，Java 侧用同一个包保住那个边界，
+ * ——用同一个包保住那个边界，
  * 而不是把它们开成 public 让 handler 也能绕过写路径。</p>
  *
  * <h2>调用方</h2>
@@ -67,23 +63,21 @@ public class MemoryService {
     static final Logger log = LoggerFactory.getLogger(MemoryService.class);
 
     /**
-     * 一条被拒绝的消息在这段时间内继续阻止重新推导
-     * （对照 Go {@code rejectedMessageWindow}）。
+     * 一条被拒绝的消息在这段时间内继续阻止重新推导。
      *
      * <p>要挡住的情形是：用户删掉了某条消息产出记忆之后几分钟，
      * 一次 debounce 的运行又读到同一条消息。过了这个窗口，用户说过的话就重新算数。</p>
      */
     static final Duration REJECTED_MESSAGE_WINDOW = Duration.ofHours(1);
 
-    /** 对照 Go {@code retrievalBackgroundRuneBudget}：到达改写器的背景上限。 */
+    /** 到达改写器的背景上限。 */
     static final int RETRIEVAL_BACKGROUND_RUNE_BUDGET = 240;
 
     /**
      * 读 {@code tenants.memory_config} 用的映射器。
      *
-     * <p>必须容忍未知属性：那一列是历史 jsonb，Go 的 {@code json.Unmarshal} 默认忽略
-     * 未知字段而 Jackson 默认失败（§7.5 第 6 条）——配置里多一个键就让记忆整体失效
-     * 是这里最不该发生的事。</p>
+     * <p>必须容忍未知属性：那一列是历史 jsonb，配置里多一个键就让记忆整体失效
+     * 是这里最不该发生的事（§7.5 第 6 条）。</p>
      */
     static final ObjectMapper CONFIG_MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -278,7 +272,7 @@ public class MemoryService {
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code workspaceConfig}：读工作区的记忆开关。
+     * 读工作区的记忆开关。
      *
      * <p>租户不存在或那一列没配时返回**零值配置**（{@code enabled=false}，
      * 且**不做 normalize**）——也就是"关着"。这个细节有后果：{@code write_mode}
@@ -314,7 +308,7 @@ public class MemoryService {
     }
 
     /**
-     * 对照 Go {@code enabledScope}：解析作用域并检查每一层开关。
+     * 解析作用域并检查每一层开关。
      *
      * <p>第二个分量在"不许用记忆"时恒为 false，读路径把它当"没有记忆"而不是失败。</p>
      */
@@ -351,7 +345,7 @@ public class MemoryService {
     }
 
     /**
-     * 对照 Go {@code scopeDisableReason}：解释这次请求为什么没有记忆。
+     * 解释这次请求为什么没有记忆。
      * 只在 {@code enabledScope} 返回 false 时调用。
      */
     String scopeDisableReason() {
@@ -381,7 +375,7 @@ public class MemoryService {
     }
 
     /**
-     * 对照 Go {@code MemoryAvailable}：这次请求能不能读记忆。
+     * 这次请求能不能读记忆。
      *
      * <p>它刻意就是 {@code SearchMemory} 自己用的那个判定，而不是把三个开关再读一遍。
      * 决定"要不要提供一个记忆功能"的调用方与"真用起来时回答"的代码，
@@ -397,7 +391,7 @@ public class MemoryService {
 
 
     /**
-     * 对照 Go {@code Recall}：装配一轮要注入的记忆。
+     * 装配一轮要注入的记忆。
      *
      * <p>它**永不调用模型、永不返回错误**：记忆是增强，任何失败都必须退化成一个普通回答，
      * 而不是一次失败的请求。实现随协作者 {@link MemoryRecallOps}。</p>
@@ -407,10 +401,10 @@ public class MemoryService {
     }
 
     /**
-     * 对照 Go {@code touchAsync}：记下使用情况，但不给请求的关键路径增加一次写。
+     * 记下使用情况，但不给请求的关键路径增加一次写。
      *
-     * <p>{@code WithoutCancel} 让它在 HTTP handler 返回之后仍然活着；
-     * Java 侧是虚拟线程（无 context）。注意它<b>只</b>用显式传进去的 scope，
+     * <p>它跑在异步线程上，HTTP handler 返回之后仍然活着。
+     * 注意它<b>只</b>用显式传进去的 scope，
      * 不读 {@code TenantContext}——跨线程读 ThreadLocal 正是 §5 禁止的。</p>
      */
     void touchAsync(MemoryScope scope, List<MemoryItem> items) {
@@ -440,7 +434,7 @@ public class MemoryService {
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code Remember}：存下一条陈述，并与同一主题上已知的东西解矛盾。
+     * 存下一条陈述，并与同一主题上已知的东西解矛盾。
      */
     public MemoryItem remember(MemoryItem item) {
         ScopeState state = enabledScope();
@@ -451,7 +445,7 @@ public class MemoryService {
     }
 
     /**
-     * 对照 Go {@code write}：**唯一的插入路径**。
+     * **唯一的插入路径**。
      *
      * <p>"记住这个"这条显式路由与后台蒸馏任务都走它，所以清洗、矛盾消解、块重建
      * 与容量执行都不可能被一个新来的调用方绕过去。</p>
@@ -461,9 +455,9 @@ public class MemoryService {
     }
 
     /**
-     * 对照 Go {@code writeReplacing}：写入并可选地"替换"一条已有条目。
+     * 写入并可选地"替换"一条已有条目。
      *
-     * <p>顺序有语义，逐段照抄：清洗 → 脱敏 → 校验 kind → 墓碑（两查）→ 确保主体存在
+     * <p>顺序有语义：清洗 → 脱敏 → 校验 kind → 墓碑（两查）→ 确保主体存在
      * → 找冲突 → 包含去重 → 构造条目 → save → 容量 → 重建块 → 存向量。</p>
      */
     MemoryItem writeReplacing(MemoryScope scope, MemoryConfig cfg, MemoryItem item, String targetId) {
@@ -565,12 +559,12 @@ public class MemoryService {
         return stored;
     }
 
-    /** {@link #findContainedDuplicate} 的结果（对照 Go 的双返回值）。 */
+    /** {@link #findContainedDuplicate} 的结果。 */
     record ContainedDuplicate(MemoryItem item, boolean longer) {
     }
 
     /**
-     * 对照 Go {@code findContainedDuplicate}：在同 kind 的**活着**的记忆里找一条，
+     * 在同 kind 的**活着**的记忆里找一条，
      * 其陈述包含（或被包含于）新来的这条。
      *
      * <p>包含是刻意的全部规则。它便宜、对一个读自己记忆列表的用户可解释，
@@ -605,7 +599,7 @@ public class MemoryService {
     }
 
     /**
-     * 对照 Go {@code statusForWrite}：一条记忆是立刻生效还是等用户确认。
+     * 一条记忆是立刻生效还是等用户确认。
      *
      * <p>用户**说**的东西立刻生效。系统**猜**的关于他的东西（他的角色、他的领域，
      * 从提问里推断出来的）则提出来等他确认。推断既是价值所在也是伤害所在：
@@ -622,7 +616,7 @@ public class MemoryService {
     }
 
     /**
-     * 对照 Go {@code enforceCapacity}：主体超过上限后归档排名最低的条目。
+     * 主体超过上限后归档排名最低的条目。
      * 这是系统里**唯一**的自动遗忘。
      */
     void enforceCapacity(MemoryScope scope, MemoryConfig cfg) {
@@ -648,7 +642,7 @@ public class MemoryService {
     }
 
     /**
-     * 对照 Go {@code rebuildBlock}：重新渲染常驻块，让读路径始终只是一次主键查找。
+     * 重新渲染常驻块，让读路径始终只是一次主键查找。
      * 每次变更之后都会调用。
      */
     void rebuildBlock(MemoryScope scope) {
@@ -683,15 +677,15 @@ public class MemoryService {
     // ═══════════════════════════════════════════════════════════════════════
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 按需查找（search.go）
+    // 按需查找
     // ═══════════════════════════════════════════════════════════════════════
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 抽取模型的解析（extract.go 的 L800-853，供抽取/归并/话题三处共用）
+    // 抽取模型的解析（供抽取/归并/话题三处共用）
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code extractionModelID}：解析记忆管线该用哪个模型。
+     * 解析记忆管线该用哪个模型。
      *
      * <p>设置界面说"抽取模型留空 = 用对话本身用的那个模型"，所以留空必须**解析出**
      * 一个模型，而不是关掉什么。本包里的每一个调用方都要经过这里：当只有抽取调用
@@ -712,7 +706,7 @@ public class MemoryService {
     }
 
     /**
-     * 对照 Go {@code workspaceChatModelID}：给这个工作区挑一个可用的问答模型。
+     * 给这个工作区挑一个可用的问答模型。
      *
      * <p>选择被记进日志，因为它是一个猜测：没有显式配置抽取模型时，没有任何记录说明
      * 这个工作区希望后台工作用哪个模型，而**悄悄**挑一个只有在事后可见时才可接受。</p>
@@ -755,12 +749,12 @@ public class MemoryService {
         return modelResolver;
     }
 
-    /** 对照 Go {@code time.Now()} 的零星用法（抽取段的截止时间等）。 */
+    /** 当前时间（抽取段的截止时间等）。 */
     static OffsetDateTime now() {
         return OffsetDateTime.now();
     }
 
-    /** 对照 Go 的 {@code t.IsZero()} 判定，供兄弟类统一口径。 */
+    /** 时间是否为零值，供兄弟类统一口径。 */
     static boolean isZeroTime(OffsetDateTime t) {
         return GoTimeSerializer.isGoZero(t);
     }

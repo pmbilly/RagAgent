@@ -12,21 +12,19 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 /**
- * 逐工具策略仓储（对照 Go internal/application/repository/
- * mcp_tool_approval_repository.go 的 MCPToolApprovalRepository）。
+ * 逐工具策略仓储。
  *
  * <p><b>UpsertPolicy 的语义（最容易翻错的一处）</b>：</p>
  * <ol>
  *   <li><b>部分列补丁</b>：只写 patch 里出现的列——不同字段的并发补丁不会互相覆盖
- *       （Go 靠 ON CONFLICT 的更新集只含补丁列实现，Java 靠 UPDATE 的 {@code <if>}）。</li>
+ *       （用 UPDATE 的 {@code <if>} 实现，更新集只含补丁列）。</li>
  *   <li><b>显式写 false</b>：首次插入必须真的把 {@code enabled=false} 写进 DB。
  *       Java 的 boolean 零值是 false、实体默认值不可依赖，所以插入语句**逐列传值**。</li>
  *   <li>未提供的字段在**新行**上用 require_approval=false / enabled=true。</li>
  *   <li>空 patch（两个字段都是 null）必须拒绝。</li>
  * </ol>
  *
- * <p>UPDATE-未命中再 INSERT，唯一键冲突时回落 UPDATE：等价 Go 的
- * {@code clause.OnConflict + Assignments}，且 H2 / PG 通用。</p>
+ * <p>UPDATE-未命中再 INSERT，唯一键冲突时回落 UPDATE；H2 / PG 通用。</p>
  */
 @Component
 public class McpToolApprovalRepository {

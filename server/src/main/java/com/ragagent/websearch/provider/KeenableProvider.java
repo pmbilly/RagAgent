@@ -10,7 +10,7 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * Keenable 搜索 provider（对照 Go {@code web_search/keenable.go} 全文）。
+ * Keenable 搜索 provider。
  *
  * <p><b>默认免钥</b>：无 key 走 {@code /v1/search/public}（限流）；配了 key 切
  * {@code /v1/search}（带 X-API-Key）。恒发 {@code X-Keenable-Title: WeKnora}

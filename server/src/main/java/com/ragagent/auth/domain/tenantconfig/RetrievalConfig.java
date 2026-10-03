@@ -6,10 +6,10 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
- * 对照 Go {@code types.RetrievalConfig}（internal/types/retrieval_config.go L15-40）。
+ * 检索配置段。
  *
- * <p>前六个字段无 omitempty 恒输出；rrf_* 三个是 omitempty（0 / 0.0 省略）。
- * float64 一律挂 {@link GoDoubleSerializer}——Go 的零值输出 {@code 0} 而非
+ * <p>前六个字段恒输出；rrf_* 三个空值（0 / 0.0）省略键。
+ * 浮点字段一律挂 {@link GoDoubleSerializer}——零值输出 {@code 0} 而非
  * {@code 0.0}（golden ct-kv-ret-get-default 钉住）。</p>
  */
 @JsonPropertyOrder({
@@ -40,12 +40,12 @@ public class RetrievalConfig {
     @JsonProperty("rerank_model_id")
     private String rerankModelId = "";
 
-    /** Go int + omitempty：0 省略 */
+    /** 数值 0 省略键 */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     @JsonProperty("rrf_k")
     private int rrfK;
 
-    /** Go float64 + omitempty：0.0 省略（NON_DEFAULT 对 primitive double 即 0.0） */
+    /** 0.0 省略键（NON_DEFAULT 对 primitive double 即 0.0） */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     @JsonProperty("rrf_vector_weight")
     private double rrfVectorWeight;

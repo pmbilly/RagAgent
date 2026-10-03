@@ -23,14 +23,13 @@ import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.common.web.GoValueStr;
 
 /**
- * ENTITY_SEARCH 阶段插件（对照 Go chat_pipeline/search_entity.go）：
- * 按实体查图（逐知识文件或逐知识库，Go 侧并发 goroutine），把新命中的 chunk
+ * ENTITY_SEARCH 阶段插件：
+ * 按实体查图（逐知识文件或逐知识库，并发执行），把新命中的 chunk
  * 转成 SearchResult（分数恒 1.0、MatchTypeGraph）并合入 SearchResult。
  *
- * <p>Go 的 per-KB 并发结果合并进共享切片（mu 保护），顺序随机；Java 侧用
- * LinkedHashSet 保出现序的确定性备案（实录组 search_parallel 用稳定段比较）。
- * chunk2SearchResult 的 metadata 取 Knowledge.GetMetadata()（jsonb → map[string]string，
- * 值 %v 字符串化，解析失败 nil）。</p>
+ * <p>各知识库的并发结果合并进共享列表，用 LinkedHashSet 保出现序确定
+ * （消费端按稳定段比较）。chunk2SearchResult 的 metadata 取 Knowledge 的元数据
+ * （jsonb → 字符串 map，值做字符串化，解析失败为 null）。</p>
  */
 public final class PluginSearchEntity implements Plugin {
 
@@ -160,7 +159,7 @@ public final class PluginSearchEntity implements Plugin {
         }
     }
 
-    /** 对照 types.MustTenantIDFromContext：上下文无租户 → chatManage 兜底（Java 无 panic 语义）。 */
+    /** 上下文无租户时回落 chatManage 携带的租户 ID。 */
     private long currentTenantId(ChatManage chatManage) {
         Long tid = com.ragagent.common.context.TenantContext.currentTenantId();
         if (tid != null && tid != 0) {
@@ -169,7 +168,6 @@ public final class PluginSearchEntity implements Plugin {
         return chatManage.getTenantId();
     }
 
-    /** 对照 filterSeenChunk。 */
     static List<String> filterSeenChunk(GraphData graph, List<SearchResult> searchResult) {
         Map<String, Boolean> seen = new LinkedHashMap<>();
         if (searchResult != null) {
@@ -195,7 +193,6 @@ public final class PluginSearchEntity implements Plugin {
         return chunkIDs;
     }
 
-    /** 对照 chunk2SearchResult。 */
     static SearchResult chunk2SearchResult(Chunk chunk, Knowledge knowledge) {
         SearchResult r = new SearchResult();
         r.setId(chunk.getId());
@@ -221,7 +218,7 @@ public final class PluginSearchEntity implements Plugin {
         return r;
     }
 
-    /** 对照 Knowledge.GetMetadata：jsonb → 全字符串 map（%v 值形态），空表无键、解析失败 null。 */
+    /** knowledge 的 metadata jsonb 投影为全字符串 map（值统一字符串化）；空表无键、解析失败返回空 map。 */
     static Map<String, String> knowledgeMetadata(Knowledge knowledge) {
         Map<String, String> metadata = new LinkedHashMap<>();
         if (knowledge == null || knowledge.getMetadata() == null
@@ -237,7 +234,7 @@ public final class PluginSearchEntity implements Plugin {
         return metadata;
     }
 
-    /** 图像信息富化（对照 searchutil.EnrichSearchResultsImageInfo）。 */
+    /** 图像信息富化（委托 {@link ImageInfoCollector}）。 */
     private void enrichSearchResultsImageInfo(long tenantId, List<SearchResult> results) {
         ImageInfoCollector.enrichSearchResultsImageInfo(chunkRepo, tenantId, results);
     }

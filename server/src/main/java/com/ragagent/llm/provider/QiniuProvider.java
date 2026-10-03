@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.QiniuProvider（qiniu.go）：七牛云，OpenAI 兼容模式。
+ * 七牛云，OpenAI 兼容模式。
  */
 public class QiniuProvider implements Provider {
 

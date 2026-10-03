@@ -87,7 +87,7 @@ final class AgentEngineAssembler {
             toolRegistry.setMaxToolOutputSize(config.getMaxToolOutputChars());
         }
         registerTools(toolRegistry, config, rerankModel, sessionId);
-        // registerMCPTools（Go agent_service.go L211 → L297-372）：按 agent 配置的
+        // registerMcpTools：按 agent 配置的
         // mcp_selection_mode 注册受限 MCP 目录（按需发现，不连上游、不广告完整 schema）
         registerMcpTools(toolRegistry, config);
 
@@ -117,15 +117,15 @@ final class AgentEngineAssembler {
         // 4. System prompt template
         String systemPromptTemplate = "";
         if (config.useCustomSystemPrompt() || !config.getSystemPrompt().isEmpty()) {
-            // Go 的 ResolveSystemPrompt(template, webSearchEnabled)：自定义模板即终选模板
+            // 自定义模板即终选模板
             systemPromptTemplate = config.getSystemPrompt();
         }
 
         // 5. Create engine
         AgentEngine engine = new AgentEngine(config, chatModel, toolRegistry, eventBus,
                 kbInfos, selectedDocs, sessionId, systemPromptTemplate);
-        // 对照 Go：cfg.PromptTemplates 启动时装载 vendored yaml——RAG/pure 两个 base
-        // 模板由此区分（此前塞空配置，带 KB 的 agent 缺 RAG 开头段 ≈860 字符）。
+        // 启动时装载内置 yaml 模板——RAG/pure 两个 base
+        // 模板由此区分（塞空配置会让带 KB 的 agent 缺 RAG 开头段 ≈860 字符）。
         engine.setAppConfig(new com.ragagent.agent.AgentPromptTemplates.TemplatesConfig(
                 com.ragagent.agent.AgentPromptTemplates.loadAgentSystemPromptTemplates()));
         // pinned mentions（resolvePinnedMCPServiceInfos / resolvePinnedSkillInfos）
@@ -152,8 +152,8 @@ final class AgentEngineAssembler {
             engine.setSkillsManager(skillsManager);
         }
 
-        // 工具图片 VLM 描述器（agent_service.go L246-256）：GetVLMModel 成功则
-        // SetImageDescriber；失败只记警告继续——引擎随后对无描述能力走 "cannot view"。
+        // 工具图片 VLM 描述器：取到 VLM 模型则
+        // setImageDescriber；失败只记警告继续——引擎随后对无描述能力走 "cannot view"。
         if (!config.getVlmModelId().isEmpty()) {
             try {
                 engine.setImageDescriber(vlmDescriberWiring.create(config.getVlmModelId()));
@@ -168,19 +168,19 @@ final class AgentEngineAssembler {
         return engine;
     }
     /**
-     * registerMCPTools（Go agent_service.go L297-372）：从本租户的启用服务注册受限
+     * 从本租户的启用服务注册受限
      * MCP 目录（discover_mcp_tools / call_mcp_tool），不连接上游、不广告完整 schema；
      * 具体工具定义在模型调用 discover 时按需列举。
      *
      * <p>身份与装载参数说明（Java 无 ctx 的显式化，见 McpExposure/McpOAuthSupport 备案）：
      * {@code hasToolExecContext=false}——装配发生在引擎准备阶段，此处没有 per-turn 的
      * ToolExecContext；OAuth 服务无快照时给出"先去授权"的方向，与 Go 无 ToolExecContext
-     * 的调用同形。失败只记警告，不影响引擎创建（对照 Go 的 warn 分支）。</p>
+     * 的调用同形。失败只记警告，不影响引擎创建。</p>
      */
     private void registerMcpTools(ToolRegistry toolRegistry, QaAgentConfig config) {
         long tenantId = TenantContext.currentTenantId() == null ? 0L : TenantContext.currentTenantId();
         if (tenantId == 0) {
-            // 对照 Go 的 tenantID==0 直接 return；Java 侧补一条日志——此前该分支
+            // 租户缺失直接 return；补一条日志——否则该分支
             // 完全静默，装配线程丢租户时表现为"MCP 工具凭空消失"（排查成本高）。
             log.info("Skipping MCP registration: no tenant in execution context");
             return;
@@ -306,7 +306,7 @@ final class AgentEngineAssembler {
                     log.warn("Failed to list FAQ entries for {}: {}", kbId, e.getMessage());
                 }
             }
-            // 对照 Go：非 FAQ 或 FAQ 列表为空/失败 → 回落通用 knowledge 列表
+            // 非 FAQ 或 FAQ 列表为空/失败 → 回落通用 knowledge 列表
             if (!"faq".equals(kb.getType()) || recentDocs.isEmpty()) {
                 try {
                     var page = knowledgeService.listKnowledge(kbId, 1, 10, null, "completed",
@@ -384,7 +384,7 @@ final class AgentEngineAssembler {
         if (!(raw instanceof com.ragagent.agent.tools.web.WebFetchTool fetch)) {
             return;
         }
-        // 对照 Go L119-123：web_search 是**另一次** GetTool，与 fetch 是两个实例
+        // web_search 是**另一次**工具查找，与 fetch 是两个实例
         if (registry.getTool(ToolDefinitions.TOOL_WEB_SEARCH)
                 instanceof com.ragagent.agent.tools.web.WebSearchTool search) {
             search.withPageReader(fetch);
@@ -396,14 +396,14 @@ final class AgentEngineAssembler {
                 || assistantMessageId == null || assistantMessageId.isEmpty()) {
             return;
         }
-        // 生产存储接缝（对照 Go files 回调 = 装饰后的全局 FileService + catalog.Bind）
+        // 生产存储接缝（web 抓取页快照的存取 + 资源目录绑定）
         AgentWebPages pages = new AgentWebPages(dataSource, resourceCatalog,
                 artifactCollectorWiring.webPageStore(), artifactCollectorWiring.webPageBinding(),
                 tenantId, com.ragagent.session.domain.SessionOwnerIds.currentSessionOwnerId(),
                 sessionId, assistantMessageId);
         fetch.withPageSource(pages);
     }
-    /** registerTools（agent_service.go L837-1141 的注册面；工具集与硬门控逐条保留）。 */
+    /** 工具注册面；工具集与硬门控逐条保留。 */
     private void registerTools(ToolRegistry registry, QaAgentConfig config, Reranker rerankModel,
             String sessionId) {
         List<String> allowedTools = new ArrayList<>(config.getAllowedTools().isEmpty()
@@ -568,7 +568,7 @@ final class AgentEngineAssembler {
         }
         log.info("Registered {} tools", registry.listTools().size());
     }
-    /** filterSharedAgentWriteTools（agent_service.go L1146-1162）。 */
+    /** 过滤共享 agent 只读模式下不允许的写工具。 */
     private static List<String> filterSharedAgentWriteTools(List<String> allowed) {
         List<String> sourceWrites = List.of(
                 ToolDefinitions.TOOL_WIKI_FLAG_ISSUE, ToolDefinitions.TOOL_WIKI_UPDATE_ISSUE,

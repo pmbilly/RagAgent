@@ -22,11 +22,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * wiki_lint.go 的对等测试。
- *
- * <p><b>说明</b>：Go 侧 <b>没有</b> wiki_lint_test.go（上游未写），所以本文件不是
- * 「逐用例对照」而是按 wiki_lint.go 的 6 个检测分支 + AutoFix 的 3 个可修分支
- * 逐条设计的行为钉桩。断言里的文案与 Go 的 {@code fmt.Sprintf} 逐字对齐。</p>
+ * Wiki lint 的行为测试：按 6 个检测分支 + AutoFix 的 3 个可修分支
+ * 逐条设计的行为钉桩。断言里的文案逐字固定。
  */
 @SpringBootTest
 class WikiLintServiceTest {
@@ -53,7 +50,7 @@ class WikiLintServiceTest {
 
     // ──────────────────────── KB 校验 ────────────────────────
 
-    /** 对照 Go L100-102：KB 未开 wiki → {@code "KB %s is not a wiki type"} */
+    /** KB 未开 wiki → {@code "KB %s is not a wiki type"} */
     @Test
     void rejectsNonWikiKb() {
         insertKb("kb-nowiki", 1L, false);
@@ -62,7 +59,7 @@ class WikiLintServiceTest {
                 .hasMessage("KB kb-nowiki is not a wiki type");
     }
 
-    /** 对照 Go L96-99：KB 不存在 → {@code "get KB: ..."} */
+    /** KB 不存在 → {@code "get KB: ..."} */
     @Test
     void rejectsUnknownKb() {
         assertThatThrownBy(() -> lint.runLint("no-such-kb"))
@@ -74,7 +71,7 @@ class WikiLintServiceTest {
 
     /**
      * 一个互相链接、正文充足、无陈引用的 wiki：健康分 100，
-     * issues 为 {@code null}（对照 Go 的 nil slice），摘要是「健康」文案。
+     * issues 为 {@code null}，摘要是「健康」文案。
      */
     @Test
     void healthyWikiHasNullIssuesAndFullScore() {
@@ -250,7 +247,7 @@ class WikiLintServiceTest {
                 + " issues: " + errors + " errors, " + warnings + " warnings, "
                 + infos + " suggestions.");
 
-        // 打分（对照 Go L274-306）：
+        // 打分：
         //   孤儿 2/2 = 100% > 50 → -25
         //   死链 1 条 × 5 → -5
         //   总链接数 1 ≠ 0 → 不扣 -15

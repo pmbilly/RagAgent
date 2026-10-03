@@ -142,7 +142,7 @@ public record KnowledgeBaseResponse(
     /**
      * 向量库视图推导：
      * <ul>
-     *   <li>有租户自建绑定 → {@code user} 来源，带上绑定 ID（库名与真实可达性待后续批次解析）；</li>
+     *   <li>有租户自建绑定 → {@code user} 来源，带上绑定 ID（库名与真实可达性待后续解析）；</li>
      *   <li>无绑定 → 环境默认（{@code source=env}，引擎类型取 {@code RETRIEVE_DRIVER} 首段）。</li>
      * </ul>
      */

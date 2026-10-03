@@ -23,8 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
 
 /**
- * POST /tenants 创建租户协作者（对照 Go CreateTenant tenant.go L226-513，
- * 自 {@link TenantCatalogController} 机械搬出）：自助/超管双路径、配额预检与
+ * POST /tenants 创建租户协作者（自 {@link TenantCatalogController} 拆出）：自助/超管双路径、配额预检与
  * TOCTOU 复检、owner 引导与 tenantless 回填、auto_create_api_key 兼容。
  * 持门面回引取各 service 依赖（可变面归门面）。
  */
@@ -38,10 +37,10 @@ final class TenantCreateOps {
         this.service = service;
     }
 
-    /** 对照 defaultMaxOwnedTenantsPerUser（tenant.go L195）。 */
+    /** 每用户可拥有的租户数默认上限。 */
     private static final int DEFAULT_MAX_OWNED_PER_USER = 10;
 
-    // ── POST /tenants（对照 CreateTenant，tenant.go L226-513） ──────────────
+    // ── POST /tenants ───────────────────────────────────────────────────────
 
     public ResponseEntity<?> createTenant(
             @RequestBody(required = false) String rawBody) {
@@ -53,8 +52,7 @@ final class TenantCreateOps {
         boolean platformCaller = scope != null && scope.isPlatform();
         boolean catalogManager = caller.isCanAccessAllTenants() || platformCaller;
 
-        // 部署级自助开关（对照 resolveTenantSelfServiceCreationEnabled 的三层解析：
-        // 以 config 为底，SystemSettingGateway 再叠 DB/env）
+        // 部署级自助开关（三层解析：以 config 为底，SystemSettingGateway 再叠 DB/env）
         if (!catalogManager && !service.systemSettingService.getBool(
                 "tenant.self_service_creation_enabled",
                 "WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED",
@@ -67,12 +65,12 @@ final class TenantCreateOps {
 
         Tenant tenantData;
         if (catalogManager) {
-            // 超管/平台 Key：全字段兼容路径（对照 ShouldBindJSON(&types.Tenant)）
+            // 超管/平台 Key：全字段兼容路径（整实体绑定）
             tenantData = TenantBindSupport.bindBody(rawBody, Tenant.class, "Invalid request parameters");
             if (tenantData == null) {
-                tenantData = new Tenant(); // body "null" → Go 零值绑定
+                tenantData = new Tenant(); // body "null" → 零值对象
             }
-            tenantData.setId(null); // 主键恒由 DB 生成（Go: tenantData.ID = 0）
+            tenantData.setId(null); // 主键恒由 DB 生成
         } else {
             CreateTenantRequest req = TenantBindSupport.bindBody(rawBody, CreateTenantRequest.class,
                     "Invalid request parameters");
@@ -80,7 +78,7 @@ final class TenantCreateOps {
             if (!bindingErrors.isEmpty()) {
                 throw TenantBindSupport.invalidParams("Invalid request parameters", String.join("\n", bindingErrors));
             }
-            // 配额预检（对照 L296-321）：cap>0 且 owner 计数 ≥ cap → 429
+            // 配额预检：cap>0 且 owner 计数 ≥ cap → 429
             int cap = resolveMaxOwnedTenantsPerUser();
             if (cap > 0) {
                 int owned = 0;
@@ -98,7 +96,7 @@ final class TenantCreateOps {
             tenantData.setDescription(TenantBindSupport.trimGo(req.description()));
         }
 
-        // 默认配额（对照 L334-351）：StorageQuota≤0 → settings 的 GB 值（≤0 再回 10）
+        // 默认配额：StorageQuota≤0 → settings 的 GB 值（≤0 再回 10）
         if (tenantData.getStorageQuota() == null || tenantData.getStorageQuota() <= 0) {
             long gb = service.systemSettingService.getInt(
                     "tenant.default_storage_quota_gb",
@@ -114,7 +112,7 @@ final class TenantCreateOps {
         try {
             created = service.tenantService.createTenant(tenantData);
         } catch (IllegalArgumentException e) {
-            // service 的非 AppError 错误（如空名）→ 500（对照 L363-373）
+            // service 的非 AppError 错误（如空名）→ 500
             throw new BizException(AppError.internal("Failed to create workspace")
                     .withDetails(e.getMessage()));
         } catch (BizException e) {
@@ -124,7 +122,7 @@ final class TenantCreateOps {
                     .withDetails(e.getMessage()));
         }
 
-        // Owner 引导（对照 L383-397）：失败回滚租户。平台 Key 不建成员（Go: !platformCaller）
+        // Owner 引导：失败回滚租户。平台 Key 不建成员。
         if (!platformCaller) {
             try {
                 service.memberService.ensureOwner(caller.getId(), created.getId());
@@ -133,7 +131,7 @@ final class TenantCreateOps {
                 throw new BizException(AppError.internal("Failed to finalise workspace ownership")
                         .withDetails(e.getMessage()));
             }
-            // TOCTOU 复检（对照 L399-434）：提交后再数一遍，超帽回滚
+            // TOCTOU 复检：提交后再数一遍，超帽回滚
             if (!caller.isCanAccessAllTenants()) {
                 int cap = resolveMaxOwnedTenantsPerUser();
                 if (cap > 0) {
@@ -152,7 +150,7 @@ final class TenantCreateOps {
             }
         }
 
-        // tenantless 用户首个空间回填（对照 L437-452）：失败回滚成员+租户
+        // tenantless 用户首个空间回填：失败回滚成员+租户
         if (caller.getTenantId() == 0 && !platformCaller) {
             caller.setTenantId(created.getId());
             try {
@@ -162,7 +160,7 @@ final class TenantCreateOps {
                     try {
                         service.memberService.removeMember(caller.getId(), created.getId());
                     } catch (RuntimeException ignored) {
-                        // 对照 Go 的 `_ = h.memberService.RemoveMember(...)`：尽力回滚
+                        // 尽力回滚
                     }
                 }
                 service.tenantService.deleteTenant(created.getId());
@@ -171,7 +169,7 @@ final class TenantCreateOps {
             }
         }
 
-        // auto_create_api_key 兼容路径（对照 L468-490）：失败不拖垮创建
+        // auto_create_api_key 兼容路径：失败不拖垮创建
         Object data = created;
         if (!platformCaller && service.systemSettingService.getBool(
                 "tenant.auto_create_api_key", "WEKNORA_TENANT_AUTO_CREATE_API_KEY", false)) {
@@ -190,8 +188,7 @@ final class TenantCreateOps {
     }
 
     /**
-     * 对照 tenantWithAPIKey（L496-510）：tenant 序列化为 map 再加 api_key。
-     * Go 的 map[string]any 序列化**各层键都按字母序**——递归深排序复刻。
+     * tenant 序列化为 map 再加 api_key；map 序列化**各层键都按字母序**——递归深排序。
      */
     private Object tenantWithApiKey(Tenant tenant, String token) {
         JsonNode node = service.springMapper.valueToTree(tenant);
@@ -220,7 +217,7 @@ final class TenantCreateOps {
         return node;
     }
 
-    /** 对照 resolveMaxOwnedTenantsPerUser（L198-212）：cfg 底座 → 三层解析 */
+    /** 每用户可拥有的租户数上限：cfg 底座 → 三层解析 */
     private int resolveMaxOwnedTenantsPerUser() {
         long fallback = DEFAULT_MAX_OWNED_PER_USER;
         if (service.tenantProperties.maxOwnedPerUser() != null && service.tenantProperties.maxOwnedPerUser() != 0) {
@@ -235,7 +232,7 @@ final class TenantCreateOps {
                 "reached self-service workspace quota; contact an administrator to raise the limit"));
     }
 
-    /** 复刻 createTenantRequest 的 binding：name required,min=1,max=128；description max=512（rune 计） */
+    /** 创建请求 binding：name required,min=1,max=128；description max=512（按码点计） */
     private static List<String> validateCreateBinding(CreateTenantRequest req) {
         List<String> errors = new ArrayList<>();
         String name = req == null ? null : req.name();
@@ -256,7 +253,7 @@ final class TenantCreateOps {
         return errors;
     }
 
-    /** 自助路径的请求载体（对照 createTenantRequest，handler/tenant.go L88-91） */
+    /** 自助路径的请求载体（name/description）。 */
     static final class CreateTenantRequest {
         @JsonProperty("name")
         String name;

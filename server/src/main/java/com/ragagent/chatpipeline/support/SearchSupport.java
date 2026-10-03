@@ -15,18 +15,18 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.retrieval.obs.RetrievalObs;
 
 /**
- * search.go 的包级函数（对照 chat_pipeline/search.go:165-324）：
+ * 检索的纯函数辅助：
  * 历史引用提取、去重、部分重叠移除、分数采样日志。
- * search.go 的 plugin 主体在 {@link PluginSearch}；removePartialOverlaps 里的
- * 归一化/包含/重叠率全部走 searchutil（4.4 已对齐 Go）。
+ * plugin 主体在 {@link PluginSearch}；removePartialOverlaps 里的
+ * 归一化/包含/重叠率全部走 searchutil。
  */
 public final class SearchSupport {
 
     private SearchSupport() {}
 
     /**
-     * 对照 getSearchResultFromHistory：从最近一轮带引用的历史里取引用，
-     * 全部标 MatchTypeHistory（int 常量 3，对照 types.MatchTypeHistory）。
+     * 从最近一轮带引用的历史里取引用，
+     * 全部标 {@link MatchTypes#HISTORY}。
      */
     public static List<SearchResult> getSearchResultFromHistory(ChatManage chatManage) {
         List<History> history = chatManage.getHistory();
@@ -46,8 +46,8 @@ public final class SearchSupport {
     }
 
     /**
-     * 对照 removeDuplicateResults：只按 chunk ID 去重（共享 ParentChunkID 不算重复），
-     * 加内容签名去重（searchutil.BuildContentSignature）。
+     * 只按 chunk ID 去重（共享 ParentChunkID 不算重复），
+     * 加内容签名去重（SearchTextUtil.buildContentSignature）。
      */
     public static List<SearchResult> removeDuplicateResults(List<SearchResult> results) {
         Map<String, Boolean> seen = new LinkedHashMap<>();
@@ -75,7 +75,7 @@ public final class SearchSupport {
     }
 
     /**
-     * 对照 removePartialOverlaps：内容大范围被高分块包含的块（跨知识源）移除。
+     * 内容大范围被高分块包含的块（跨知识源）移除。
      * 两个阈值：字面包含（归一化后）或 token 重叠系数 ≥ 0.85。
      * 输入必须已经过 ID/签名去重；分数低者被移除，平分按内容长度（长者保留）。
      */
@@ -150,7 +150,7 @@ public final class SearchSupport {
         return out;
     }
 
-    /** 对照 logSearchScoreSample：前 8 条分数采样日志（观测面，非契约）。 */
+    /** 前 8 条分数采样日志（观测面，非契约）。 */
     public static void logSearchScoreSample(String action, List<SearchResult> results) {
         final int maxLogRows = 8;
         int limit = results == null ? 0 : Math.min(maxLogRows, results.size());

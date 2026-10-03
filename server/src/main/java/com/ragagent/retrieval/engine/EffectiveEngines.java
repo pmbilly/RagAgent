@@ -9,22 +9,19 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.auth.domain.Tenant;
 
 /**
- * 有效引擎解析——对照 Go {@code types.Tenant.GetEffectiveEngines}（tenant.go L137-142）
- * + {@code GetDefaultRetrieverEngines}（L66-83）+ {@code retrieverEngineMapping}（L17-60）。
+ * 有效引擎解析——租户显式配置与 RETRIEVE_DRIVER 派生默认共用的映射表与派发规则。
  *
- * <p>本类是把原先内嵌在 {@code HybridSearchService} 里的同一段逻辑抽出来共享：
- * 接线批的工厂（{@code CreateRetrieveEngineForKB} 的 env-store 分支）与
- * HybridSearch 的引擎路由要用<b>同一份</b>映射表与派发规则，抽共享件比两处各抄一份安全。</p>
+ * <p>工厂（{@code RetrieveEngineFactories} 的 env-store 分支）与
+ * HybridSearch 的引擎路由共用本类，保证两边用<b>同一份</b>映射表与派发规则。</p>
  *
- * <p><b>RETRIEVE_DRIVER 未配置 → 空集 → 检索全关</b>（"No retrievable indexing pipelines"），
- * 这是本部署的 Go 实测行为。</p>
+ * <p><b>RETRIEVE_DRIVER 未配置 → 空集 → 检索全关</b>（"No retrievable indexing pipelines"）。</p>
  */
 public final class EffectiveEngines {
 
     private EffectiveEngines() {
     }
 
-    /** 对照 {@code retrieverEngineMapping}（types/tenant.go L17-60，逐条照抄）。 */
+    /** 检索驱动 → 引擎参数的映射表（每驱动列出其支持的检索类型）。 */
     private static final Map<String, List<RetrieverEngineParams>> RETRIEVER_ENGINE_MAPPING =
             buildEngineMapping();
 
@@ -63,8 +60,8 @@ public final class EffectiveEngines {
     }
 
     /**
-     * 对照 {@code Tenant.GetEffectiveEngines}：租户显式配置优先，否则按
-     * {@code RETRIEVE_DRIVER} 派生默认（驱动串由调用方注入——B6 批 3 起不再读进程环境）。
+     * 租户显式配置优先，否则按
+     * {@code RETRIEVE_DRIVER} 派生默认（驱动串由调用方注入，不读进程环境）。
      */
     public static List<RetrieverEngineParams> of(Tenant tenant, String retrieveDriver) {
         if (tenant != null && tenant.getRetrieverEngines() != null
@@ -82,7 +79,7 @@ public final class EffectiveEngines {
         return defaults(retrieveDriver);
     }
 
-    /** 对照 {@code GetDefaultRetrieverEngines}：按 RETRIEVE_DRIVER 逐段映射并去重。 */
+    /** 按 RETRIEVE_DRIVER 逐段映射并去重。 */
     public static List<RetrieverEngineParams> defaults(String driver) {
         List<RetrieverEngineParams> out = new ArrayList<>();
         if (driver == null || driver.isBlank()) {
@@ -104,7 +101,7 @@ public final class EffectiveEngines {
         return out;
     }
 
-    /** 对照 {@code CompositeRetrieveEngine.SupportRetriever} 用到的那半：按检索类型判定。 */
+    /** {@link CompositeRetrieveEngine} 用到的那半：按检索类型判定。 */
     public static boolean supportsRetriever(List<RetrieverEngineParams> engines,
                                             String retrieverType) {
         return engines != null && engines.stream()

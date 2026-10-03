@@ -10,8 +10,8 @@ import java.security.NoSuchAlgorithmException;
  * <p>各家 LLM provider 返回的 ID 形态各异：OpenAI 是规整的 {@code call_abc123}；
  * 有的返回空串、超长 UUID、带特殊字符的串。本函数保证 ID：</p>
  * <ul>
- *   <li>非空（空时由 toolName+index 生成确定性 ID，实录：("", "search", 0) → call_702692b71127）；</li>
- *   <li>不超长（超长截断 + hash 后缀保唯一性，实录 205 字符 → 前 55 字符 + "_3aaa786e"）；</li>
+ *   <li>非空（空时由 toolName+index 生成确定性 ID，如 ("", "search", 0) → call_702692b71127）；</li>
+ *   <li>不超长（超长截断 + hash 后缀保唯一性，205 字符 → 前 55 字符 + "_3aaa786e"）；</li>
  *   <li>字符安全（字母数字与 {@code _ -} 之外全部替换为 _；按 code point 替换，中文一个字 → 一个 _）。</li>
  * </ul>
  *

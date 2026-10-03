@@ -14,18 +14,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * web_search_providers.parameters jsonb 列的 TypeHandler
- * （对照 Go {@code WebSearchProviderParameters.Value()/Scan()} driver 钩子）。
+ * web_search_providers.parameters jsonb 列的 TypeHandler。
  *
  * <ul>
- *   <li><b>写</b>（Value）：有 AES key 且 api_key 非空 → 加密后整体序列化；
- *       加密失败保留明文（Go `if err == nil` 分支）。</li>
- *   <li><b>读</b>（Scan）：宽容解密——解密失败置空并记日志（Go 同款语义，
- *       行级加载不拖垮列表）；NULL 列返回零值对象。</li>
+ *   <li><b>写</b>：有 AES key 且 api_key 非空 → 加密后整体序列化；
+ *       加密失败保留明文。</li>
+ *   <li><b>读</b>：宽容解密——解密失败置空并记日志（行级加载不拖垮列表）；NULL 列返回零值对象。</li>
  * </ul>
  *
  * <p>读路径的 mapper 必须 {@code FAIL_ON_UNKNOWN_PROPERTIES=false}
- * （Go json.Unmarshal 默认忽略未知键，§7.5 第 6 条）。</p>
+ * （忽略未知键，列内新增字段不致读失败）。</p>
  */
 public class WebSearchParamsTypeHandler extends BaseTypeHandler<WebSearchProviderParams> {
 
@@ -58,12 +56,12 @@ public class WebSearchParamsTypeHandler extends BaseTypeHandler<WebSearchProvide
             try {
                 out.setApiKey(cryptoService.encryptAESGCM(out.getApiKey(), key));
             } catch (RuntimeException e) {
-                // Go: 加密失败保留明文（if encrypted, err := ...; err == nil 才替换）
+                // 加密失败保留明文
                 log.warn("[crypto] web search provider api_key encrypt failed, storing plaintext");
             }
         }
         try {
-            // PG jsonb 列必须 setObject(Types.OTHER)（setString 报 "column ... is of type jsonb but expression is of type character varying"，§9 阶段 2）
+            // PG jsonb 列必须 setObject(Types.OTHER)（setString 报 "column ... is of type jsonb but expression is of type character varying"）
             ps.setObject(i, MAPPER.writeValueAsString(out), java.sql.Types.OTHER);
         } catch (SQLException e) {
             throw e;

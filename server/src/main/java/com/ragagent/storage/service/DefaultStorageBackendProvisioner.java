@@ -21,9 +21,8 @@ import org.springframework.stereotype.Component;
  * "端口方法 {@link #provisionForTenant} + 事务编排留在 auth"——编排里的租户行回写
  * 不是存储域的职责。</p>
  *
- * <p>env 取值走 {@link StorageProviderEnv} 的 {@code @ConfigurationProperties} 绑定
- * （B6 批 1，2026-10-02）：46 处裸 {@code System.getenv} + 手写 switch 收敛为
- * 「按 provider 取环境变量族」；变量名未变，落库形状＝<b>行面 camel</b>（B14 合并）。</p>
+ * <p>env 取值走 {@link StorageProviderEnv} 的 {@code @ConfigurationProperties} 绑定：
+ * 「按 provider 取环境变量族」；变量名未变，落库形状＝<b>行面 camel</b>。</p>
  */
 @Component
 public class DefaultStorageBackendProvisioner implements StorageBackendProvisioner {
@@ -58,8 +57,7 @@ public class DefaultStorageBackendProvisioner implements StorageBackendProvision
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         backend.setCreatedAt(now);
         backend.setUpdatedAt(now);
-        // 落库走唯一读写口（B15）：凭据在此加密——此前直接 toString() 落库，
-        // 环境供给行的私钥是明文（与"私钥落库即密文"的设计相悖）
+        // 落库走唯一读写口：凭据在此加密（"私钥落库即密文"）
         repository.create(backend, backend.getConfig() == null
                 ? "{}" : codec.encode(backend.getConfig()));
         return backend.getId();
@@ -71,9 +69,8 @@ public class DefaultStorageBackendProvisioner implements StorageBackendProvision
     }
 
     /**
-     * 对照 StorageBackendFromEnvironment（storagebackend.go L329-385）：
-     * 进程级 env 快照为该空间落一行只读后端。键序按 Go struct 字段声明序；
-     * 空串/零值按 omitempty 省略。STORAGE_TYPE 缺省 "local"；未知 provider → null。
+     * 进程级 env 快照为该空间落一行只读后端。键序＝
+     * {@code writeConfig} 调用序；空串/假值整键省略。STORAGE_TYPE 缺省 "local"；未知 provider → null。
      */
     private StorageBackend envDefaultBackend(long tenantId) {
         String provider = storageType.provider();

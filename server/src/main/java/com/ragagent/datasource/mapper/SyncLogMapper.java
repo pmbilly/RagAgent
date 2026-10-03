@@ -15,30 +15,28 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * {@code sync_logs} 的基础仓储（对照 Go {@code SyncLogRepository}，
- * internal/application/repository/datasource_repo.go L153-324）。
+ * {@code sync_logs} 的基础仓储。
  *
  * <h2>与 {@link DataSourceMapper} 的三点不同</h2>
  * <ol>
- *   <li><b>没有软删除</b>：{@code sync_logs} 表里没有 {@code deleted_at}
- *       （Go 的 {@code SyncLog} 也没有 {@code gorm.DeletedAt}）。
+ *   <li><b>没有软删除</b>：{@code sync_logs} 表里没有 {@code deleted_at}。
  *       {@code CleanupOldLogs} 是**物理 DELETE**，且是全局的（不带租户条件）。
  *       别给它加 {@code deleted_at IS NULL}。</li>
  *   <li><b>只有一个 jsonb 列</b>{@code result}——每个返回实体的 {@code @Select}
- *       仍需重复声明 {@code @Results}（§9）。</li>
+ *       仍需重复声明 {@code @Results}（自定义 SQL 的结果映射不会自动套
+ *       实体上的 typeHandler）。</li>
  *   <li><b>分页与排序全显式</b>：{@code started_at DESC} 两处；
  *       {@code FindLatest} 是 {@code ORDER BY started_at DESC, id ASC}
- *       （第二个来自 GORM {@code First} 追加的主键序，见类 {@code SyncLog} 的清单第 4 条）。</li>
+ *       （用 {@code id} 破平局，见类 {@code SyncLog} 的清单第 4 条）。</li>
  * </ol>
  */
 @Mapper
 public interface SyncLogMapper extends BaseMapper<SyncLog> {
 
     /**
-     * 对照 {@code FindByID}：{@code Where(id).First(&log)}。
+     * 按 id 取单条同步日志。
      *
-     * @return 未命中回 {@code null}（Go 的 {@code ErrRecordNotFound}
-     *         由仓储转成 {@code "sync log not found"}）
+     * @return 未命中回 {@code null}（仓储层转成 {@code "sync log not found"}）
      */
     @Results({
             @Result(column = "result", property = "result", typeHandler = PgJsonTypeHandler.class),
@@ -47,10 +45,10 @@ public interface SyncLogMapper extends BaseMapper<SyncLog> {
     SyncLog selectByIdOrNull(@Param("id") String id);
 
     /**
-     * 对照 {@code FindByDataSource}：{@code Order("started_at DESC").Limit(limit).Offset(offset)}。
+     * 某数据源的同步日志分页，{@code started_at DESC}。
      *
      * <p>limit / offset 的钳制在仓储层（{@code limit <= 0 → 10}、{@code offset < 0 → 0}），
-     * SQL 里不再判断。GORM 的 {@code Find} 让无行时返回非 nil 空切片。</p>
+     * SQL 里不再判断。无行时返回空列表。</p>
      */
     @Results({
             @Result(column = "result", property = "result", typeHandler = PgJsonTypeHandler.class),
@@ -62,16 +60,12 @@ public interface SyncLogMapper extends BaseMapper<SyncLog> {
                                      @Param("offset") int offset);
 
     /**
-     * 对照 {@code FindLatest}：
-     * {@code Where(data_source_id = ?).Order("started_at DESC").Limit(1).First(&log)}。
+     * 取某数据源最近一条同步日志：
+     * {@code ORDER BY started_at DESC, id ASC LIMIT 1}——
+     * {@code id} 只在 {@code started_at} 完全并列时破平局。
      *
-     * <p>GORM 的 {@code First} 会把 {@code Limit(1)} 与 {@code ORDER BY started_at DESC}
-     * 合起来，并**追加**主键序 → {@code ORDER BY started_at DESC, id ASC LIMIT 1}。
-     * 追加的 {@code id} 只在 {@code started_at} 完全并列时破平局，照抄不亏。</p>
-     *
-     * @return 未命中回 {@code null}——**注意**：Go 在这里把
-     *         {@code gorm.ErrRecordNotFound} 吞成了 {@code nil, nil}，
-     *         与同文件其它读方法（上抛错误）不同，别统一。
+     * @return 未命中回 {@code null}——**注意**：这里是"未命中不算错"，
+     *         与同文件其它读方法（未命中上抛）不同，别统一。
      */
     @Results({
             @Result(column = "result", property = "result", typeHandler = PgJsonTypeHandler.class),
@@ -81,8 +75,7 @@ public interface SyncLogMapper extends BaseMapper<SyncLog> {
     SyncLog selectLatest(@Param("dsId") String dsId);
 
     /**
-     * 对照 {@code HasRunningSync}：{@code Model(&SyncLog{}).Where(data_source_id = ?).
-     * Where(status = 'running').Count(&count)}。
+     * 统计某数据源处于给定状态的日志条数。
      *
      * <p>仓储把它折成 {@code count > 0}。</p>
      */
@@ -90,15 +83,14 @@ public interface SyncLogMapper extends BaseMapper<SyncLog> {
     long countByStatus(@Param("dsId") String dsId, @Param("status") String status);
 
     /**
-     * 对照 {@code UpdateResult} 的 {@code Updates(map)}。
+     * 同步结束后回写结果列。
      *
-     * <p>⚠️ Go 显式写了 {@code updated_at}，所以 GORM 的 map 分支**不会**再补一个
-     * ——这里照抄同一列集，别漏 {@code updated_at}，也别多加。</p>
+     * <p>⚠️ 列集里**必须**含 {@code updated_at}，也别多加——这是既定契约。</p>
      *
      * <p>{@code result} 是 jsonb，必须在 SQL 里挂 typeHandler：
      * MyBatis-Plus 的 {@code UpdateWrapper.set()} 拿不到实体上的
      * {@code @TableField(typeHandler=…)}，会退化成 Java 序列化并落库成
-     * {@code 0xACED…} 魔数（约定 §9）。</p>
+     * {@code 0xACED…} 魔数。</p>
      */
     @Update("UPDATE sync_logs SET status = #{log.status}, finished_at = #{log.finishedAt}, "
             + "items_total = #{log.itemsTotal}, items_created = #{log.itemsCreated}, "
@@ -111,11 +103,9 @@ public interface SyncLogMapper extends BaseMapper<SyncLog> {
     int updateResult(@Param("log") SyncLog log, @Param("now") OffsetDateTime now);
 
     /**
-     * 对照 {@code CancelPendingByDataSource}。
+     * 作废某数据源的全部在途日志。
      *
-     * <p>⚠️ Go 的 map 里只有三列，**没有** {@code updated_at}——GORM 的 map 分支
-     * 会替它补上 {@code updated_at = NowFunc()}（§9「Go 源码没写、GORM 偷偷补
-     * updated_at」的第四处）。所以线上写的是**四列**，Java 侧显式补上，
+     * <p>⚠️ 列集是**四列**：除三列业务值外**必须**补 {@code updated_at = now}，
      * 且沿用同一个 {@code now}（与 {@code finished_at} 同值）。</p>
      */
     @Update("UPDATE sync_logs SET status = #{status}, finished_at = #{now}, "
@@ -129,14 +119,13 @@ public interface SyncLogMapper extends BaseMapper<SyncLog> {
                       @Param("now") OffsetDateTime now);
 
     /**
-     * 对照 {@code CleanupOldLogs}：
-     * {@code Where("started_at < NOW() - INTERVAL ? DAY", retentionDays).Delete(&types.SyncLog{})}。
+     * 物理删除早于保留期的同步日志。
      *
-     * <p>PG 的 {@code NOW() - INTERVAL ? DAY} 在 H2 上不可移植（H2 的 {@code INTERVAL}
+     * <p>PG 的 {@code NOW() - INTERVAL ? DAY} 写法 H2 不支持（H2 的 {@code INTERVAL}
      * 语法不同），所以把界时刻**在 Java 侧算好**再传参——语义等价：
      * {@code NOW()} 是事务开始时刻，Java 取的是调用时刻。</p>
      *
-     * <p>{@code SyncLog} 没有 {@code DeletedAt}，所以这是<b>物理删</b>，
+     * <p>{@code SyncLog} 没有 {@code deleted_at}，所以这是<b>物理删</b>，
      * 且是全局的（不按租户）。保留天数的钳制在仓储层。</p>
      */
     @Delete("DELETE FROM sync_logs WHERE started_at < #{cutoff}")

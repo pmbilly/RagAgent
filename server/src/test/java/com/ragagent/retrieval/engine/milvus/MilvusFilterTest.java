@@ -12,9 +12,8 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.vectorstore.domain.IndexConfig;
 
 /**
- * Milvus 纯函数面——过滤器表达式（照 Go {@code filter.go} 的算子/括号/转义形态，
- * 但值内联：REST v2 无模板参数）、度量类型解析、类名解析、in 过滤（照 SDK
- * {@code WithStringIDs}）、存储估算、SourceID 三态。
+ * Milvus 纯函数面——过滤器表达式（算子/括号/转义形态，
+ * 值内联：REST v2 无模板参数）、度量类型解析、类名解析、in 过滤、存储估算、SourceID 三态。
  */
 class MilvusFilterTest {
 

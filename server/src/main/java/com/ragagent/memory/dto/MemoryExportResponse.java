@@ -6,11 +6,11 @@ import java.util.List;
 /**
  * 记忆导出的响应体（{@code GET /api/v1/memory/export}）。
  *
- * <p>旧形态是 Go 的四键信封 {@code {"data":…,"success":true,"total":N,"truncated":bool}}；
- * 换锚后去掉 {@code success}、{@code data} 改名 {@code items}（§14.9k M1）。</p>
+ * <p>响应是裸的 {@code {items, total, truncated}}：旧四键信封
+ * {@code {"data":…,"success":true,...}} 里的 {@code success} 已去掉、{@code data} 改名 {@code items}。</p>
  *
- * <p>⚠️ {@code items} 在<b>空仓库时是 {@code null}</b>（不是 {@code []}）——这是 Go
- * {@code var items []*types.MemoryItem} 只在有行时才 append 的既有语义，契约没有要求
+ * <p>⚠️ {@code items} 在<b>空仓库时是 {@code null}</b>（不是 {@code []}）——
+ * 只在真的有行时才建列表的既有语义，契约没有要求
  * 改它，故原样保留；与列表端点空时输出 {@code []} 的差别是刻意的。</p>
  *
  * <p>它是"下载"：调用方还带 {@code Content-Disposition} 头（文件名固定

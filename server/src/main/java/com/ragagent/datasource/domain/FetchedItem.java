@@ -8,10 +8,9 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 从外部源抓到的单个文档/内容项（对照 Go {@code types.FetchedItem}，
- * internal/types/datasource.go L312-382）。
+ * 从外部源抓到的单个文档/内容项。
  *
- * <h2>Go 实录（{@code DataSourceJsonTest} 逐字节钉住）</h2>
+ * <h2>JSON 形状（{@code DataSourceJsonTest} 逐字节钉住）</h2>
  * <pre>
  *   FetchedItem{} →
  *   {"external_id":"","title":"","content":null,"content_type":"","file_name":"","url":"",
@@ -20,20 +19,19 @@ import com.ragagent.common.web.GoTimeSerializer;
  *    "subtreeKeep":null}
  *   FetchedItem{Content:[]byte("hello")} → ... "content":"aGVsbG8=" ...
  * </pre>
- * <p>三个必须照抄的点：</p>
+ * <p>三个固定要点：</p>
  * <ol>
- *   <li><b>{@code content} 是 Go 的 {@code []byte}，JSON 里是 <em>base64 字符串</em></b>
- *       （{@code encoding/json} 对 {@code []byte} 用 {@code base64.StdEncoding}）。
- *       Java 的 {@code byte[]} 经 Jackson 也是 base64，且默认变体
- *       {@code MIME_NO_LINEFEEDS} 与 Go 的 StdEncoding 同字母表、同填充、同样不折行。
- *       §1.6：nil 时输出 {@code null}（不是 {@code ""}）。</li>
- *   <li><b>{@code updated_at} / {@code created_at} 是值类型 {@code time.Time}</b>：
+ *   <li><b>{@code content} 在 JSON 里是 <em>base64 字符串</em></b>。
+ *       Jackson 对 {@code byte[]} 默认也是 base64，且默认变体
+ *       {@code MIME_NO_LINEFEEDS} 与标准 base64 同字母表、同填充、同样不折行。
+ *       {@code null} 时输出 {@code null}（不是 {@code ""}）。</li>
+ *   <li><b>{@code updated_at} / {@code created_at} 恒输出</b>：
  *       零值输出 {@code "0001-01-01T00:00:00Z"}，不是 {@code null}。</li>
- *   <li><b>{@code metadata} 恒输出</b>（{@code map[string]string}，§1.6），
- *       nil 时写 {@code null}——别顺手给它加 {@code NON_EMPTY}。</li>
+ *   <li><b>{@code metadata} 恒输出</b>，
+ *       {@code null} 时写 {@code null}——别顺手给它加 {@code NON_EMPTY}。</li>
  * </ol>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>持久化语义</h2>
  * <ol>
  *   <li><b>钩子/软删除/自动时间戳/唯一索引</b>：全无——本类型不落表，
  *       只走 fetch → ingest 的进程内链路。</li>
@@ -41,7 +39,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  *   <li><b>默认排序</b>：无。</li>
  * </ol>
  *
- * <h2>{@code ReplacesSubtree} / {@code SubtreeKeep} 的前置条件（照抄 Go 的注释）</h2>
+ * <h2>{@code ReplacesSubtree} / {@code SubtreeKeep} 的前置条件</h2>
  * <p>{@code replacesSubtree} 为 true 时会在父项（重新）灌入之后做一次子树清扫：
  * 删除所有 external_id 以 {@link SubtreeChildIds#subtreeChildPrefix(String)}
  * 开头、且不在 {@code subtreeKeep} 里的既有条目。设它的连接器**必须**满足：</p>
@@ -50,7 +48,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  *       （共享那个 {@code '#'} 前缀）；</li>
  *   <li>父项不晚于子项发出，且父项灌入时 {@code subtreeKeep} 已列全所有仍在的子项。</li>
  * </ol>
- * <p>{@code nil} 与空切片在这里等价（字段是进程内消费的）；恒输出只为 API/调试暴露。</p>
+ * <p>{@code null} 与空列表在这里等价（字段是进程内消费的）；恒输出只为 API/调试暴露。</p>
  */
 public class FetchedItem {
 
@@ -76,7 +74,7 @@ public class FetchedItem {
     /** 在外部系统的创建时间。源不暴露时为零值。 */
     private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
 
-    /** 附加元数据。§1.6：nil 时输出 {@code null}。 */
+    /** 附加元数据。{@code null} 时输出 {@code null}。 */
     @JsonSerialize(using = DataSourceMapSerializer.class)
     private Map<String, String> metadata;
 
@@ -86,19 +84,18 @@ public class FetchedItem {
      * <p>⚠️ 字段名刻意是 {@code deleted} 而**不是** {@code isDeleted}：Java 字段名以
      * {@code is} 开头时，Jackson 给字段的隐式属性名是 {@code isDeleted}、给
      * {@code isDeleted()} 这个 getter 的却是 {@code deleted}——两者对不上就会
-     * **各生成一个属性**（旧 Go 的坑）。本仓字段名即键名，只输出 {@code deleted}。
-     * 去掉 {@code is} 前缀后字段与 getter 的隐式名都是 {@code deleted}、合并成一个，
-     * 换名前那段 Go 直译历史见 §9「同族的第二种形态」。</p>
+     * **各生成一个属性**。本仓字段名即键名，只输出 {@code deleted}：
+     * 去掉 {@code is} 前缀后字段与 getter 的隐式名都是 {@code deleted}、合并成一个。</p>
      */
     private boolean deleted;
 
     /** 来源资源 ID（例如该文档所属的文件夹）。 */
     private String sourceResourceId = "";
 
-    /** 见类注释的子树清扫契约。§1.6：{@code false} 也恒输出。 */
+    /** 见类注释的子树清扫契约。{@code false} 也恒输出。 */
     private boolean replacesSubtree;
 
-    /** 见类注释：这条清扫**保留**哪些子项。§1.6：nil 时输出 {@code null}。 */
+    /** 见类注释：这条清扫**保留**哪些子项。{@code null} 时输出 {@code null}。 */
     private List<String> subtreeKeep;
 
     public String getExternalId() { return externalId; }

@@ -9,18 +9,17 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 /**
- * 模型名判定函数测试，逐字对照 Go：
+ * 模型名判定函数测试：
  * <ul>
- *   <li>provider_test.go 的 TestAliyunModelDetection（IsQwen3Model / IsDeepSeekModel）</li>
- *   <li>openai_test.go 的 TestIsOpenAIReasoningOrGPT5Model（全表照抄，含边界用例）</li>
- *   <li>moonshot.go / lkeap.go 的判定函数（Go 无测试，用例由函数文档注释推导）</li>
+ *   <li>AliyunProvider 的 isQwen3Model / isDeepSeekModel / isQwenThinkingModel</li>
+ *   <li>OpenAIProvider 的 isOpenAIReasoningOrGPT5Model（全表，含边界用例）</li>
+ *   <li>MoonshotProvider / LKEAPProvider 的判定函数（用例由函数文档注释推导）</li>
  * </ul>
  */
 class ModelPredicateTest {
 
-    // ---------------- aliyun.go ----------------
+    // ---------------- AliyunProvider ----------------
 
-    /** 对照 Go TestAliyunModelDetection/DeepSeek model detection + Qwen3 model detection */
     @ParameterizedTest(name = "isQwen3Model({0}) = {1}")
     @CsvSource({
             "qwen3-32b, true",
@@ -34,7 +33,6 @@ class ModelPredicateTest {
         assertEquals(expected, AliyunProvider.isQwen3Model(modelName));
     }
 
-    /** 对照 Go TestAliyunModelDetection/DeepSeek model detection */
     @ParameterizedTest(name = "isDeepSeekModel({0}) = {1}")
     @CsvSource({
             "deepseek-chat, true",
@@ -47,7 +45,7 @@ class ModelPredicateTest {
         assertEquals(expected, AliyunProvider.isDeepSeekModel(modelName));
     }
 
-    /** 对照 Go IsQwenThinkingModel：前缀匹配（qwen3 / qwen-plus / qwen-max / qwen-turbo） */
+    /** 前缀匹配（qwen3 / qwen-plus / qwen-max / qwen-turbo） */
     @ParameterizedTest(name = "isQwenThinkingModel({0}) = {1}")
     @CsvSource({
             "qwen3-32b, true",
@@ -64,9 +62,9 @@ class ModelPredicateTest {
         assertEquals(expected, AliyunProvider.isQwenThinkingModel(modelName));
     }
 
-    // ---------------- openai.go ----------------
+    // ---------------- OpenAIProvider ----------------
 
-    /** 对照 Go TestIsOpenAIReasoningOrGPT5Model：用例逐条照抄（issue #1283） */
+    /** 全表用例（issue #1283） */
     @ParameterizedTest(name = "isOpenAIReasoningOrGPT5Model({0}) = {1}")
     @CsvSource({
             "'', false",
@@ -94,7 +92,7 @@ class ModelPredicateTest {
             "o3xtra, false",
             "qwen-max, false",
 
-            // Go 用 TrimSpace 后再判前缀，故首尾空白不影响
+            // 先 trim 首尾空白再判前缀，故首尾空白不影响
             "'  gpt-5-mini  ', true",
             "'  gpt-4o  ', false"
     })
@@ -102,18 +100,18 @@ class ModelPredicateTest {
         assertEquals(expected, OpenAIProvider.isOpenAIReasoningOrGPT5Model(modelName));
     }
 
-    /** 空模型名与 null 均判否（Go 的 name == "" 分支） */
+    /** 空模型名与 null 均判否 */
     @Test
     void openAiReasoningNullIsFalse() {
         assertFalse(OpenAIProvider.isOpenAIReasoningOrGPT5Model(null));
         assertFalse(OpenAIProvider.isOpenAIReasoningOrGPT5Model("   "));
     }
 
-    // ---------------- moonshot.go ----------------
+    // ---------------- MoonshotProvider ----------------
 
     /**
-     * 对照 Go IsMoonshotFixedTempModel（moonshot-v1 前缀 + kimi-k2.5/k2.6 精确相等）。
-     * 注意：先 TrimSpace 再 ToLower；kimi 分支是精确匹配，kimi-k2.5-turbo 不命中。
+     * isMoonshotFixedTempModel：moonshot-v1 前缀 + kimi-k2.5/k2.6 精确相等。
+     * 注意：先 trim 再小写；kimi 分支是精确匹配，kimi-k2.5-turbo 不命中。
      */
     @ParameterizedTest(name = "isMoonshotFixedTempModel({0}) = {1}")
     @CsvSource({
@@ -135,9 +133,8 @@ class ModelPredicateTest {
         assertEquals(expected, MoonshotProvider.isMoonshotFixedTempModel(modelName));
     }
 
-    // ---------------- lkeap.go ----------------
+    // ---------------- LKEAPProvider ----------------
 
-    /** 对照 Go IsLKEAPDeepSeekV3Model / IsLKEAPDeepSeekR1Model / IsLKEAPThinkingModel */
     @ParameterizedTest(name = "isLKEAPThinkingModel({0}) = {1}")
     @CsvSource({
             "deepseek-r1, true",
@@ -154,7 +151,7 @@ class ModelPredicateTest {
         assertEquals(expected, LKEAPProvider.isLKEAPThinkingModel(modelName));
     }
 
-    /** R1 / V3 两个子判定各自独立（与 Go 的两个 Contains 一致） */
+    /** R1 / V3 两个子判定各自独立（各自 Contains） */
     @Test
     void lkeapSubPredicates() {
         assertTrue(LKEAPProvider.isLKEAPDeepSeekR1Model("deepseek-r1"));

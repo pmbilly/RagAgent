@@ -7,20 +7,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 取消信号（对照 Go {@code context.WithCancel} 的 Done()/Err() 语义子集）。
+ * 取消信号。
  *
- * <p>为什么需要它（而不是简单地用 JDK 的 Future.cancel）：Go 侧 MCP 客户端把 ctx 的取消
- * 当作<b>连接生命周期</b>用——manager 的 {@code CloseClient}/{@code Shutdown} 取消 pending
- * 连接的 lifeCtx，让"正在建连的 goroutine"带着错误退出（manager.go:161-183）。Java 里没有
- * 等价物，故用本类显式建模：</p>
+ * <p>为什么需要它（而不是简单地用 JDK 的 Future.cancel）：MCP 客户端把取消
+ * 当作<b>连接生命周期</b>用——manager 的 {@code CloseClient}/{@code Shutdown} 取消
+ * 在建连接的生命周期，让"正在建连的调用"带着错误退出。故用本类显式建模：</p>
  *
  * <ul>
  *   <li>{@link #cancel()} = {@code cancelFunc()}；</li>
  *   <li>{@link #isCancelled()} = {@code ctx.Err() != nil}；</li>
  *   <li>{@link #future()} 供 select 式等待（{@code select { case &lt;-ctx.Done(): ... }}）；</li>
  *   <li>{@link #onCancel(Runnable)} 供"取消时中断阻塞中的 HTTP 调用"用
- *       （Go 侧 ctx 取消会直接让 {@code http.Client.Do} 返回，Java 的阻塞式
- *       {@code HttpClient.send} 只能靠线程中断 —— 见 {@code McpClientManager#connectClient}）。</li>
+ *       （阻塞式 {@code HttpClient.send} 只能靠线程中断 —— 见 {@code McpClientManager#connectClient}）。</li>
  * </ul>
  *
  * <p>父子关系对照 {@code context.WithCancel(parent)}：父取消 ⇒ 子取消，子取消不影响父。
@@ -28,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class McpCancellation {
 
-    /** 永不被取消的实例（对照 Go 的 {@code context.Background()}）。 */
+    /** 永不被取消的实例。 */
     public static final McpCancellation NEVER = new McpCancellation(null);
 
     private final Set<McpCancellation> children = ConcurrentHashMap.newKeySet();
@@ -62,7 +60,7 @@ public final class McpCancellation {
         return cancelled.get();
     }
 
-    /** 对照 Go 的 cancelFunc：幂等。 */
+    /** 幂等。 */
     public void cancel() {
         if (!cancelled.compareAndSet(false, true)) {
             return;
@@ -103,10 +101,10 @@ public final class McpCancellation {
         onCancel(thread::interrupt);
     }
 
-    /** 对照 Go {@code ctx.Err()}：已取消则抛异常。 */
+    /** 已取消则抛异常。 */
     public void throwIfCancelled() {
         if (isCancelled()) {
-            // Go 侧文案是 context.Canceled.Error() == "context canceled"（美式拼写，一个 l）。
+            // 文案固定为 "context canceled"（美式拼写，一个 l）。
             throw new McpException(McpErrorCode.CONNECTION_CLOSED, "context canceled");
         }
     }

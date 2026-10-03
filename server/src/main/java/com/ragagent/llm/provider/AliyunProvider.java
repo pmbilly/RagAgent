@@ -7,7 +7,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.AliyunProvider + aliyun.go 的模型判定函数。
+ * 阿里云 DashScope，含模型判定函数。
  */
 public class AliyunProvider implements Provider {
 
@@ -37,9 +37,9 @@ public class AliyunProvider implements Provider {
     }
 
     /**
-     * 对照 Go IsQwenThinkingModel：检查模型名是否为支持思维链的 Qwen 模型。
+     * 检查模型名是否为支持思维链的 Qwen 模型。
      * 支持思维链的模型需要特殊处理 enable_thinking 参数。
-     * 全部用 strings.HasPrefix(ToLower(name), ...) 前缀匹配，保序照抄（Go 原文 4 个分支）。
+     * 全部按小写前缀匹配，分支顺序保持既有判定顺序，不得重排。
      */
     public static boolean isQwenThinkingModel(String modelName) {
         String lowerName = modelName == null ? "" : modelName.toLowerCase(Locale.ROOT);
@@ -49,13 +49,13 @@ public class AliyunProvider implements Provider {
                 || lowerName.startsWith("qwen-turbo");
     }
 
-    /** 对照 Go IsQwen3Model：仅 Qwen3 家族 */
+    /** 仅 Qwen3 家族 */
     public static boolean isQwen3Model(String modelName) {
         return (modelName == null ? "" : modelName.toLowerCase(Locale.ROOT)).startsWith("qwen3");
     }
 
     /**
-     * 对照 Go IsDeepSeekModel：模型名是否含 "deepseek"（不区分大小写）。
+     * 模型名是否含 "deepseek"（不区分大小写）。
      * DeepSeek 模型不支持 tool_choice 参数。
      */
     public static boolean isDeepSeekModel(String modelName) {

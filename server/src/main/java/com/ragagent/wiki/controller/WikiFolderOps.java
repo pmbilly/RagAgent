@@ -152,7 +152,7 @@ final class WikiFolderOps {
 
         String slug = trimSpace(req.slug());
         if (slug.isEmpty()) {
-            // 原实现因必填校验实际不可达，保留以逐行对照
+            // 必填校验已挡住空 slug，此分支实际不可达（防御性保留）
             throw new RawJsonError(HttpStatus.BAD_REQUEST.value(), "Page slug is required");
         }
 

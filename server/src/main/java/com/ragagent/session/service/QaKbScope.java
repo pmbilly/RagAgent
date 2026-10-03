@@ -9,7 +9,7 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.knowledge.domain.KnowledgeBase;
 
 /**
- * {@code SessionQaResolution} 的**KB 范围簇**（§14.9c 刀 9）：从 agent 配置推导可用知识库集合、
+ * {@code SessionQaResolution} 的**KB 范围簇**：从 agent 配置推导可用知识库集合、
  * KB 与 agent 约束的匹配判定、检索租户推导与调用方读权限判定。
  *
  * <p>依赖两个：{@code SessionKnowledgeQaService service}（宿主）与 {@link QaModelSelection}
@@ -93,9 +93,7 @@ final class QaKbScope {
         return retrievalTenantId;
     }
     boolean callerCanReadKb(String kbId, long ownerTenantId, long retrievalTenantId) {
-        // ① API-key 作用域（对照 Go Check 的第二步 AuthorizeTenantAPIKeyKnowledgeBases，
-        //    tenant_api_key.go:376-385）——**拒绝**路径：KB 受限的 Key 指向白名单外 ⇒ 不可读。
-        //    等价物（TenantAPIKeyScope）早已存在，此前未在会话/QA 模块接线（该文件自述的"需决策点"）。
+        // ① API-key 作用域——**拒绝**路径：KB 受限的 Key 指向白名单外 ⇒ 不可读。
         com.ragagent.auth.apikey.domain.TenantAPIKeyScope scope =
                 com.ragagent.auth.apikey.domain.APIKeyScopeContext.current();
         if (scope != null && scope.isKnowledgeBaseRestricted()

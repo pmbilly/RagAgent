@@ -4,10 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 单例持有者（对照 Go manager.go 的 {@code global}/{@code globalMu} +
- * {@code Init}/{@code GetManager}/{@code Shutdown}）。
+ * 单例持有者。
  *
- * <p>未 Init → no-op 单例（Go 返回 nil + 调用方容忍；Java 恒非 null，形状更省心）。</p>
+ * <p>未 init → no-op 单例（恒非 null，调用方无需判空）。</p>
  */
 final class LangfuseRegistry {
 
@@ -24,7 +23,7 @@ final class LangfuseRegistry {
         return current;
     }
 
-    /** 对照 Init：校验 → 启用则建真实现（导出链路）；返回安装的实例。 */
+    /** 校验 → 启用则建真实现（导出链路）；返回安装的实例。 */
     static LangfuseManager init(LangfuseConfig cfg) {
         cfg.validate();
         LangfuseManager manager = cfg.enabled()
@@ -40,14 +39,14 @@ final class LangfuseRegistry {
         return manager;
     }
 
-    /** 测试专用：直接安装管理器（对照 Go Config.testExporter 的注入面）。 */
+    /** 测试专用：直接安装管理器。 */
     static void installForTest(LangfuseManager manager) {
         synchronized (LOCK) {
             current = manager == null ? NoopLangfuseManager.INSTANCE : manager;
         }
     }
 
-    /** 对照 Shutdown：终刷 + 卸载（重复调用幂等）。 */
+    /** 终刷 + 卸载（重复调用幂等）。 */
     static void shutdown() {
         LangfuseManager previous;
         synchronized (LOCK) {

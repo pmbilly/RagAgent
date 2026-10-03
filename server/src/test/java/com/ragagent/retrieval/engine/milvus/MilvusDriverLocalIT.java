@@ -77,7 +77,7 @@ class MilvusDriverLocalIT {
         i.chunkId = chunkId;
         i.sourceId = chunkId;
         // 注意：Milvus 的 enable_analyzer 用标准分析器（按 CJK 连段切分，非分词）——
-        // 关键词要用"独立成段的词"才命中（Go 侧同款 schema，行为一致，见 known-issues）
+        // 关键词要用"独立成段的词"才命中（见 known-issues）
         i.content = "中文 检索 hello " + chunkId.substring(0, 4);
         i.knowledgeId = knowledgeId;
         i.knowledgeBaseId = kb;
@@ -182,8 +182,8 @@ class MilvusDriverLocalIT {
         assertThat(copied.get(0).results()).hasSize(1);
         assertThat(copied.get(0).results().get(0).chunkId).isEqualTo(chunkB2);
 
-        // 6) move：kb2 → kb3。照 Go 的 drain 语义：Bounded 一致性下"重复 ID = 更新尚未可见"，
-        // 驱动故意抛错让调用方重试（见 move.go 注释）——IT 因此按调用方姿态重试。
+        // 6) move：kb2 → kb3。Bounded 一致性下"重复 ID = 更新尚未可见"，
+        // 驱动故意抛错让调用方重试——IT 因此按调用方姿态重试。
         int attempts = 0;
         while (true) {
             try {

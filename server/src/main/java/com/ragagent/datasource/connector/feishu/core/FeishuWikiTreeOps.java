@@ -30,7 +30,7 @@ final class FeishuWikiTreeOps {
         this.client = client;
     }
 
-    /** 对照 Go {@code ListWikiSpaces}：列出应用可见的全部 wiki 空间（自动翻页）。 */
+    /** 列出应用可见的全部 wiki 空间（自动翻页）。 */
     public List<WikiSpace> listWikiSpaces() {
         List<WikiSpace> allSpaces = new ArrayList<>();
         String pageToken = "";
@@ -71,7 +71,7 @@ final class FeishuWikiTreeOps {
     }
 
     /**
-     * 对照 Go {@code ListWikiNodes}：列出某空间下的全部节点（自动翻页）。
+     * 列出某空间下的全部节点（自动翻页）。
      * {@code parentNodeToken} 为空时返回顶层节点。
      */
     public List<WikiNode> listWikiNodes(String spaceId, String parentNodeToken) {
@@ -117,7 +117,7 @@ final class FeishuWikiTreeOps {
         return allNodes;
     }
 
-    /** 对照 Go {@code GetWikiNode}：取单个 wiki 节点的元数据。 */
+    /** 取单个 wiki 节点的元数据。 */
     public WikiNode getWikiNode(String spaceId, String nodeToken) {
         String path = "/open-apis/wiki/v2/spaces/get_node?token="
                 + FeishuSupport.queryEscape(nodeToken);
@@ -140,7 +140,7 @@ final class FeishuWikiTreeOps {
     }
 
     /**
-     * 对照 Go {@code listAllWikiNodesRecursive}：深度优先列出空间下全部节点。
+     * 深度优先列出空间下全部节点。
      *
      * <p>部分子树列举失败时收集进 {@link PartialWikiNodeListException} 并<b>继续</b>——
      * 已经拿到的节点照样可用。</p>
@@ -159,7 +159,7 @@ final class FeishuWikiTreeOps {
     }
 
     /**
-     * 对照 Go {@code ListWikiNodesRecursiveFrom}：返回某个节点<b>及其全部后代</b>。
+     * 返回某个节点<b>及其全部后代</b>。
      * {@code nodeToken} 为空时等价于整空间遍历。
      */
     public List<WikiNode> listWikiNodesRecursiveFrom(String spaceId, String nodeToken) {
@@ -175,7 +175,6 @@ final class FeishuWikiTreeOps {
             out.addAll(listWikiNodeDescendants(spaceId, root));
             return out;
         } catch (PartialWikiNodeListException e) {
-            // Go: append([]WikiNode{root}, nodes...) 之后把同一个 partial 错误往上抛。
             // 部分结果里 root 仍要保留，所以重建一个携带 root 的异常。
             List<WikiNode> partial = new ArrayList<>();
             partial.add(root);
@@ -206,7 +205,7 @@ final class FeishuWikiTreeOps {
         }
     }
 
-    /** 对照 Go {@code listWikiNodeDescendants}（不含 root 本身）。 */
+    /** 列出 root 的全部后代（不含 root 本身）。 */
     private List<WikiNode> listWikiNodeDescendants(String spaceId, WikiNode root) {
         if (!root.isHasChild()) {
             return new ArrayList<>();

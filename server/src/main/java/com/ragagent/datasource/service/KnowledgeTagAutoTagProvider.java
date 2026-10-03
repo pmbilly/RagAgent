@@ -9,13 +9,11 @@ import com.ragagent.knowledge.service.KnowledgeTagService;
 import org.springframework.stereotype.Component;
 
 /**
- * 自动标签的生产实现（对照 Go {@code tag.go} 的 knowledgeTagService.FindOrCreateTagByName
- * L475-506）：同名标签存在 → 直接用；否则走 {@link KnowledgeTagService#createTag}
+ * 自动标签的生产实现：同名标签存在 → 直接用；否则走 {@link KnowledgeTagService#createTag}
  * 建（其内部承载 KB 404 / 写权限 403 / 重名 409 的校验链）。
  *
- * <p><b>标签失败不致命</b>：调用方（{@code resolveAutoTagIds}）按 Go 语义 catch 后
- * warn 并继续同步（条目只是没有自动标签）。2026-09-23 走查批接线——此前
- * knowledge_tag 模块未翻译时由 {@code NoAutoTagProvider} 恒回 null 占位。</p>
+ * <p><b>标签失败不致命</b>：调用方（{@code resolveAutoTagIds}）catch 后
+ * warn 并继续同步（条目只是没有自动标签）。</p>
  */
 @Component
 public class KnowledgeTagAutoTagProvider implements AutoTagProvider {
@@ -35,21 +33,21 @@ public class KnowledgeTagAutoTagProvider implements AutoTagProvider {
     public String findOrCreateTagId(String kbId, String name) {
         String trimmed = name == null ? "" : name.strip();
         if (kbId == null || kbId.isEmpty() || trimmed.isEmpty()) {
-            // 对照 L478-480：werrors.NewBadRequestError("知识库ID和标签名称不能为空")
+            // 入参校验：kbId 与标签名都必填
             throw new BizException(com.ragagent.common.error.AppError.badRequest(
                     "知识库ID和标签名称不能为空"));
         }
-        // 对照 L482-485：GetKnowledgeBaseByID（无租户过滤的按 id 读）
+        // 先按 id 读 KB（无租户过滤）
         KnowledgeBase kb = kbService.getAllTenantById(kbId);
         if (kb == null) {
             throw BizException.notFound("knowledge base not found");
         }
-        // 对照 L493-497：先查现有标签（tenant + kb + name）
+        // 先查现有标签（tenant + kb + name）
         KnowledgeTag existing = tagRepo.getByName(kb.getTenantId(), kbId, trimmed);
         if (existing != null) {
             return existing.getId();
         }
-        // 对照 L505：CreateTag(ctx, kbID, name, "", 0)——校验链（写权限/重名）在 createTag 内
+        // 建标签；校验链（写权限/重名）在 createTag 内
         KnowledgeTag created = tagService.createTag(kbId, trimmed, null, 0);
         return created.getId();
     }

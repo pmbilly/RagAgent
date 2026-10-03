@@ -40,22 +40,16 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
- * 对照 Go internal/models/chat/remote_api_test.go（12 个测试）的语义对等翻译，
- * 外加针对 Java 单路径（裸 HTTP + SseReader）的端到端补测。
+ * {@code RemoteApiChat} 出站/入站语义测试，外加针对 Java 单路径（裸 HTTP + SseReader）
+ * 的端到端补测。
  *
- * <p>与 Go 测试的两处结构性差异：</p>
- * <ol>
- *   <li>Go 断言在 go-openai 的 {@code ChatCompletionRequest} 结构体字段上；Java 断言在
- *       {@link ObjectNode} 请求体的 JSON 上——后者才是线上契约（Go 的字段经 marshal 后等价）。</li>
- *   <li>Go 的 {@code useRawHTTP} 判定在 Java 侧不存在（单路径），故相关断言换成
- *       "body 里有没有该厂商的 thinking 字段"（见 {@link ProviderAdapterRegistryTest}）。</li>
- * </ol>
+ * <p>断言落在 {@link ObjectNode} 请求体的 JSON 上——那才是线上契约。</p>
  */
 class RemoteApiChatTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 Go newTestRemoteChat：无 provider、无 baseURL 的默认实例。 */
+    /** 无 provider、无 baseURL 的默认实例。 */
     private static RemoteApiChat newTestRemoteChat() {
         ChatConfig config = new ChatConfig();
         config.setSource("remote");
@@ -77,7 +71,7 @@ class RemoteApiChatTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestBuildChatCompletionRequest_ParallelToolCalls
+    // 并行工具调用（parallel_tool_calls）
     // ------------------------------------------------------------------
 
     @Test
@@ -113,7 +107,7 @@ class RemoteApiChatTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestBuildChatCompletionRequest_MCPToolsFormat
+    // MCP 工具格式
     // ------------------------------------------------------------------
 
     @Test
@@ -158,7 +152,7 @@ class RemoteApiChatTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestBuildChatCompletionRequest_GPT5MaxCompletionTokens
+    // GPT-5 的 max_completion_tokens 改写
     // ------------------------------------------------------------------
 
     @Test
@@ -210,7 +204,7 @@ class RemoteApiChatTest {
         assertEquals(2048, node.path("max_completion_tokens").asInt());
     }
 
-    /** 对照 Go 测试里的 build(t, provider, model)：带 api_version 的 Azure/OpenAI 实例。 */
+    /** 带 api_version 的 Azure/OpenAI 实例。 */
     private static RemoteApiChat azureOrOpenAiChat(String providerName, String modelName) {
         ChatConfig config = new ChatConfig();
         config.setSource("remote");
@@ -226,7 +220,7 @@ class RemoteApiChatTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestBuildChatCompletionRequest_ToolChoice
+    // tool_choice 形态
     // ------------------------------------------------------------------
 
     @Test
@@ -247,7 +241,7 @@ class RemoteApiChatTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestConvertMessages_ReasoningContentRoundTrip（issue #1302）
+    // reasoning_content 往返（issue #1302）
     // ------------------------------------------------------------------
 
     @Test
@@ -304,7 +298,7 @@ class RemoteApiChatTest {
         assertEquals("text", content.get(1).path("type").asText());
         assertEquals("描述这张图", content.get(1).path("text").asText());
 
-        // assistant 带 images 时不展开（对照 Go 的 msg.Role == "user" 条件）
+        // assistant 带 images 时不展开（仅 user 消息展开 images）
         ChatMessage assistant = new ChatMessage("assistant", "ok");
         assistant.setImages(List.of("data:image/png;base64,AAAA"));
         JsonNode assistantMsg = chat.buildChatCompletionRequest(List.of(assistant), new ChatOptions(), false)
@@ -354,9 +348,9 @@ class RemoteApiChatTest {
     }
 
     /**
-     * 出站体键序**分路径**（2026-09-24 排查批修正 2c 的单一 map 序认知）：
-     * prompt-cache 改写路径 = Go map 序（字母序，goSorted）；SDK 直出/thinking
-     * 包装路径 = openai-go 结构体声明序（structSorted，包装字段尾随）。
+     * 出站体键序**分路径**：
+     * prompt-cache 改写路径 = 字母序（{@code goSorted}）；SDK 直出/thinking
+     * 包装路径 = 结构体声明序（{@code structSorted}，包装字段尾随）。
      * 工具 parameters 子树两路径分别是「map 字母序」/「jsonschema 结构体序=录入序」。
      */
     @Test
@@ -407,7 +401,7 @@ class RemoteApiChatTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestApplyCompletionToolCallMetadata
+    // 完成响应的工具调用元数据
     // ------------------------------------------------------------------
 
     @Test
@@ -444,7 +438,7 @@ class RemoteApiChatTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestApplyStreamToolCallMetadata
+    // 流式响应的工具调用元数据
     // ------------------------------------------------------------------
 
     @Test
@@ -476,12 +470,12 @@ class RemoteApiChatTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestRemoteAPIChat（真实上游调用；Go 在无 API Key 时 Skip）
+    // 真实上游调用（需 API Key，默认跳过）
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go TestRemoteAPIChat：需要 DEEPSEEK_API_KEY / ALIYUN_API_KEY 才能跑，
-     * Go 侧无 key 时 {@code t.Skip}，Java 侧同样不参与默认测试运行。
+     * 需要 DEEPSEEK_API_KEY / ALIYUN_API_KEY 环境变量才能跑；
+     * 无 key 时不参与默认测试运行。
      */
     @Disabled("需要 DEEPSEEK_API_KEY / ALIYUN_API_KEY 环境变量（对照 Go 的 t.Skip 分支）")
     @Test
@@ -489,11 +483,10 @@ class RemoteApiChatTest {
     }
 
     // ------------------------------------------------------------------
-    // 对照 Go TestCachedTokensHelper / TestParseCompletionResponse_CachedTokens /
-    // TestApplyRawPromptCacheUsage_DeepSeekNativeFields / TestTokenUsage_CachedTokensJSONOmitempty
+    // 缓存账目：cached_tokens 的读取 / 解析 / DeepSeek 原生字段 / JSON 序列化
     // ------------------------------------------------------------------
 
-    /** 对照 Go TestCachedTokensHelper：nil 安全的 cached_tokens 读取。 */
+    /** null 安全的 cached_tokens 读取。 */
     @Test
     void cachedTokensHelper() throws IOException {
         assertEquals(0, PromptCache.cachedTokens(null), "nil details must return zero");
@@ -502,7 +495,7 @@ class RemoteApiChatTest {
                 "populated cached_tokens must round-trip");
     }
 
-    /** 对照 Go TestParseCompletionResponse_CachedTokens。 */
+    /** 完成响应解析中的 cached_tokens。 */
     @Test
     void parseCompletionResponseCachedTokens() throws IOException {
         RemoteApiChat chat = newTestRemoteChat();
@@ -537,7 +530,7 @@ class RemoteApiChatTest {
                 "generic provider 不上报缓存账目");
     }
 
-    /** 对照 Go applyRawPromptCacheUsage 的 DeepSeek 原生字段。 */
+    /** applyRawPromptCacheUsage 的 DeepSeek 原生字段。 */
     @Test
     void applyRawPromptCacheUsageDeepSeekNativeFields() {
         TokenUsage usage = new TokenUsage();
@@ -554,7 +547,7 @@ class RemoteApiChatTest {
         assertEquals("hit", usage.getCacheStatus().value());
     }
 
-    /** 对照 Go TestTokenUsage_CachedTokensJSONOmitempty。 */
+    /** cached_tokens=0 时不输出键，非 0 时恒输出。 */
     @Test
     void tokenUsageCachedTokensJsonOmitempty() throws IOException {
         TokenUsage zero = new TokenUsage();
@@ -571,7 +564,7 @@ class RemoteApiChatTest {
         assertTrue(MAPPER.writeValueAsString(nonZero).contains("\"cached_tokens\":7"));
     }
 
-    /** 对照 Go removeThinkingContent 的四个分支（>think< 开头才剥、取最后一个闭标签、截断返空）。 */
+    /** removeThinkingContent 的四个分支（>think< 开头才剥、取最后一个闭标签、截断返空）。 */
     @Test
     void removeThinkingContent() {
         assertEquals("answer", RemoteApiChat.removeThinkingContent("<think>step</think>answer"));
@@ -591,7 +584,7 @@ class RemoteApiChatTest {
 
     @BeforeEach
     void allowLoopback() {
-        // 被测代码会对 endpoint 做 SSRF 校验；测试把回环地址加入白名单（对照 Go 测试用 httptest）
+        // 被测代码会对 endpoint 做 SSRF 校验；测试把回环地址加入白名单
         whitelistSnapshot = SsrfGuard.snapshotWhitelist();
         SsrfGuard guard = new SsrfGuard();
         guard.reloadWhitelist("127.0.0.1,example.openai.azure.com");
@@ -680,7 +673,7 @@ class RemoteApiChatTest {
         assertEquals("application/json", contentType.get());
     }
 
-    /** 流式：逐块产出顺序与 Go processStreamDelta 逐条对齐。 */
+    /** 流式：逐块产出顺序按既定的逐块规则。 */
     @Test
     void chatStreamEndToEnd() throws Exception {
         String sse = """
@@ -829,12 +822,12 @@ class RemoteApiChatTest {
         BlockingQueue<StreamResponse> stream = chat.chatStream(userMessage("hi"), new ChatOptions());
 
         List<StreamResponse> events = drainAll(stream);
-        // 服务端正常收尾（EOF）→ 终态 answer，而不是 error（对照 Go 裸 HTTP 路径的 io.EOF 分支）
+        // 服务端正常收尾（EOF）→ 终态 answer，而不是 error
         assertEquals(ResponseType.ANSWER, events.get(events.size() - 1).getResponseType());
         assertTrue(events.get(events.size() - 1).isDone());
     }
 
-    /** 非 200：抛出携带上游 body 的错误（对照 Go 的 "API request failed with status %d: %s"）。 */
+    /** 非 200：抛出携带上游 body 的错误（消息含 "API request failed with status ..."）。 */
     @Test
     void nonOkStatusThrows() {
         String baseUrl = startServer(exchange -> {
@@ -855,7 +848,7 @@ class RemoteApiChatTest {
         assertTrue(err.getMessage().contains("API request failed with status 400"), err.getMessage());
     }
 
-    /** 构造期校验：WeKnoraCloud 缺 AppID/AppSecret 直接拒绝（对照 Go 的构造期 error）。 */
+    /** 构造期校验：WeKnoraCloud 缺 AppID/AppSecret 直接拒绝。 */
     @Test
     void weKnoraCloudRequiresCredentials() {
         ChatConfig config = new ChatConfig();
@@ -873,7 +866,7 @@ class RemoteApiChatTest {
         new RemoteApiChat(config); // 两个都齐了就不抛
     }
 
-    /** Azure 的 endpoint 需要自己拼（Go 走 SDK 的 fullURL，Java 单路径复刻同一公式）。 */
+    /** Azure 的 endpoint 需要自己拼（deployment 路径公式）。 */
     @Test
     void azureEndpointUsesDeploymentPath() {
         ChatConfig config = new ChatConfig();
@@ -892,7 +885,7 @@ class RemoteApiChatTest {
                 + "/chat/completions?api-version=2025-04-01-preview", out.endpoint());
     }
 
-    /** remote_model_name 覆盖出站模型名（对照 Go 的 extraConfig 处理）。 */
+    /** remote_model_name 覆盖出站模型名（extraConfig 处理）。 */
     @Test
     void remoteModelNameOverride() {
         ChatConfig config = new ChatConfig();

@@ -24,16 +24,15 @@ import com.ragagent.retrieval.engine.milvus.MilvusRestClient.Json;
 import com.ragagent.vectorstore.domain.IndexConfig;
 
 /**
- * Milvus 检索引擎仓储——对照 Go {@code repository/retriever/milvus/} 全包
- * （repository.go 1160 + filter.go 304 + move.go 61 + structs.go 37，约 1,560 行非测试）。
+ * Milvus 检索引擎仓储。
  *
  * <h2>协议口径</h2>
- * Go 用 milvus-sdk-go v2（gRPC）。本仓自持 <b>REST v2</b>（{@code /v2/vectordb/…}，零新依赖）：
+ * 本仓自持 <b>REST v2</b>（{@code /v2/vectordb/…}，零新依赖）：
  * 建集合（BM25 函数 + {@code SparseFloatVector} + {@code indexParams} 内联）、load、list、
  * upsert、query、search（向量与 BM25 文本）、delete 已对真服务端（{@code milvusdb/milvus:v2.6.11}）
  * 逐端点实测（见 known-issues）。
  *
- * <h2>语义要点（照 Go）</h2>
+ * <h2>语义要点</h2>
  * <ul>
  *   <li>集合按维度命名 {@code <base>_<dim>}；schema：{@code id}(VarChar PK) + {@code embedding}
  *       (FloatVector) + {@code content}(VarChar，enable_analyzer + enable_match) +
@@ -46,19 +45,19 @@ import com.ragagent.vectorstore.domain.IndexConfig;
  *   <li>向量检索的 threshold 走<b>范围搜索的 radius</b>（threshold>0 才带）；关键词检索是
  *       BM25 全文（文本进 {@code data}、{@code annsField=content_sparse}），单集合失败只跳过、
  *       score 恒 1.0、合并后截 TopK；</li>
- *   <li>enabled 批量更新的失败<b>聚合后冒泡</b>（照 {@code errors.Join}）；tag 批量更新只 WARN；</li>
+ *   <li>enabled 批量更新的失败<b>聚合后冒泡</b>（"停用必须让索引不可搜"）；
+ *       tag 批量更新只 WARN；</li>
  *   <li>move 用 Upsert 重写整行（kb/tag），重复 ID → {@code invalid or repeated move index}。</li>
  * </ul>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现差异</h2>
  * <ol>
- *   <li>传输 gRPC → REST v2；行式 JSON 取代 SDK 的列式写入（服务端等价）；</li>
- *   <li>过滤表达式<b>内联字面量</b>（REST 无模板参数；Go 用 {@code {param}} + WithTemplateParam）——
- *       算子、括号、转义规则照 Go；</li>
- *   <li>稀疏列名 {@code SparseFloatVector}（REST 拼写；SDK 为 SparseVector）；</li>
+ *   <li>传输为 REST v2；行式 JSON 逐行写入（服务端等价）；</li>
+ *   <li>过滤表达式<b>内联字面量</b>（REST 无模板参数）——算子、括号、转义规则见 {@link MilvusFilter}；</li>
+ *   <li>稀疏列名 {@code SparseFloatVector}（REST v2 拼写）；</li>
  *   <li>{@code shardsNum} 在 REST create 里服务端忽略（实测 describe 恒 1）——照传保留配置面；</li>
- *   <li>load 是同步调用（SDK 是异步 task + Await）；错误文案合并为 {@code failed to load collection}；</li>
- *   <li>Go 的 {@code MILVUS_METRIC_TYPE} 进程级读 env（构造期一次）照旧；表名/度量口径不变。</li>
+ *   <li>load 是同步调用；错误文案合并为 {@code failed to load collection}；</li>
+ *   <li>度量类型由 {@code MILVUS_METRIC_TYPE} 进程级读 env（构造期一次）决定；表名/度量口径不变。</li>
  * </ol>
  */
 public class MilvusRetrieveRepository
@@ -82,16 +81,16 @@ public class MilvusRetrieveRepository
     static final String FIELD_IS_ENABLED = "is_enabled";
     static final String FIELD_CONTENT_SPARSE = "content_sparse";
 
-    /** 对照 {@code allFields}（结果解析的列序）。 */
+    /** 结果解析的列序。 */
     static final List<String> ALL_FIELDS = List.of(FIELD_ID, FIELD_CONTENT, FIELD_SOURCE_ID,
             FIELD_SOURCE_TYPE, FIELD_CHUNK_ID, FIELD_KNOWLEDGE_ID, FIELD_KNOWLEDGE_BASE_ID,
             FIELD_TAG_ID, FIELD_IS_ENABLED, FIELD_EMBEDDING);
 
-    /** 对照 CopyIndices 的 {@code batchSize := 64}。 */
+    /** CopyIndices 分页批大小。 */
     static final int COPY_PAGE_SIZE = 64;
-    /** 对照 move 的每页 100。 */
+    /** move 的每页条数。 */
     static final int MOVE_PAGE_SIZE = 100;
-    /** 对照 {@code index.NewHNSWIndex(metric, 16, 128)}。 */
+    /** HNSW 索引参数（M / efConstruction）。 */
     static final int HNSW_M = 16;
     static final int HNSW_EF_CONSTRUCTION = 128;
 
@@ -119,7 +118,7 @@ public class MilvusRetrieveRepository
         this.writeOps = new MilvusWriteOps(this);
     }
 
-    /** 照 Go {@code NewMilvusRetrieveEngineRepository} + {@code createMilvusEngine}。 */
+    /** 构造入口：建 client + 解析集合名/度量类型。 */
     public static MilvusRetrieveRepository create(String addr, String username, String password,
                                                   String dbName, IndexConfig indexCfg,
                                                   SsrfGuard guard) {
@@ -135,7 +134,7 @@ public class MilvusRetrieveRepository
         return repo;
     }
 
-    /** 对照 {@code types.ResolveCollectionName(indexCfg, MILVUS_COLLECTION, default)}。 */
+    /** 集合名解析：indexCfg 前缀/名称 > env {@code MILVUS_COLLECTION} > 缺省。 */
     static String resolveCollectionName(IndexConfig indexCfg) {
         if (indexCfg != null) {
             if (indexCfg.collectionPrefix != null && !indexCfg.collectionPrefix.isEmpty()) {
@@ -152,7 +151,7 @@ public class MilvusRetrieveRepository
         return DEFAULT_COLLECTION_NAME;
     }
 
-    /** 对照构造期的 {@code MILVUS_METRIC_TYPE} 解析（未知值 WARN 并回落 IP）。 */
+    /** 度量类型解析（未知值 WARN 并回落 IP）。 */
     static String resolveMetricType(String raw) {
         if (raw == null || raw.isEmpty()) {
             return "IP";
@@ -180,7 +179,7 @@ public class MilvusRetrieveRepository
         return List.of(EngineTypes.RETRIEVER_KEYWORDS, EngineTypes.RETRIEVER_VECTOR);
     }
 
-    /** 对照 {@code EstimateStorageSize}（IVF_FLAT 口径：向量 + 向量 + 16；元数据 32）。 */
+    /** 存储估算（IVF_FLAT 口径：向量 + 向量 + 16；元数据 32）。 */
     @Override
     public long estimateStorageSize(List<IndexInfo> indexInfoList, Map<String, Object> params) {
         if (indexInfoList == null) {
@@ -230,7 +229,7 @@ public class MilvusRetrieveRepository
         return bytes;
     }
 
-    // ── 集合管理（照 ensureCollection） ────────────────────────────────────
+    // ── 集合管理 ────────────────────────────────────────────────────────────
 
     String collectionName(int dimension) {
         return collectionBaseName + "_" + dimension;
@@ -269,7 +268,7 @@ public class MilvusRetrieveRepository
         initializedCollections.put(dimension, true);
     }
 
-    /** 集合体：schema（含 BM25 函数）+ indexParams（照 Go 的 WithIndexOptions 顺序）。 */
+    /** 集合体：schema（含 BM25 函数）+ indexParams（按字段写入序）。 */
     ObjectNode collectionBody(String name, int dimension) {
         ObjectNode body = Json.object();
         body.put("collectionName", name);
@@ -284,7 +283,7 @@ public class MilvusRetrieveRepository
         fields.add(varcharField(FIELD_ID, 1024, true));
         fields.add(floatVectorField(FIELD_EMBEDDING, dimension));
         ObjectNode content = varcharField(FIELD_CONTENT, 65535, false);
-        // 保留 max_length，再补 analyzer/match 开关（照 Go 的 WithEnableAnalyzer/WithEnableMatch）
+        // 保留 max_length，再补 analyzer/match 开关
         ObjectNode contentParams = (ObjectNode) content.path("elementTypeParams");
         contentParams.put("enable_analyzer", true);
         contentParams.put("enable_match", true);
@@ -358,8 +357,7 @@ public class MilvusRetrieveRepository
     }
 
 
-    /** 对照 {@code BatchSave}：按维度分组（升序确定性）→ 每组一次 Upsert。 */
-    /** 行体（REST 行式 JSON；列名照 {@code createUpsert} 的列集合）。 */
+    /** 行体（REST 行式 JSON；列名与 schema 一致）。 */
     static ObjectNode rowNode(MilvusVectorEmbedding row) {
         ObjectNode node = Json.object();
         node.put(FIELD_ID, row.id == null ? "" : row.id);
@@ -380,7 +378,7 @@ public class MilvusRetrieveRepository
     }
 
 
-    /** 照 {@code WithStringIDs}：{@code field in ["a","b"]}（不转义，照 SDK 原文形状）。 */
+    /** {@code field in ["a","b"]}（ID 不转义）。 */
     static String inFilter(String field, List<String> ids) {
         List<String> rendered = new ArrayList<>(ids.size());
         for (String id : ids) {
@@ -389,11 +387,6 @@ public class MilvusRetrieveRepository
         return field + " in [" + String.join(",", rendered) + "]";
     }
 
-    /**
-     * 对照 {@code BatchUpdateChunkEnabledStatus}：按 true/false 分组，跨前缀集合逐组回写；
-     * 失败<b>聚合后冒泡</b>（{@code errors.Join} 语义——"停用必须让索引不可搜"）。
-     */
-    /** 对照 {@code BatchUpdateChunkTagID}：逐 tag 组回写；失败只 WARN 继续。 */
     List<String> listCollectionsOrThrow() {
         try {
             return client.listCollections();
@@ -403,13 +396,13 @@ public class MilvusRetrieveRepository
         }
     }
 
-    /** 照 Go 的集合名前缀过滤：严格长于 base 且以此为前缀。 */
+    /** 集合名前缀过滤：严格长于 base 且以此为前缀。 */
     boolean isPrefixed(String collection) {
         return collection.length() > collectionBaseName.length()
                 && collection.startsWith(collectionBaseName);
     }
 
-    // ── 过滤器（照 getBaseFilterForQuery） ─────────────────────────────────
+    // ── 过滤器 ─────────────────────────────────────────────────────────────
 
     static String baseFilter(RetrieveParams params) {
         List<MilvusFilter.Condition> filters = new ArrayList<>();
@@ -438,7 +431,7 @@ public class MilvusRetrieveRepository
 
     // ── 检索 ────────────────────────────────────────────────────────────────
 
-    /** 行节点 → 模型（照 {@code convertResultSet} 的逐列读法；缺列留空）。 */
+    /** 行节点 → 模型（逐列读；缺列留空）。 */
     static MilvusVectorEmbedding fromNode(JsonNode node) {
         MilvusVectorEmbedding row = new MilvusVectorEmbedding();
         row.id = node.path(FIELD_ID).asText("");
@@ -469,7 +462,7 @@ public class MilvusRetrieveRepository
 
 
     /**
-     * 对照 {@code translateSourceID} 的三态：普通 chunk → targetChunkID；生成型问题
+     * SourceID 三态改写：普通 chunk → targetChunkID；生成型问题
      * （{@code "<chunkID>-<questionID>"}）→ 换前缀；其他 → 新 UUID。
      */
     static String translateSourceId(String originalSourceId, String sourceChunkId,
@@ -535,7 +528,7 @@ public class MilvusRetrieveRepository
     }
 
 
-    // ── move（照 move.go：drain 循环 + seen 守卫 + Upsert 整行） ───────────
+    // ── move（drain 循环 + seen 守卫 + Upsert 整行） ───────────────────────
 
     @Override
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
@@ -573,7 +566,7 @@ public class MilvusRetrieveRepository
 
     // ── 行映射与辅助 ───────────────────────────────────────────────────────
 
-    /** 对照 {@code toMilvusVectorEmbedding}：embedding 按 SourceID 取（缺失 → null）。 */
+    /** embedding 按 SourceID 取（缺失 → null）。 */
     static MilvusVectorEmbedding toEmbedding(IndexInfo info, Map<String, Object> params) {
         MilvusVectorEmbedding row = new MilvusVectorEmbedding();
         row.content = info.content == null ? "" : info.content;
@@ -601,12 +594,11 @@ public class MilvusRetrieveRepository
         }
         return row;
     }
-    // ── test-connection 探针（照 testMilvusConnection：版本恒 ""） ─────────
+    // ── test-connection 探针（版本恒 ""） ──────────────────────────────────
 
     /**
-     * 连通性探针：Go 用 TCP 拨号（因 protobuf 命名冲突不走 SDK），版本恒 ""。本仓有 REST
-     * 客户端，改用 {@code collections/list} 做<b>更强的</b>连通性+认证验证（仍返回 ""——
-     * Milvus 无版本端点，照 Go 的空版本口径）。
+     * 连通性探针：用 {@code collections/list} 做<b>更强的</b>连通性+认证验证；
+     * 返回恒 ""（Milvus 无版本端点）。
      */
     public static String testConnection(String addr, String username, String password,
                                         String dbName, SsrfGuard guard) {

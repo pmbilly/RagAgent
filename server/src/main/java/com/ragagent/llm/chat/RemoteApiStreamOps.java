@@ -17,7 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 流式解析协作者（对照 Go openai_stream.go 流式段，自 {@link RemoteApiChat} 机械搬出）：
+ * 流式解析协作者（自 {@link RemoteApiChat} 拆出）：
  * SSE 逐事件读取、delta 逐块产出、tool_calls 增量累积与厂商元数据回填。
  * 持门面回引用 adapter（可变，测试可替换）/provider/modelName，共享 static
  * {@code textOrEmpty} 与 {@code MAPPER} 经门面类名访问。
@@ -32,17 +32,16 @@ final class RemoteApiStreamOps {
         this.service = service;
     }
 
-    /** 对照 Go 的 thinking 工具名特例（thought 参数增量转成 thinking 分片）。 */
+    /** thinking 工具名特例（thought 参数增量转成 thinking 分片）。 */
     private static final String THINKING_TOOL_NAME = "thinking";
 
     /**
-     * 对照 Go processRawHTTPStream：SSE 逐事件读取 + 解析 + 交给
+     * SSE 逐事件读取 + 解析 + 交给
      * {@link #processStreamDelta}。
      *
      * <p>终态：EOF 与 {@code data: [DONE]} 都发一条 answer{Done:true, ToolCalls, Usage}；
-     * FinishReason 只在 SDK 等价路径（{@code rawPath=false}）携带——Go 裸 HTTP 路径的
-     * 终态事件不带 finish_reason（remote_api.go processRawHTTPStream 的收尾 send），
-     * SDK 路径带 state.lastFinishReason。读错误发 error{Done:true, FinishReason:"incomplete"}。</p>
+     * FinishReason 只在 {@code rawPath=false} 时携带（带上 {@code state.lastFinishReason}），
+     * rawPath=true 时终态事件不带 finish_reason。读错误发 error{Done:true, FinishReason:"incomplete"}。</p>
      */
     void processRawHttpStream(InputStream input, BlockingQueue<StreamResponse> streamChan,
                               boolean rawPath) {
@@ -70,7 +69,7 @@ final class RemoteApiStreamOps {
                 }
 
                 if (event.done()) {
-                    // 对照 Go：data: [DONE] 与 EOF 走同一条终态路径
+                    // data: [DONE] 与 EOF 走同一条终态路径
                     streamChan.put(terminalResponse(state, rawPath));
                     return;
                 }
@@ -118,9 +117,8 @@ final class RemoteApiStreamOps {
     /**
      * 流终态响应（EOF / [DONE]）。
      *
-     * <p>对照 Go：裸 HTTP 路径的收尾不带 FinishReason，SDK 路径带
-     * {@code state.lastFinishReason}；{@code rawPath} 复刻这一分野
-     * （字段 omitempty，未观察到时仍是省略）。</p>
+     * <p>{@code rawPath=true} 时收尾不带 FinishReason，false 时带
+     * {@code state.lastFinishReason}（字段省略式序列化，未观察到时仍是省略）。</p>
      */
     private StreamResponse terminalResponse(OpenAiStreamState state, boolean rawPath) {
         service.logUsage(state.usage);
@@ -134,8 +132,7 @@ final class RemoteApiStreamOps {
     }
 
     /**
-     * 对照 Go processStreamDelta（openai_stream.go:389-488）：单个 delta 的**逐块产出顺序**
-     * 是这份翻译的保真重点，顺序如下，不得调整：
+     * 单个 delta 的**逐块产出顺序**不得调整：
      *
      * <ol>
      *   <li>tool_calls delta → {@link #processToolCallsDelta}（可能产出 tool_call / thinking）；</li>
@@ -214,9 +211,9 @@ final class RemoteApiStreamOps {
     }
 
     /**
-     * 对照 Go processToolCallsDelta（openai_stream.go:491-630）：tool_calls 增量累积与**发出时机**。
+     * tool_calls 增量累积与**发出时机**。
      *
-     * <p>保真要点：</p>
+     * <p>要点：</p>
      * <ol>
      *   <li>名字是<b>拼接</b>语义，但相同名字视为冗余重复不叠加（vLLM Ascend 等每个 chunk
      *       重复发全名）；</li>
@@ -309,7 +306,7 @@ final class RemoteApiStreamOps {
                 String thoughtChunk = extractor.feed(argsDelta);
                 if (!thoughtChunk.isEmpty()) {
                     StreamResponse thinking = StreamResponse.of(ResponseType.THINKING, thoughtChunk, false);
-                    // Data 键序按字母序（对照 Go map 序列化）
+                    // Data 键序按字母序
                     LinkedHashMap<String, Object> data = new java.util.LinkedHashMap<>();
                     data.put("source", "thinking_tool");
                     data.put("tool_call_id", entry.getId());
@@ -320,11 +317,11 @@ final class RemoteApiStreamOps {
         }
     }
 
-    /** tool_call 事件（对照 Go 的 types.ResponseTypeToolCall + Data 三个键）。 */
+    /** tool_call 事件。 */
     private static StreamResponse toolCallResponse(String toolName, String toolCallId,
                                                    Map<String, Object> progressArgs) {
         StreamResponse response = StreamResponse.of(ResponseType.TOOL_CALL, "", false);
-        // 键序按字母序（arguments < tool_call_id < tool_name），对照 Go map 序列化
+        // 键序按字母序（arguments < tool_call_id < tool_name）
         LinkedHashMap<String, Object> data = new java.util.LinkedHashMap<>();
         if (progressArgs != null) {
             data.put("arguments", progressArgs);
@@ -336,7 +333,7 @@ final class RemoteApiStreamOps {
     }
 
     /**
-     * 对照 Go applyStreamToolCallMetadata：从原始分片里抓取厂商特有工具调用状态
+     * 从原始分片里抓取厂商特有工具调用状态
      * （Gemini 的 extra_content.google 思考签名），挂到对应 index 上。
      * 必须在 {@link #processStreamDelta} 之前调用，后续增量才会填进同一条目。
      */

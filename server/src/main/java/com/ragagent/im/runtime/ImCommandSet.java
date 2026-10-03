@@ -12,19 +12,18 @@ import com.ragagent.im.runtime.Commands.CommandResult;
 import com.ragagent.im.runtime.Commands.ImCommand;
 
 /**
- * 五个斜杠命令（对照 Go internal/im/{cmd_help,cmd_info,cmd_search,cmd_stop,
- * cmd_clear}.go，波 5 W5γ1 逐行翻译）。注册序 = service.go L862-866。
+ * 五个斜杠命令。注册序固定：help → info → search → stop → clear。
  *
- * <p>agent 配置在 Java 侧是 JSON（Go 是 typed struct）：{@link AgentCfgView}
- * 以同一字段语义读取（kb_selection_mode/agent_mode 等）；IsAgentMode =
- * AgentMode == "smart-reasoning"（types/custom_agent.go L554-556）。</p>
+ * <p>agent 配置是 JSON：{@link AgentCfgView}
+ * 以同一字段语义读取（kb_selection_mode/agent_mode 等）；isAgentMode 即
+ * agent_mode == "smart-reasoning"。</p>
  */
 public final class ImCommandSet {
 
     private ImCommandSet() {
     }
 
-    /** service.go L862-866 的注册序。 */
+    /** 固定注册序：help → info → search → stop → clear。 */
     public static void registerDefaults(CommandRegistry registry,
             KnowledgeBaseLister kbService, KnowledgeSearcher searchService) {
         registry.register(new HelpCommand(registry));
@@ -34,19 +33,19 @@ public final class ImCommandSet {
         registry.register(new ClearCommand());
     }
 
-    /** cmd_info/cmd_search 的 KB 读取面（Go interfaces.KnowledgeBaseService 子集）。 */
+    /** /info 与 /search 的 KB 读取面。 */
     public interface KnowledgeBaseLister {
-        /** 对照 ListKnowledgeBases（org 视角全集）。 */
+        /** org 视角全集。 */
         List<KbView> listKnowledgeBases();
 
-        /** 对照 ListKnowledgeBasesByTenantID。 */
+        /** 按租户取全集。 */
         List<KbView> listKnowledgeBasesByTenantId(long tenantId);
 
         record KbView(String id, String name, ToolCapabilities.KbCaps capabilities) {
         }
     }
 
-    /** /search 的检索面（Go interfaces.SessionService.SearchKnowledge）。 */
+    /** /search 的检索面。 */
     public interface KnowledgeSearcher {
         List<SearchHit> searchKnowledge(List<String> kbIds, List<String> knowledgeIds,
                 List<String> documentIds, String query);
@@ -56,7 +55,7 @@ public final class ImCommandSet {
         }
     }
 
-    /** agent config 的读取视图（Go CustomAgent.Config 的字段语义）。 */
+    /** agent config 的读取视图。 */
     public static final class AgentCfgView {
         private final JsonNode cfg;
 
@@ -91,7 +90,7 @@ public final class ImCommandSet {
             return out;
         }
 
-        /** 对照 IsAgentMode：Config.AgentMode == AgentModeSmartReasoning。 */
+        /** agent_mode == "smart-reasoning"。 */
         public boolean isAgentMode() {
             return "smart-reasoning".equals(text("agentMode"));
         }
@@ -134,7 +133,7 @@ public final class ImCommandSet {
         }
     }
 
-    // ── /help（cmd_help.go 全文） ────────────────────────────────────────
+    // ── /help ────────────────────────────────────────────────────────────
 
     public static final class HelpCommand implements ImCommand {
         private final CommandRegistry registry;
@@ -181,7 +180,7 @@ public final class ImCommandSet {
         }
     }
 
-    // ── /clear（cmd_clear.go 全文） ──────────────────────────────────────
+    // ── /clear ───────────────────────────────────────────────────────────
 
     public static final class ClearCommand implements ImCommand {
         @Override
@@ -200,7 +199,7 @@ public final class ImCommandSet {
         }
     }
 
-    // ── /stop（cmd_stop.go 全文） ────────────────────────────────────────
+    // ── /stop ────────────────────────────────────────────────────────────
 
     public static final class StopCommand implements ImCommand {
         @Override
@@ -219,7 +218,7 @@ public final class ImCommandSet {
         }
     }
 
-    // ── /info（cmd_info.go 全文） ────────────────────────────────────────
+    // ── /info ────────────────────────────────────────────────────────────
 
     public static final class InfoCommand implements ImCommand {
         private final KnowledgeBaseLister kbService;
@@ -344,7 +343,7 @@ public final class ImCommandSet {
         }
     }
 
-    // ── /search（cmd_search.go 全文） ────────────────────────────────────
+    // ── /search ──────────────────────────────────────────────────────────
 
     static final int SEARCH_MAX_RESULTS = 5;
     static final int SEARCH_CONTENT_MAX_LEN = 200; // 每条结果显示的 rune 数
@@ -401,8 +400,7 @@ public final class ImCommandSet {
                             kbIds.add(kb.id());
                         }
                         if (skipped > 0) {
-                            // Go logger.Infof("/search(agent=%s, mode=all): capability filter removed %d of %d KBs")
-                            // 日志不做契约，省略。
+                            // 有 KB 被能力过滤剔除：仅日志层面可见（日志不做契约），此处省略。
                         }
                     }
                     case "none" -> {

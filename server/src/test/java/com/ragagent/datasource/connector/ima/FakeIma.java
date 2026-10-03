@@ -21,16 +21,16 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * IMA OpenAPI 的进程内替身（对照 Go {@code ima/fake_ima_test.go}），
+ * IMA OpenAPI 的进程内替身，
  * 用 JDK 自带的 {@link HttpServer} 绑在 {@code 127.0.0.1} 的随机端口上。
  *
  * <h2>为什么用**裸 JSON map** 而不是生产 DTO</h2>
- * <p>Go 的 fake 直接 marshal 生产结构体。Java 侧刻意反过来：响应体用
- * {@link LinkedHashMap} 手写键名。理由是<b>独立指定线上形状</b>——如果 fake 与被测
+ * <p>响应体刻意用
+ * {@link LinkedHashMap} 手写键名，而不是序列化生产 DTO。理由是<b>独立指定线上形状</b>——如果 fake 与被测
  * 客户端共用同一批 {@code @JsonProperty}，一个拼错的键名会让两边<em>一起</em>错，
  * 测试照样绿。手写键名让 fake 成为一份独立的契约描述。</p>
  *
- * <h2>请求/响应形状（照 Go 的 stub 写）</h2>
+ * <h2>请求/响应形状</h2>
  * <ul>
  *   <li>{@code POST /openapi/wiki/v1/<action>}（信封 {@code {code,msg,data}}）：</li>
  *   <li>{@code POST /openapi/note/v1/get_doc_content}（笔记正文，同一信封）；</li>
@@ -38,8 +38,8 @@ import com.sun.net.httpserver.HttpServer;
  * </ul>
  *
  * <h2>SSRF</h2>
- * <p>{@link #allowLoopback()} 把 {@code 127.0.0.1,::1,localhost} 放进白名单——
- * 等价 Go 测试的 {@code t.Setenv("SSRF_WHITELIST", "127.0.0.1,::1,localhost")}。
+ * <p>{@link #allowLoopback()} 把 {@code 127.0.0.1,::1,localhost} 放进白名单
+ * （即 {@code SSRF_WHITELIST} 的取值）。
  * 这是**进程级**静态状态，所以 {@link #restoreSsrf()} 必须在 {@code @AfterAll} 调用，
  * 否则会污染同 JVM 里别的测试类。</p>
  */
@@ -47,7 +47,7 @@ final class FakeIma implements AutoCloseable {
 
     static final ObjectMapper MAPPER = JsonMappers.lenient();
 
-    /** 一个假条目（对照 Go {@code fakeFile}）。 */
+    /** 一个假条目。 */
     static final class FakeFile {
         String mediaId = "";
         String title = "";
@@ -114,7 +114,7 @@ final class FakeIma implements AutoCloseable {
         }
     }
 
-    /** 一个假文件夹（对照 Go {@code fakeFolder}）。 */
+    /** 一个假文件夹。 */
     static final class FakeFolder {
         String folderId;
         String name;
@@ -129,7 +129,7 @@ final class FakeIma implements AutoCloseable {
         }
     }
 
-    /** 信封的两种拼法（对照 Go 的 {@code TestAPIEnvelope_AcceptsBothSpellings}）。 */
+    /** 信封的两种拼法（API 两种拼写都接受）。 */
     enum EnvelopeStyle {
         CODE_MSG, RETCODE_ERRMSG
     }
@@ -158,7 +158,7 @@ final class FakeIma implements AutoCloseable {
         server.start();
     }
 
-    // ── SSRF 白名单（对照 Go 的 TestMain） ─────────────────────────────────
+    // ── SSRF 白名单 ────────────────────────────────────────────────────────
 
     /** 放行 loopback：stub server 绑在 127.0.0.1 上。 */
     static void allowLoopback() {
@@ -172,7 +172,7 @@ final class FakeIma implements AutoCloseable {
      *
      * <p>{@code SsrfGuard.whitelist} 是静态字段，{@code new SsrfGuard()} 只是读 env
      * 的默认实例、并不会把白名单恢复成 env 的值，所以这里显式按 env 重新合并一次
-     * （对照 {@code mergeRaws(SSRF_WHITELIST, SSRF_WHITELIST_EXTRA)}）。</p>
+     * （即 {@code SSRF_WHITELIST} 与 {@code SSRF_WHITELIST_EXTRA} 的合并语义）。</p>
      */
     static void restoreSsrf() {
         ConnectorHttp.setSsrfGuard(new SsrfGuard());

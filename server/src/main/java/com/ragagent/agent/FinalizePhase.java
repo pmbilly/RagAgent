@@ -167,7 +167,7 @@ final class FinalizePhase {
 
     /**
      * {@code agent_steps} 字段的<b>恒输出</b>语义对应物：空列表也要输出
-     * {@code "agent_steps":[]}（实录钉住）。event 包不可改：空列表用 {@link RawValue}
+     * {@code "agent_steps":[]}。event 包不可改：空列表用 {@link RawValue}
      * 原文过 NON_EMPTY（非空列表走 List 序列化器，形状一致）。
      */
     private static Object goSliceAlwaysPresent(List<?> value) {

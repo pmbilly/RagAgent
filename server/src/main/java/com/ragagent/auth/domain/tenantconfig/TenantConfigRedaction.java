@@ -9,22 +9,22 @@ import com.ragagent.auth.domain.tenantconfig.StorageEngineConfig.S3EngineConfig;
 import com.ragagent.auth.domain.tenantconfig.StorageEngineConfig.TosEngineConfig;
 
 /**
- * 对照 Go {@code internal/types/config_redaction.go}（本批三族）+
- * {@code secret.go} 的 PreserveIfRedacted。
+ * 租户配置密钥的打码与合并（响应面打码 / 更新面保留旧值）三族：
+ * WebSearch、ParserEngine、StorageEngine。
  *
- * <p>⚠️ PreserveIfRedacted 的语义是「空串<b>或</b>占位符都保留旧值」
- * （secret.go L27-33，IsRedactedOrEmpty）——唯一例外是 S3：空串意味着
- * 「切到 AWS 默认凭据链」，只有占位符才回退（config_redaction.go 的 S3 分支注释）。</p>
+ * <p>⚠️ preserveIfRedacted 的语义是「空串<b>或</b>占位符都保留旧值」
+ * ——唯一例外是 S3：空串意味着
+ * 「切到 AWS 默认凭据链」，只有占位符才回退。</p>
  */
 public final class TenantConfigRedaction {
 
-    /** 对照 types.RedactedSecretPlaceholder。 */
+    /** 密钥打码占位符。 */
     public static final String REDACTED = "***";
 
     private TenantConfigRedaction() {
     }
 
-    /** 对照 PreserveIfRedacted：空串或 "***" → 保留旧值。 */
+    /** 空串或 "***" → 保留旧值。 */
     public static String preserveIfRedacted(String incoming, String existing) {
         if (incoming == null || incoming.isEmpty() || REDACTED.equals(incoming)) {
             return existing == null ? "" : existing;
@@ -32,12 +32,12 @@ public final class TenantConfigRedaction {
         return incoming;
     }
 
-    // ── WebSearch（config_redaction.go L10-25 / L150-160） ────────────────
+    // ── WebSearch ──────────────────────────────────────────────────────────
 
     /**
-     * 对照 WebSearchConfigForResponse(maskSecrets=true)：
+     * 响应面（打码）：
      * 先 Effective 归一化（max_results≤0→10、compression_method 空→"none"、
-     * blacklist nil→[]），再 api_key 清空、proxy_url 非空（trim 后）打码。
+     * blacklist null→[]），再 api_key 清空、proxy_url 非空（trim 后）打码。
      * 入参 null → null（调用方在信封层输出 "data":null）。
      */
     public static WebSearchConfig webSearchForResponse(WebSearchConfig cfg) {
@@ -53,7 +53,7 @@ public final class TenantConfigRedaction {
     }
 
     /**
-     * 对照 MergeWebSearchConfigForUpdate：incoming 先 Effective，再对
+     * 更新面合并：incoming 先 Effective，再对
      * api_key/proxy_url 做 preserve。prev 取 existing 的 Effective 值。
      */
     public static WebSearchConfig mergeWebSearch(WebSearchConfig incoming, WebSearchConfig existing) {
@@ -68,9 +68,9 @@ public final class TenantConfigRedaction {
         return incoming;
     }
 
-    // ── ParserEngine（config_redaction.go L27-41 / L164-180） ─────────────
+    // ── ParserEngine ───────────────────────────────────────────────────────
 
-    /** 对照 ParserEngineConfigForResponse(maskSecrets=true)：两个密钥非空打码。 */
+    /** 响应面（打码）：两个密钥非空打码。 */
     public static ParserEngineConfig parserEngineForResponse(ParserEngineConfig cfg) {
         if (cfg == null) {
             return null;
@@ -85,7 +85,7 @@ public final class TenantConfigRedaction {
     }
 
     /**
-     * 对照 MergeParserEngineConfigForUpdate：两个密钥 preserve；
+     * 更新面合并：两个密钥 preserve；
      * incoming 未携带 chat_parser_engine_rules 时保留存量的 legacy 规则。
      */
     public static ParserEngineConfig mergeParserEngine(ParserEngineConfig incoming,
@@ -101,9 +101,9 @@ public final class TenantConfigRedaction {
         return incoming;
     }
 
-    // ── StorageEngine（config_redaction.go L43-133 / L182-262） ───────────
+    // ── StorageEngine ──────────────────────────────────────────────────────
 
-    /** 对照 StorageEngineConfigForResponse(maskSecrets=true)：7 个云 provider 的密钥对非空打码。 */
+    /** 响应面（打码）：7 个云 provider 的密钥对非空打码。 */
     public static StorageEngineConfig storageEngineForResponse(StorageEngineConfig cfg) {
         if (cfg == null) {
             return null;
@@ -175,7 +175,7 @@ public final class TenantConfigRedaction {
     }
 
     /**
-     * 对照 MergeStorageEngineConfigForUpdate：各 provider 密钥对 preserve。
+     * 更新面合并：各 provider 密钥对 preserve。
      * S3 例外：只有 "***" 才回退，空串保留（切 IAM 链语义）。
      */
     public static StorageEngineConfig mergeStorageEngine(StorageEngineConfig incoming,
@@ -202,7 +202,7 @@ public final class TenantConfigRedaction {
         if (incoming.getS3() != null) {
             S3EngineConfig c = incoming.getS3();
             S3EngineConfig prev = existing == null ? null : existing.getS3();
-            // S3 例外（Go 注释原文）：空串 = 切 AWS 默认凭据链，不清旧值只认 "***"
+            // S3 例外：空串 = 切 AWS 默认凭据链，不清旧值只认 "***"
             if (REDACTED.equals(c.getAccessKey())) {
                 c.setAccessKey(prev == null ? "" : prev.getAccessKey());
             }

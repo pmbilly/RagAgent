@@ -37,13 +37,12 @@ import com.ragagent.retrieval.engine.RetrieverEngineParams;
 import com.ragagent.retrieval.engine.TenantStoreOwnership;
 
 /**
- * 接线批第 4 步的 store-group 面钉子（对照 Go knowledgebase_search_storegroup.go /
- * _fanout.go 的纯逻辑）：工厂哨兵 → 2200/2201 的分类映射、多 KB 嵌入模型一致性闸门、
+ * store-group 面钉子：工厂哨兵 → 2200/2201 的分类映射、多 KB 嵌入模型一致性闸门、
  * 跨引擎类型判定、TopK 覆写不回写 BaseParams、多组扇出的 all-or-nothing。
  *
  * <p>绑 store 的错误路径用 {@code disableVectorMatch=true} 绕开查询向量预计算——
- * 照 Go：向量预计算先于 store-group 解析，向量开启且模型缺失时先报 embed 错，
- * 这是两侧一致的次序，测试改走不触发预计算的门。</p>
+ * 次序不变量：向量预计算先于 store-group 解析，向量开启且模型缺失时先报 embed 错，
+ * 测试改走不触发预计算的门。</p>
  */
 class HybridSearchServiceStoreGroupTest {
 
@@ -101,7 +100,7 @@ class HybridSearchServiceStoreGroupTest {
         return p;
     }
 
-    // ── validateSameEmbeddingModel（storegroup.go L248-289） ────────────────
+    // ── validateSameEmbeddingModel ──────────────────────────────────────────
 
     @Test
     void multiKbWithDifferentEmbeddingModelsIsRejected() {
@@ -134,7 +133,7 @@ class HybridSearchServiceStoreGroupTest {
         assertThat(service.hybridSearch("kb-a", params("kb-a", "kb-b"))).isNull();
     }
 
-    // ── 工厂哨兵 → 2200/2201（storegroup.go classifyFactoryError） ─────────
+    // ── 工厂哨兵 → 2200/2201 ────────────────────────────────────────────────
 
     @Test
     void crossTenantStoreMapsTo2200() {
@@ -176,7 +175,7 @@ class HybridSearchServiceStoreGroupTest {
                 .isEqualTo(2200);
     }
 
-    // ── 扇出纯逻辑（_fanout.go） ────────────────────────────────────────────
+    // ── 扇出纯逻辑 ──────────────────────────────────────────────────────────
 
     @Test
     void mixedEngineTypesDetection() {

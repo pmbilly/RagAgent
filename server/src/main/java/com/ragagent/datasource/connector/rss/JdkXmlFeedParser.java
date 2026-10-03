@@ -38,8 +38,8 @@ import org.xml.sax.InputSource;
  * <h2>⚠️ 不支持的格式（写进报告，别当成 bug）</h2>
  * <ol>
  *   <li><b>JSON Feed</b>：gofeed 支持（靠嗅探首字符 {@code &#123;} + jsoniter 校验），
- *       Java 侧<b>完全不支持</b>。表现是 {@code parse feed <url>: Failed to detect feed type
- *       (JSON Feed is not supported by this build)}——而 Go 那边<b>会成功</b>。
+ *       这里<b>完全不支持</b>。表现是 {@code parse feed <url>: Failed to detect feed type
+ *       (JSON Feed is not supported by this build)}——而参照实现<b>会成功</b>。
  *       这是三块接缝之外<b>功能上最实质</b>的一个缺口。</li>
  *   <li><b>gofeed 的其他扩展</b>：iTunes / media / 每个 feed 的 enclosures / categories /
  *       links[] / language / copyright / generator 都不解析——连接器一个都不用。</li>
@@ -52,7 +52,7 @@ import org.xml.sax.InputSource;
  *       把 {@link HtmlEntities} 表里认识的实体改写成数字实体、裸 {@code &} 转义掉，
  *       把这条差异收窄到"表里没有的实体原样保留字面量"。</li>
  *   <li><b>不闭合 / 交叉的标签、非法字符</b>：goxpp 容忍一部分，严格的 DOM 直接失败。
- *       Java 侧会报解析错误（{@code parse feed <url>: <解析器原文>}）——<b>文案与 Go 不同</b>。</li>
+ *       这时会报解析错误（{@code parse feed <url>: <解析器原文>}）。</li>
  *   <li><b>非 UTF-8 编码</b>：两个方向都支持（预处理用 ISO-8859-1 逐字节往返，
  *       真编码仍由解析器按 XML 声明去解），但 goxpp 的 {@code charsetconv} 覆盖面更广
  *       （比如没有 XML 声明却声明在 HTTP {@code Content-Type} 里的情况）。</li>
@@ -65,7 +65,7 @@ import org.xml.sax.InputSource;
  * {@code yyyy-MM-dd[ HH:mm[:ss]]}、{@code MMM d, yyyy}、{@code d MMM yyyy}、
  * {@code d/M/yyyy}、{@code d.M.yyyy} 等。</p>
  * <p>解析不出来时 {@code *Parsed} 为 {@code null}——<b>与 gofeed 的行为一致</b>
- * （它也是 {@code err != nil} 就跳过、留下 nil），而不是报错。
+ * （它也是解析失败就跳过、留下 nil），而不是报错。
  * 于是影响的只是"这条用 feed 内容、且更新时间回落到 {@code now()}"，
  * 不会让整次同步失败。<b>这是本实现刻意选择的失败模式</b>：宁可少一个时间戳，
  * 也不要把整条 feed 判为不可解析。</p>
@@ -74,7 +74,7 @@ import org.xml.sax.InputSource;
  * 以及 {@code 6/1/2 15:04}、{@code 02 Monday, Jan 2006 15:04} 这类冷门布局完全不认。</p>
  *
  * <h2>XML 安全</h2>
- * <p>外站实体、外部 DTD、XInclude 全部关掉（对照 Go 侧 goxpp 从不解析 DTD），
+ * <p>外站实体、外部 DTD、XInclude 全部关掉（参照解析器 goxpp 从不解析 DTD），
  * 实体展开上限交给 JDK 的默认 {@code entityExpansionLimit}——这让
  * "billion laughs" 这类实体炸弹在 JDK 侧直接报错而不是吃满内存。</p>
  */
@@ -82,7 +82,7 @@ public final class JdkXmlFeedParser implements FeedParser {
 
     private static final ZoneOffset UTC = ZoneOffset.UTC;
 
-    /** 带偏移量的日期布局（对照 Go {@code dateFormats} 的常用子集）。 */
+    /** 带偏移量的日期布局（gofeed {@code dateFormats} 的常用子集）。 */
     private static final List<String> OFFSET_DATE_FORMATS = List.of(
             "EEE, dd MMM yyyy HH:mm:ss Z",
             "EEE, dd MMM yyyy HH:mm:ss XX",
@@ -95,7 +95,7 @@ public final class JdkXmlFeedParser implements FeedParser {
             "yyyy-MM-dd'T'HH:mm:ssXXX",
             "yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
 
-    /** 没有偏移量的布局——Go 的 {@code time.Parse} 对它们按 <b>UTC</b> 处理。 */
+    /** 没有偏移量的布局——按 <b>UTC</b> 处理。 */
     private static final List<String> NAIVE_DATE_FORMATS = List.of(
             "EEE, dd MMM yyyy HH:mm:ss",
             "EEE, dd MMM yyyy",
@@ -331,7 +331,7 @@ public final class JdkXmlFeedParser implements FeedParser {
         String id = firstNonEmptyText(entry, "id");
         OffsetDateTime updated = parseDate(firstNonEmptyText(entry, "updated"));
         OffsetDateTime published = parseDate(firstNonEmptyText(entry, "published"));
-        // 照抄 gofeed 的 translateItemPublishedParsed：缺 published 时回落 updated。
+        // 与 gofeed 的 translateItemPublishedParsed 一致：缺 published 时回落 updated。
         if (published == null) {
             published = updated;
         }
@@ -385,7 +385,7 @@ public final class JdkXmlFeedParser implements FeedParser {
      *
      * <p>goxpp 取的是"原始源文本"再 {@code DecodeEntities}（或对 CDATA 走 {@code StripCDATA}）；
      * 而 DOM 已经替我们把实体解开了，所以这里直接把子节点的值拼起来即可——
-     * 效果等价（有测试对着 Go 实录钉住）。嵌套元素会被序列化回标签，
+     * 效果等价（有测试钉住）。嵌套元素会被序列化回标签，
      * 这正是 gofeed 对 {@code <description><p>x</p></description>} 的行为。</p>
      */
     private static String parseText(Element element) {
@@ -525,8 +525,8 @@ public final class JdkXmlFeedParser implements FeedParser {
      * 对照 gofeed 的 {@code shared.ParseNameAddress}，只返回<b>名字</b>那一半
      * （连接器只用 {@code item.Author.Name}）。
      *
-     * <p>四条分支的顺序与正则照抄；都没命中时名字为空串。
-     * 注意 Go 不 Trim——调用方传进来的值已经过 {@code ParseText} 的 TrimSpace。</p>
+     * <p>四条分支的顺序与正则与 gofeed 一致；都没命中时名字为空串。
+     * 注意这里不做 Trim——调用方传进来的值已经过 {@code ParseText} 的去空白。</p>
      */
     static String parseNameAddress(String text) {
         if (text == null || text.isEmpty()) {
@@ -544,7 +544,7 @@ public final class JdkXmlFeedParser implements FeedParser {
         if (m.matches()) {
             return m.group(1);
         }
-        return ""; // 纯邮箱：名字为空（对照 Go 只填 address）
+        return ""; // 纯邮箱：名字为空（只填 address）
     }
 
     private static String nz(String s) {
@@ -564,7 +564,7 @@ public final class JdkXmlFeedParser implements FeedParser {
         if (d.isEmpty()) {
             return null;
         }
-        // 1) 带名字的时区（GMT / EST / CET …）——Go 的 time.RFC1123 与那批 "MST" 布局
+        // 1) 带名字的时区（GMT / EST / CET …）——RFC1123 与那批 "MST" 布局
         ZonedDateTime zoned = tryZonedFormats(d);
         if (zoned != null) {
             return zoned.withZoneSameInstant(UTC).toOffsetDateTime();
@@ -580,7 +580,7 @@ public final class JdkXmlFeedParser implements FeedParser {
         if (offset != null) {
             return offset.withOffsetSameInstant(UTC);
         }
-        // 3) 没有时区的布局：Go 的 time.Parse 按 UTC 处理
+        // 3) 没有时区的布局：按 UTC 处理
         return tryNaiveFormats(d);
     }
 

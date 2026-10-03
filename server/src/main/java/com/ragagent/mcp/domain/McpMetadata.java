@@ -5,20 +5,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 一次**完整且显式同步**的目录快照（对照 Go types.MCPMetadata，
- * internal/types/mcp_metadata.go:28-40）。
+ * 一次**完整且显式同步**的目录快照。
  *
  * <p>OAuth 快照按授权 principal 归属，**绝不可**变成租户级共享。</p>
  *
- * GORM 隐式行为清单（约定 §3）：
+ * 落库行为清单：
  * <ul>
  *   <li>复合主键 (tenant_id, service_id, principal)：MyBatis-Plus 不支持复合主键的
  *       BaseMapper 方法，故 {@code McpMetadataMapper} **不继承 BaseMapper**，
- *       全部语句显式书写（对照 GORM 的 clause.OnConflict 需要手写等价语句）</li>
+ *       全部语句显式书写</li>
  *   <li>无 DeletedAt → 无软删除</li>
  *   <li>tools 列：{@code serializer:json;type:jsonb;not null} → {@link McpToolListTypeHandler}</li>
- *   <li>Stale 是 {@code gorm:"-"} 的派生字段，**不落库**</li>
- *   <li>synced_at 由调用方赋值（Go 无 autoCreateTime/autoUpdateTime）</li>
+ *   <li>Stale 是派生字段，**不落库**</li>
+ *   <li>synced_at 由调用方赋值（无自动时间戳）</li>
  * </ul>
  */
 public class McpMetadata {

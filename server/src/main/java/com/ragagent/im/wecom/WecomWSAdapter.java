@@ -11,13 +11,13 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.runtime.ReplyMessage;
 
 /**
- * 企业微信长连接（智能机器人）适配器（对照 Go {@code internal/im/wecom/ws_adapter.go} L28-181）。
+ * 企业微信长连接（智能机器人）适配器。
  *
  * <p>入站三面是<b>明确不支持</b>（消息走 WS 而非 HTTP 回调）：{@code verifyCallback} 返回
- * 异常对象、{@code parseCallback} 抛出、{@code handleURLVerification} 恒 false
- * （文案照 Go）。出站与流式全部委托 {@link WecomLongConnClient}；文件下载在
+ * 异常对象、{@code parseCallback} 抛出、{@code handleURLVerification} 恒 false。
+ * 出站与流式全部委托 {@link WecomLongConnClient}；文件下载在
  * {@link WecomSupport#downloadFromUrl} 之后，若消息带逐条 {@code aes_key}
- * 则再做 AES-CBC 解密（照 Go）。</p>
+ * 则再做 AES-CBC 解密。</p>
  */
 public class WecomWSAdapter implements AdapterInterfaces.Adapter,
         AdapterInterfaces.StreamSender, AdapterInterfaces.FileDownloader {
@@ -44,7 +44,7 @@ public class WecomWSAdapter implements AdapterInterfaces.Adapter,
 
     @Override
     public Exception verifyCallback(CallbackExchange exchange) {
-        // 照 Go：长连接模式不支持 HTTP 回调（返回 error，由调用点折成响应）
+        // 长连接模式不支持 HTTP 回调（返回异常对象，由调用点折成响应）
         return new IllegalStateException(WEBHOOK_UNSUPPORTED);
     }
 

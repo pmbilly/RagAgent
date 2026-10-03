@@ -1,10 +1,10 @@
 package com.ragagent.datasource.connector.notion;
 
 /**
- * 待下载的附件（对照 Go {@code attachment}，types.go L258-262）。
+ * 待下载的附件。
  *
- * <p>它是 {@code BlocksToMarkdown} 的第二个返回值，字段在 Go 里**没有 json tag**
- * ——这个类型从不进/json 出任何网络边界。Java 侧同理：内部值对象。</p>
+ * <p>它是块树转 Markdown 的第二个返回值，字段没有 json tag
+ * ——这个类型从不进/json 出任何网络边界。内部值对象。</p>
  */
 public final class NotionAttachment {
 

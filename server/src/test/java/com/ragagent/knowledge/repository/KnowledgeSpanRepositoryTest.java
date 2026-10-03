@@ -17,7 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * span 仓储语义（H2，对照 Go knowledge_span_repo.go）——重点钉住 mock 测不出的
+ * span 仓储语义（H2）——重点钉住 mock 测不出的
  * SQL 行为：upsert 的**动态列**语义（EndSpan 只写 output 不得冲掉 Begin 的 input /
  * metadata）、attempt==0 → 1、attempt 分配、BFS 级联取消（终态行保持）、
  * cancelAllOpenSpans / cancelOpenSpansByName 的集合语义。

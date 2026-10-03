@@ -5,8 +5,7 @@ import com.ragagent.common.security.SsrfGuard;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 把 Spring 管理的 {@link SsrfGuard} 单例交给 {@link LlmTransport}（对照 Go 侧
- * {@code secutils} 包级变量被全进程共享的语义）。
+ * 把 Spring 管理的 {@link SsrfGuard} 单例交给 {@link LlmTransport}，全进程共享。
  *
  * <p>必要性：{@code SsrfGuard} 的白名单可被系统设置模块在运行时调谐
  * （{@link SsrfGuard#reloadWhitelist(String)}）；若 LLM 传输层自己 new 一个实例，

@@ -13,10 +13,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
- * 聊天实例工厂的分发契约（对照 Go chat.NewChat / NewRemoteChat
- * 与测试 TestNewRemoteChat_AnthropicProvider）。
+ * 聊天实例工厂（{@code LlmChatClients#create} / {@code newRemoteChat}）的分发契约。
  *
- * 构造期会做 SSRF 校验（对照 Go），而本机 DNS 可能把公网域名解析到受限段
+ * 构造期会做 SSRF 校验，而本机 DNS 可能把公网域名解析到受限段
  * （实测 api.openai.com → Teredo 地址），故先把测试用域名加入白名单，
  * 让断言聚焦在**类型分发**而非网络环境。
  */
@@ -71,7 +70,7 @@ class LlmChatClientsTest {
                 LlmChatClients.newRemoteChat(remote("https://api.openai.com/v1", "openai")));
     }
 
-    /** 未知 source 报错（对照 Go "unsupported chat model source: %s"）。 */
+    /** 未知 source 报错（消息含 "unsupported chat model source"）。 */
     @Test
     void unsupportedSourceThrows() {
         ChatConfig c = new ChatConfig();

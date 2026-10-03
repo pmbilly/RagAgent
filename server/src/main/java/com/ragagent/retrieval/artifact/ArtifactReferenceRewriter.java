@@ -10,8 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 产物引用改写（对照 Go internal/handler/session/artifact_reference.go 全文，
- * 检索/收尾批 2026-09-22 翻译）：把模型最终答案里指向沙箱产物的 Markdown
+ * 产物引用改写：把模型最终答案里指向沙箱产物的 Markdown
  * 链接/图片目标归一成能存活的引用形态——有资源目录时用 resource:// handle，
  * 否则用聊天可读的 {@code sandbox:<name>}。字节契约：contracts/w5g3c-artifacts.tsv。
  */
@@ -29,29 +28,29 @@ public final class ArtifactReferenceRewriter {
     private static final Pattern TITLE_SUFFIX_RE =
             Pattern.compile("(?s)^(.*?)(\\s+(?:\"[^\"]*\"|'[^']*'))$");
 
-    /** MessageArtifact 的消费面（types.MessageArtifact 的子集）。 */
+    /** {@link com.ragagent.session.domain.MessageArtifact} 的消费面（子集）。 */
     public record Artifact(String fileName, String url) {
     }
 
-    /** 对照 types.ParseResourcePath + BuildResourcePath 的退化实现：catalog 句柄
+    /** 资源路径解析口：catalog 句柄
      *  形如 {@code resource://<handle>} 原样返回；其余 null。 */
     public interface ResourcePathResolver {
         /** URL → 规范 resource:// 引用；不是资源路径返回 null。 */
         String parseResourcePath(String url);
     }
 
-    /** 默认实现：识别 {@code resource://<22 字符 handle>}（Go ResourceHandleLength）。 */
+    /** 默认实现：识别 {@code resource://<22 字符 handle>}。 */
     public static final ResourcePathResolver DEFAULT_RESOLVER = url -> {
         if (url == null || !url.startsWith("resource://")) {
             return null;
         }
         String handle = url.substring("resource://".length());
-        // Go ParseResourcePath 要求 handle 恰好 22 字符
+        // 句柄须恰好 22 字符
         return handle.length() == 22 ? "resource://" + handle : null;
     };
 
     /**
-     * 对照 rewriteArtifactReferences（artifact_reference.go L56-79）：先按代码段
+     * 改写产物引用：先按代码段
      * 切分，非代码段逐链接改写。
      */
     public static String rewriteArtifactReferences(String content, List<Artifact> artifacts,
@@ -90,7 +89,7 @@ public final class ArtifactReferenceRewriter {
     }
 
     /**
-     * 对照 rewriteArtifactReferencesInSegment（L88-127）：目标按括号配对扫描
+     * 逐段改写：目标按括号配对扫描
      * （文件名常含空格与括号，正则会截断），`](` 前须有同行 `[`。
      */
     static String rewriteSegment(String segment, Map<String, String> byName,
@@ -101,7 +100,7 @@ public final class ArtifactReferenceRewriter {
         StringBuilder out = new StringBuilder(segment.length());
         int cursor = 0;
         while (cursor < segment.length()) {
-            // Java indexOf(str, from) 已是绝对下标（Go 的 Index(segment[cursor:]) 才需加 cursor）
+            // indexOf(str, from) 已是绝对下标，无需再加 cursor
             int closeBracket = segment.indexOf("](", cursor);
             if (closeBracket < 0) {
                 break;
@@ -135,7 +134,7 @@ public final class ArtifactReferenceRewriter {
     }
 
     /**
-     * 对照 scanLinkDestination（L132-148）：返回 {闭括号下标}；换行即失败；
+     * 返回 {闭括号下标}；换行即失败；
      * 支持嵌套一层括号计数。
      */
     private static int[] scanLinkDestination(String text, int openIndex) {
@@ -157,7 +156,7 @@ public final class ArtifactReferenceRewriter {
         return null;
     }
 
-    /** 对照 hasLinkLabelBefore：`](` 前须有同行 `[`。 */
+    /** `](` 前须有同行 `[`。 */
     private static boolean hasLinkLabelBefore(String text, int closeBracketIndex) {
         for (int i = closeBracketIndex - 1; i >= 0; i--) {
             char c = text.charAt(i);
@@ -171,7 +170,7 @@ public final class ArtifactReferenceRewriter {
         return false;
     }
 
-    /** 对照 splitDestinationTitle：dest 与标题分离，标题带前导空白原样回填。 */
+    /** dest 与标题分离，标题带前导空白原样回填。 */
     private static String[] splitDestinationTitle(String inner) {
         Matcher m = TITLE_SUFFIX_RE.matcher(inner);
         if (m.matches()) {
@@ -180,7 +179,7 @@ public final class ArtifactReferenceRewriter {
         return new String[] {inner.strip(), ""};
     }
 
-    /** 对照 markdownImageBefore：`]` 前最近的 `[` 前是否是 `!`（即图片语法）。 */
+    /** `]` 前最近的 `[` 前是否是 `!`（即图片语法）。 */
     private static boolean markdownImageBefore(String text, int closeBracketIndex) {
         for (int i = closeBracketIndex - 1; i >= 0; i--) {
             char c = text.charAt(i);
@@ -194,7 +193,7 @@ public final class ArtifactReferenceRewriter {
         return false;
     }
 
-    /** 对照 looksLikeSandboxOutputPath：./、/ 前缀剥离后是否指向 output 路径。 */
+    /** ./、/ 前缀剥离后是否指向 output 路径。 */
     static boolean looksLikeSandboxOutputPath(String candidate) {
         String c = candidate.strip();
         if (c.startsWith("./")) {
@@ -207,7 +206,7 @@ public final class ArtifactReferenceRewriter {
     }
 
     /**
-     * 对照 lookupArtifactRef（L192-237）：sandbox://、sandbox: 前缀剥离；已带
+     * sandbox://、sandbox: 前缀剥离；已带
      * scheme 的真 URL 不动；百分号解码；裸名仅图片（或 output 路径形态）改写；
      * 目录前缀取 path.Base 后查表。
      */
@@ -248,7 +247,7 @@ public final class ArtifactReferenceRewriter {
         return byName.get(candidate);
     }
 
-    /** 对照 url.PathUnescape：只解 %XX，'+' 保持原义；坏转义原样返回（Go err → 不变）。 */
+    /** 只解 %XX，'+' 保持原义；坏转义原样返回。 */
     private static String pathUnescape(String s) {
         if (!s.contains("%")) {
             return s;
@@ -260,7 +259,7 @@ public final class ArtifactReferenceRewriter {
         }
     }
 
-    /** 对照 path.Base（GoPath.clean 已有；这里只处理正斜杠路径的末段）。 */
+    /** 路径末段（只处理正斜杠路径）。 */
     private static String pathBase(String p) {
         if (p.isEmpty()) {
             return ".";
@@ -275,7 +274,7 @@ public final class ArtifactReferenceRewriter {
     }
 
     /**
-     * 对照 artifactRefByName：文件名 → 引用；重名保留首个（后出现的文件不抢）。
+     * 文件名 → 引用；重名保留首个（后出现的文件不抢）。
      */
     static Map<String, String> artifactRefByName(List<Artifact> artifacts,
             ResourcePathResolver res) {
@@ -290,7 +289,7 @@ public final class ArtifactReferenceRewriter {
         return byName;
     }
 
-    /** 对照 artifactReference：catalog handle 优先，否则 chat-only sandbox: 形态。 */
+    /** catalog handle 优先，否则 chat-only sandbox: 形态。 */
     static String artifactReference(Artifact artifact, ResourcePathResolver res) {
         String handle = res.parseResourcePath(artifact.url());
         if (handle != null) {

@@ -33,16 +33,16 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * knowledge 文档操作面契约测试（波 2 第二批，15+1 条路由）。golden：
+ * knowledge 文档操作面契约测试（15+1 条路由）。golden：
  * scripts/record-knowledge-golden.sh。
  *
- * <p>种子严格复刻录制脚本：KB1/KB2/KB3（creator=owner、关索引与 summary model）、
+ * <p>种子与录制脚本一致：KB1/KB2/KB3（creator=owner、关索引与 summary model）、
  * KG1..KG16（固定纯十六进制 id）、T1/T2 标签 + KG1↔T1 关系、KG11 的图片块 C1..C3、
  * KG1 的真实文件（local://kgdocs/kg-doc.txt，测试写入 LocalStorageService 的落盘根）。</p>
  *
  * <p>录制顺序影响状态（manual 更新推进 metadata.version、folder 移动/重命名改变
  * folders 计数、batch-delete 消费 KG3）：每个 @Test 从同一播种出发，按**录制顺序**
- * 串完自己段落的前置变更再断言。Go 侧异步任务（asynq 批量删除/重解析）在 Java 为
+ * 串完自己段落的前置变更再断言。异步任务（批量删除/重解析）在 Java 为
  * 同步尽力而为——HTTP 契约逐字节一致，后续计数因此两侧收敛。</p>
  */
 @SpringBootTest
@@ -421,10 +421,10 @@ class KnowledgeOperationsContractTest {
     }
 
     /**
-     * W5γ5.4 ①b 新增能力：本地文件的 download 走 {@code filetransport.Serve} 的 Seekable 支路
+     * 本地文件的 download 走 {@code filetransport.Serve} 的 Seekable 支路
      * → **支持 Range**（改前是"读满 byte[]"，只有 no-Range 两种形态）。
      *
-     * <p>这条是**断言型**用例（非 golden）：Go 侧的 kg-* 实录没录 Range 场景，
+     * <p>这条是**断言型**用例（非 golden）：kg-* golden 没录 Range 场景，
      * 故此处不锚 golden，只钉 206/Content-Range 的形状；要升级成 golden 可照
      * {@code record-w5c-golden.sh} 的手法补录。</p>
      */
@@ -710,7 +710,7 @@ class KnowledgeOperationsContractTest {
             String actual = r.getResponse().getHeader(name);
             assertThat(actual).as("%s: %s", bodyGolden, name).isEqualTo(expected);
         }
-        // Go 侧 gin 写出的头集合是契约的一部分：逐个头都必须存在
+        // 响应头集合是契约的一部分：逐个头都必须存在
         assertThat(r.getResponse().getHeaderNames())
                 .as("%s headers", bodyGolden)
                 .contains("Content-Type", "X-Content-Type-Options", "Content-Disposition",

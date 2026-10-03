@@ -7,18 +7,17 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 每个会话的蒸馏进度——一行**有索引的小记录**，而不是塞进主体上那个不断长大的 JSON 文档
- * （对照 Go {@code types.MemoryExtractionSession}，internal/types/memory_extraction.go L26-42）。
+ * 每个会话的蒸馏进度——一行**有索引的小记录**，而不是塞进主体上那个不断长大的 JSON 文档。
  * 已完成的游标能防止历史被反复抽取。
  *
- * <h2>JSON 形态（Go 实录）</h2>
+ * <h2>JSON 形态</h2>
  * <pre>
  *   MemoryExtractionSession{}        → {"revision":0,"cursor":{"at":"0001-01-01T00:00:00Z","id":""}}
  *   MemoryExtractionSession{Rev:3, Cursor:{...}} → {"revision":3,"cursor":{"at":"…","id":"m1"}}
  * </pre>
  * <p>除 {@code revision} 与 {@code cursor} 之外**每一个字段**都是 {@code json:"-"}。
- * 注意 {@code cursor} 是 Go 的 {@code gorm:"embedded;embeddedPrefix:cursor_"}：
- * **DB 里是两列** {@code cursor_at}/{@code cursor_id}，**JSON 里是一个嵌套对象**。
+ * 注意 {@code cursor} 在 DB 里展开成两列 {@code cursor_at}/{@code cursor_id}，
+ * **JSON 里是一个嵌套对象**。
  * Java 侧因此用两个平列字段承载列，再由 {@link #getCursor()} / {@link #setCursor}
  * 拼出/拆开那个嵌套对象。</p>
  *
@@ -28,12 +27,10 @@ import com.ragagent.common.web.GoTimeSerializer;
  * （语义上最接近"业务键"），但**仓储层从不使用 {@code selectById}/{@code updateById}**
  * ——所有读写都写在显式 SQL 里（{@code forUpdateClause} 那套事务语义也要求如此）。</p>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库隐式行为清单（约定 §3）</h2>
  * <ol>
- *   <li><b>自动时间戳</b>：只有 {@code updated_at}（tag 是 {@code json:"-"}）。
- *       GORM 的字段名约定让它在 INSERT 与每次 UPDATE 都显式写 {@code now}；
- *       Go 的 {@code Updates(map)} 里也都手写了 {@code "updated_at": time.Now()}。
- *       Java 侧一律显式赋值。</li>
+ *   <li><b>自动时间戳</b>：只有 {@code updated_at}（不出 JSON）。
+ *       INSERT 与每次 UPDATE 都显式写 {@code now}，Java 侧一律显式赋值。</li>
  *   <li><b>钩子</b>：无。</li>
  *   <li><b>关联预加载</b>：无。</li>
  *   <li><b>软删除</b>：无。</li>
@@ -44,10 +41,10 @@ import com.ragagent.common.web.GoTimeSerializer;
  *       与 000094 的迁移逐字一致。</li>
  *   <li><b>DEFAULT 列</b>：{@code revision}/{@code pending}/{@code failure_count}/
  *       {@code failure_code}/{@code cursor_id}/{@code failed_from_id}/{@code failed_to_id}
- *       带字面量 default tag → GORM 实测仍显式写入。<b>这意味着 Java 实体里这七个字段
+ *       带字面量 default tag → 落库时仍显式写入。<b>这意味着 Java 实体里这七个字段
  *       不能是 null</b>（{@code failure_code} 等字符串默认 {@code ""}，
  *       {@code cursor_id} 等默认 {@code ""}），否则 MyBatis-Plus 会省略该列、
- *       在 NOT NULL 列上落到 DB 默认值——本次恰好一致，但读回的值会与 Go 不同形态。</li>
+ *       在 NOT NULL 列上落到 DB 默认值——本次恰好一致，但读回的值形态会不同。</li>
  * </ol>
  */
 @TableName("memory_extraction_sessions")
@@ -109,10 +106,10 @@ public class MemoryExtractionSession {
     // ── 嵌套游标（JSON 键 cursor / failed_from / failed_to） ────────────────
 
     /**
-     * 对照 Go 的 {@code Cursor MemoryMessageCursor `json:"cursor"`}。
+     * JSON 里的 {@code cursor} 键（嵌套对象）。
      *
      * <p>它以 {@code getCursor()} 的形式序列化——这是**必要的**派生访问器，
-     * 因为 Go 里它就是真字段（embedded struct），JSON 契约要求这个键存在。
+     * JSON 契约要求这个键存在。
      * 反方向（{@code setCursor}）供 Jackson 与测试使用，落库仍走两个平列字段。</p>
      */
     public MemoryMessageCursor getCursor() {
@@ -180,8 +177,7 @@ public class MemoryExtractionSession {
     }
 
     /**
-     * 对照 Go 的
-     * {@code progress.FailedFrom.At.Equal(progress.Cursor.At) && progress.FailedFrom.ID == progress.Cursor.ID}。
+     * {@code failedFrom} 与 {@code cursor} 是否指向同一条消息（at 与 id 都相等）。
      *
      * <p>名字不带 {@code get}/{@code is} 前缀，所以 Jackson 不会把它当属性（§7.5 第 2 条）。</p>
      */

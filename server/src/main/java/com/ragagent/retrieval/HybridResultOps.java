@@ -30,7 +30,7 @@ final class HybridResultOps {
         this.service = service;
     }
 
-    // ── 结果装配（knowledgebase_search_results.go 全文） ──────────────────
+    // ── 结果装配 ─────────────────────────────────────────────────────────
 
     List<SearchResult> processSearchResults(
             List<PgVectorRetrieveRepository.IndexHit> chunks, boolean skipEnrichment) {
@@ -135,7 +135,7 @@ final class HybridResultOps {
         }
     }
 
-    /** 对照 isSearchableChunk（knowledgebase_search_results.go L337-353）。 */
+    /** 判定 chunk 可否进入检索结果：须启用、索引状态非 processing/failed、类型在支持列表内。 */
     static boolean isSearchableChunk(ChunkFacts chunk) {
         if (chunk == null || !chunk.enabled()) {
             return false;
@@ -148,7 +148,7 @@ final class HybridResultOps {
                 "faq", "image_ocr", "image_caption").contains(chunk.chunkType());
     }
 
-    /** 对照 buildSearchResult（knowledgebase_search_results.go L303-334）。 */
+    /** 由 chunk 与其知识文档装配一条 SearchResult。 */
     static SearchResult buildSearchResult(ChunkFacts chunk, KnowledgeDocumentFacts knowledge,
             double score, int matchType, String matchedContent) {
         SearchResult r = new SearchResult();
@@ -163,9 +163,8 @@ final class HybridResultOps {
         r.setSeq(chunk.chunkIndex());
         r.setScore(score);
         r.setMatchType(matchType);
-        // 对照 KnowledgeDocumentFacts.GetMetadata（types/knowledge.go L227-240）：nil → 空 map
-        // （序列化 "{}"）；不可解析 → null。SearchResult.metadata 是 map[string]string
-        // （Go 同型），只挑字符串值（Go 的 types.JSON.Map() 对非字符串值报错 → nil）。
+        // metadata 装配：null → 空 map（序列化为 "{}"）；仅当所有值都是字符串才产出
+        // map，出现非字符串值或结构不可解析 → null。
         JsonNode meta = knowledge.metadata();
         if (meta == null || meta.isNull()) {
             r.setMetadata(new LinkedHashMap<>());

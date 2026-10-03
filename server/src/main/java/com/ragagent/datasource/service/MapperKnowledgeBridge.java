@@ -37,15 +37,15 @@ import com.ragagent.common.error.ErrorCode;
  *
  * <h2>为什么不复用 {@code KnowledgeService}</h2>
  * <p>它的每个读写方法都从 {@code TenantContext} 取租户（{@code getKnowledge} 还会顺手做
- * API-Key 的 KB 白名单校验），而同步跑在后台线程上——那里<b>没有</b>请求上下文。
- * Go 是把 {@code TenantIDContextKey} 塞进 ctx 再调同一批方法；Java 侧没有"给一次调用
- * 指定租户"的重载，所以这里按同样的 SQL 语义重写了一遍<b>显式传租户</b>的版本。</p>
+ * API-Key 的 KB 白名单校验），而同步跑在后台线程上——那里<b>没有</b>请求上下文，
+ * 也没有"给一次调用指定租户"的重载，所以这里按同样的 SQL 语义实现了一遍
+ * <b>显式传租户</b>的版本。</p>
  *
  * <h2>方言分叉：jsonb 上的 {@code ->>}</h2>
- * <p>Go 的两条查询都在 SQL 里做 {@code metadata->>'key' = ?}（这么写才能吃到 PG 的
- * 表达式索引，见 {@code FindByMetadataKeyPrefix} 的注释）。</p>
+ * <p>两条查询都要在 SQL 里做 {@code metadata->>'key' = ?}（这么写才能吃到 PG 的
+ * 表达式索引）。</p>
  * <ul>
- *   <li><b>PG</b>：原样照抄。</li>
+ *   <li><b>PG</b>：原样下推到 SQL。</li>
  *   <li><b>H2</b>：项目测试库把 jsonb 一律承载成 {@code VARCHAR}（{@code TestSchema}
  *       的既有约定），没有 {@code ->>} 运算符 → 退化成"取本租户本知识库的未删行，
  *       在 Java 里解析 metadata 精确匹配"。分支的开关方式与
@@ -53,17 +53,16 @@ import com.ragagent.common.error.ErrorCode;
  *       一致（探测 JDBC 产品名，探测失败按 H2 走）。</li>
  * </ul>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库语义清单</h2>
  * <ol>
- *   <li><b>钩子</b>：{@code Knowledge.BeforeCreate} 会补 UUID 与
+ *   <li><b>插入钩子</b>：知识行的 UUID 与
  *       {@code custom_metadata='{}'}——这里显式赋值（与 {@code KnowledgeService} 一致）。</li>
- *   <li><b>关联预加载</b>：无（{@code tags} 是 {@code gorm:"-"}）。</li>
+ *   <li><b>关联预加载</b>：无（{@code tags} 非表字段）。</li>
  *   <li><b>软删除</b>：所有查询显式带 {@code deleted_at IS NULL}；
- *       {@code hardDelete*} 是物理 DELETE（对照 GORM 的 {@code Unscoped().Delete}）。</li>
- *   <li><b>默认排序</b>：本类不引入排序（Go 的两条查询也没有 {@code Order}）。</li>
+ *       {@code hardDelete*} 是物理 DELETE。</li>
+ *   <li><b>默认排序</b>：本类不引入排序（查询契约也没有排序）。</li>
  *   <li><b>唯一索引/外键</b>：无。</li>
- *   <li><b>自动时间戳</b>：CREATE 时显式写 {@code created_at}/{@code updated_at}
- *       （对照 Go 构造结构体时的 {@code time.Now()}）。</li>
+ *   <li><b>自动时间戳</b>：CREATE 时显式写 {@code created_at}/{@code updated_at}。</li>
  * </ol>
  */
 @Component
@@ -101,8 +100,8 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
     // ── 知识库 ───────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code repo.GetKnowledgeBaseByID}：只按 id 查 + {@code deleted_at IS NULL}
-     * （GORM 的软删条件），<b>没有</b>租户条件——租户归属由调用方比对。
+     * 只按 id 查 + {@code deleted_at IS NULL}，
+     * <b>没有</b>租户条件——租户归属由调用方比对。
      */
     @Override
     public KnowledgeBase findKnowledgeBase(String kbId) {
@@ -168,11 +167,11 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
     // ── 写入 ─────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code CreateKnowledgeFromFile} 的<b>最小闭环</b>：重复内容检测 →
+     * 文件写入的<b>最小闭环</b>：重复内容检测 →
      * 落 Storage → 落 knowledges 行 → 交给处理队列。
      *
      * <p>见 {@link KnowledgeBridge} 的"已知差异"：文件名安全校验、多模态/问题生成配置、
-     * 标签关系、按 KB 选存储引擎、asynq 载荷形态都不在这里。</p>
+     * 标签关系、按 KB 选存储引擎、处理任务载荷形态都不在这里。</p>
      */
     @Override
     public Knowledge createFromFile(long tenantId, String kbId, byte[] content, String fileName,
@@ -186,7 +185,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
         String fileType = fileTypeOf(safeName);
         String hash = LocalStorageService.md5Hex(content);
 
-        // 对照 Go 的 CheckKnowledgeExists(file_hash, file_type)：同库同哈希同类型即重复
+        // 重复检测：同库同哈希同类型即重复
         Knowledge dup = knowledgeMapper.selectOne(new LambdaQueryWrapper<Knowledge>()
                 .eq(Knowledge::getKnowledgeBaseId, kbId)
                 .eq(Knowledge::getFileHash, hash)
@@ -210,9 +209,9 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
     }
 
     /**
-     * 对照 Go {@code CreateKnowledgeFromURL} 的<b>最小闭环</b>：让知识库自己下载。
+     * URL 写入的<b>最小闭环</b>：让知识库自己下载。
      *
-     * <p>⚠️ 与 Go 一样：<b>返回的行没有 datasource 的 metadata</b>——调用方在"新建"
+     * <p>⚠️ <b>返回的行没有 datasource 的 metadata</b>——调用方在"新建"
      * 分支上再补一次（重复分支复用已有行，不该被重新打标）。</p>
      */
     @Override
@@ -251,7 +250,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
 
     // ── 删除 ─────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code DeleteKnowledge}：软删知识行 + 软删分片 + 清本地文件。 */
+    /** 软删知识行 + 软删分片 + 清文件。 */
     @Override
     public void softDelete(long tenantId, String knowledgeId) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -277,7 +276,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
         }
     }
 
-    /** 对照 Go {@code repo.HardDeleteKnowledge}（{@code Unscoped().Delete}）：物理删。 */
+    /** 物理删单条。 */
     @Override
     public void hardDelete(long tenantId, String knowledgeId) {
         knowledgeMapper.delete(new LambdaQueryWrapper<Knowledge>()
@@ -306,7 +305,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
         return rows == null ? new ArrayList<>() : rows;
     }
 
-    /** 从 {@code metadata} 列读出 {@code map[string]string}（Go 的 {@code GetMetadata()}）。 */
+    /** 从 {@code metadata} 列读出字符串 map。 */
     private static Map<String, String> readMetadata(Knowledge k) {
         Map<String, String> out = new LinkedHashMap<>();
         com.fasterxml.jackson.databind.JsonNode md = k.getMetadata();
@@ -321,7 +320,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
         return out;
     }
 
-    /** 对照 Go 的 {@code json.Marshal(metadata)}（值为 string，键按 map 序、写出前不排序）。 */
+    /** 把字符串 map 序列化成 {@code metadata} 列的 JSON（键按给定序写出、不排序）。 */
     private static com.fasterxml.jackson.databind.JsonNode metadataNode(Map<String, String> metadata) {
         ObjectNode node = MAPPER.createObjectNode();
         if (metadata != null) {
@@ -333,8 +332,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
     }
 
     /**
-     * 对照 {@code KnowledgeService.newKnowledge} 的字段集，但<b>显式传租户</b>
-     * （Go 的 {@code tenantID} 来自 ctx，这里是参数）。
+     * 构造一条新知识行（字段集与 {@code KnowledgeService.newKnowledge} 相同，但<b>显式传租户</b>）。
      */
     private static Knowledge newKnowledge(long tenantId, KnowledgeBase kb, String title,
                                           String fileType, String channel) {
@@ -359,8 +357,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
     }
 
     /**
-     * 对照 Go 的 {@code extractFileNameFromUrl}（{@code KnowledgeService} 里那份是
-     * 包私有，本包取不到——逻辑与它逐行一致）。
+     * 从 URL 提取文件名（去 query 串、取最后一段；空则 {@code "download"}）。
      */
     static String extractFileNameFromUrl(String url) {
         if (url == null) {
@@ -376,7 +373,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
         return name.isEmpty() ? "download" : name;
     }
 
-    /** 对照 Go 的 {@code getFileType}：取最后一个点之后的小写扩展名（无点则空串）。 */
+    /** 取最后一个点之后的小写扩展名（无点则空串）。 */
     static String fileTypeOf(String fileName) {
         if (fileName == null) {
             return "";
@@ -385,7 +382,7 @@ public class MapperKnowledgeBridge implements KnowledgeBridge {
         return dot < 0 ? "" : fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
-    /** 对照 Go 的 {@code escapeLikeKeyword}：转义 {@code \}、{@code %}、{@code _}。 */
+    /** LIKE 转义：{@code \}、{@code %}、{@code _}。 */
     static String escapeLike(String v) {
         return v.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }

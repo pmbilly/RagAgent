@@ -11,12 +11,13 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * 启动期重放孤儿 wiki op（B12）。
+ * 启动期重放孤儿 wiki op。
  *
  * <p><b>问题</b>：ingest op 落在数据库 {@code task_pending_ops} 里，而触发是请求驱动的
  * （上传/重解析等）；进程重启后，<b>队列在进程内、随重启消失</b>，于是那些已排队的 op
  * 再没人触发——文档虽已被启动恢复置为可重试（不会卡「优化中」），但该文的 wiki 内容要等
- * 下一次 KB 触发才补生成。Go 时代靠 Redis/asynq 的重投语义覆盖这一点；单机形态没有那一层。</p>
+ * 下一次 KB 触发才补生成。Redis/asynq 队列自带重投语义；单机形态没有那一层，
+ * 故由启动期重放覆盖。</p>
  *
  * <p><b>做法</b>：{@code ApplicationReadyEvent} 时扫出仍有在途 ingest op 的 KB，逐个走
  * 与请求侧<b>完全相同</b>的 {@link WikiIngestService#enqueueWikiIngestTrigger} 触发

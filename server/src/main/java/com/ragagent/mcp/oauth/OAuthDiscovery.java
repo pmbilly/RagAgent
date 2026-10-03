@@ -11,8 +11,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import com.ragagent.mcp.protocol.McpContext;
 
 /**
- * OAuth 元数据发现协作者（对照 mcp-go oauth.go 的 getServerMetadata/metadataOnce，
- * 自 {@link OAuthHandler} 机械搬出）：发现状态组（一次性缓存 + 错误 + base/resource URL）
+ * OAuth 元数据发现协作者（自 {@link OAuthHandler} 拆出）：发现状态组（一次性缓存 + 错误 + base/resource URL）
  * 与 RFC 8414/9728 路径插入发现链、元数据 URL 校验静态工具整体随簇。
  * 持门面回引取 config/timeout 与共享 {@code MAPPER}。
  */
@@ -25,9 +24,8 @@ final class OAuthDiscovery {
     }
 
     /**
-     * 元数据发现的"只跑一次"状态（对照 Go 的 {@code metadataOnce} /
-     * {@code serverMetadata} / {@code metadataFetchErr} / {@code baseURL} /
-     * {@code resourceURL} 一整组，全由 {@code metadataMu} 保护）。
+     * 元数据发现的"只跑一次"状态（缓存 / 错误 / base/resource URL 一整组，
+     * 全由本锁保护）。
      */
     private final ReentrantLock metadataLock = new ReentrantLock();
     private boolean metadataFetched;
@@ -37,7 +35,7 @@ final class OAuthDiscovery {
     /** RFC 8707 resource indicator；由 protected-resource 元数据或 base URL 推出。 */
     private String resourceUrl = "";
 
-    /** 对照 Go {@code SetBaseURL}。 */
+    /** 设置 base URL。 */
     public void setBaseUrl(String value) {
         metadataLock.lock();
         try {
@@ -48,8 +46,7 @@ final class OAuthDiscovery {
     }
 
     /**
-     * 对照 Go {@code SetProtectedResourceMetadataURL}：换 URL 时把发现结果整体作废
-     * （{@code serverMetadata}/{@code metadataFetchErr}/{@code metadataOnce}/{@code resourceURL}）。
+     * 换 PRM URL 时把发现结果整体作废（缓存 / 错误 / 已发现标志 / resource 指示符）。
      */
     public void setProtectedResourceMetadataUrl(String url) {
         metadataLock.lock();
@@ -66,7 +63,7 @@ final class OAuthDiscovery {
 
     // ── 发现 ───────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code GetServerMetadata}（公开包装）。 */
+    /** 读取元数据（未发现过则触发一次发现）。 */
     public AuthServerMetadata getServerMetadata(McpContext ctx) {
         metadataLock.lock();
         try {
@@ -84,7 +81,7 @@ final class OAuthDiscovery {
     }
 
     /**
-     * 对照 Go {@code getServerMetadata} 的 {@code metadataOnce.Do} 函数体（oauth.go:499-663）。
+     * 实际发现流程（只执行一次）。
      * 调用方必须已持有 {@link #metadataLock}。
      */
     private void discover(McpContext ctx) {
@@ -92,8 +89,8 @@ final class OAuthDiscovery {
         if (!service.config.authServerMetadataUrl().isEmpty()) {
             fetchMetadataFromUrl(service.config.authServerMetadataUrl());
             if (serverMetadata == null && metadataFetchError == null) {
-                // Go 在这里会返回 (nil, nil)，随后调用方解引用空指针 panic（gin recovery → 500）。
-                // Java 侧改为显式报错：对外仍是 500，但只有一条清晰文案，不是 NPE 堆栈。
+                // 显式 URL 拉不到元数据 → 显式报错：对外 500，只有一条清晰文案，
+                // 不留空指针。
                 metadataFetchError = OAuthProtocolException.of(
                         "failed to load authorization server metadata from "
                                 + service.config.authServerMetadataUrl());
@@ -201,7 +198,7 @@ final class OAuthDiscovery {
     }
 
     /**
-     * 对照 Go {@code fetchMetadataFromURL}：非 200 <b>静默跳过</b>（让调用方试下一个候选）；
+     * 非 200 <b>静默跳过</b>（让调用方试下一个候选）；
      * 解码成功但 URL 字段非法时记录错误。
      */
     private void fetchMetadataFromUrl(String metadataUrl) {
@@ -235,7 +232,7 @@ final class OAuthDiscovery {
     }
 
     /**
-     * 对照 Go {@code extractBaseURL}：有 base URL 就用；否则从 redirect_uri 推 scheme://host。
+     * 有 base URL 就用；否则从 redirect_uri 推 scheme://host。
      */
     private String extractBaseUrl() {
         if (!baseUrl.isEmpty()) {
@@ -254,7 +251,7 @@ final class OAuthDiscovery {
     }
 
     /**
-     * 对照 Go {@code getDefaultEndpoints}：丢掉 path，用 {@code <scheme>://<host>} 拼默认端点。
+     * 丢掉 path，用 {@code <scheme>://<host>} 拼默认端点。
      */
     private static AuthServerMetadata getDefaultEndpoints(String url) {
         URI parsed;
@@ -271,7 +268,7 @@ final class OAuthDiscovery {
                 authBaseUrl + "/token", authBaseUrl + "/register");
     }
 
-    /** 对照 Go {@code getResourceURL}。 */
+    /** 读取 resource 指示符。 */
     public String getResourceUrl() {
         metadataLock.lock();
         try {
@@ -280,10 +277,10 @@ final class OAuthDiscovery {
             metadataLock.unlock();
         }
     }
-    // ── 静态工具（对照 Go 的包级函数） ───────────────────────────────────
+    // ── 静态工具 ─────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code buildWellKnownURL}：well-known 段<b>插在 authority 与 path 之间</b>
+     * well-known 段<b>插在 authority 与 path 之间</b>
      * （RFC 8414 §3 / RFC 9728 的路径插入语义），不是简单拼接。
      */
     static String buildWellKnownUrl(String baseUrl, String suffix) {
@@ -306,7 +303,7 @@ final class OAuthDiscovery {
     }
 
     /**
-     * 对照 Go {@code authorizationServerMetadataURLs}：给定 issuer 的候选发现地址有序列表。
+     * 给定 issuer 的候选发现地址有序列表。
      * issuer 无路径时两个候选（RFC 8414 + OIDC）；有路径时三个（含 OIDC 的
      * {@code <path>/.well-known/openid-configuration} 变体）。
      */
@@ -335,7 +332,7 @@ final class OAuthDiscovery {
     }
 
     /**
-     * 对照 Go {@code validateAuthServerMetadataURLs}：每个 URL 型字段必须 http/https 且带 host。
+     * 每个 URL 型字段必须 http/https 且带 host。
      * 空的可选字段放行。
      */
     static void validateAuthServerMetadataUrls(AuthServerMetadata m) {
@@ -372,8 +369,8 @@ final class OAuthDiscovery {
     }
 
     /**
-     * 对照 Go {@code resourceIdentifiersEqual}：scheme/host 大小写不敏感；
-     * 路径比 {@code EscapedPath}（保留百分号编码语义）；<b>两侧各去掉一个尾部斜杠</b>
+     * scheme/host 大小写不敏感；
+     * 路径比较保留百分号编码语义；<b>两侧各去掉一个尾部斜杠</b>
      * （真实部署常带或不带，判不等会误杀合法服务器）；query/fragment/userinfo 参与比较。
      * 不可解析时退回字符串精确比较。
      */
@@ -405,7 +402,7 @@ final class OAuthDiscovery {
         }
         return equalsNn(ua.getRawUserInfo(), ub.getRawUserInfo());
     }
-    /** 对照 Go {@code strings.TrimSuffix(p, "/")}：<b>最多</b>去掉一个尾部斜杠。 */
+    /** <b>最多</b>去掉一个尾部斜杠。 */
     private static String trimTrailingSlash(String s) {
         if (s.length() > 0 && s.charAt(s.length() - 1) == '/') {
             return s.substring(0, s.length() - 1);

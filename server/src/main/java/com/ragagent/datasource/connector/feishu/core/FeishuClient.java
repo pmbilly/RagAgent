@@ -25,11 +25,11 @@ import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiNode;
 import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiSpace;
 
 /**
- * 飞书 Open Platform API 客户端（对照 Go {@code core/client.go} 全文）。
+ * 飞书 Open Platform API 客户端。
  *
  * <h2>三次重试策略（wiki 与云盘共用）</h2>
  * <p>飞书的 drive export / wiki 接口限流很凶，一次上千文档的同步要发几万次调用；
- * 没有退避时<b>一波 429 就会静默失败一大片文档</b>。策略（{@link #doRequest} 与
+ * 没有退避时<b>一轮 429 就会静默失败一大片文档</b>。策略（{@link #doRequest} 与
  * {@link #downloadRawBytes} 共用）：</p>
  * <ul>
  *   <li>429 → 尊重 {@code Retry-After}，最多 1+3 次；</li>
@@ -38,21 +38,19 @@ import com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiSpace;
  *   <li>传输层错误 → 按 {@link #RETRY_BACKOFF} 退避。</li>
  * </ul>
  *
- * <h2>context.Context 去哪了（约定 §5 的落地）</h2>
+ * <h2>超时与取消</h2>
  * <ul>
- *   <li>请求级超时：Go 的 {@code context.WithTimeout} → Java 落在
- *       {@link ConnectorHttp.Client} 的构造参数（{@link #REQUEST_TIMEOUT}，= Go 的 30s）；</li>
- *   <li>取消：Go 的 {@code ctx.Done()} → Java 的线程中断，
+ *   <li>请求级超时：落在
+ *       {@link ConnectorHttp.Client} 的构造参数（{@link #REQUEST_TIMEOUT}，30 秒）；</li>
+ *   <li>取消：靠线程中断，
  *       {@link com.ragagent.datasource.Connector#sleep(long)} 会把它转成
- *       {@link ConnectorException}（对照 Go 的 {@code sleepCtx} 返回 {@code ctx.Err()}）。</li>
+ *       {@link ConnectorException}。</li>
  * </ul>
  *
- * <h2>工具链差异（都在注释里就地标注）</h2>
+ * <h2>实现注记</h2>
  * <ol>
- *   <li>{@code io.ReadAll(resp.Body)} 在 Java 侧由 {@code exchange} 一次做完，
- *       所以 Go 那条 "read response body: %w" 的重试分支在 Java 不可达（照抄会变成死代码，
- *       故省略并把这条差异记在此处）。</li>
- *   <li>{@code io.LimitReader} 的 512MB 上限在 Java 侧只能"读完再判"——
+ *   <li>响应体由 {@code exchange} 一次读完，所以不存在"读响应体失败"这个独立重试分支。</li>
+ *   <li>512MB 上限只能"读完再判"——
  *       JDK 的 {@code HttpClient} 不允许替换 BodyHandler 的分块读取。
  *       净效果一致（超限即报错），差别只在内存峰值。</li>
  * </ol>
@@ -63,37 +61,33 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
 
     private static final Logger log = LoggerFactory.getLogger(FeishuClient.class);
 
-    /** 对照 Go {@code 30 * time.Second}（{@code NewClient} 传给 {@code NewConnectorHTTPClient}）。 */
+    /** 单次请求超时。 */
     public static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
-    /** 对照 Go {@code feishuMaxRetries}。 */
+    /** 429/传输层错误的最大重试次数。 */
     public static final int MAX_RETRIES = 3;
 
-    /** 对照 Go {@code feishuMax5xxRetries}。 */
+    /** 5xx 的最大重试次数。 */
     public static final int MAX_5XX_RETRIES = 1;
 
-    /** 对照 Go {@code maxFeishuDownloadBytes}（512 MB）。 */
+    /** 单次下载的字节上限（512 MB）。 */
     public static final long MAX_DOWNLOAD_BYTES = 512L * 1024 * 1024;
 
     /**
-     * 5xx 重试前的固定等待（对照 Go 的 {@code feishuRetry5xxDelay} 常量）。
+     * 5xx 重试前的固定等待（默认 2 秒）。
      *
-     * <p>Go 侧是 {@code const = 2 * time.Second}，测试跑起来就是真等 2 秒。
-     * Java 侧做成<b>可覆盖的字段</b>，让重试次数类用例不必真的睡 2 秒
-     * （任务书约束第 3 条：不靠墙钟造时间）。生产取默认值，与 Go 一致。</p>
+     * <p>做成<b>可覆盖的字段</b>，让重试类用例不必真的睡 2 秒。生产取默认值。</p>
      */
     public static volatile Duration retry5xxDelay = Duration.ofSeconds(2);
 
-    /** 对照 Go {@code feishuRetryBackoff}（包级 var，可被测试覆盖）。 */
+    /** 传输层错误的退避序列（可被测试覆盖）。 */
     public static volatile List<Duration> retryBackoff =
             List.of(Duration.ofSeconds(2), Duration.ofSeconds(4), Duration.ofSeconds(8));
 
     /**
-     * 导出任务的最长轮询时间与轮询间隔（对照 Go {@code ExportAndDownload} 里的
-     * {@code 60 * time.Second} 与 {@code time.After(2 * time.Second)}）。
+     * 导出任务的最长轮询时间（默认 60 秒）与轮询间隔（默认 2 秒）。
      *
-     * <p>做成字段是<b>刻意的</b>：Go 把这两个数写死在函数里，测试只能靠"导出立刻完成"
-     * 绕开等待。Java 侧留出注入缝，超时分支才测得到，且不必睡 60 秒。</p>
+     * <p>做成字段是<b>刻意的</b>：留出注入缝，超时/轮询分支才测得到，且不必真的睡 60 秒。</p>
      */
     public static volatile Duration exportTimeout = Duration.ofSeconds(60);
 
@@ -121,7 +115,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
     /** wiki 树遍历协作者（构造期装配）。 */
     final FeishuWikiTreeOps treeOps;
 
-    /** 对照 Go {@code NewClient}。 */
+    /** 从配置构造。 */
     public FeishuClient(FeishuConfig config) {
         this(config.resolveBaseUrl(), config.getAppId(), config.getAppSecret(),
                 FeishuConfig.resolveLocation(config.getTimezone()),
@@ -129,9 +123,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
     }
 
     /**
-     * 完整构造器——测试直接指到本机 stub server 用（对照 Go 测试里
-     * {@code &Client{baseURL: srv.URL, appID: "a", appSecret: "s", httpClient: srv.Client()}}
-     * 的同包直构）。
+     * 完整构造器——测试直接指到本机 stub server 用。
      */
     public FeishuClient(String baseUrl, String appId, String appSecret, ZoneId location,
                         ConnectorHttp.Client httpClient) {
@@ -149,7 +141,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
         return baseUrl;
     }
 
-    /** 对照 Go {@code (*Client).tz()}：没配 location 时回落 GMT+8。 */
+    /** 没配 location 时回落 GMT+8。 */
     public ZoneId tz() {
         return location != null
                 ? location
@@ -235,7 +227,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code getDocumentRawContent}（已废弃路径，保留以对齐 Go 的 API 面）。
+     * 已废弃路径，仅为兼容保留。
      *
      * @deprecated 优先用 {@link #exportAndDownload}，它保留格式。
      */
@@ -258,7 +250,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
     //   3. GET  /drive/v1/export_tasks/file/:ticket/download → 下载字节
     // ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code createExportTask}。 */
+    /** 建导出任务，返回 ticket。 */
     String createExportTask(String token, String objType, String fileExtension) {
         Map<String, String> body = new LinkedHashMap<>();
         body.put("file_extension", fileExtension);
@@ -275,12 +267,12 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
         return resp.data() == null || resp.data().ticket() == null ? "" : resp.data().ticket();
     }
 
-    /** 对照 Go {@code getExportTaskStatus} 的三返回值。 */
+    /** 导出任务状态查询的结果。 */
     record ExportStatus(String fileToken, String fileName) {
     }
 
     /**
-     * 对照 Go {@code getExportTaskStatus}：轮询导出任务状态。
+     * 查询导出任务状态。
      *
      * <p>返回的 {@code fileToken} 只有任务成功时才非空；{@code 1}/{@code 2}
      * （初始化中/处理中）返回空 token 表示"还没好"。</p>
@@ -311,16 +303,15 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
         }
     }
 
-    /** 对照 Go {@code downloadExportFile}（导出结果必须在完成后 10 分钟内下载）。 */
+    /** 下载导出结果（必须在完成后 10 分钟内下载）。 */
     public byte[] downloadExportFile(String fileToken) {
         return downloadRawBytes("/open-apis/drive/v1/export_tasks/file/" + fileToken + "/download");
     }
 
     /**
-     * 对照 Go {@code ExportAndDownload}：建导出任务 → 轮询到完成 → 下载文件。
+     * 建导出任务 → 轮询到完成 → 下载文件。
      *
-     * <p>超时 60 秒、轮询间隔 2 秒（见 {@link #exportTimeout} / {@link #exportPollInterval}，
-     * 两者在 Java 侧是可覆盖字段，Go 侧写死在函数里）。</p>
+     * <p>超时 60 秒、轮询间隔 2 秒（见 {@link #exportTimeout} / {@link #exportPollInterval}）。</p>
      *
      * @param objToken 文档的 obj_token
      * @param objType  飞书的 obj_type（{@code "docx"}/{@code "doc"}/{@code "sheet"}/{@code "bitable"}）
@@ -347,7 +338,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
             if (!fileToken.isEmpty()) {
                 break; // 导出就绪
             }
-            // 对照 Go 的 select { ctx.Done() / time.After(2s) }：中断语义走 sleep
+            // 等待轮询间隔；中断语义走 Connector.sleep
             Connector.sleep(exportPollInterval.toMillis());
         }
 
@@ -364,7 +355,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
         return new ExportDownload(data, fileName);
     }
 
-    /** 对照 Go {@code ExportAndDownload} 的 {@code (data, fileName, error)}。 */
+    /** 导出下载结果：文件字节与文件名。 */
     public record ExportDownload(byte[] data, String fileName) {
     }
 
@@ -373,7 +364,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code DownloadDriveFile}：按 file token 下载云盘文件。
+     * 按 file token 下载云盘文件。
      * 用于 {@code obj_type="file"} 的 wiki 节点（用户上传的 PDF/Word/图片…）。
      */
     public byte[] downloadDriveFile(String fileToken) {
@@ -381,7 +372,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
     }
 
     /**
-     * 对照 Go {@code downloadMediaFile}：下载<b>文档内嵌</b>媒体（File/Image 块引用的
+     * 下载<b>文档内嵌</b>媒体（File/Image 块引用的
      * 附件与图片）。
      *
      * <p>内嵌媒体的 token 空间与独立的 Drive 文件不同，必须走 {@code /medias/}
@@ -392,7 +383,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
                 + FeishuSupport.pathEscape(fileToken) + "/download");
     }
 
-    /** 对照 Go {@code downloadRawBytes}：带鉴权的 GET，返回原始响应体。 */
+    /** 带鉴权的 GET，返回原始响应体。 */
     public byte[] downloadRawBytes(String path) {
         String token = getTenantAccessToken();
         String url = baseUrl + path;
@@ -447,8 +438,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
             }
 
             byte[] data = resp.body() == null ? new byte[0] : resp.body();
-            // 对照 Go 的 io.LimitReader(maxFeishuDownloadBytes+1) 之后判超限；
-            // Java 侧 body 已经在 exchange 里读完，只能读完再判（净效果一致）。
+            // body 已经在 exchange 里读完，只能读完再判超限（净效果一致）。
             if (data.length > MAX_DOWNLOAD_BYTES) {
                 throw new ConnectorException(
                         "download exceeds max size (" + MAX_DOWNLOAD_BYTES + " bytes): " + path);
@@ -465,16 +455,16 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
     // Drive（云盘）文件列举
     // ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code listDriveFiles} 的双返回值。 */
+    /** 云盘文件列表的一页。 */
     public record DriveFilePage(List<DriveFile> files, String nextPageToken) {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // docx 块（blocks.go L126-465）
+    // docx 块
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code listDocumentBlocks}：把一篇 docx 的全部 block 拉成一个扁平的
+     * 把一篇 docx 的全部 block 拉成一个扁平的
      * <b>先序</b>数组。每页 500 个块。
      *
      * @param documentId docx 文档的 obj_token
@@ -517,12 +507,12 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
         return all;
     }
 
-    /** 对照 Go {@code readSheetRange} 的三返回值。 */
+    /** 一次内嵌表格读取的结果：字符串化的行 + 是否截断。 */
     public record SheetRange(List<List<String>> rows, boolean truncated) {
     }
 
     /**
-     * 对照 Go {@code readSheetRange}：读内嵌电子表格单元格的值。
+     * 读内嵌电子表格单元格的值。
      *
      * <p>{@code embedToken} 是 sheet 块的 {@code sheet.token}，形如
      * {@code "spreadsheetToken_sheetId"}（在<b>最后一个</b>下划线处切分）。
@@ -530,7 +520,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
      * {@link DocxBlocks#MAX_TABLE_ROWS} 截断，源行数更多时 {@code truncated=true}。</p>
      */
     public SheetRange readSheetRange(String embedToken) {
-        // Go 用的是 strings.LastIndex（不是 Cut）：spreadsheet token 本身可能含下划线
+        // 在最后一个下划线处切分：spreadsheet token 本身可能含下划线
         int idx = embedToken == null ? -1 : embedToken.lastIndexOf('_');
         if (idx < 0) {
             throw new ConnectorException("invalid sheet embed token: \"" + embedToken + "\"");
@@ -556,12 +546,12 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
         return new SheetRange(DocxBlocks.stringifyMatrix(capped.rows()), capped.truncated());
     }
 
-    /** 对照 Go {@code readBitableRecords} 的三返回值。 */
+    /** 一次内嵌多维表格读取的结果：表头 + 数据行 + 是否截断。 */
     public record BitableTable(List<List<String>> rows, boolean truncated) {
     }
 
     /**
-     * 对照 Go {@code readBitableRecords}：把一个内嵌多维表格读成表格——
+     * 把一个内嵌多维表格读成表格——
      * 一行字段名表头 + 每条记录一行。
      *
      * <p>{@code embedToken} 是 bitable 块的 {@code bitable.token}，形如
@@ -686,7 +676,7 @@ public class FeishuClient implements DocxMarkdown.SheetReader {
     // 小工具
     // ──────────────────────────────────────────────────────────────────
 
-    /** Go 的 nil slice 在 Java 是 null：循环/追加前统一归一。 */
+    /** null 列表归一成空列表：循环/追加前统一处理。 */
     static <T> List<T> nvl(List<T> list) {
         return list == null ? List.of() : list;
     }

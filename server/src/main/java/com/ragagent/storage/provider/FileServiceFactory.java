@@ -10,38 +10,35 @@ import com.ragagent.storage.fileserve.StoragePaths;
 import com.ragagent.common.security.SsrfGuard;
 
 /**
- * 按租户存储配置造 provider 专属 {@link FileService}
- * （对照 Go {@code NewFileServiceFromStorageConfig}，file/factory.go 全文）。
+ * 按租户存储配置造 provider 专属 {@link FileService}。
  *
- * <p>provider 为空时回落到配置里的 {@code default_provider}；根目录缺省链照 Go：
+ * <p>provider 为空时回落到配置里的 {@code default_provider}；根目录缺省链：
  * 入参 → {@code LOCAL_STORAGE_BASE_DIR} → {@code /data/files}；local 再叠加
  * {@code sec.local.path_prefix}（{@code SafeJoinUnderBase} 语义：越界就忽略前缀）。</p>
  *
- * <p><b>批次划分（照 Go 的真实形态）</b>：批次一已落地 <b>local + s3 协议族</b>
- * （s3/minio/obs/ks3——Go 对 obs 用 AWS SDK + 端点解析、对 ks3 用其 AWS SDK 分支，
- * 本身就是 S3 兼容路线）；批次二补 <b>oss/cos/tos</b>（各家官方 SDK 逐条对齐）。
+ * <p>已覆盖 <b>local + S3 协议族</b>（s3/minio/obs/ks3——obs 与 ks3 走 S3 兼容路线）
+ * 与 <b>oss/cos/tos</b>（各家官方 SDK）。
  * 未实现的 provider 抛明确异常，不静默退化到本地盘。</p>
  */
 public final class FileServiceFactory {
 
-    // 本地存储根与 go 的 LOCAL_STORAGE_BASE_DIR 缺省（/data/files）统一由
-    // StoragePaths.localStorageBaseDir() 提供（B6 批 7/8：同一个 env 只有一条读取路径）；
-    // 原先在此的两个公开常量已无引用，随之删除。
-    /** 对照 Go：本地后端的预签名基址来源。 */
+    // 本地存储根与 LOCAL_STORAGE_BASE_DIR 缺省（/data/files）统一由
+    // StoragePaths.localStorageBaseDir() 提供（同一个 env 只有一条读取路径）。
+    /** 本地后端的预签名基址来源（外部 URL env）。 */
     public static final String ENV_EXTERNAL_URL = "APP_EXTERNAL_URL";
-    /** provider 缺省前缀（照 Go：s3/obs/ks3 均以 {@code weknora/} 起）。 */
+    /** provider 缺省前缀（s3/obs/ks3 均以 {@code weknora/} 起）。 */
     public static final String DEFAULT_PATH_PREFIX = "weknora/";
 
-    /** 已实现的 provider（批次一：local + S3 协议族；批次二：oss/cos/tos）。 */
+    /** 已实现的 provider（local + S3 协议族 + oss/cos/tos）。 */
     static final Set<String> IMPLEMENTED =
             Set.of("local", "s3", "minio", "obs", "ks3", "oss", "cos", "tos");
-    /** 批次二已补齐，不再有"未实现"的 provider（保留集合以便扩展时复用判定）。 */
+    /** 已无"未实现"的 provider（保留集合以便扩展时复用判定）。 */
     static final Set<String> PENDING = Set.of();
 
     private FileServiceFactory() {
     }
 
-    /** 解析结果：服务 + 归一化后的 provider 名（对照 Go 的 {@code (svc, p, err)}）。 */
+    /** 解析结果：服务 + 归一化后的 provider 名。 */
     public record Created(FileService service, String provider) {
     }
 
@@ -106,7 +103,7 @@ public final class FileServiceFactory {
                         || bucket.isEmpty()) {
                     throw new IllegalArgumentException("incomplete minio config");
                 }
-                // Go 的 minio-go 用 Secure 决定 http/https（endpoint 只给 host）
+                // endpoint 只给 host 时由 useSsl 决定 http/https
                 String url = endpoint.contains("://")
                         ? endpoint : (c.isUseSsl() ? "https://" : "http://") + endpoint;
                 return new Created(new S3CompatibleFileService(new S3CompatibleFileService.Config(
@@ -221,7 +218,7 @@ public final class FileServiceFactory {
         return a == null || a.isEmpty() ? (b == null ? "" : b) : a;
     }
 
-    /** provider 家族键读取（统一查找面，B6 批 8）；未配置/空白 → {@code fallback}。 */
+    /** provider 家族键读取（统一查找面）；未配置/空白 → {@code fallback}。 */
     private static String envOr(String name, String fallback) {
         String v = com.ragagent.storage.config.StorageEnvLookup.get(name);
         return v == null || v.trim().isEmpty() ? fallback : v.trim();

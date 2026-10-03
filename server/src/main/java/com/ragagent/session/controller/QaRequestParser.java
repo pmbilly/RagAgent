@@ -22,10 +22,10 @@ import static com.ragagent.session.service.QaSupport.KnowledgeTargets;
 import com.ragagent.session.controller.KnowledgeQaController.Base64Support;
 
 /**
- * {@code KnowledgeQaController} 的**请求解析主体**（§14.9c 刀 4b）：把 HTTP 请求（会话 id、
+ * {@code KnowledgeQaController} 的**请求解析主体**：把 HTTP 请求（会话 id、
  * agentId、资源、模式）解析成 {@code ParsedRequest}（{@code QaRequestContext} + 具名请求体）。
  *
- * <p>参数化而非注入（见 §11.26）：{@code agentResolver} 由调用方传入（控制器里是
+ * <p>参数化而非注入：{@code agentResolver} 由调用方传入（控制器里是
  * {@code @Autowired} 字段，普通协作者不能快照）；读者租户 {@code readerTenant} 同理由调用方算好传入
  * （控制器侧的 {@code currentTenant()} 依赖 {@code tenantServiceField}）。共享静态助手
  * {@code KnowledgeQaController.stringListOf} 与嵌套类型 {@code ParsedRequest} 按包内可见引用。</p>
@@ -89,7 +89,7 @@ final class QaRequestParser {
             }
         }
 
-        // SSRF：客户端不可携带图片 URL/Caption（qa.go L169-172）
+        // SSRF：客户端不可携带图片 URL/Caption
         for (var img : request.images()) {
             img.url = "";
             img.caption = "";
@@ -130,7 +130,7 @@ final class QaRequestParser {
             // 的命中条件是 KB 共享关系；dev 单租户等价于不动）。
         }
 
-        // 内联 base64 图片（对照 Go saveImageAttachments：落盘后回填 URL，消息/检索/VLM
+        // 内联 base64 图片（落盘后回填 URL，消息/检索/VLM
         // 三处消费同一引用；SSRF 已在上方清空客户端 url/caption）
         if (!request.images().isEmpty()) {
             if (rc.agentConfig == null || !rc.agentConfig.path("imageUploadEnabled").asBoolean(false)) {
@@ -165,7 +165,7 @@ final class QaRequestParser {
             }
         }
 
-        // 内联附件（base64 直传，对照 Go：落临时附件表后走既有的 attachment_ids 解析链）
+        // 内联附件（base64 直传，落临时附件表后走既有的 attachment_ids 解析链）
         if (!request.attachmentUploads().isEmpty()) {
             QaRequestBinder.decodeAndValidateAttachmentUploads(request.attachmentUploads(),
                     QaSupport.MAX_ATTACHMENT_UPLOADS_PER_REQUEST,

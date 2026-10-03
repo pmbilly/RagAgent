@@ -9,7 +9,7 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
- * 对照 Go {@code internal/storageallowlist}：STORAGE_ALLOW_LIST 控制的
+ * STORAGE_ALLOW_LIST 控制的
  * provider 白名单（空 = 全部允许）。Supported 是**展示序**（契约：
  * /storage-backends/types 的输出顺序）。
  *
@@ -30,7 +30,7 @@ public class StorageAllowList {
         return List.copyOf(SUPPORTED);
     }
 
-    /** 白名单原始串（B6 批 6：{@code STORAGE_ALLOW_LIST} 走属性绑定）。 */
+    /** 白名单原始串（{@code STORAGE_ALLOW_LIST} 走属性绑定）。 */
     private final String configuredRaw;
 
     public StorageAllowList(StorageAllowListProperties properties) {

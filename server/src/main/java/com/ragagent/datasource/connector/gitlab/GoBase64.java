@@ -1,23 +1,23 @@
 package com.ragagent.datasource.connector.gitlab;
 
 /**
- * Go {@code encoding/base64.StdEncoding.DecodeString} 的逐行复刻。
+ * 按 Go 标准库 {@code encoding/base64.StdEncoding.DecodeString} 语义实现的解码器。
  *
  * <h2>为什么不直接用 {@code java.util.Base64}</h2>
- * <p>只有一件事需要它：<b>错误消息里的字节偏移</b>。Go 的失败统一是
+ * <p>只有一件事需要它：<b>错误消息里的字节偏移</b>。失败统一是
  * {@code CorruptInputError(offset)}，消息为
  * {@code illegal base64 data at input byte N}；JDK 的
  * {@code Base64.Decoder} 抛的是 {@code IllegalArgumentException}，消息形态完全不同，
  * 而且它<b>不区分</b>"在哪里坏掉的"（{@code ab==cd}、"A==="、"a" 三类都只说"输入格式非法"）。
  * 连接器把这条消息原样包进 {@code gitlab file content: decode base64: %w}，
- * 是运维排查"GitLab 返回的 content 到底怎么了"的唯一线索，所以照抄。</p>
+ * 是运维排查"GitLab 返回的 content 到底怎么了"的唯一线索。</p>
  *
- * <h2>算法出处</h2>
- * <p>逐行对照 Go 1.26 {@code encoding/base64} 的 {@code decodeQuantum}：
+ * <h2>算法</h2>
+ * <p>与 Go 标准库 {@code encoding/base64} 的 {@code decodeQuantum} 相同：
  * 每 4 个字符一个 quantum，{@code \n} / {@code \r} 在任意位置被跳过（并占用一个
  * {@code j} 槽位），{@code =} 只能出现在 quantum 的第 3、4 位且必须是输入的尾部。
- * 各种边界的偏移量（{@code si} 是<b>绝对</b>下标，且已被读过一位）已由
- * {@code GoBase64Test} 用 Go 实录钉住。</p>
+ * 各种边界的错误偏移量（{@code si} 是<b>绝对</b>下标，且已被读过一位）由
+ * {@code GoBase64Test} 钉住。</p>
  *
  * <p><b>内部工具，不是契约</b>：只在 {@code raw()} 的 base64 回落分支上使用，
  * 不落 jsonb、不进响应体。</p>
@@ -45,24 +45,24 @@ final class GoBase64 {
     }
 
     /**
-     * 对照 Go {@code base64.StdEncoding.DecodeString}。
+     * 解码标准 base64。
      *
-     * @param input 待解码文本（按 <b>UTF-8 字节</b>处理，与 Go 的 {@code []byte(s)} 一致）
+     * @param input 待解码文本（按 <b>UTF-8 字节</b>处理）
      * @return 解出的字节
      * @throws CorruptInputException 编码非法；{@link CorruptInputException#offset()} 即
-     *                               Go 消息里的那个字节下标
+     *                               错误消息里的那个字节下标
      */
     static byte[] decodeString(String input) {
         byte[] src = input == null ? new byte[0] : input.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         if (src.length == 0) {
             return new byte[0];
         }
-        // 长度上界：Go 的 DecodedLen(n) = n/4*3（含 padding），4 字节最多出 3 字节
+        // 长度上界：n/4*3（含 padding），4 字节最多出 3 字节
         byte[] out = new byte[src.length / 4 * 3 + 3];
         int si = 0;
         int n = 0;
 
-        // 对照 Go Decode：外层 `for si < len(src)`。Go 的两条批量快路径
+        // 外层循环逐 quantum 推进。标准库还有两条批量快路径
         // （assemble32/64）只在 4/8 字符全部合法时才走，结果与逐 quantum 一致，
         // 故这里只保留 decodeQuantum 一条路径——错误偏移也更直观。
         while (si < src.length) {
@@ -129,7 +129,7 @@ final class GoBase64 {
                 break;
             }
 
-            // 对照 Go：val := dbuf[0]<<18 | dbuf[1]<<12 | dbuf[2]<<6 | dbuf[3]
+            // val := dbuf[0]<<18 | dbuf[1]<<12 | dbuf[2]<<6 | dbuf[3]
             int val = ((dbuf[0] & 0xFF) << 18) | ((dbuf[1] & 0xFF) << 12)
                     | ((dbuf[2] & 0xFF) << 6) | (dbuf[3] & 0xFF);
             int b0 = (val >>> 16) & 0xFF;
@@ -151,7 +151,7 @@ final class GoBase64 {
             n += dlen - 1;
 
             if (trailingGarbageOffset >= 0) {
-                // Go 是"先产出字节、再带错返回"，调用方（DecodeString）会丢掉这部分输出
+                // 先产出字节、再带错返回，调用方会丢掉这部分输出
                 throw new CorruptInputException(trailingGarbageOffset);
             }
         }
@@ -161,7 +161,7 @@ final class GoBase64 {
         return result;
     }
 
-    /** 对照 Go 的 {@code base64.CorruptInputError}（消息逐字一致）。 */
+    /** 解码失败：{@code illegal base64 data at input byte N}。 */
     static class CorruptInputException extends RuntimeException {
 
         private static final long serialVersionUID = 1L;

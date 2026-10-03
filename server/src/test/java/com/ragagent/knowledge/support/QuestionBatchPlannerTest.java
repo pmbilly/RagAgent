@@ -13,8 +13,8 @@ import com.ragagent.knowledge.domain.Chunk;
 import com.ragagent.knowledge.domain.QuestionBatchPayload;
 
 /**
- * 导入后问题生成的**选块与分批**契约（对照 Go {@code knowledge_post_process.go:209-238}
- * 与 {@code enqueueQuestionGenerationTasks}:604-690）。
+ * 导入后问题生成的**选块与分批**契约（{@code QuestionBatchPlanner}
+ * 的 {@code selectQuestionChunks} / {@code planBatches}）。
  *
  * <p>2026-09-25 走查：本仓此前只有手动 {@code regenerate} 路径，导入后的自动生成备案为"未翻"
  * ⇒ 刚导入的 KB 推荐问题恒为空（用户报障的第二半）。本测试钉住扇出侧的三条规则：</p>
@@ -79,7 +79,7 @@ class QuestionBatchPlannerTest {
         assertThat(batches.get(0).chunkIds().get(0)).isEqualTo("c0");
         assertThat(batches.get(1).chunkIds().get(0)).isEqualTo("c20");
         assertThat(batches.get(2).chunkIds().get(0)).isEqualTo("c40");
-        // 边界邻块：首批无 prev，末批无 next，中间批两侧都有（照 Go 的 payload 取法）
+        // 边界邻块：首批无 prev，末批无 next，中间批两侧都有（payload 同款取法）
         assertThat(batches.get(0).prevChunkId()).isEmpty();
         assertThat(batches.get(0).nextChunkId()).isEqualTo("c20");
         assertThat(batches.get(1).prevChunkId()).isEqualTo("c19");

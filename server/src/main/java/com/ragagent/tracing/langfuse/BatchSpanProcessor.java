@@ -12,19 +12,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 批量 span 处理器（对照 Go otel-sdk 的 {@code BatchSpanProcessor}，按 config.go
- * 的三参数装配：{@code WithBatchTimeout(FlushInterval)}、
- * {@code WithMaxExportBatchSize(FlushAt)}、{@code WithMaxQueueSize(QueueSize)}）。
+ * 批量 span 处理器（容量参数：{@code FlushInterval} 刷间隔、
+ * {@code FlushAt} 单批上限、{@code QueueSize} 队列上限）。
  *
- * <p>语义照抄：队列满丢最旧并计数；达 {@code FlushAt} 立即导出；定时器按
+ * <p>语义：队列满丢最旧并计数；达 {@code FlushAt} 立即导出；定时器按
  * {@code FlushInterval} 刷；{@code shutdown} 先停定时器再终刷。导出失败只记日志
- * （span 丢失不重试——与 Go 的 BatchSpanProcessor 同义）。</p>
+ * （span 丢失不重试）。</p>
  */
 final class BatchSpanProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(BatchSpanProcessor.class);
 
-    /** 导出出口（生产 = OTLP/HTTP；测试注入记录器——对照 Go Config.testExporter 钩子）。 */
+    /** 导出出口（生产 = OTLP/HTTP；测试注入记录器）。 */
     interface SpanSink {
         void export(List<RecordedSpan> spans) throws Exception;
     }
@@ -55,10 +54,9 @@ final class BatchSpanProcessor {
             t.setDaemon(true);
             return t;
         });
-        // 导出走独立线程：Go 的 BatchSpanProcessor 是后台 goroutine 导出，此前
-        // flushAt 触发的 send 在**调用方线程**同步 HTTP POST（超时默认 10s）——
+        // 导出走独立线程：若在**调用方线程**同步 HTTP POST（超时默认 10s），
         // Langfuse 慢/不可达时用户请求被平白拖住最多 10s。测试注入出口保持同步
-        // （SimpleSpanProcessor 语义，见 DefaultLangfuseManager 测试构造器）。
+        // （见 DefaultLangfuseManager 测试构造器）。
         if (synchronousExport) {
             this.exportExecutor = null;
         } else {
@@ -72,7 +70,7 @@ final class BatchSpanProcessor {
                 TimeUnit.MILLISECONDS);
     }
 
-    /** span End 时入队（对照 otel-sdk OnEnd）。 */
+    /** span End 时入队（对应 OTel 处理器的 OnEnd 钩子）。 */
     void enqueue(RecordedSpan span) {
         List<RecordedSpan> batch = null;
         synchronized (lock) {
@@ -110,7 +108,7 @@ final class BatchSpanProcessor {
         send(batch);
     }
 
-    /** 对照 Manager.Shutdown：停定时器 + 终刷；重复调用幂等。终刷保持同步（保证退出前落盘）。 */
+    /** 停定时器 + 终刷；重复调用幂等。终刷保持同步（保证退出前落盘）。 */
     void shutdown() {
         if (stopped) {
             return;

@@ -11,14 +11,14 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.service.ImService;
 
 /**
- * 飞书 / Lark 渠道工厂（对照 Go {@code internal/im/feishu/factory.go}）。
+ * 飞书 / Lark 渠道工厂。
  *
- * <p>HTTP 适配器<b>两种模式都建</b>（websocket 模式下的 SendReply 也走它，照 Go）；
+ * <p>HTTP 适配器<b>两种模式都建</b>（websocket 模式下的 SendReply 也走它）；
  * 凭据 {@code app_id}/{@code app_secret}/{@code verification_token}/{@code encrypt_key}/
  * {@code api_base_url}（后者经 {@link FeishuAdapter} 校验：http(s) + SSRF，允许明文 http）。</p>
  *
  * <p>{@code websocket} 模式额外起 {@link FeishuLongConnClient}（协议自持实现：pbbp2 帧 +
- * 心跳 + 分片 + 同帧回执，照 lark 官方 Go SDK 的 {@code ws} 包）。</p>
+ * 心跳 + 分片 + 同帧回执，对齐 lark 官方 SDK 的 ws 协议）。</p>
  */
 public class FeishuAdapterFactory implements ImService.AdapterFactory {
 
@@ -56,8 +56,7 @@ public class FeishuAdapterFactory implements ImService.AdapterFactory {
             case "webhook":
                 return new ImService.AdapterRegistration(adapter, null);
             case "websocket": {
-                // 长连接：HTTP 适配器照建（SendReply 两模式共用），额外起 WS 事件流（照 Go 的
-                // NewLongConnClient + factory 里的 go client.Start）
+                // 长连接：HTTP 适配器照建（SendReply 两模式共用），额外起 WS 事件流
                 FeishuLongConnClient longConn = new FeishuLongConnClient(region,
                         ImCredentials.getString(creds, "app_id"),
                         ImCredentials.getString(creds, "app_secret"),
@@ -73,7 +72,7 @@ public class FeishuAdapterFactory implements ImService.AdapterFactory {
                 }, "im-feishu-ws-" + channel.getId());
                 thread.setDaemon(true);
                 thread.start();
-                // 照 Go：stop 必须真关 socket（SDK 的 ctx 不生效），这里 abort + 置停止位
+                // stop 必须真关 socket（SDK 级取消不生效），这里 abort + 置停止位
                 return new ImService.AdapterRegistration(adapter, longConn::stop);
             }
             default:

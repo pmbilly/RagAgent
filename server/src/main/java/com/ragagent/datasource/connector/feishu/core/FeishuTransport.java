@@ -24,7 +24,7 @@ final class FeishuTransport {
 
     private final FeishuClient client;
 
-    // Token 缓存（线程安全；原实现直接放在客户端上，随传输层一起搬）
+    // Token 缓存（线程安全）
     private final Object tokenLock = new Object();
     private String tokenCache = "";
     private OffsetDateTime tokenExpAt = OffsetDateTime.MIN;
@@ -34,10 +34,10 @@ final class FeishuTransport {
     }
 
     /**
-     * 对照 Go {@code GetTenantAccessToken}：取（或返回缓存的）tenant access token。
+     * 取（或返回缓存的）tenant access token。
      *
      * <p>飞书 token 有效期 2 小时；这里留 <b>5 分钟安全边际</b>再过期。
-     * 与 Go 一样整段加锁——并发同步任务会同时打进来。</p>
+     * 整段加锁——并发同步任务会同时打进来。</p>
      */
     public String getTenantAccessToken() {
         synchronized (tokenLock) {
@@ -88,18 +88,18 @@ final class FeishuTransport {
         }
     }
 
-    /** 对照 Go {@code Ping}：拿一次 token 即算验活。 */
+    /** 拿一次 token 即算验活。 */
     public void ping() {
         getTenantAccessToken();
     }
 
     /**
-     * 对照 Go {@code DoRequest}：带鉴权的 API 调用 + JSON 解码 + 瞬时失败重试。
+     * 带鉴权的 API 调用 + JSON 解码 + 瞬时失败重试。
      *
      * @param method     {@code "GET"} / {@code "POST"} …
      * @param path       以 {@code /open-apis/...} 开头的路径（client.baseUrl 由客户端补上）
      * @param body       请求体对象；{@code null} 表示无体
-     * @param resultType 解码目标；{@code null} 表示不关心响应体（对照 Go 的 {@code result == nil}）
+     * @param resultType 解码目标；{@code null} 表示不关心响应体
      * @return 解码结果；{@code resultType == null} 时返回 {@code null}
      */
     public <T> T doRequest(String method, String path, Object body, Class<T> resultType) {
@@ -130,7 +130,7 @@ final class FeishuTransport {
                         "Content-Type", "application/json; charset=utf-8",
                         "Authorization", "Bearer " + token), bodyBytes);
             } catch (RuntimeException e) {
-                // 对照 Go：c.httpClient.Do(req) 失败 → 退避重试
+                // 传输层失败 → 退避重试
                 lastErr = e instanceof ConnectorException ce
                         ? ce : new ConnectorException("execute request: " + e.getMessage(), e);
                 if (attempt < FeishuClient.MAX_RETRIES) {
@@ -167,7 +167,7 @@ final class FeishuTransport {
             }
 
             if (resp.status() != 200) {
-                // 对照 Go：这一支用**完整** body（不截断）
+                // 这一支用**完整** body（不截断）
                 throw new ConnectorException(
                         "feishu api error: status=" + resp.status() + " body=" + respBody);
             }
@@ -182,15 +182,15 @@ final class FeishuTransport {
             }
         }
 
-        // 不可达：循环内每个分支要么 return 要么 throw（保留以对齐 Go 的收尾 return）
+        // 不可达：循环内每个分支要么 return 要么 throw
         throw lastErr != null ? lastErr : new ConnectorException("request failed");
     }
 
     /**
-     * 对照 Go {@code parseRetryAfter}：把 {@code Retry-After}（秒）解释成等待时长，
+     * 把 {@code Retry-After}（秒）解释成等待时长，
      * {@code 0}/负数强制成 100ms 的短延迟，缺失或不可解析时回落。
      *
-     * <p>Go 的测试直接调这个包级函数，所以 Java 侧也保持静态可调。</p>
+     * <p>静态方法，测试可直接调。</p>
      */
     public static Duration parseRetryAfter(String header, Duration fallback) {
         if (header == null || header.isEmpty()) {

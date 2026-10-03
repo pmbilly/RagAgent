@@ -145,7 +145,7 @@ public class WikiFolderRepository {
         return pages.listPagesByFolderIds(kbId, folderIDs);
     }
 
-    /** 文件夹名冲突判定辅助（原实现由唯一索引 + service 层负责；此处保留最小入口） */
+    /** 文件夹名冲突判定辅助（重名约束由唯一索引 + service 层负责；此处保留最小入口） */
     public boolean folderNameExists(String kbId, String parentID, String name) {
         return folders.selectChildByName(kbId, parentID, name) != null;
     }

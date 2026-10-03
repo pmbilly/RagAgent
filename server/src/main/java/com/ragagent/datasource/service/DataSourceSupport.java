@@ -40,7 +40,7 @@ final class DataSourceSupport {
     }
 
     /**
-     * 对照 Go {@code resolveAutoTagIDs}（L809-818）：找/建本次数据源的自动标签。
+     * 找/建本次数据源的自动标签。
      *
      * <p><b>标签失败不致命</b>：同步照常进行、条目只是没有标签。</p>
      */
@@ -61,24 +61,22 @@ final class DataSourceSupport {
     }
 
     /**
-     * 对照 Go {@code validateDataSourceConfig}（L1221-1233）：解析配置后交给连接器真连一次。
+     * 解析配置后交给连接器真连一次。
      *
-     * <p>{@code ParseConfig} 失败一律折叠成 {@code ErrInvalidConfig}
+     * <p>解析失败一律折叠成 {@code invalid configuration}
      * （{@value #DataSourceService.ERR_INVALID_CONFIG}）——把 JSON 解析器的原文漏给用户是没有意义的。</p>
      */
     void validateDataSourceConfig(DataSource ds) {
         Connector connector = service.connectorRegistry.get(ds.getType());
         DataSourceConfig config = parseConfigOrInvalid(ds);
-        // ⚠️ 这里**允许** config 为 null 并原样传给连接器——Go 的
-        // `config, err := ds.ParseConfig(); if err != nil {...}; return connector.Validate(ctx, config)`
-        // 对"空 config"（ParseConfig 回 nil, nil）是把 nil 递下去的，各连接器自己拒绝。
+        // ⚠️ 这里**允许** config 为 null 并原样传给连接器：
+        // "空 config"（解析结果为 null）是把 null 递下去的，各连接器自己拒绝。
         // 把 null 提前折叠成 InvalidConfig 会改变**哪个**错误被暴露出来。
         connector.validate(config);
     }
 
     /**
-     * 对照 Go 的 {@code config, err := ds.ParseConfig(); if err != nil { return ErrInvalidConfig }}：
-     * <b>只有解析抛错</b>才折叠成 {@code invalid configuration}；空 config 回 {@code null}
+     * 解析配置；<b>只有解析抛错</b>才折叠成 {@code invalid configuration}；空 config 回 {@code null}
      * 并继续往下传（调用方自己决定怎么处理 null）。
      */
     static DataSourceConfig parseConfigOrInvalid(DataSource ds) {
@@ -90,7 +88,7 @@ final class DataSourceSupport {
     }
 
     /**
-     * 对照 Go {@code CreateDataSource} 里的两步知识库校验（L74-80）：
+     * 知识库归属校验：
      * 找不到 → {@code knowledge base not found}；租户不符 → <b>同一个</b>错误
      * （不泄漏"这个 id 确实存在，只是不属于你"）。
      */
@@ -106,10 +104,9 @@ final class DataSourceSupport {
     }
 
     /**
-     * 对照 Go 的 {@code reflect.DeepEqual(*mergedCfg, *existingParsedCfg)}：
-     * 把两个配置折成规范化 JSON 树再比。
+     * 深比较两个配置：折成规范化 JSON 树再比。
      *
-     * <p>字段集与 Go 的结构体逐字对应：{@code type} / {@code credentials} /
+     * <p>字段集：{@code type} / {@code credentials} /
      * {@code resource_ids} / {@code settings}。<b>不含</b> {@code multimodal_enabled}
      * ——它在本方法被调用时两侧都还是零值（{@code @JsonIgnore}、从不落库、
      * 只在同步抓取前临时填）。</p>
@@ -127,19 +124,19 @@ final class DataSourceSupport {
         return node;
     }
 
-    /** 对照 Go 的 {@code kb.IsMultimodalEnabled()}：缺失时等价于 false。 */
+    /** KB 的多模态开关：缺失时等价于 false。 */
     static boolean isMultimodalEnabled(KnowledgeBase kb) {
         try {
             java.lang.reflect.Method m = kb.getClass().getMethod("isMultimodalEnabled");
             Object v = m.invoke(kb);
             return v instanceof Boolean b && b;
         } catch (ReflectiveOperationException e) {
-            // KB 的 VLM 配置在阶段 3 未落地 → 等价于"没开多模态"（连接器因此不抽图片）
+            // KB 没有 VLM 配置入口 → 等价于"没开多模态"（连接器因此不抽图片）
             return false;
         }
     }
 
-    /** 对照 Go {@code TaskInitiatorFromContext}：合成用户（API-Key 主体）刻意留空。 */
+    /** 从当前上下文取发起人；合成用户（API-Key 主体）刻意留空。 */
     static TaskInitiator taskInitiatorFromContext() {
         String userId = TenantContext.currentUserId();
         if (userId == null || userId.isEmpty() || isSyntheticUserId(userId)) {
@@ -149,7 +146,7 @@ final class DataSourceSupport {
         return new TaskInitiator(userId, role == null ? "" : role);
     }
 
-    /** 对照 Go {@code IsSyntheticUserID}：{@code "system-"} + 全数字。 */
+    /** 合成用户 id 的形态：{@code "system-"} + 全数字。 */
     static boolean isSyntheticUserId(String id) {
         String prefix = "system-";
         if (id == null || id.length() <= prefix.length() || !id.startsWith(prefix)) {
@@ -164,7 +161,7 @@ final class DataSourceSupport {
         return true;
     }
 
-    /** Go 的 {@code t.IsZero()}（本模块只用来判"连接器有没有给时间"）。 */
+    /** 零值时间判定（本模块只用来判"连接器有没有给时间"）。 */
     static boolean isGoZeroTime(OffsetDateTime t) {
         return t == null || com.ragagent.common.web.GoTimeSerializer.isGoZero(t);
     }
@@ -182,7 +179,7 @@ final class DataSourceSupport {
         bestEffort(() -> service.dsRepo.update(ds));
     }
 
-    /** 对照 Go 的 {@code _ = s.syncLogRepo.Update(ctx, syncLog)}。 */
+    /** 尽力而为地更新同步日志（失败不影响主流程）。 */
     void bestEffortUpdateLog(SyncLog syncLog) {
         bestEffort(() -> service.syncLogRepo.update(syncLog));
     }
@@ -191,11 +188,11 @@ final class DataSourceSupport {
         try {
             action.run();
         } catch (RuntimeException ignored) {
-            // 对照 Go 的 `_ = s.xxxRepo.Update(...)`：写日志失败不改变主流程
+            // 写库失败不改变主流程
         }
     }
 
-    /** 构造一个"按字母序"的 details（Go 的 map → encoding/json 恒排键）。 */
+    /** 构造一个"按字母序"的 details（审计 JSON 的既定键序）。 */
     static Map<String, Object> mapOf(Object... kv) {
         TreeMap<String, Object> m = new TreeMap<>();
         for (int i = 0; i + 1 < kv.length; i += 2) {
@@ -204,18 +201,17 @@ final class DataSourceSupport {
         return m;
     }
 
-    /** 一次同步运行在审计详情里的关联字段（对照 Go 的 {@code withKBActivityTask}）。 */
+    /** 一次同步运行在审计详情里的关联字段。 */
     record ActivityTask(String taskId, String trigger) {
     }
 
     /**
-     * 对照 Go {@code kb_activity.go} 的 {@code recordKBActivity}。
+     * 记录一条知识库活动审计。
      *
-     * <p>本模块只用到它的"汇总事件"形态——同步期间的单条变更一律被
-     * {@code withKBActivitySuppressed} 压掉，所以这里没有 suppressed 参数的用武之地，
-     * 由调用点自己保证只发汇总。</p>
+     * <p>本模块只发"汇总事件"——同步期间的单条变更一律被压掉
+     * （{@code suppressed} 参数），由调用点自己保证只发汇总。</p>
      *
-     * <p>details 的键序：Go 是 {@code map[string]any} → {@code encoding/json} 按字母序输出，
+     * <p>details 的键序按字母序输出，
      * 所以这里用 {@link TreeMap} 构造（与 {@code WikiActivityAuditRecorder} 同款处置）。</p>
      */
     void recordKbActivity(long tenantId, String kbId, String action, String targetType,

@@ -5,11 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import com.ragagent.llm.domain.ChatResponse;
-import com.ragagent.llm.domain.TokenUsage;
 
 /**
- * 溢出识别的 Go 实录断言（/tmp/wave42rec：overflow.go 内嵌；
- * 语料 = overflow_test.go 的真实供应商错误 + 大小写/否定分支 + 命中窗口三形态）。
+ * 溢出识别的录制常量断言（语料 = 真实供应商错误 +
+ * 大小写/否定分支 + 命中窗口三形态）。
  */
 class CompactionOverflowTest {
 
@@ -33,7 +32,7 @@ class CompactionOverflowTest {
             "Prompt has 5000 tokens, but the configured context size is 4096 tokens",
             "Range of input length should be [1, 30000]",
             "context_length_exceeded",
-            // 实录 ovf17：大小写变体但词是 window 不是 length → 不匹配（Go 既有行为）
+            // 录制 ovf17：大小写变体但词是 window 不是 length → 不匹配（既有判定行为）
             "CONTEXT_WINDOW_EXCEEDED",
             "model_context_window_exceeded",
             "prompt too long; exceeded max context length",

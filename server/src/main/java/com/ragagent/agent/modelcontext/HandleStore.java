@@ -9,29 +9,27 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * model 句柄空间的双向原语（对照 Go internal/modelcontext/handle_table.go 的
- * {@code handleTable[M]}，全文移植）。
+ * model 句柄空间的双向原语。
  *
  * <p>把持久去重键映射到顺序分配的句柄，并在同一把锁下保存持久值与可选元数据，
  * 因此「可解析的句柄必然带着元数据」。key 与 value 可以不同（web 引用按规范化
- * URL 去重、但解码回原始 URL）。条目永不删除，使计数器等价于历史的
- * len(map)+1 分配，句柄编号在表的生命周期内稳定。</p>
+ * URL 去重、但解码回原始 URL）。条目永不删除，分配计数因此等于历史条目总数，
+ * 句柄编号在表的生命周期内稳定。</p>
  *
- * <p>{@code wordBounded} 在注册时编译一次：DecodeKnownText 对每个流式分块都要跑，
- * 逐句柄逐分块重编译曾是性能热点（Go 注释原文）。</p>
+ * <p>{@code wordBounded} 在注册时编译一次：解码对每个流式分块都要跑，
+ * 逐句柄逐分块重编译曾是性能热点。</p>
  *
- * <p>已知差异（备案）：Go 的 pairs() 遍历 map（顺序随机），Java 用插入序
- * （LinkedHashMap）+ 稳定排序；仅在「等长值」的排序并列处可能有别——Go 自身
- * 在该处也是不确定的。</p>
+ * <p>已知差异（备案）：遍历用插入序（LinkedHashMap）+ 稳定排序；「等长值」
+ * 并列处的顺序不确定。</p>
  */
 final class HandleStore<M> {
 
-    /** 一次注册的合并回调：重复注册时把 src 折叠进 dst（Go 的 merge func(*M, M)）。 */
+    /** 一次注册的合并回调：重复注册时把 src 折叠进 dst。 */
     interface Merger<M> {
         void merge(M dst, M src);
     }
 
-    /** 文本编解码（压缩/解码）用的快照行（对照 Go handlePair）。 */
+    /** 文本编解码（压缩/解码）用的快照行。 */
     static final class Pair<M> {
         final String value;
         final String handle;
@@ -71,7 +69,7 @@ final class HandleStore<M> {
 
     /**
      * 返回 key 分配到的句柄，首次使用时分配下一个。value 是句柄解码回的目标；
-     * merge 非空时把重复注册的元数据折进既有条目（对照 register）。
+     * merge 非空时把重复注册的元数据折进既有条目。
      */
     String register(String key, String value, M meta, Merger<M> merge) {
         if (key == null || key.isEmpty()) {
@@ -82,8 +80,8 @@ final class HandleStore<M> {
             String existing = handleByKey.get(key);
             if (existing != null) {
                 if (merge != null) {
-                    // Go 的 merge 直接改 *entry.meta；Java 元数据是可变对象
-                    // （ChunkReference/WebMeta），就地修改、条目引用不变
+                    // 合并回调就地修改元数据（ChunkReference/WebMeta 为可变对象），
+                    // 条目引用不变
                     mergeMeta(existing, meta, merge);
                 }
                 return existing;
@@ -110,7 +108,7 @@ final class HandleStore<M> {
         merge.merge(entry.meta, src);
     }
 
-    /** 已有句柄的查询，不分配（对照 handleForKey）。 */
+    /** 已有句柄的查询，不分配。 */
     String handleForKey(String key) {
         if (key == null) {
             return null;
@@ -123,7 +121,7 @@ final class HandleStore<M> {
         }
     }
 
-    /** 句柄是否存在（对照 has）。 */
+    /** 句柄是否存在。 */
     boolean has(String handle) {
         mu.readLock().lock();
         try {
@@ -142,7 +140,7 @@ final class HandleStore<M> {
         }
     }
 
-    /** 已知句柄 → (持久值, 元数据)（对照 resolve）。 */
+    /** 已知句柄 → (持久值, 元数据)。 */
     M resolve(String handle, StringBuilder valueOut) {
         mu.readLock().lock();
         try {
@@ -171,7 +169,7 @@ final class HandleStore<M> {
         }
     }
 
-    /** 值/句柄快照，顺序由调用方负责（对照 pairs）。 */
+    /** 值/句柄快照，顺序由调用方负责。 */
     List<Pair<M>> pairs() {
         mu.readLock().lock();
         try {
@@ -190,7 +188,7 @@ final class HandleStore<M> {
         return prefix;
     }
 
-    /** Go regexp.QuoteMeta 的等价（RE2 元字符集）。 */
+    /** 正则元字符转义（RE2 元字符集）。 */
     private static String quoteMeta(String s) {
         StringBuilder sb = new StringBuilder(s.length() * 2);
         for (int i = 0; i < s.length(); i++) {

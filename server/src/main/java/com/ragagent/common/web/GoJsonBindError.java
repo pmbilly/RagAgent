@@ -1,13 +1,12 @@
 package com.ragagent.common.web;
 
 /**
- * 把「非法 JSON 请求体」的解析错误翻译成 Go {@code encoding/json} 的措辞。
+ * 把「非法 JSON 请求体」的解析错误仿真成 Go {@code encoding/json} 的措辞。
  *
  * <h2>为什么需要它</h2>
- * <p>Go handler 用 {@code c.ShouldBindJSON}，解析失败时把
- * {@code err.Error()} 原样放进 AppError 的 {@code message}
+ * <p>解析失败时，解析器的错误文案会原样进入 AppError 的 {@code message}
  * （例如 session 的 400：{@code invalid character 'o' in literal null (expecting 'u')}）。
- * Jackson 的措辞完全不同，golden 锁的是 Go 的字节——所以顶层形态的错误要仿真。</p>
+ * Jackson 的措辞完全不同，golden 用例锁的就是这些字节——所以顶层形态的错误要仿真。</p>
  *
  * <h2>覆盖范围（与 golden 录制的用例对齐）</h2>
  * <ul>
@@ -59,8 +58,8 @@ public final class GoJsonBindError {
     /**
      * 仿真 Go 对 null/true/false 字面量的逐字符扫描：
      * 第 k 个字符不匹配 → {@code invalid character '<got>' in literal <名> (expecting '<期望>')}。
-     * 字面量完整匹配则返回 null（回落 Jackson——例如 body 就是 {@code null}，
-     * Go 会零值绑定不报错，Jackson 返回 null，由调用方按零值处理）。
+     * 字面量完整匹配则返回 null（回落 Jackson——例如 body 就是 {@code null}：
+     * 零值绑定不报错，由调用方按零值处理）。
      */
     private static String literalError(String body, int start, String literal, String jacksonMessage) {
         for (int k = 1; k < literal.length(); k++) {
@@ -76,7 +75,7 @@ public final class GoJsonBindError {
             }
         }
         int after = start + literal.length();
-        // Go 的 decoder 跳过字面量后的空白再报 next non-space 字符（"null {" → '{'）
+        // 报错前跳过字面量后的空白，取 next non-space 字符（"null {" → '{'）
         while (after < body.length() && Character.isWhitespace(body.charAt(after))) {
             after++;
         }
@@ -89,19 +88,19 @@ public final class GoJsonBindError {
     // ── 字段级类型错误（W5α2 起，golden 驱动登记） ─────────────────────────
 
     /**
-     * 已登记的 (Go 结构体.字段 json 名) → Go 类型 三元组——只登记 golden 实录钉住的
-     * 条目（Go uint64/int64/float64/[]string 的区分不能从 Java 类型推断，逐条录）。
+     * 已登记的 (结构体名.字段 json 名) → 类型名 三元组——只登记 golden 用例钉住的
+     * 条目（uint64/int64/float64/[]string 的区分不能从 Java 类型推断，逐条登记）。
      */
     private static final java.util.Map<String, String> FIELD_GO_TYPES = java.util.Map.of(
-            // S4 后 json 名是 camelCase；Go 的报错文本里用的就是这个 json 名（值类型仍是 Go 的 uint64）
+            // 报错文本里用的就是 camelCase json 名（值类型登记为 uint64）
             "CreateKnowledgeQARequest.agentSourceTenantId", "uint64");
 
     /**
-     * 仿真 Go 的字段级类型错误：{@code json: cannot unmarshal <kind> into Go struct
+     * 字段级类型错误仿真，输出措辞：{@code json: cannot unmarshal <kind> into Go struct
      * field <Struct>.<jsonField> of type <goType>}。未登记的字段返回 null（调用方回落
      * Jackson 措辞——与深结构错误的既定处理一致）。
      *
-     * @param structName Go 结构体名（Java 类 simpleName 与 Go 同名时直取）
+     * @param structName 报错文本里的结构体名（Java 类 simpleName 与之一致时直取）
      * @param jsonField  出错字段的 json 名（Jackson path 首段）
      * @param valueKind  实际值的 JSON 种类：string/number/bool/object/array
      */

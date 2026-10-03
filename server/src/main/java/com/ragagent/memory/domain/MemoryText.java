@@ -11,28 +11,25 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
- * 记忆文本的清洗、脱敏、指纹与显式指令识别
- * （对照 Go internal/types/memory.go L614-698、L842-880、L1137-1170）。
+ * 记忆文本的清洗、脱敏、指纹与显式指令识别。
  *
- * <h2>三处刻意的对齐（都是 §9 记过的 Java/Go 差异）</h2>
+ * <h2>三处刻意的口径（§9 记过的差异）</h2>
  * <ol>
  *   <li><b>rune 计数</b>：{@code MemoryContentMaxRunes} 是**码点**数，
  *       不是 {@code String.length()}（UTF-16 码元）。中文里后者会数对，
  *       但 emoji/增补平面就会算成两倍，所以统一走 {@link MemoryKeys#runeLength}。</li>
- *   <li><b>{@code strings.Fields} 的空白定义</b>：Go 的 {@code unicode.IsSpace}
- *       是 Unicode 的 White_Space 属性，等价于 Java 的
+ *   <li><b>空白定义</b>：按 Unicode 的 White_Space 属性，等价于 Java 的
  *       {@code Character.isSpaceChar(c) || c ∈ {09,0A,0B,0C,0D,85}}。
  *       <b>不能</b>用 {@code Character.isWhitespace}：它把不换行空格
- *       （U+00A0/U+2007/U+202F）排除在外，与 Go 相反。</li>
- *   <li><b>{@code strings.ToLower} 与 locale 无关</b>：一律 {@code Locale.ROOT}。</li>
+ *       （U+00A0/U+2007/U+202F）排除在外，语义不同。</li>
+ *   <li><b>小写化与 locale 无关</b>：一律 {@code Locale.ROOT}。</li>
  * </ol>
  *
- * <h2>⚠️ 正则逐条对照的注意点</h2>
- * <p>{@code \b} 两边都当 ASCII 词边界（Go 的 RE2 本就是 ASCII-only；
- * Java 默认 {@code \w} 也是 {@code [A-Za-z0-9_]}），所以 {@code \b密码} 在两边的
- * **都**匹配不上——Go 的注释正是这么说的，CJK 那条规则刻意不写 {@code \b}，别顺手补。</p>
- * <p>{@code \s} 两边有一处已知差异（约定 §9）：Java 的 {@code \s} 含 {@code \x0B}
- * 而 Go 不含。出现垂直制表符的概率可忽略，故保留差异、不改成显式字符类。</p>
+ * <h2>⚠️ 正则的注意点</h2>
+ * <p>{@code \b} 当 ASCII 词边界（Java 默认 {@code \w} 是 {@code [A-Za-z0-9_]}），
+ * 所以 {@code \b密码} **匹配不上**——CJK 那条规则刻意不写 {@code \b}，别顺手补。</p>
+ * <p>{@code \s} 有一处已知差异（约定 §9）：Java 的 {@code \s} 含 {@code \x0B}（垂直制表符）。
+ * 出现概率可忽略，故保留差异、不改成显式字符类。</p>
  */
 public final class MemoryText {
 
@@ -43,7 +40,7 @@ public final class MemoryText {
     // ── 清洗 ───────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code SanitizeMemoryContent}：把一条陈述压成一行、并卡进长度预算。
+     * 把一条陈述压成一行、并卡进长度预算。
      *
      * <p>记忆会被注入系统提示词，所以换行与控制字符要被压掉，
      * 免得一条记忆自己伪造出提示词结构。</p>
@@ -59,7 +56,7 @@ public final class MemoryText {
             } else if (!Character.isISOControl(cp)) {
                 mapped.appendCodePoint(cp);
             }
-            // 其余控制字符：丢弃（Go 的 unicode.IsControl → 返回 -1）
+            // 其余控制字符：丢弃
         }
         String joined = joinGoFields(mapped.toString());
         if (MemoryKeys.runeLength(joined) > MemoryKinds.CONTENT_MAX_RUNES) {
@@ -68,7 +65,7 @@ public final class MemoryText {
         return joined;
     }
 
-    /** 对照 Go {@code SanitizeMemoryTopic}：把可读主题压成一行短文本（80 码点）。 */
+    /** 把可读主题压成一行短文本（80 码点）。 */
     public static String sanitizeMemoryTopic(String topic) {
         String sanitized = sanitizeMemoryContent(topic);
         if (MemoryKeys.runeLength(sanitized) > TOPIC_MAX_RUNES) {
@@ -78,9 +75,9 @@ public final class MemoryText {
     }
 
     /**
-     * 对照 Go {@code strings.Fields} + {@code strings.Join(…, " ")}。
+     * 按空白切分、再以单个空格重新连接。
      *
-     * <p>Go 的 {@code unicode.IsSpace} = Unicode White_Space，等价于
+     * <p>空白 = Unicode White_Space，等价于
      * {@code isSpaceChar} 加上六个 ASCII 制表/换行类字符（含 U+0085 NEL）。</p>
      */
     private static String joinGoFields(String s) {
@@ -102,7 +99,7 @@ public final class MemoryText {
         return out.toString();
     }
 
-    /** 对照 Go {@code unicode.IsSpace}。 */
+    /** Unicode White_Space 语义的空白判定。 */
     static boolean isGoSpace(int cp) {
         if (Character.isSpaceChar(cp)) {
             return true;
@@ -111,7 +108,7 @@ public final class MemoryText {
     }
 
     /**
-     * 对照 Go {@code ClampMemoryImportance}：把重要度夹在 1..5。
+     * 把重要度夹在 1..5。
      */
     public static int clampImportance(int importance) {
         if (importance < 1) {
@@ -124,7 +121,7 @@ public final class MemoryText {
     }
 
     /**
-     * 对照 Go {@code NormalizeMemoryForMatch}：把一条陈述压成可比较的形式
+     * 把一条陈述压成可比较的形式
      * ——没有大小写、没有空白、没有标点。既用于包含判定的去重，
      * 也用于"被忘掉的东西不许复活"的那个指纹。
      */
@@ -140,7 +137,7 @@ public final class MemoryText {
     }
 
     /**
-     * 对照 Go {@code MemoryFingerprint}：把归一化后的陈述做哈希。
+     * 把归一化后的陈述做哈希。
      *
      * <p>墓碑**只留这个哈希，从不留原文**——要求忘掉某件事的用户，
      * 不该让它在另一张表里换个名字继续躺着。</p>
@@ -192,7 +189,7 @@ public final class MemoryText {
             // 于是连同秘密一起把一整条合法记忆也涂掉。
             Pattern.compile("(?i)\\b(password|passwd|pwd|secret|token|api[_\\- ]?key|access[_\\- ]?key)\\b"
                     + "\\s*[:=＝：]\\s*[^\\s，。、；：！？,;]+"),
-            // 这里**不写** \b：Go 的词边界是 ASCII-only 的，中文前永远匹配不上，
+            // 这里**不写** \b：\b 是 ASCII 词边界，中文前永远匹配不上，
             // 加了只会把这条规则静默废掉。
             Pattern.compile("(密码|口令|密钥|秘钥)\\s*[:=＝：是为]?\\s*[^\\s，。、；：！？,;]+"),
             // 中国大陆身份证：锚在一个像样的出生日期上，免得把长订单号和别的 18 位串抓进来。
@@ -205,9 +202,9 @@ public final class MemoryText {
             Pattern.compile("\\b[A-Za-z0-9_\\-]{40,}\\b"));
 
     /**
-     * 对照 Go {@code RedactSensitive}：从一条陈述里去掉凭据与身份号码。
+     * 从一条陈述里去掉凭据与身份号码。
      *
-     * <p>模式**按声明顺序**依次 replaceAll（Go 也是顺序作用于同一个串），
+     * <p>模式**按声明顺序**依次 replaceAll，
      * 所以某一轮替换出的占位符还会被后续模式看到——它不含数字与字母，
      * 实际不会再被匹配。</p>
      *
@@ -221,12 +218,12 @@ public final class MemoryText {
         return new Redaction(redacted, !redacted.equals(content));
     }
 
-    /** {@link #redactSensitive} 的返回值，对照 Go 的二元 {@code (string, bool)}。 */
+    /** {@link #redactSensitive} 的返回值。 */
     public record Redaction(String content, boolean changed) {
     }
 
     /**
-     * 对照 Go {@code IsMostlyRedacted}：这条陈述丢得太多，
+     * 这条陈述丢得太多，
      * 留下来也只是存一个占位符而不是一条记忆。
      */
     public static boolean isMostlyRedacted(String content) {
@@ -241,7 +238,7 @@ public final class MemoryText {
      * 默认的 {@code explicit_only} 模式下，用户没有字面要求保存的东西**永不**入库，
      * 请求与落库之间也不站一次模型调用。
      *
-     * <p><b>顺序有语义</b>：Go 在第一个命中的前缀处就返回。</p>
+     * <p><b>顺序有语义</b>：在第一个命中的前缀处就返回。</p>
      */
     private static final List<String> EXPLICIT_MEMORY_PREFIXES = List.of(
             "记住：", "记住:", "记住，", "记住,", "记住 ", "记住",
@@ -250,19 +247,16 @@ public final class MemoryText {
             "remember that ", "remember: ", "remember, ", "please remember that ",
             "please remember: ", "note that ", "keep in mind that ");
 
-    /** 对照 Go 的 {@code strings.TrimLeft(statement, "：:，, ")} 字符集。 */
+    /** 前缀之后要裁掉的字符集。 */
     private static final String TRIM_LEFT_CUTSET = "：:，, ";
 
     /**
-     * 对照 Go {@code DetectExplicitMemory}：从一条"记住…"指令里取出陈述。
+     * 从一条"记住…"指令里取出陈述。
      *
      * <p>别的一切都回 {@code ok=false}，**包括没有陈述的裸指令**。</p>
      *
-     * <p><b>切片位置用字符数而不是字节数</b>：Go 写的是
-     * {@code trimmed[len(prefix):]}，那是**字节**下标；对这里的前缀
-     * （全 BMP，中文 3 字节 / Java 1 码元）两者数值不同，但**切点相同**
-     * ——都是"跳过前缀那几个字符"，所以 Java 用 {@code substring(prefix.length())}
-     * 得到的是同一个结果。别照抄字节数。</p>
+     * <p><b>切片位置用字符数</b>：切点是"跳过前缀那几个字符"，
+     * 用 {@code substring(prefix.length())} 取出的是正确的陈述。</p>
      */
     public static Detected detectExplicitMemory(String query) {
         String trimmed = query == null ? "" : query.strip();
@@ -284,7 +278,7 @@ public final class MemoryText {
         return new Detected("", false);
     }
 
-    /** {@link #detectExplicitMemory} 的返回值，对照 Go 的二元 {@code (string, bool)}。 */
+    /** {@link #detectExplicitMemory} 的返回值。 */
     public record Detected(String statement, boolean detected) {
     }
 
@@ -299,13 +293,13 @@ public final class MemoryText {
     // ── 展示列表合并 ───────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code MergeUsedMemories}：合并两份"展示给用户的记忆"，
+     * 合并两份"展示给用户的记忆"，
      * 每个 id 只保留**第一次**出现。
      *
      * <p>一条记忆可以影响一轮两次——一次塑造检索、一次被引在答案里——
      * 而用户应该只看到它列一次。</p>
      *
-     * <p>两个照抄的细节：{@code additional} 为空时**原样返回 existing**
+     * <p>两个细节：{@code additional} 为空时**原样返回 existing**
      * （同一个列表对象，不是副本）；id 为空的条目**不参与去重**、一律追加。</p>
      */
     public static <T> List<T> mergeUsedMemories(List<T> existing, List<T> additional,

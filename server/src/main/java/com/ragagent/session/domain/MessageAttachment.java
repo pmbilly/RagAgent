@@ -4,12 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * 消息上的文件附件（对照 Go {@code types.MessageAttachment}，
- * internal/types/message.go L129-147）。
+ * 消息上的文件附件。
  *
- * <p><b>{@code url} 既不进 JSON 也不进数据库</b>（Go 的 tag 就是 {@code json:"-"}`，
- * 而它的 {@code Value()} 又是 {@code json.Marshal} 整个切片——所以元素上的
- * {@code "-"} 同时作用于响应与落库）。Go 的注释说明了原因：它是内部存储句柄
+ * <p><b>{@code url} 既不进 JSON 也不进数据库</b>：它是内部存储句柄
  * （{@code provider://path}），预览走会话级的附件端点，句柄本身一旦外泄就等于给出一个
  * 可跨会话下载的引用。Java 侧一个 {@link JsonIgnore} 覆盖两条路径（类型处理器也用 Jackson）。</p>
  *
@@ -17,7 +14,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * 理由见 {@link Session} 上同名字段的注释：Jackson 会因字段与 getter 的隐式名不一致而多吐键。</p>
  *
  * <p>零值语义（§1.6 禁止条件键）：数值字段 {@code fileSize}/{@code lineCount}/{@code tokenCount}/
- * {@code selectedChunks}/{@code totalChunks} 的 0 也照写（旧 Go 的 omitempty 已退役），
+ * {@code selectedChunks}/{@code totalChunks} 的 0 也照写，
  * 用 NON_DEFAULT。</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

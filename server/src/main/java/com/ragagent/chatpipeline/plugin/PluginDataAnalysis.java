@@ -23,21 +23,19 @@ import com.ragagent.common.web.JsonMappers;
 import com.ragagent.common.pipeline.ChunkTypes;
 
 /**
- * DATA_ANALYSIS 阶段插件（对照 Go chat_pipeline/data_analysis.go）：
+ * DATA_ANALYSIS 阶段插件：
  * MergeResult 里出现 CSV/Excel 命中 → 过滤表格列/摘要块 → 经 DataAnalysisTool
  * 装载数据 → LLM 生成 (knowledge_id, sql) → 执行并把分析结果并回 MergeResult。
  *
- * <p>工具构造走 {@link PipelinePorts.DataAnalysisToolFactory} seam（Go 侧五依赖
- * 直接传给 tools.NewDataAnalysisTool；Java 侧 4.5b 的 DataAnalysisTool 以
- * KnowledgeLoader/Materializer/AnalysisDuckDb 三个 seam 构造，装配期打包成工厂）。
- * format schema（utils.GenerateSchema[DataAnalysisInput]）逐字节取 4.5b 的
- * SCHEMA_JSON 常量（该常量本身即 Go 实录）。</p>
+ * <p>工具构造走 {@link PipelinePorts.DataAnalysisSessionFactory} seam（DataAnalysisTool
+ * 以 KnowledgeLoader/Materializer/AnalysisDuckDb 三个 seam 构造，装配期打包成工厂）。
+ * format schema 逐字节取自 {@link #FORMAT_SCHEMA_JSON} 常量。</p>
  */
 public final class PluginDataAnalysis implements Plugin {
 
     private static final ObjectMapper JSON = JsonMappers.lenient();
 
-    /** 对照 utils.GenerateSchema[tools.DataAnalysisInput]()（4.5b 的字节实录常量）。 */
+    /** 表格输入的 JSON Schema 常量。 */
     public static final String FORMAT_SCHEMA_JSON = """
             {"type":"object","properties":{"knowledge_id":{"type":"string","description":"short dN document ID to query"},"sql":{"type":"string","description":"SQL to be executed on knowledge"}},"required":["knowledge_id","sql"],"additionalProperties":false}""";
 
@@ -170,13 +168,11 @@ public final class PluginDataAnalysis implements Plugin {
         return next.next();
     }
 
-    /** 对照 isDataFile。 */
     static boolean isDataFile(String filename) {
         String lower = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
         return lower.endsWith(".csv") || lower.endsWith(".xlsx") || lower.endsWith(".xls");
     }
 
-    /** 对照 filterOutTableChunks。 */
     static List<SearchResult> filterOutTableChunks(List<SearchResult> results) {
         List<SearchResult> filtered = new ArrayList<>(results.size());
         for (SearchResult result : results) {
@@ -189,7 +185,7 @@ public final class PluginDataAnalysis implements Plugin {
         return filtered;
     }
 
-    /** 对照 tools.(*TableSchema).Description（data_analysis.go:772-790）。 */
+    /** 渲染表结构描述：表名、列数、行数与列信息。 */
     static String tableSchemaDescription(DataAnalysisTool.TableSchema schema) {
         StringBuilder builder = new StringBuilder();
         builder.append(String.format("Table name: %s\n", schema.tableName()));

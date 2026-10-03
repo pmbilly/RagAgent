@@ -14,8 +14,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * {@code memory_subjects} 的基础仓储（对照 Go
- * internal/application/repository/memory.go 里所有 {@code Model(&types.MemorySubject{})} 的写路径）。
+ * {@code memory_subjects} 的基础仓储。
  *
  * <p>只有六条语句，但每一条都有必须显式写的理由（见约定 §3 与 §9）：</p>
  * <ul>
@@ -27,8 +26,7 @@ import org.apache.ibatis.annotations.Update;
  *   <li><b>{@code ON CONFLICT DO NOTHING} 的方言分叉</b>：H2 不支持该子句，
  *       所以与 {@code MessageSuggestionMapper} 同款处理——PG 一条、H2 一条
  *       （H2 那条用条件插入，语义相同、只是测试环境下的原子性弱一些）。</li>
- *   <li><b>{@code extract_scheduled_at} 必须能写 NULL</b>：Go 的
- *       {@code Updates(map)} 对 {@code *time.Time} 为 nil 时写 SQL NULL。
+ *   <li><b>{@code extract_scheduled_at} 必须能写 NULL</b>：调度时间为空时要写 SQL NULL。
  *       这里靠显式 {@code jdbcType} 让 H2 / PG 都接受 NULL。</li>
  * </ul>
  */
@@ -56,8 +54,7 @@ public interface MemorySubjectMapper extends BaseMapper<MemorySubject> {
     MemorySubject selectByScope(@Param("tenantId") long tenantId, @Param("subjectId") String subjectId);
 
     /**
-     * 对照 Go {@code withSubject} 里的 {@code Clauses(forUpdateClause()).First(&subject)}
-     * ——{@code SELECT … FOR UPDATE}，把这一行锁到事务结束。
+     * 行级锁：{@code SELECT … FOR UPDATE}，把这一行锁到事务结束。
      *
      * <p>抽取租约的整套 CAS 语义都建立在它上面：没有行锁，两个 worker 会同时通过
      * "租约已过期"的判定然后各起一批。</p>
@@ -108,8 +105,7 @@ public interface MemorySubjectMapper extends BaseMapper<MemorySubject> {
     int insertIfAbsentOther(@Param("s") MemorySubject subject);
 
     /**
-     * 对照 {@code UpdateSubjectEnabled}：Go 的 map 里只有
-     * {@code enabled} 与 {@code updated_at} 两列（**不碰** block/item_count）。
+     * 只更新 {@code enabled} 与 {@code updated_at} 两列（**不碰** block/item_count）。
      */
     @Update("UPDATE memory_subjects SET enabled = #{enabled}, updated_at = #{now} "
             + "WHERE tenant_id = #{tenantId} AND subject_id = #{subjectId}")
@@ -125,14 +121,13 @@ public interface MemorySubjectMapper extends BaseMapper<MemorySubject> {
                     @Param("now") OffsetDateTime now);
 
     /**
-     * 对照 Go 的 {@code saveExtractionState}（memory_extraction.go L24-29）——抽取状态的
-     * 唯一写入口。
+     * 抽取状态的唯一写入口，更新四列。
      *
-     * <p>Go 用 map 更新四列，其中两个是 jsonb。Java 侧**必须**把类型处理器写在 SQL 里；
+     * <p>其中两个是 jsonb，**必须**把类型处理器写在 SQL 里；
      * 用 wrapper 的 {@code .set()} 会退化成 Java 序列化（§9 的 0xACED 坑）。</p>
      *
      * <p>{@code pending_sessions} 与 {@code extraction_state} 都**从不**为 NULL
-     * （Go 的 {@code Value()} 永远返回一段 JSON），{@code extract_scheduled_at} 则可以是 NULL。</p>
+     * （落库的永远是完整 JSON），{@code extract_scheduled_at} 则可以是 NULL。</p>
      */
     @Update("UPDATE memory_subjects SET "
             + "extraction_state = #{state, typeHandler=com.ragagent.memory.domain.MemoryExtractionStateTypeHandler, "
@@ -149,12 +144,11 @@ public interface MemorySubjectMapper extends BaseMapper<MemorySubject> {
                             @Param("now") OffsetDateTime now);
 
     /**
-     * 对照 Go 的 {@code tx.Model(subject).Update("last_extracted_at", time.Now())}。
+     * 记录主体上次被**整体**审阅的时间。
      *
-     * <p>⚠️ Go 只写了一列，但 {@code Update(column, value)} 内部是
-     * {@code map[string]interface{}{column: value}}，GORM 的 {@code ConvertToAssignments}
-     * 会对缺 {@code updated_at} 的 map 自动补 {@code updated_at = now}——
-     * 所以线上写的是**两列**。本模块共三处这类"GORM 偷偷补"的地方，
+     * <p>⚠️ 语义上只写 {@code last_extracted_at} 一列，但落库语义会对缺
+     * {@code updated_at} 的更新自动补 {@code updated_at = now}——
+     * 所以这里写的是**两列**。本模块共三处这类"隐式补 updated_at"的地方，
      * 另两处在 {@code MemoryItemMapper.touchUsed} 与 {@code supersedePendingReplacements}。</p>
      */
     @Update("UPDATE memory_subjects SET last_extracted_at = #{now}, updated_at = #{now} "

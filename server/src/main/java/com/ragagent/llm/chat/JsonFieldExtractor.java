@@ -5,38 +5,37 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
- * 从流式 JSON 片段里增量抽取字符串字段的值
- * （对照 Go internal/models/chat/json_field_extractor.go 全文）。
+ * 从流式 JSON 片段里增量抽取字符串字段的值。
  *
  * <p>用于 LLM 工具调用的 arguments 增量分片。例如 fieldName="answer"、
  * 期望 JSON 形如 {@code {"answer":"...content..."}}：状态机跳过 JSON 前缀，只把
  * 值的增量吐出来（转义已还原）。</p>
  *
- * <p>行为契约（逐条对齐 Go）：</p>
+ * <p>行为契约：</p>
  * <ul>
  *   <li>只在找到 {@code "fieldName"} 冒号后的开引号之后才开始产出；</li>
  *   <li>值结束（闭引号）后 {@link #isDone()} 为真，之后 {@link #feed} 一律返回空串；</li>
  *   <li>不完整的转义（末尾的单个 {@code \}、{@code \\uXXXX} 不足 6 字节）停在边界前，
  *       等下一次 feed 补齐；</li>
  *   <li>支持 {@code \" \\ \/ \n \r \t \b \f \\uXXXX}，其余 {@code \x} 原样保留两个字符
- *       （对照 Go 的 default 分支）；</li>
- *   <li>{@code \\uXXXX} 里非十六进制字符按 0 计入（Go 的 switch 无 default，贡献 0）；</li>
- *   <li>代理区码点（U+D800~U+DFFF）按 Go 的 {@code utf8.EncodeRune} 语义写成 U+FFFD。</li>
+ *       （不认识的转义）；</li>
+ *   <li>{@code \\uXXXX} 里非十六进制字符按 0 计入；</li>
+ *   <li>代理区码点（U+D800~U+DFFF）写成 U+FFFD。</li>
  * </ul>
  *
- * <p><b>多字节 UTF-8 边界</b>：内部按 UTF-8 <b>字节</b>记账（与 Go 的 string 逐字节对应），
- * 扫描时按 rune 步进而不是按字节，因此多字节字符永远不会被从中间切开。
- * Go 在遇到<b>半截</b>多字节序列（缓冲区末尾只有前 1~2 个字节）时会先把半截字节吐出去
- * （Go 的 string 是字节序列，下次拼接能自愈）；Java 的 {@code String} 表示不了半个字符，
- * 故这里改为停在边界之前、等补齐再吐——这一步对经 {@code String} 传入的增量不可达
- * （每个 String 增量编码出的都是完整序列），是为字节级分片预留的防御。</p>
+ * <p><b>多字节 UTF-8 边界</b>：内部按 UTF-8 <b>字节</b>记账，
+ * 扫描时按码点步进而不是按字节，因此多字节字符永远不会被从中间切开。
+ * 遇到<b>半截</b>多字节序列（缓冲区末尾只有前 1~2 个字节）时停在边界之前、
+ * 等补齐再吐——{@code String} 表示不了半个字符。这一步对经 {@code String}
+ * 传入的增量不可达（每个 String 增量编码出的都是完整序列），
+ * 是为字节级分片预留的防御。</p>
  *
- * <p>非线程安全：一个流一个实例（与 Go 相同）。</p>
+ * <p>非线程安全：一个流一个实例。</p>
  */
 public final class JsonFieldExtractor {
 
     private final String fieldName;
-    /** 累积的完整 arguments（UTF-8 字节，与 Go 的 string buffer 逐字节对应）。 */
+    /** 累积的完整 arguments（UTF-8 字节）。 */
     private byte[] buffer = new byte[256];
     private int length;
     /** 字段值内容的起始字节偏移；-1 表示还没找到。 */
@@ -51,7 +50,7 @@ public final class JsonFieldExtractor {
     }
 
     /**
-     * 对照 Go jsonFieldExtractor.Feed：处理一段新的 arguments 增量，
+     * 处理一段新的 arguments 增量，
      * 返回本次可以产出的内容（已还原转义）；没有新内容时返回空串。
      */
     public String feed(String argsDelta) {
@@ -93,17 +92,17 @@ public final class JsonFieldExtractor {
         return unescaped;
     }
 
-    /** 对照 Go jsonFieldExtractor.IsDone：闭引号是否已出现。 */
+    /** 值的闭引号是否已出现。 */
     public boolean isDone() {
         return done;
     }
 
     // ------------------------------------------------------------------
-    // 状态机（对照 json_field_extractor.go:81-151）
+    // 状态机
     // ------------------------------------------------------------------
 
     /**
-     * 对照 Go findFieldValueStart：返回字段字符串值内容开始的字节偏移
+     * 返回字段字符串值内容开始的字节偏移
      * （= 开引号之后一格）；没找到返回 -1。
      */
     private static int findFieldValueStart(byte[] buf, int len, byte[] key) {
@@ -131,7 +130,7 @@ public final class JsonFieldExtractor {
     }
 
     /**
-     * 对照 Go findSafeEnd 的返回值 {@code (safeEnd, finished)}：
+     * 扫描结果 {@code (safeEnd, finished)}：
      * {@code end} 相对 valueStart，{@code finished=true} 表示见到了值的闭引号
      * （此时 end = 闭引号位置）。
      */
@@ -139,7 +138,7 @@ public final class JsonFieldExtractor {
     }
 
     /**
-     * 对照 Go findSafeEnd：从 from 起扫描值内容。
+     * 从 from 起扫描值内容。
      */
     private static SafeEnd findSafeEnd(byte[] buf, int valueStart, int end, int from) {
         int i = valueStart + from;
@@ -173,11 +172,11 @@ public final class JsonFieldExtractor {
     }
 
     /**
-     * 对照 Go 的 {@code utf8.DecodeRuneInString} 只取 size 的语义：完整合法序列返回 2/3/4，
-     * 其它（ASCII、非法首字节、不完整序列、非法续字节）返回 1。
+     * 返回从 i 起的 UTF-8 序列长度：完整合法序列返回 2/3/4，
+     * ASCII、非法首字节、非法续字节返回 1。
      *
-     * <p>与 Go 的差异：Go 对不完整序列返回 size=1，于是会把半截字符吐出去；这里对
-     * "<b>末尾截断</b>"的序列返回 0，由调用方停在边界前（Java 侧 String 无法表示半个字符）。</p>
+     * <p>"<b>末尾截断</b>"的不完整序列返回 0，由调用方停在边界前
+     * （{@code String} 无法表示半个字符，不输出半截字符）。</p>
      */
     private static int runeSize(byte[] buf, int i, int end) {
         int c = buf[i] & 0xFF;
@@ -205,17 +204,17 @@ public final class JsonFieldExtractor {
         }
         for (int k = 1; k < n; k++) {
             if ((buf[i + k] & 0xC0) != 0x80) {
-                return 1; // 非法续字节：按单字节推进（与 Go 的 size=1 一致）
+                return 1; // 非法续字节：按单字节推进
             }
         }
         return n;
     }
 
     // ------------------------------------------------------------------
-    // 反转义（对照 json_field_extractor.go:153-224）
+    // 反转义
     // ------------------------------------------------------------------
 
-    /** 对照 Go unescapeJSONString，作用在字节区间 {@code [from, to)} 上。 */
+    /** 还原转义，作用在字节区间 {@code [from, to)} 上。 */
     private static String unescapeJsonString(byte[] data, int from, int to) {
         boolean hasBackslash = false;
         for (int i = from; i < to; i++) {
@@ -261,7 +260,7 @@ public final class JsonFieldExtractor {
         return new String(out.toByteArray(), StandardCharsets.UTF_8);
     }
 
-    /** 对照 Go 逐字符的十六进制累加：非 hex 字符贡献 0（switch 无 default）。 */
+    /** 逐字符的十六进制累加：非 hex 字符贡献 0。 */
     private static int parseHex4(byte[] data, int start) {
         int codepoint = 0;
         for (int k = 0; k < 4; k++) {
@@ -278,7 +277,7 @@ public final class JsonFieldExtractor {
         return codepoint;
     }
 
-    /** 对照 Go 的 {@code b.WriteRune}：非法/代理区码点写成 U+FFFD，其余按 UTF-8 编码。 */
+    /** 非法/代理区码点写成 U+FFFD，其余按 UTF-8 编码。 */
     private static void writeCodePointUtf8(ByteArrayOutputStream out, int codepoint) {
         int cp = codepoint;
         if (cp < 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
@@ -308,7 +307,7 @@ public final class JsonFieldExtractor {
         buffer = Arrays.copyOf(buffer, newLength);
     }
 
-    /** 朴素子串查找（对照 Go 的 strings.Index / bytes.Index）。 */
+    /** 朴素子串查找。 */
     private static int indexOf(byte[] haystack, int from, int to, byte[] needle) {
         if (needle.length == 0) {
             return from;

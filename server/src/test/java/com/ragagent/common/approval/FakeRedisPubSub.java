@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 内存版 Pub/Sub（测试替身，语义对照 Redis 频道：发布投递给该频道的所有订阅者，
- * 包括发布者自己的订阅——Go 侧 go-redis 亦如此，靠 OriginID 过滤自发报文）。
+ * 包括发布者自己的订阅——真实 Redis 亦如此，靠 OriginID 过滤自发报文）。
  */
 class FakeRedisPubSub implements RedisPubSub {
 

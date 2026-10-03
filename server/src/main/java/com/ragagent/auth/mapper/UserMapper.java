@@ -8,9 +8,9 @@ import org.apache.ibatis.annotations.Mapper;
 public interface UserMapper extends BaseMapper<User> {
 
     /**
-     * 对照 CreateUser 的 Omit 语义（repository/user.go L33-43）：tenant_id=0 时
-     * GORM 省略该列 → SQL NULL。MP 走 getter（getTenantId 把 null 归一成 0）
-     * 会写成 0，真 PG 触发 fk_users_tenant（H2 无 FK 不暴露，A/B 实录逮到）。
+     * tenantless 用户插入：SQL 列清单**不含 tenant_id** → 落 NULL。
+     * 若走 MP 通用 insert（getTenantId 把 null 归一成 0）会写成 0，
+     * 真 PG 会触发 fk_users_tenant（H2 无 FK 不暴露）。
      * tenantless 注册路径（register-by-invite / OIDC provisioning）专用。
      */
     @org.apache.ibatis.annotations.Insert(

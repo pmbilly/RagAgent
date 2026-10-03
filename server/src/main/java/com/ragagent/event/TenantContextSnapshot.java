@@ -3,12 +3,11 @@ package com.ragagent.event;
 import com.ragagent.common.context.TenantContext;
 
 /**
- * TenantContext 的显式值快照——EventBus 异步派发（虚拟线程）跨线程传值的载体
- * （对照 Go 里 ctx 值随 goroutine 捕获流转的行为）。
+ * TenantContext 的显式值快照——EventBus 异步派发（虚拟线程）跨线程传值的载体。
  *
- * <p>项目铁律（约定 §5）：跨虚拟线程必须<b>显式传递值，禁止共享 ThreadLocal</b>。
- * Go 的异步 handler 拿到的 ctx 携带发射时刻的请求上下文；Java 侧在发射线程
- * {@link #capture()}，在虚拟线程 {@link #replay()}（finally 里 {@link TenantContext#clear()}）。</p>
+ * <p>跨虚拟线程必须<b>显式传递值，禁止共享 ThreadLocal</b>：异步 handler 看到的
+ * 是发射时刻的请求上下文——在发射线程 {@link #capture()}，在虚拟线程
+ * {@link #replay()}（finally 里 {@link TenantContext#clear()}）。</p>
  */
 public record TenantContextSnapshot(
         Long tenantId,
@@ -41,7 +40,7 @@ public record TenantContextSnapshot(
     }
 
     /**
-     * 对照 Go types.WithExecutionTenant：只换执行租户（仓库/模型解析范围），身份
+     * 只换执行租户（仓库/模型解析范围），身份
      * （principal/role/userId）原样保留——授权面永远看调用方，不看执行租户。
      */
     public TenantContextSnapshot withTenantId(long executionTenantId) {

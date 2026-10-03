@@ -5,7 +5,7 @@ import java.util.List;
 
 
 /**
- * 列出某文件夹直接子节点的响应。JSON 键为 snake（§11 登记边界，前端按此解析）；
+ * 列出某文件夹直接子节点的响应。JSON 键为 snake（前端按此解析）；
  * {@code parent_id = ""} 即根层级。
  */
 public class WikiFolderListResponse {

@@ -3,7 +3,7 @@ package com.ragagent.knowledge.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 知识库清理（housekeeping）的部署开关（B6 批 5）。
+ * 知识库清理（housekeeping）的部署开关。
  *
  * <p>env 名保持原样：{@code WEKNORA_HOUSEKEEPING_ENABLED} → {@code weknora.housekeeping.enabled}、
  * {@code WEKNORA_DOCUMENT_PROCESS_TIMEOUT} → {@code weknora.document-process-timeout}。</p>

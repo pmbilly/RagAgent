@@ -53,6 +53,7 @@ final class MilvusWriteOps {
         log.info("[Milvus] Successfully saved index for chunk ID: {}", indexInfo.chunkId);
     }
 
+    /** 批量保存：按维度分组（升序确定性）→ 每组一次 Upsert。 */
     void batchSave(List<IndexInfo> embeddingList, Map<String, Object> params)
             throws Exception {
         if (embeddingList == null || embeddingList.isEmpty()) {

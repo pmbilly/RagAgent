@@ -23,13 +23,13 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.runtime.ReplyMessage;
 
 /**
- * 飞书 / Lark 适配器（对照 Go {@code internal/im/feishu/adapter.go} L44-1343）。
+ * 飞书 / Lark 适配器。
  *
  * <p>五面齐备：{@code Adapter}（验签/挑战/解析/发送）+ {@code StreamSender}
  * （CardKit v1 流式卡片）+ {@code FullOutputProgressSender}（StartStream 立即给出可替换的
  * "思考中"卡片）+ {@code FileDownloader}（GetMessageResource）。</p>
  *
- * <h2>照抄点</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>验签：{@code header.token} 与 verification_token 比对（加密体先解密；未配 token 跳过）；</li>
  *   <li>URL 挑战：解出 {@code challenge} 即 200 回显（加密体同样先解密）；</li>
@@ -47,11 +47,11 @@ import com.ragagent.im.runtime.ReplyMessage;
  *       IV 为密文前 16 字节）。</li>
  * </ul>
  *
- * <h2>与 Go 的实现差异（备案）</h2>
+ * <h2>实现差异（备案）</h2>
  * <ul>
- *   <li><b>孤儿流回收是惰性的</b>：Go 起 ticker（每分钟清 5 分钟前的孤儿流）；
- *       Java 在每次 {@link #startStream} 时顺带清理（无后台线程，效果等价）。</li>
- *   <li>API 基址可注入（照 Go 的 {@code api_base_url} 语义）——测试因此能用本地 stub。</li>
+ *   <li><b>孤儿流回收是惰性的</b>：在每次 {@link #startStream} 时顺带清理
+ *       5 分钟前的孤儿流（无后台线程）。</li>
+ *   <li>API 基址可注入——测试因此能用本地 stub。</li>
  * </ul>
  */
 public class FeishuAdapter implements AdapterInterfaces.Adapter,
@@ -59,7 +59,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
 
     static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 可回落错误码（对照 Go 的 fallbackEligibleErrorCodes）。 */
+    /** 可回落错误码。 */
     static final Set<Integer> FALLBACK_ELIGIBLE = Set.of(230019, 230054, 230071);
 
     static final Pattern MD_IMAGE_RE =
@@ -67,12 +67,12 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
     static final Pattern MD_LINK_RE =
             Pattern.compile("\\[([^\\]]*)\\]\\((https?://[^)\\s]+)\\)");
 
-    /** 全局流表（照 Go 的包级 feishuStreams），key = card_id。 */
+    /** 全局流表，key = card_id。 */
     static final Map<String, StreamState> STREAMS = new ConcurrentHashMap<>();
-    /** image_key 缓存（照 Go：按 app 作用域 + URL 去 query）。 */
+    /** image_key 缓存（按 app 作用域 + URL 去 query）。 */
     static final Map<String, String> IMAGE_KEY_CACHE = new ConcurrentHashMap<>();
 
-    /** 一条流的状态（对照 Go {@code feishuStreamState}）。 */
+    /** 一条流的状态。 */
     static final class StreamState {
         final long createdAt = System.currentTimeMillis();
         final Object lock = new Object();
@@ -80,7 +80,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
         long contentSeq;
         long seq;
 
-        /** 对照 {@code nextSeq}：严格递增（CardKit 要求）。 */
+        /** 严格递增（CardKit 要求）。 */
         int nextSeq() {
             synchronized (lock) {
                 return (int) ++seq;
@@ -97,16 +97,16 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
     final HttpClient http;
     final SsrfGuard ssrfGuard;
 
-    /** 回调验签/解析协作者（对照 Go 回调段）。 */
+    /** 回调验签/解析协作者。 */
     final FeishuCallbackOps callbackOps;
 
-    /** 发送协作者（对照 Go 发送段）。 */
+    /** 发送协作者。 */
     final FeishuSendOps sendOps;
 
-    /** CardKit 流式卡片协作者（对照 Go 流式段）。 */
+    /** CardKit 流式卡片协作者。 */
     final FeishuCardStreamOps streamOps;
 
-    /** 媒体协作者（对照 Go 图片/文件段）。 */
+    /** 媒体协作者。 */
     final FeishuMediaOps mediaOps;
 
     private final Object tokenLock = new Object();
@@ -139,7 +139,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
     }
 
     /**
-     * 对照 {@code validateAPIBaseURL}：空或区域默认放行；自定义必须 http(s)（允许明文 http——
+     * 空或区域默认放行；自定义必须 http(s)（允许明文 http——
      * 内网反代在 nginx 终止 TLS 的部署）且过 SSRF 校验。
      */
     static void validateApiBaseUrl(String endpoint, String defaultEndpoint, SsrfGuard ssrfGuard) {
@@ -167,7 +167,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 {@code api}：区域基址 + 路径。 */
+    /** 区域基址 + 路径。 */
     String api(String path) {
         return apiBaseUrl + path;
     }
@@ -179,7 +179,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
         return region.platform();
     }
 
-    /** 对照 {@code SupportsFullOutputProgress}：StartStream 立刻给出可替换的思考卡片。 */
+    /** 全量输出进度面：StartStream 立刻给出可替换的思考卡片。 */
     @Override
     public boolean supportsFullOutputProgress() {
         return true;
@@ -281,7 +281,7 @@ public class FeishuAdapter implements AdapterInterfaces.Adapter,
 
     // ── token 与解密 ────────────────────────────────────────────────────────
 
-    /** 对照 {@code getTenantAccessToken}：缓存留 5 分钟余量。 */
+    /** 缓存留 5 分钟余量。 */
     String getTenantAccessToken() throws Exception {
         synchronized (tokenLock) {
             if (!tokenCache.isEmpty() && Instant.now().isBefore(tokenExpiresAt)) {

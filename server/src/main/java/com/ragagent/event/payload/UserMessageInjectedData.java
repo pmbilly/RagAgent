@@ -5,12 +5,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 运行中用户消息注入报告（对照 Go {@code event.UserMessageInjectedData}，internal/event/event_data.go:225-230）。
- * emit 点：steer.go:71（{@code generateEventID("injected")}），见包注释 emit 表 #24。
+ * 运行中用户消息注入报告。
+ * emit 点：SteerIntake（{@code generateEventID("injected")}），见包注释 emit 表 #23。
  *
  * <p>用户在生成期间追加的消息被并入运行中的轮次：一行 user-role 消息已按该轮的
  * request ID 落库、文本已追加进 agent 的消息列表，下一次 LLM 调用即可见。
- * 实录锚点：前四字段恒输出，仅 {@code user_message_id} 带 omitempty。</p>
+ * 前四字段恒输出，仅 {@code user_message_id} 空串省略。</p>
  */
 @JsonPropertyOrder({"steer_id", "content", "message_id", "user_message_id"})
 public class UserMessageInjectedData {
@@ -27,7 +27,7 @@ public class UserMessageInjectedData {
     @JsonProperty("message_id")
     private String messageId = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("user_message_id")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String userMessageId = "";

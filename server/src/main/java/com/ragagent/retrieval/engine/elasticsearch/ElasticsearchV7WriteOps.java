@@ -32,7 +32,7 @@ final class ElasticsearchV7WriteOps {
         this.service = service;
     }
 
-    /** 对照 v7 {@code Save}：显式 UUID 文档 ID 走 {@code PUT /{index}/_create/{id}}。 */
+    /** 单条写入：显式 UUID 文档 ID 走 {@code PUT /{index}/_create/{id}}。 */
     void save(IndexInfo embedding, Map<String, Object> additionalParams) throws Exception {
         ElasticsearchV8RetrieveRepository.VectorEmbedding doc =
                 ElasticsearchV8RetrieveRepository.toDbVectorEmbedding(embedding, additionalParams);
@@ -50,8 +50,7 @@ final class ElasticsearchV7WriteOps {
     }
 
     /**
-     * 对照 v7 {@code BatchSave} + {@code prepareBulkRequestBody} + {@code processBulkResponse}：
-     * 动作行 {@code { "index" : { "_id" : "<uuid>" } }}（带空格，照 Go）；
+     * 批量写入：动作行 {@code { "index" : { "_id" : "<uuid>" } }}（键与值之间带空格）；
      * 响应 {@code errors:true} 只计数告警、解析失败也放行（**永不因此失败**）。
      */
     void batchSave(List<IndexInfo> embeddingList, Map<String, Object> additionalParams)
@@ -80,10 +79,10 @@ final class ElasticsearchV7WriteOps {
         processBulkResponse(resp, embeddingList.size());
     }
 
-    /** 对照 v7 {@code processBulkResponse}/{@code countBulkErrors}：只告警，不抛。 */
+    /** 批量响应处理：只告警，不抛。 */
     void processBulkResponse(HttpResult resp, int totalDocuments) {
         if (resp.status() < 200 || resp.status() >= 300) {
-            // 照 Go：resp.IsError() 时才返回错误；非 2xx 且非"错误响应"的情形照 IsError 语义处理
+            // 仅当非 2xx 且构成错误响应时才抛出（对齐"错误响应"判定语义）
             if (resp.status() >= 400) {
                 throw new IllegalStateException("failed to index documents: elasticsearch"
                         + " returned " + resp.status() + ": " + resp.body());
@@ -140,7 +139,7 @@ final class ElasticsearchV7WriteOps {
         deleteByFieldList(service.idField("knowledge_id"), knowledgeIdList);
     }
 
-    /** 对照 v7 {@code deleteByFieldList}：手拼 {@code {"query": {"terms": {field: [...]}}}}。 */
+    /** 手拼 {@code {"query": {"terms": {field: [...]}}}}。 */
     void deleteByFieldList(String field, List<String> valueList) throws Exception {
         if (valueList == null || valueList.isEmpty()) {
             log.warn("[ElasticsearchV7] Empty {} list provided for deletion, skipping", field);
@@ -175,12 +174,10 @@ final class ElasticsearchV7WriteOps {
     // ── CopyIndices ────────────────────────────────────────────────────────
 
     /**
-     * 对照 v7 {@code CopyIndices}（分页 + 改名 + SourceID 三态 + 目标向量回填）。
+     * 分页拷贝（改名 + SourceID 三态 + 目标向量回填）。
      *
-     * <p><b>修复（有意偏离 Go v7）</b>：Go 的 {@code saveCopiedIndices} 里 embeddingMap 是
-     * 新建空 map（{@code processSourceBatch} 收集的向量被丢弃）→ 复制过去的文档不带向量；
-     * 且其键为 chunkID 而 {@code ToDBVectorEmbedding} 按 SourceID 查表。这里按目标 SourceID
-     * 为键把向量带上（与 v8 修复后的语义一致）。</p>
+     * <p>源文档命中的向量按<b>目标 SourceID</b> 为键放入 {@code embeddingMap}，
+     * 逐文档唯一 → {@code toDbVectorEmbedding} 按 SourceID 查表即命中（与 v8 语义一致）。</p>
      */
     void copyIndices(String sourceKnowledgeBaseId,
                             Map<String, String> sourceToTargetKbIdMap,
@@ -209,9 +206,8 @@ final class ElasticsearchV7WriteOps {
                 if (copied != null) {
                     indexInfoList.add(copied.info());
                     if (copied.embedding() != null && copied.embedding().length > 0) {
-                        // 修复（有意偏离 Go v7）：Go 在 saveCopiedIndices 里新建空 map，收集的向量被丢弃；
-                        // 且键用 chunkID 而查表按 SourceID → 生成问题取不到。这里键取"目标 SourceID"
-                        // （逐文档唯一）→ toDbVectorEmbedding 按 SourceID 查表即命中
+                        // 向量按"目标 SourceID"为键保存（逐文档唯一）
+                        // → toDbVectorEmbedding 按 SourceID 查表即命中
                         embeddingMap.put(copied.info().sourceId, copied.embedding());
                     }
                 }
@@ -261,7 +257,7 @@ final class ElasticsearchV7WriteOps {
         return hitsList;
     }
 
-    /** 对照 v7 {@code processSingleHit}：缺字段/映射缺失 → 返回 null（调用方跳过）；带上源向量。 */
+    /** 单条源命中处理：缺字段/映射缺失 → 返回 null（调用方跳过）；带上源向量。 */
     CopiedHit processSingleHit(JsonNode hit, Map<String, String> sourceToTargetKbIdMap,
                                        Map<String, String> sourceToTargetChunkIdMap,
                                        String targetKnowledgeBaseId) {
@@ -295,7 +291,7 @@ final class ElasticsearchV7WriteOps {
         String content = sourceObj.path("content").asText("");
         String originalSourceId = sourceObj.path("source_id").asText("");
         int sourceType = sourceObj.path("source_type").asInt(0);
-        // is_enabled 缺省 true（Go 的向后兼容）、is_recommended 缺省 false
+        // is_enabled 缺省 true、is_recommended 缺省 false
         boolean isEnabled = !sourceObj.has("is_enabled") || sourceObj.path("is_enabled")
                 .asBoolean(true);
         boolean isRecommended = sourceObj.path("is_recommended").asBoolean(false);
@@ -333,11 +329,11 @@ final class ElasticsearchV7WriteOps {
         return new CopiedHit(info, embedding);
     }
 
-    /** 一条待复制数据：目标索引信息 + 源文档向量（照 Go 的 (indexInfo, embedding, err) 三返）。 */
+    /** 一条待复制数据：目标索引信息 + 源文档向量。 */
     record CopiedHit(IndexInfo info, float[] embedding) {
     }
 
-    /** 修复（有意偏离 Go v7）：照 Go 时 embeddingMap 是新建空 map → 向量被丢弃；此处用真实映射。 */
+    /** 保存拷贝出的索引：向量映射经 additionalParams 传入批量写入。 */
     void saveCopiedIndices(List<IndexInfo> indexInfoList, Map<String, float[]> embeddingMap)
             throws Exception {
         if (indexInfoList.isEmpty()) {
@@ -353,9 +349,9 @@ final class ElasticsearchV7WriteOps {
         log.info("[ElasticsearchV7] Successfully saved {} indices", indexInfoList.size());
     }
 
-    // ── 批量改状态 / 标签（不套 bool，照 v7） ───────────────────────────────
+    // ── 批量改状态 / 标签（不套 bool） ─────────────────────────────────────
 
-    /** 对照 v7 {@code BatchUpdateChunkEnabledStatus}：query 是直构 terms（无 bool 包裹）。 */
+    /** query 是直构 terms（无 bool 包裹）。 */
     void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap) throws Exception {
         if (chunkStatusMap == null || chunkStatusMap.isEmpty()) {
             log.warn("[ElasticsearchV7] Chunk status map is empty, skipping update");
@@ -379,7 +375,7 @@ final class ElasticsearchV7WriteOps {
         log.info("[ElasticsearchV7] Successfully batch updated chunk enabled status");
     }
 
-    /** 对照 v7 {@code BatchUpdateChunkTagID}：按 tag 分组，脚本带 params.tag_id。 */
+    /** 按 tag 分组，脚本带 params.tag_id。 */
     void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
         if (chunkTagMap == null || chunkTagMap.isEmpty()) {
             log.warn("[ElasticsearchV7] Chunk tag map is empty, skipping update");

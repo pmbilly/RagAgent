@@ -34,12 +34,12 @@ import com.ragagent.datasource.domain.Resource;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * 飞书云盘（Drive）连接器（对照 Go {@code feishu/drive/connector.go} 全文）。
+ * 飞书云盘（Drive）连接器。
  *
- * <p>与 wiki 连接器共用 {@code core.Client} / {@code core.Config} / {@code core.Region}
+ * <p>与 wiki 连接器共用 {@link FeishuClient} / {@link FeishuConfig} / {@link FeishuRegion}
  * 与导出/下载逻辑；只有<b>资源枚举</b>与<b>抓取派发</b>不同。</p>
  *
- * <h2>资源 ID 编码（ADR-0001 §3.4）</h2>
+ * <h2>资源 ID 编码</h2>
  * <pre>
  *   根文件夹   : "folderToken"
  *   子项       : "folderToken:fileToken"
@@ -48,7 +48,7 @@ import com.ragagent.datasource.domain.SyncCursor;
  * 这样它才与用户存在 {@code form.config.resource_ids = [folderToken]} 里的值一致——
  * 写成 {@code "token:token"} 会让编辑时的选中匹配失效。</p>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库行为清单</h2>
  * <ol>
  *   <li>钩子 / 关联预加载 / 软删除 / 默认排序 / 唯一索引 / 自动时间戳：<b>全无</b>——
  *       本连接器不碰数据库。</li>
@@ -60,7 +60,7 @@ public class DriveConnector implements StreamingConnector {
 
     private final FeishuRegion region;
 
-    /** 对照 Go {@code NewDriveConnector(region)}。 */
+    /** @param region 部署区域（决定 connector type 与 URL host）。 */
     public DriveConnector(FeishuRegion region) {
         this.region = region;
     }
@@ -69,14 +69,14 @@ public class DriveConnector implements StreamingConnector {
         return region;
     }
 
-    /** 对照 Go {@code Type()}。 */
+    /** 连接器类型（feishu_drive / lark_drive）。 */
     @Override
     public String type() {
         return region.connectorType();
     }
 
     /**
-     * 对照 Go {@code Validate}：真实连一次飞书验活。
+     * 真实连一次飞书验活。
      *
      * <p><b>不</b>在这里校验 folder_token——那件事发生在 {@link #listResources}
      * 加载树根的时候（镜像 wiki 连接器）。</p>
@@ -93,12 +93,12 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code ListResources}：给选择器列出云盘资源，一次只加载一层。
+     * 给选择器列出云盘资源，一次只加载一层。
      *
      * <ul>
      *   <li>{@code parentId == ""} → 返回用户提供的根文件夹
      *       （取自 {@code config.resourceIds[0]}）作为唯一的根资源（HasChildren=true）。
-     *       云盘没有"空间列表"API，所以根是用户给的；{@code folder_token == ""} 直接拒绝（ADR-0004）。</li>
+     *       云盘没有"空间列表"API，所以根是用户给的；{@code folder_token == ""} 直接拒绝。</li>
      *   <li>{@code parentId == folderToken} → 返回该文件夹的直接子项；</li>
      *   <li>{@code parentId == "folderToken:subFolderToken"} → 返回那个子文件夹的直接子项。</li>
      * </ul>
@@ -163,13 +163,13 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code ResolveResourceAncestors}：返回"为了让惰性选择器展开到某个选中项、
+     * 返回"为了让惰性选择器展开到某个选中项、
      * 必须加载其直接子项"的全部父文件夹资源 ID。
      *
-     * <p>wiki 连接器靠 {@code GetWikiNode}（{@code parent_node_token}）O(depth) 上溯；
+     * <p>wiki 连接器靠单节点查询（{@code parent_node_token}）O(depth) 上溯；
      * 云盘<b>没有</b>单个文件查父的 API（已实测：metas/batch_query 不返回 parent），
-     * 所以这里从根文件夹<b>自顶向下</b>用 {@code ListDriveFiles} 走，并对同一个根下的
-     * 所有选中项<b>共享</b>这次遍历。尽力而为：断掉的路径就保持折叠（ADR-0003）。</p>
+     * 所以这里从根文件夹<b>自顶向下</b>走列表 API，并对同一个根下的
+     * 所有选中项<b>共享</b>这次遍历。尽力而为：断掉的路径就保持折叠。</p>
      */
     @Override
     public List<String> resolveResourceAncestors(DataSourceConfig config, List<String> resourceIds) {
@@ -180,8 +180,7 @@ public class DriveConnector implements StreamingConnector {
         List<String> ancestors = new ArrayList<>();
 
         // 按根文件夹分组，让一次共享遍历覆盖它们全部。
-        // 对照 Go 的 map（顺序随机）：Java 用 LinkedHashMap 固定为声明序，
-        // 于是本方法的返回值可复现（Go 的祖先顺序本来就是不确定的）。
+        // LinkedHashMap 固定为插入序，本方法的返回值可复现。
         Map<String, List<String>> rootSelections = new LinkedHashMap<>();
         for (String rid : resourceIds == null ? List.<String>of() : resourceIds) {
             String[] parts = parseDriveResourceId(rid);
@@ -242,7 +241,7 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code buildDriveAncestorChain}：从 {@code cur} 沿 parentChain 走到根，
+     * 从 {@code cur} 沿 parentChain 走到根，
      * 返回（根, …, cur 的父）这份<b>根在前</b>的 resourceID 列表。
      */
     static List<String> buildDriveAncestorChain(String rootFolderToken, String cur,
@@ -261,7 +260,7 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code FetchAll}：全量同步选中的云盘文件夹下全部文档。
+     * 全量同步选中的云盘文件夹下全部文档。
      * 防御性回落路径——service 会优先调 {@link #fetchStream}。
      */
     @Override
@@ -272,7 +271,7 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code FetchIncremental}：对比文件 modified_time 与上次记录做增量同步。
+     * 对比文件 modified_time 与上次记录做增量同步。
      * 与 {@code FetchStream} 走同一个引擎，所以 #2136 的"失败不推进游标"同样成立。
      */
     @Override
@@ -287,7 +286,7 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code FetchStream}：可续跑、内存有界的同步。
+     * 可续跑、内存有界的同步。
      * {@code cursor == null} 时全量，有游标时跳过 modified_time 未变的文件。
      */
     @Override
@@ -306,8 +305,8 @@ public class DriveConnector implements StreamingConnector {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code driveOps}：携带 region（用于 channel 与 URL），并负责编解码
-     * 云盘的游标线格式（{@code core.FeishuDriveCursor / file_times}）。
+     * 携带 region（用于 channel 与 URL），并负责编解码
+     * 云盘的游标线格式（{@code file_times}）。
      */
     static final class DriveOps implements SyncEngine.NodeOps<DriveFile> {
 
@@ -364,7 +363,7 @@ public class DriveConnector implements StreamingConnector {
             return List.of();
         }
 
-        /** 对照 Go {@code driveOps.channel()}：LarkDrive → {@code lark_drive}，否则 {@code feishu_drive}。 */
+        /** LarkDrive → {@code lark_drive}，否则 {@code feishu_drive}。 */
         String channel() {
             return "lark_drive".equals(region.connectorType())
                     ? FeishuSupport.CHANNEL_LARK_DRIVE
@@ -402,15 +401,15 @@ public class DriveConnector implements StreamingConnector {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code fetchDriveFileContent}：抓一个云盘文件的内容并转成 FetchedItems。
-     * 按 {@code file.Type} 派发（镜像 wiki 的 {@code fetchNodeContent}）。
+     * 抓一个云盘文件的内容并转成 FetchedItems。
+     * 按 {@code file.Type} 派发。
      * 快捷方式已经被 {@code ListDriveFilesRecursiveFrom} 展开成目标，所以这里只会
      * 看到目标的类型。
      *
      * <ul>
      *   <li>{@code docx} → blocks API（Markdown）+ 导出回落；可能带附件/图片</li>
-     *   <li>{@code doc}/{@code sheet}/{@code bitable} → ExportAndDownload → docx/xlsx</li>
-     *   <li>{@code file} → DownloadDriveFile → 原始文件</li>
+     *   <li>{@code doc}/{@code sheet}/{@code bitable} → 异步导出 → docx/xlsx</li>
+     *   <li>{@code file} → 下载原始文件</li>
      *   <li>{@code mindnote}/{@code slides}/{@code board} → 跳过（没有 API），返回空列表</li>
      * </ul>
      */
@@ -519,7 +518,7 @@ public class DriveConnector implements StreamingConnector {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code makeDriveResourceID}：根是 {@code "folderToken"}，
+     * 根是 {@code "folderToken"}，
      * 子是 {@code "folderToken:fileToken"}（复用 wiki 的 {@code ':'} 分隔符）。
      */
     static String makeDriveResourceId(String rootFolderToken, String fileToken) {
@@ -529,25 +528,25 @@ public class DriveConnector implements StreamingConnector {
         return rootFolderToken + FeishuSupport.FEISHU_WIKI_NODE_RESOURCE_SEPARATOR + fileToken;
     }
 
-    /** 对照 Go {@code parseDriveResourceID}：镜像 {@code parseWikiResourceID}。 */
+    /** 按 {@code ':'} 切成（rootFolderToken, fileToken）两段。 */
     static String[] parseDriveResourceId(String resourceId) {
         return FeishuSupport.cut(resourceId, FeishuSupport.FEISHU_WIKI_NODE_RESOURCE_SEPARATOR);
     }
 
     /**
-     * 对照 Go {@code listDriveFilesForResource}：列出某个 resourceID 要同步的文件。
+     * 列出某个 resourceID 要同步的文件。
      *
      * <p>resourceID 要么是裸的根 folderToken（同步整棵子树），要么是
      * {@code "rootFolderToken:fileToken"}（只同步选中的那个文件或子文件夹）。</p>
      *
-     * <p>单个<b>文件</b>的选中项不能把 fileToken 交给
-     * {@code ListDriveFilesRecursiveFrom}——那个 API 期望文件夹，传文件 token 会返回
+     * <p>单个<b>文件</b>的选中项不能把 fileToken 直接交给子树遍历 API——那个 API 期望文件夹，
+     * 传文件 token 会返回
      * {@code 1061002}（params error）。改为走该文件<b>父文件夹</b>（也就是根）的子树并
-     * 过滤出选中的 fileToken。这镜像 wiki 连接器用 {@code GetWikiNode} 解析单个选中节点的做法；
+     * 过滤出选中的 fileToken。这与 wiki 连接器解析单个选中节点的做法等价；
      * 云盘没有单文件 meta API，所以"过滤子树遍历"是等价手段。</p>
      *
      * <p>选中项本身是<b>子文件夹</b>时，直接走那个子文件夹的子树——
-     * {@code ListDriveFilesRecursiveFrom} 接受文件夹 token，不需要过滤。</p>
+     * 子树遍历接受文件夹 token，不需要过滤。</p>
      */
     static List<DriveFile> listDriveFilesForResource(FeishuClient client, String resourceId) {
         String[] parts = parseDriveResourceId(resourceId);
@@ -577,7 +576,7 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code isDriveNotFolderError}：{@code err} 是不是在说"这个 token 不是文件夹"
+     * {@code err} 是不是在说"这个 token 不是文件夹"
      * （对文件 token 调列表 API 时返回的 1061002 params error）。
      */
     static boolean isDriveNotFolderError(RuntimeException err) {
@@ -585,7 +584,7 @@ public class DriveConnector implements StreamingConnector {
         return s.contains("1061002") || s.contains("params error");
     }
 
-    /** 对照 Go {@code filterDriveFileByToken}：只留下 Token 匹配的条目。 */
+    /** 只留下 token 匹配的条目。 */
     static List<DriveFile> filterDriveFileByToken(List<DriveFile> files, String token) {
         List<DriveFile> out = new ArrayList<>();
         for (DriveFile f : files == null ? List.<DriveFile>of() : files) {
@@ -597,8 +596,8 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code driveRootFolderToken}：从数据源配置里取用户给的根 folder_token
-     * （{@code ResourceIDs[0]}）。
+     * 从数据源配置里取用户给的根 folder_token
+     * （{@code resourceIds[0]}）。
      */
     static String driveRootFolderToken(DataSourceConfig config) {
         if (config == null || config.getResourceIds() == null || config.getResourceIds().isEmpty()) {
@@ -608,16 +607,15 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code (*DriveConnector).driveFolderToResource}：构造云盘文件夹的根 Resource。
+     * 构造云盘文件夹的根 Resource。
      *
-     * <p>根文件夹的名字由调用方经 {@code GetDriveFolderMeta} 解析（尽力而为，回落到 token）。
+     * <p>根文件夹的名字由调用方经 folder meta API 解析（尽力而为，回落到 token）。
      * 子文件夹请用 {@link #driveFileToResource}——列表 API 会返回每个子文件夹的 Name。</p>
      *
      * <p>根的 ExternalID 是<b>裸的 rootFolderToken</b>（无 {@code ":fileToken"} 后缀），
      * 以便与用户存在 {@code form.config.resource_ids = [folderToken]} 里的值匹配。</p>
      *
-     * <p>注意 Go 的 {@code parentToken} 参数<b>未被使用</b>（源码里同样如此），
-     * 保留它是为了与 Go 的签名逐位对应。</p>
+     * <p>{@code parentToken} 参数当前未被使用，仅为保持调用方签名稳定而保留。</p>
      */
     Resource driveFolderToResource(String rootFolderToken, String parentToken,
                                    String folderToken, String name) {
@@ -635,13 +633,13 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code (*DriveConnector).driveFileToResource}：把列表结果里的一个文件
+     * 把列表结果里的一个文件
      * 转成选择器 Resource。
      *
      * <p>ParentID 必须与父文件夹的 ExternalID 一致：根文件夹的 ExternalID 是裸的
      * rootFolderToken（见 {@link #driveFolderToResource}），而任何子文件夹的 ExternalID
      * 是 {@code "rootFolderToken:folderToken"}。根的直接子项的
-     * {@code file.ParentToken == rootFolderToken}，所以它们的 ParentID 是裸根；
+     * {@code parentToken} 就是裸根 token，所以它们的 ParentID 是裸根；
      * 更深的层用编码形式。</p>
      */
     Resource driveFileToResource(String rootFolderToken, DriveFile file) {
@@ -675,8 +673,8 @@ public class DriveConnector implements StreamingConnector {
     }
 
     /**
-     * 对照 Go {@code appendDriveFileListFailureItems}：把云盘列举失败转成错误 FetchedItem，
-     * 让同步日志能指出哪些子文件夹没列成。镜像 {@code appendWikiNodeListFailureItems}。
+     * 把云盘列举失败转成错误 FetchedItem，
+     * 让同步日志能指出哪些子文件夹没列成。与 wiki 的同语义辅助相对应。
      */
     static List<FetchedItem> appendDriveFileListFailureItems(List<FetchedItem> items,
                                                              String resourceId, String channel,

@@ -28,16 +28,15 @@ import com.ragagent.session.domain.SessionPage;
 import com.ragagent.session.mapper.SessionRepository;
 
 /**
- * embed 渠道 service（对照 Go internal/application/service/embed_channel.go 全文 426 行 +
- * embed_session.go 的 token/签名段）。
+ * embed 渠道 service（含 session token/签名段）。
  *
- * <p>golden 钉死的两个 Go 既有行为，Java 逐字复刻：</p>
+ * <p>golden 钉死的两个既有落库行为：</p>
  * <ol>
- *   <li><b>create 对 default:true 的零值 bool 走 DB 默认</b>（GORM Create 省略零值列）：
- *       请求 enabled:false / show_suggested_questions:false 落库后仍为 true，响应同。
- *       禁用态只能经 Update（Save 全列写）达成；</li>
- *   <li><b>update 不带 allowed_origins 时整列覆写为 JSON "null"</b>
- *       （Go {@code json.Marshal(nil slice) = "null"}），读回 {@code allowed_origins: null}。</li>
+ *   <li><b>create 后 enabled / show_suggested_questions 恒非 false</b>：
+ *       请求 enabled:false / show_suggested_questions:false 落库后仍为 true，响应同
+ *       （service 层归一）。禁用态只能经 update（全列写）达成；</li>
+ *   <li><b>update 不带 allowed_origins 时整列覆写为 JSON "null"</b>，
+ *       读回 {@code allowed_origins: null}。</li>
  * </ol>
  */
 @Service
@@ -62,7 +61,7 @@ public class EmbedChannelService {
     private final CustomAgentService agentService;
     private final ChunkRepository chunkRepository;
     private final EmbedTokenStore tokenStore;
-    /** 部署形态（B6 批 4：是否生产影响 embed 渠道来源白名单校验）。 */
+    /** 部署形态（是否生产影响 embed 渠道来源白名单校验）。 */
     private final DeploymentProperties deploymentProperties;
 
     public EmbedChannelService(EmbedChannelMapper repo,
@@ -79,7 +78,7 @@ public class EmbedChannelService {
         this.deploymentProperties = deploymentProperties;
     }
 
-    // ═══════════════════ 规范化（对照 types/embed_channel.go 的 Normalize 族） ═══════════════════
+    // ═══════════════════ 规范化 ═══════════════════
 
     public static String normalizeWidgetPosition(String position) {
         String trimmed = position == null ? "" : position.trim();
@@ -91,15 +90,15 @@ public class EmbedChannelService {
         return "session".equals(trimmed) ? "session" : DEFAULT_HEADER_TITLE_MODE;
     }
 
-    /** 对照 NormalizeEmbedDefaultLocale：不在支持清单里 → 空串。 */
+    /** 不在支持清单里 → 空串。 */
     public static String normalizeDefaultLocale(String locale) {
         String trimmed = locale == null ? "" : locale.trim();
         return SUPPORTED_LOCALES.contains(trimmed) ? trimmed : "";
     }
 
-    // ═══════════════════ 校验（对照 handler/service 两段校验，文案逐字） ═══════════════════
+    // ═══════════════════ 校验（文案固定） ═══════════════════
 
-    /** 对照 validateAllowedOrigins（handler L101-130）；生产判定取部署模式属性（B6 批 4）。 */
+    /** allowed_origins 校验；生产判定取部署模式属性。 */
     public void validateAllowedOrigins(List<String> origins) {
         List<String> cleaned = new ArrayList<>();
         if (origins != null) {
@@ -113,7 +112,7 @@ public class EmbedChannelService {
         if (cleaned.isEmpty()) {
             throw EmbedError.badRequest("at least one allowed origin is required");
         }
-        // B6 批 4：WEKNORA_DEPLOYMENT_MODE（生产/开发）取代 Go 时代的 GIN_MODE
+        // 生产/开发判定取 WEKNORA_DEPLOYMENT_MODE
         boolean production = deploymentProperties.isProduction();
         for (String o : cleaned) {
             if ("*".equals(o)) {
@@ -132,7 +131,7 @@ public class EmbedChannelService {
         }
     }
 
-    /** 对照 url.Parse 后的 (scheme http/https && Host != "") 判定。 */
+    /** 来源必须是绝对 http/https URL（scheme http/https 且 host 非空）。 */
     private static boolean isHttpOrigin(String raw) {
         java.net.URI u;
         try {
@@ -144,7 +143,7 @@ public class EmbedChannelService {
         return ("http".equals(scheme) || "https".equals(scheme)) && u.getHost() != null;
     }
 
-    /** 对照 ValidateEmbedWebhookURL（service/embed_webhook.go L36-57；SSRF 段按 dev 白名单等效）。 */
+    /** webhook URL 校验（scheme/host 形态 + 私网段拒绝）。 */
     public static void validateWebhookUrl(String raw) {
         String trimmed = raw == null ? "" : raw.trim();
         if (trimmed.isEmpty()) {
@@ -163,9 +162,9 @@ public class EmbedChannelService {
         if (!"http".equals(scheme) && !"https".equals(scheme)) {
             throw EmbedError.webhookInvalid("webhook URL must use http or https");
         }
-        // 对照 ValidateURLForSSRF：host 落私网/本机/非法 IP 即拒绝（文案族与 Go 的
-        // FormatSSRFError 一致：不白名单且私网 → "host is not allowed"）。dev 环境公开
-        // 域名不落 SSRF 分支，golden 的 ftp:// 用例在 scheme 检查已被拒。
+        // SSRF：host 落私网/本机/非法 IP 即拒绝（不白名单且私网 →
+        // "host is not allowed"）。dev 环境 公开域名不落 SSRF 分支，
+        // golden 的 ftp:// 用例在 scheme 检查已被拒。
         if (isPrivateHost(parsed.getHost())) {
             throw EmbedError.webhookInvalid("host resolves to a private or reserved address");
         }
@@ -196,7 +195,7 @@ public class EmbedChannelService {
         return false;
     }
 
-    /** 对照 ValidateEmbedLauncherIcon（service/embed_launcher_icon.go）。 */
+    /** launcher 图标校验（base64 data URL，png/jpeg/svg/webp，大小上限）。 */
     public static void validateLauncherIcon(String value) {
         if (value == null || value.isEmpty()) {
             return;
@@ -220,13 +219,11 @@ public class EmbedChannelService {
         }
     }
 
-    // ═══════════════════ agent 归属（对照 ensureAgentOwned） ═══════════════════
+    // ═══════════════════ agent 归属 ═══════════════════
 
     /**
-     * 对照 ensureAgentOwned（service L391-404）。Go 的 GetAgentByID 对未知/跨租户 agent
-     * 返回普通 error（ErrAgentNotFound），writeEmbedMgmtError 落 default 分支 →
-     * 500 "operation failed"（golden 钉死）。空 agent_id 的 AppError badRequest 同样落
-     * 500——所以本方法所有失败都归一为 OPERATION_FAILED。
+     * agent 归属校验：未知/跨租户 agent 一律归一为 500 "operation failed"
+     * （不区分 404/400，golden 钉死）。空 agent_id 同样落 500。
      */
     public CustomAgentEntity ensureAgentOwned(long tenantId, String agentId) {
         String id = agentId == null ? "" : agentId.trim();
@@ -240,7 +237,7 @@ public class EmbedChannelService {
             throw EmbedError.operationFailed();
         }
         if (row == null && com.ragagent.agent.management.service.BuiltinAgentRegistry.isBuiltinAgentID(id)) {
-            // 对照 GetAgentByID 的内建注册表兜底：内建 agent 视为存在（租户内）
+            // 内建注册表兜底：内建 agent 视为存在（租户内）
             return virtualBuiltin(id, tenantId);
         }
         if (row == null) {
@@ -258,7 +255,7 @@ public class EmbedChannelService {
 
     // ═══════════════════ CRUD ═══════════════════
 
-    /** 对照 service.Create（L57-106）。 */
+    /** 创建渠道：校验归属与图标、生成发布令牌、写入默认值。 */
     public EmbedChannelEntity create(long tenantId, String agentId, EmbedChannelEntity req) {
         String trimmedAgent = agentId == null ? "" : agentId.trim();
         ensureAgentOwned(tenantId, trimmedAgent);
@@ -285,7 +282,7 @@ public class EmbedChannelService {
         ch.setAllowFileUpload(req.isAllowFileUpload());
         ch.setDefaultLocale(normalizeDefaultLocale(req.getDefaultLocale()));
         ch.setLauncherIcon(trim(req.getLauncherIcon()));
-        // Go 非指针零值语义：create 不写 webhook 两列（默认 ""）
+        // create 恒置空 webhook 两列（新建渠道不带 webhook）
         ch.setWebhookUrl("");
         ch.setWebhookSecret("");
         if (ch.getRateLimitPerMinute() <= 0) {
@@ -294,8 +291,8 @@ public class EmbedChannelService {
         if (ch.getRateLimitPerDay() <= 0) {
             ch.setRateLimitPerDay(DEFAULT_RATE_PER_DAY);
         }
-        // ⚠️ golden 钉死的 GORM quirk：default:true 的零值 bool 在 Create 时被省略，
-        // 落 DB 默认 true 并回写内存——请求 false 无效，必须走 Update 才能禁用。
+        // ⚠️ golden 钉死：default:true 的零值布尔归一为 true——
+        // 请求 false 无效，必须走 Update 才能禁用。
         if (!ch.isEnabled()) {
             ch.setEnabled(true);
         }
@@ -309,7 +306,7 @@ public class EmbedChannelService {
         return ch;
     }
 
-    /** allowed_origins 列值：空 → 默认空数组文本；否则原样（service.Create L71-74）。 */
+    /** allowed_origins 列值：空 → 默认空数组文本；否则原样。 */
     private static String originsColumn(String raw, String ifEmpty) {
         return raw == null || raw.isEmpty() ? ifEmpty : raw;
     }
@@ -325,10 +322,10 @@ public class EmbedChannelService {
     }
 
     /**
-     * 对照 service.Update（L124-201）。update 字段指针用 Boolean/String 包装表达。
+     * 更新渠道。update 字段用 Boolean/String 包装表达可缺省。
      *
      * @param allowedOriginsColumn 请求体里 allowed_origins 的 raw JSON 文本（**缺键 = "null"**，
-     *                             对照 json.Marshal(nil)="null" 的整列覆写；null 表示不改动）
+     *                             整列覆写为 "null" 文本即清空 allowlist；null 表示不改动）
      */
     public EmbedChannelEntity update(long tenantId, String id, UpdateCommand cmd) {
         EmbedChannelEntity ch = getOwned(tenantId, id);
@@ -379,9 +376,9 @@ public class EmbedChannelService {
         if (cmd.rateLimitPerDay > 0) {
             ch.setRateLimitPerDay(cmd.rateLimitPerDay);
         }
-        // ⚠️ golden 钉死：AllowedOrigins 列的 nil 语义。Go 的 handler 把缺键序列化成
-        // "null"，service 的 `req.AllowedOrigins != nil` 恒真 → 整列覆写为 null；
-        // 显式 [] 会被 handler 的校验拒成 400（"at least one allowed origin is required"），
+        // ⚠️ golden 钉死：AllowedOrigins 列的 null 语义。缺键序列化成
+        // "null" → 整列覆写为 null；
+        // 显式 [] 会被校验拒成 400（"at least one allowed origin is required"），
         // 所以这里只可能收到 "null"（缺键）或合法数组文本。
         if (cmd.allowedOriginsColumn != null) {
             if (cmd.allowedOriginsColumn.isEmpty()) {
@@ -400,7 +397,7 @@ public class EmbedChannelService {
         return ch;
     }
 
-    /** Update 的入参束（对照 handler 组装的 types.EmbedChannel + 一串指针）。 */
+    /** Update 的入参束。 */
     public static final class UpdateCommand {
         public String name;
         public String welcomeMessage;
@@ -444,7 +441,7 @@ public class EmbedChannelService {
         return getOwned(tenantId, id);
     }
 
-    /** 对照 getOwned（L412-421）。 */
+    /** 校验渠道归属：不存在或跨租户 → 404。 */
     private EmbedChannelEntity getOwned(long tenantId, String id) {
         EmbedChannelEntity ch = repo.getById(id);
         if (ch == null || ch.getTenantId() == null || ch.getTenantId() != tenantId) {
@@ -453,9 +450,9 @@ public class EmbedChannelService {
         return ch;
     }
 
-    // ═══════════════════ token / 签名（对照 embed_session.go） ═══════════════════
+    // ═══════════════════ token / 签名 ═══════════════════
 
-    /** 对照 IssueSessionToken：无可用 store → ErrEmbedSessionUnavailable（503）。 */
+    /** 签发 session token：无可用 store → 503。 */
     public IssueResult issueSessionToken(String channelId) {
         String cid = channelId == null ? "" : channelId.trim();
         if (cid.isEmpty()) {
@@ -472,7 +469,7 @@ public class EmbedChannelService {
 
     public record IssueResult(String token, int expiresIn) {}
 
-    /** 对照 ResolveSessionToken：非 ems_ 前缀 / 键不存在 → token invalid。 */
+    /** 解析会话令牌：非 ems_ 前缀 / 键不存在 → token invalid。 */
     public String resolveSessionToken(String token) {
         String trimmed = token == null ? "" : token.trim();
         if (!EmbedTokens.isSessionToken(trimmed)) {
@@ -488,7 +485,7 @@ public class EmbedChannelService {
         return channelId.isEmpty() ? null : channelId;
     }
 
-    /** 对照 LookupEnabledChannel。 */
+    /** 按渠道 id 查启用渠道：未知/禁用 → 401/403。 */
     public EmbedChannelEntity lookupEnabledChannel(String channelId) {
         String cid = channelId == null ? "" : channelId.trim();
         if (cid.isEmpty()) {
@@ -504,7 +501,7 @@ public class EmbedChannelService {
         return ch;
     }
 
-    /** 对照 LookupForEmbed。 */
+    /** 渠道 + 令牌双重校验（embed 公开面门禁）。 */
     public EmbedChannelEntity lookupForEmbed(String channelId, String token) {
         String trimmed = token == null ? "" : token.trim();
         if (trimmed.isEmpty()) {
@@ -538,7 +535,7 @@ public class EmbedChannelService {
         return result == 0;
     }
 
-    /** 对照 IssuePreviewSession。 */
+    /** 预览会话：渠道须存在且启用。 */
     public IssueResult issuePreviewSession(long tenantId, String channelId) {
         EmbedChannelEntity ch = getOwned(tenantId, channelId);
         if (!ch.isEnabled()) {
@@ -549,7 +546,7 @@ public class EmbedChannelService {
 
     // ═══════════════════ 公开 config / chunk / 推荐问题 ═══════════════════
 
-    /** 对照 PublicConfig（L251-285）：struct 声明序 + omitempty。 */
+    /** 公开 config：键按声明序输出，零值键省略。 */
     public ObjectNode publicConfig(EmbedChannelEntity ch) {
         List<String> kbIds = resolveKnowledgeBaseIDs(ch);
         String[] meta = resolveDisplayMeta(ch);
@@ -564,7 +561,7 @@ public class EmbedChannelService {
             agentWebSearch = cfg.path("webSearchEnabled").asBoolean(false);
             agentImageUpload = cfg.path("imageUploadEnabled").asBoolean(false);
         }
-        // §14.9m E1：键名＝实体字段名（camelCase）；且**全部键恒输出**（§1.6 禁止条件键）——
+        // 键名＝实体字段名（camelCase）；且**全部键恒输出**——
         // 空集合写 []、空串照写，widget 侧不必再猜"这个键这次在不在"。
         ObjectNode n = MAPPER.createObjectNode();
         n.put("channelId", ch.getId());
@@ -593,7 +590,7 @@ public class EmbedChannelService {
         return n;
     }
 
-    /** 对照 EmbedChunk（L287-302）：404 优先、跨租户/不在白名单 → forbidden。 */
+    /** 公开分块读取：404 优先、跨租户/不在白名单 → forbidden。 */
     public Chunk embedChunk(EmbedChannelEntity ch, String chunkId) {
         String cid = chunkId == null ? "" : chunkId.trim();
         if (cid.isEmpty()) {
@@ -617,7 +614,7 @@ public class EmbedChannelService {
     public static final class ChunkNotFoundError extends RuntimeException {}
     public static final class ChunkForbiddenError extends RuntimeException {}
 
-    /** 对照 chunkAllowedForEmbed（L304-336）。 */
+    /** 分块可见性：无 KB 约束时按 agent 的选择模式放行。 */
     private boolean chunkAllowedForEmbed(EmbedChannelEntity ch, Chunk chunk) {
         if (chunk == null || chunk.getKnowledgeBaseId() == null || chunk.getKnowledgeBaseId().isEmpty()) {
             return false;
@@ -642,7 +639,7 @@ public class EmbedChannelService {
         };
     }
 
-    /** 对照 SuggestedQuestions（L338-348）：委托 agent.management 的同语义实现。 */
+    /** 推荐问题：委托 agent.management 的同语义实现。 */
     public ArrayNode suggestedQuestions(EmbedChannelEntity ch, int limit) {
         if (ch == null || !ch.isShowSuggestedQuestions()) {
             return null;
@@ -651,7 +648,7 @@ public class EmbedChannelService {
         return agentService.getSuggestedQuestions(ch.getAgentId(), kbIds, null, null, limit, null);
     }
 
-    /** 对照 EmbedDisplayTitle / resolveDisplayMeta（L356-378）。 */
+    /** 展示标题与 agent 元信息：pageTitle → 名称 → 空串。 */
     private String[] resolveDisplayMeta(EmbedChannelEntity ch) {
         String displayTitle = "";
         String pageTitle = trim(ch.getPageTitle());
@@ -679,7 +676,7 @@ public class EmbedChannelService {
         return new String[] {displayTitle, agentName, agentAvatar};
     }
 
-    /** 对照 resolveKnowledgeBaseIDs（L380-389）：仅 selected 模式回填。 */
+    /** KB 约束回填：仅 agent 的 selected 模式回填所选 KB。 */
     private List<String> resolveKnowledgeBaseIDs(EmbedChannelEntity ch) {
         CustomAgentEntity agent = tryAgent(ch.getAgentId());
         if (agent == null) {
@@ -699,7 +696,7 @@ public class EmbedChannelService {
         return ids;
     }
 
-    /** 对照 GetAgentByID 的非内建主路径（配置已 EnsureDefaults 的 Result）；失败返回 null。 */
+    /** agent 查询主路径（配置已归一化的 Result）；失败返回 null。 */
     public CustomAgentEntity tryAgent(String agentId) {
         try {
             return agentService.getAgentByID(agentId, null).row();
@@ -716,7 +713,7 @@ public class EmbedChannelService {
         }
     }
 
-    /** 对照 AllowedOriginsList：列值 "null"/空/坏 JSON → 空（响应 null 的来源）。 */
+    /** allowed_origins 列值解析：列值 "null"/空/坏 JSON → 空列表（响应 null 的来源）。 */
     public static List<String> allowedOriginsList(EmbedChannelEntity ch) {
         String raw = ch.getAllowedOrigins();
         if (raw == null || raw.isEmpty()) {
@@ -737,12 +734,12 @@ public class EmbedChannelService {
         }
     }
 
-    /** 对照 EmbedSessionDescription。 */
+    /** embed 会话描述标记：前缀 + 渠道 id。 */
     public static String embedSessionDescription(String channelId) {
         return EMBED_SESSION_MARKER_PREFIX + channelId;
     }
 
-    /** 对照 stats 的 CountSessionsBySource（source=embed:cid；渠道来源丢弃按人裁剪）。 */
+    /** embed 来源的会话计数（source=embed:cid；渠道来源丢弃按人裁剪）。 */
     public long countEmbedSessions(long tenantId, String channelId,
                                    SessionRepository sessionRepository) {
         SessionListQuery query = SessionListQuery.of(null, "embed:" + channelId, null, 1, 1);
@@ -750,7 +747,7 @@ public class EmbedChannelService {
         return items.total();
     }
 
-    /** 建会话（对照 handler CreateEmbedSession L426-458 的 service 交互）。 */
+    /** 建 embed 会话（空标题 + 描述标记）。 */
     public static Session newEmbedSession(long tenantId, String channelId) {
         Session session = new Session();
         session.setTenantId(tenantId);

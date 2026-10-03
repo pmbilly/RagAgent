@@ -4,7 +4,7 @@ import com.ragagent.common.context.TenantContext;
 import com.ragagent.mcp.domain.McpService;
 
 /**
- * 构造 MCP 客户端所需的配置（对照 Go internal/mcp/client.go:55-67 的 {@code ClientConfig}）。
+ * 构造 MCP 客户端所需的配置。
  *
  * <p>OAuth 相关字段只在 {@code service.AuthConfig.AuthType == oauth} 时被消费：
  * token 按 {@code (tenantId, principal, serviceId)} 隔离，每个身份用自己的
@@ -18,7 +18,7 @@ public final class McpClientConfig {
     /** 调用者身份。 */
     private final TenantContext.Principal principal;
     /**
-     * 兼容旧调用点的兜底身份（对照 Go {@code UserID}）。
+     * 兼容旧调用点的兜底身份。
      * 新代码应传 {@link #principal}；principal 无效时才回退到它。
      */
     private final String userId;

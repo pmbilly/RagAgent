@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * thinking-done 契约：<b>每个 thinking 突发恰好一个 done 标记</b>，且它必须排在
- * 第一个答案 token 之前（对照 Go stream_emit.go 的注释契约）。
+ * 第一个答案 token 之前。
  */
 class ThinkingEmitterTest {
 
@@ -42,7 +42,7 @@ class ThinkingEmitterTest {
         assertEquals("", out.get(2).getContent(), "done 标记不带内容（Go 的零值 StreamResponse）");
     }
 
-    /** 没有任何 thinking 就不发 done（对照 Go finish 的 !active 短路）。 */
+    /** 没有任何 thinking 就不发 done（未激活时短路）。 */
     @Test
     void noDoneWithoutThinking() throws InterruptedException {
         BlockingQueue<StreamResponse> ch = new ArrayBlockingQueue<>(16);
@@ -72,7 +72,7 @@ class ThinkingEmitterTest {
         assertFalse(emitter.isActive());
     }
 
-    /** 两段 thinking 突发之间夹着答案时，各自补一个 done（与 Go 的 active 位翻转一致）。 */
+    /** 两段 thinking 突发之间夹着答案时，各自补一个 done（active 位翻转）。 */
     @Test
     void secondBurstGetsItsOwnDone() throws InterruptedException {
         BlockingQueue<StreamResponse> ch = new ArrayBlockingQueue<>(16);

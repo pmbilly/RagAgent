@@ -26,9 +26,8 @@ import com.ragagent.model.service.ModelService;
 import com.ragagent.retrieval.vlm.VlmClient;
 
 /**
- * VLM 描述器装配的验收（对照 Go agent_service.go L246-256 的 SetImageDescriber 段
- * 与 GetVLMModel 失败分支）：成功装配后逐张图片调用 predict；失败形态与 Go 的
- * warn 回落同形（文案逐字）。
+ * VLM 描述器装配的验收：成功装配后逐张图片调用 predict；失败形态是
+ * warn 后回落（文案逐字钉住）。
  */
 class VlmDescriberWiringTest {
 

@@ -21,7 +21,7 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.retrieval.support.WebResultConverter;
 
 /**
- * 检索执行协作者（对照 Go search.go:343-652，自 {@link PluginSearch} 机械搬出）：
+ * 检索执行协作者（自 {@link PluginSearch} 拆出）：
  * embedding 模型分组检索（整库合并一次 HybridSearch + 特定文档逐目标）、web 检索与
  * 租户 web 配置合并。{@code withTenant}/{@code joinQuietly} 留门面（与 onEvent/扩展簇
  * 共用），经类名访问。
@@ -34,7 +34,7 @@ final class PluginSearchOps {
         this.service = service;
     }
 
-    // searchByTargets（search.go:343-519）
+    // searchByTargets
     // ------------------------------------------------------------------
 
     /**
@@ -75,7 +75,7 @@ final class PluginSearchOps {
         Map<String, String> modelKeyMap = service.knowledgeBaseService.resolveEmbeddingModelKeys(
                 kbList.stream().map(KnowledgeBase::getId).toList());
 
-        // Go 的 map 分组迭代是随机的；结果合并由全局列表承接，组间顺序不影响结果集
+        // 分组迭代顺序不影响结果集：结果合并由全局列表承接
         Map<String, List<SearchTarget>> groups = new LinkedHashMap<>();
         for (SearchTarget t : chatManage.getSearchTargets()) {
             String key = t == null ? "" : modelKeyMap.getOrDefault(t.knowledgeBaseId(), "");
@@ -191,8 +191,8 @@ final class PluginSearchOps {
                 f.put("kb_ids", fullKbIds);
                 f.put("hit_count", res == null ? 0 : res.size());
                 PipelineLog.info("Search", "combined_kb_result", f);
-                // res 可为 null（无可用检索管道时 hybridSearch 返回 null，对照 Go 的 nil 切片——
-                // append(dst, nil...) 是 no-op，这里必须显式跳过，否则 addAll(null) 抛 NPE）
+                // res 可为 null（无可用检索管道时 hybridSearch 返回 null；
+                // 这里必须显式跳过，否则 addAll(null) 抛 NPE）
                 if (res != null) {
                     synchronized (lock) {
                         results.addAll(res);
@@ -228,7 +228,7 @@ final class PluginSearchOps {
     }
 
     /**
-     * 对照 targetReportsEmbedFailure：wiki/图-only 的 KB 无向量或关键词索引可降级，
+     * wiki/图-only 的 KB 无向量或关键词索引可降级，
      * HybridSearch 返回空且无错；FAQ KB 必须上报；其余看索引开关。
      */
     static boolean targetReportsEmbedFailure(KnowledgeBase kb) {
@@ -244,12 +244,12 @@ final class PluginSearchOps {
         return isVectorEnabled(kb);
     }
 
-    /** 对照 KnowledgeBase.IsVectorEnabled（IndexingStrategy.VectorEnabled）。 */
+    /** KB 索引策略开启向量检索。 */
     static boolean isVectorEnabled(KnowledgeBase kb) {
         return kb != null && kb.getIndexingStrategy().isVectorEnabled();
     }
 
-    /** 对照 KnowledgeBase.IsKeywordEnabled。 */
+    /** KB 索引策略开启关键词检索。 */
     static boolean isKeywordEnabled(KnowledgeBase kb) {
         return kb != null && kb.getIndexingStrategy().isKeywordEnabled();
     }
@@ -305,7 +305,7 @@ final class PluginSearchOps {
     }
 
     // ------------------------------------------------------------------
-    // searchWebIfEnabled（search.go:582-652）
+    // web 检索
     // ------------------------------------------------------------------
 
     List<SearchResult> searchWebIfEnabled(ChatManage chatManage) {
@@ -362,9 +362,8 @@ final class PluginSearchOps {
     }
 
     /**
-     * 租户 web 配置（对照 Go search.go L597-600：ctx 里的 TenantInfo；
-     * 2026-09-25 评审批接线——port 实现在 QaWiring，按 TenantContext 实时读取，
-     * 无租户上下文 → null，走 EffectiveWebSearchConfig(nil) 缺省分支）。
+     * 租户 web 配置：按 TenantContext 实时读取，
+     * 无租户上下文 → null，走 {@link #effectiveWebSearchConfig} 的缺省分支。
      */
     private com.ragagent.auth.domain.tenantconfig.WebSearchConfig currentTenantWebSearchConfig() {
         if (service.tenantService == null) {
@@ -373,7 +372,7 @@ final class PluginSearchOps {
         return service.tenantService.currentWebSearchConfig();
     }
 
-    /** 对照 types.EffectiveWebSearchConfig 的执行面缺省（web_search.go:47 的生效值合并）。 */
+    /** 执行面配置的生效值合并（缺省补齐）。 */
     static com.ragagent.websearch.service.WebSearchService.WebSearchConfig effectiveWebSearchConfig(
             com.ragagent.auth.domain.tenantconfig.WebSearchConfig cfg) {
         com.ragagent.websearch.service.WebSearchService.WebSearchConfig out =
@@ -390,8 +389,8 @@ final class PluginSearchOps {
         out.provider = cfg.getProvider() == null ? "" : cfg.getProvider();
         out.proxyUrl = cfg.getProxyUrl() == null ? "" : cfg.getProxyUrl();
         return out;
-        // Go 全量拷贝还含 rerank_model_id/embedding_dimension——执行形状
-        // WebSearchConfig 未承载（仅 RAG 压缩消费，search 路径不用），随压缩
+        // 尚有 rerank_model_id/embedding_dimension 两个键未在执行形状
+        // WebSearchConfig 承载（仅 RAG 压缩消费，search 路径不用），随压缩
         // 路径接线时补。
     }
 

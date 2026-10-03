@@ -9,8 +9,7 @@ import com.ragagent.llm.domain.FunctionCall;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * 流式 tool_use 的累积器（对照 Go chat.anthropicToolStream，
- * internal/models/chat/anthropic_tools.go:109-184）。
+ * 流式 tool_use 的累积器。
  *
  * <p>累积纪律（三条都不能少）：</p>
  * <ol>
@@ -19,17 +18,16 @@ import com.ragagent.llm.domain.ToolCall;
  *       事件到达）；</li>
  *   <li>{@code content_block_stop} 才置 closed——<b>没收尾的调用一律丢弃</b>。被截断的流里
  *       下一个 tool_use 常常从 {@code {}} 开始，执行那个空对象比不执行更糟：模型从没要求跑一个
- *       残缺调用（Go 原文注释，anthropic_tools.go:155-159）。</li>
+ *       残缺调用。</li>
  * </ol>
  *
- * <p>用 {@link TreeMap} 而不是 HashMap：Go 的 {@code calls()} 先 {@code sort.Ints(indexes)}，
- * 工具调用必须按 content block 下标有序输出。</p>
+ * <p>用 {@link TreeMap} 而不是 HashMap：工具调用必须按 content block 下标有序输出。</p>
  *
- * <p>非线程安全：一个流一个实例（与 Go 相同）。</p>
+ * <p>非线程安全：一个流一个实例。</p>
  */
 public final class AnthropicToolStream {
 
-    /** 对照 Go 的 anthropicToolInput。 */
+    /** 单个工具调用的累积状态。 */
     private static final class ToolInput {
         private final String initial;
         private final ToolCall call;
@@ -42,10 +40,10 @@ public final class AnthropicToolStream {
         }
     }
 
-    /** key = content block 下标（对照 Go 的 {@code map[int]*anthropicToolInput}）。 */
+    /** key = content block 下标。 */
     private final TreeMap<Integer, ToolInput> tools = new TreeMap<>();
 
-    /** 对照 Go anthropicToolStream.consume。 */
+    /** 消费一个流事件，累积工具调用状态。 */
     public void consume(AnthropicStreamEvent event) {
         if (event == null) {
             return;
@@ -88,7 +86,7 @@ public final class AnthropicToolStream {
     }
 
     /**
-     * 对照 Go anthropicToolStream.calls：按下标升序输出<b>已收尾</b>的调用；
+     * 按下标升序输出<b>已收尾</b>的调用；
      * arguments 优先用累加出来的分片，没有分片时退回 start 事件里的初始 input。
      */
     public List<ToolCall> calls() {
@@ -110,7 +108,7 @@ public final class AnthropicToolStream {
     }
 
     /**
-     * 对照 Go anthropicToolStream.finishReason：
+     * finish_reason 归一：
      * max_tokens → "length"；空值或有未闭合调用 → "incomplete"；其余原样。
      */
     public String finishReason(String reason) {

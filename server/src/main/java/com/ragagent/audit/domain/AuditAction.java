@@ -1,15 +1,13 @@
 package com.ragagent.audit.domain;
 
 /**
- * 审计动作常量（逐值对照 Go internal/types/audit_log.go 的 {@code AuditAction}
- * 与其常量块 L15-166）。
+ * 审计动作常量。
  *
- * <p>Go 里 {@code AuditAction} 是 {@code type AuditAction string}——**不是枚举**，
- * 列里是 varchar(64)。因此 Java 侧刻意用 String 常量而不是 enum：
- * audit_logs.action 列允许任意值（前向兼容 {@code agent.*} / {@code kb.*} 新命名空间），
+ * <p>audit_logs.action 列是 varchar(64)、允许任意值——因此刻意用 String 常量
+ * 而不是 enum：前向兼容 {@code agent.*} / {@code kb.*} 新命名空间，
  * 查询过滤器也必须能接受库里已有的任意字符串，enum 会在未知值上炸。</p>
  *
- * <p>命名空间点分（{@code <area>.<event>}）。下面按 Go 注释里的分区排列，
+ * <p>命名空间点分（{@code <area>.<event>}）。
  * 值必须逐字一致——前端 {@code src/api/tenant/audit-log.ts} 与
  * {@code src/i18n/auditActionRegistry.ts} 按这些字符串做展示映射。</p>
  */
@@ -17,7 +15,7 @@ public final class AuditAction {
 
     private AuditAction() {}
 
-    // ── RBAC（PR 6 第一批） ──────────────────────────────────────────────
+    // ── RBAC ─────────────────────────────────────────────────────────────
 
     /** 添加空间成员：actor 是邀请人，target 是被邀用户。 */
     public static final String MEMBER_ADDED = "rbac.member_added";
@@ -27,8 +25,7 @@ public final class AuditAction {
     /** POST /tenants/:id/leave：actor 与 target 同一人。 */
     public static final String MEMBER_LEFT = "rbac.member_left";
     /**
-     * RBAC 中间件拒绝（Go middleware/rbac.go 的 RequireRole /
-     * RequireOwnershipOrRole 在 EnableRBAC=true 下拒绝请求时写）。
+     * RBAC 守卫拒绝请求时写（EnableRBAC=true 下角色/归属校验失败）。
      * 受 1 分钟滑动窗口去重保护——见 {@link com.ragagent.audit.service.AuditLogService#logDenied}。
      */
     public static final String ACCESS_DENIED = "rbac.access_denied";
@@ -104,8 +101,7 @@ public final class AuditAction {
     public static final String KB_SHARE_REMOVED = "kb.share_removed";
     /**
      * Wiki 内容变更（人工编辑 + ingest 批量摘要）。
-     * 对照 Go {@code kb_activity.go RecordWikiContentActivity}：TargetType={@code wiki}，
-     * TargetID=kbID，Details={@code {"count":N,"actions":{...}}}。
+     * TargetType={@code wiki}，TargetID=kbID，Details={@code {"count":N,"actions":{...}}}。
      */
     public static final String WIKI_CONTENT_CHANGED = "wiki.content_changed";
 

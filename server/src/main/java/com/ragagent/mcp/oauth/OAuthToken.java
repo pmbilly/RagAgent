@@ -9,13 +9,13 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 授权服务器返回的 token（对照 mcp-go {@code client/transport.Token}，oauth.go:75-89）。
+ * 授权服务器返回的 token。
  *
  * <p>用可变类而非 record：授权服务器可以省略 {@code refresh_token}（表示"沿用旧值"），
  * 也可以只给 {@code expires_in}（需要就地折算成绝对 {@code expires_at}），
- * 这两处都是 Go 里对同一个结构体的原地改写。</p>
+ * 两者都要求对实例就地改写。</p>
  *
- * <p><b>⚠️ 这里的下划线键名是"外来的"，永久冻结</b>（§14.9p M5 判定）：本类唯一的 Jackson
+ * <p><b>⚠️ 这里的下划线键名是"外来的"，永久冻结</b>：本类唯一的 Jackson
  * 出口是 {@code OAuthTokenOps} 解析<b>授权服务器</b>的 RFC 6749 §5.1 token 响应
  * （{@code access_token}/{@code token_type}/{@code refresh_token}/{@code expires_in}/{@code scope}）；
  * 我方落库走 {@code McpOAuthToken} 实体的列映射（表里没有 jsonb 列），不存在"我们的键名"。
@@ -38,7 +38,7 @@ public final class OAuthToken {
     private long expiresIn;
     @JsonProperty("scope")
     private String scope = "";
-    /** 绝对过期时刻；{@code null} = 不过期（Go 的零值 time.Time）。 */
+    /** 绝对过期时刻；{@code null} = 不过期。 */
     @JsonProperty("expires_at")
     private OffsetDateTime expiresAt;
 
@@ -106,14 +106,14 @@ public final class OAuthToken {
         this.expiresAt = v;
     }
 
-    /** 对照 Go {@code time.Now().Add(expiresIn * time.Second)}（服务端时钟、UTC 落库）。 */
+    /** 按 expires_in 折算绝对过期时刻（UTC）。 */
     public void applyExpiresIn(long seconds) {
         if (seconds > 0) {
             this.expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(seconds);
         }
     }
 
-    /** 测试/日志可见的浅拷贝（对照 Go 测试里的 {@code cloneOAuthToken}）。 */
+    /** 测试/日志可见的浅拷贝。 */
     public OAuthToken copy() {
         OAuthToken c = new OAuthToken(accessToken, refreshToken, tokenType, expiresAt);
         c.expiresIn = expiresIn;

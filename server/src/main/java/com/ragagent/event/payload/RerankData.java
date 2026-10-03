@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 排序事件数据（对照 Go {@code event.RerankData}，internal/event/event_data.go:30-39）。
+ * 排序事件数据。
  */
 @JsonPropertyOrder({"query", "input_count", "output_count", "model_id", "threshold",
         "results", "duration_ms", "extra"})
@@ -27,21 +27,21 @@ public class RerankData {
     @JsonProperty("model_id")
     private String modelId = "";
 
-    /** 同 RetrievalData.threshold：包装类型防 Jackson 原生 primitive 序列化器绕过 Go 浮点格式 */
+    /** 同 RetrievalData.threshold：包装类型防 Jackson 原生 primitive 序列化器绕过 EventJson 的浮点格式 */
     @JsonProperty("threshold")
     private Double threshold = 0.0;
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("results")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Object results;
 
-    /** 排序耗时（毫秒）；Go omitempty */
+    /** 排序耗时（毫秒）；0 省略 */
     @JsonProperty("duration_ms")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private long durationMs;
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("extra")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Object> extra;

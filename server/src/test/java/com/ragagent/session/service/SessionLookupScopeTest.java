@@ -10,10 +10,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * 会话查询范围标记测试（对照 Go {@code sessionUserIDForLookup} +
- * {@code SessionTenantIDContextKey} 的联动，message.go L70-76）。
+ * 会话查询范围标记测试（{@code SessionService.sessionUserIDForLookup} 与
+ * {@code SessionLookupScope} 打标的联动）。
  *
- * <p>D 批起由 {@code KnowledgeQaController} 的 QA 线程与三条派生线程打标/清理；
+ * <p>{@code KnowledgeQaController} 的 QA 线程与三条派生线程打标/清理；
  * 本测试锁住语义：未打标 → 按属主查；打标 → 租户范围（返回空 owner）。</p>
  */
 class SessionLookupScopeTest {

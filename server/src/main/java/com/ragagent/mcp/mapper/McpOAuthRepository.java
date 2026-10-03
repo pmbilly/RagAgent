@@ -12,12 +12,11 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
 /**
- * OAuth 客户端 / token 仓储（对照 Go internal/application/repository/mcp_oauth.go 的
- * mcpOAuthRepository）。
+ * OAuth 客户端 / token 仓储。
  *
- * <p>Go 用 {@code clause.OnConflict} 表达"存在则改、不存在则插"；Java 用
- * UPDATE-未命中再-INSERT，并用唯一键冲突兜住竞态（并发下两个请求同时 INSERT，
- * 输家改走 UPDATE）。语义与 ON CONFLICT DO UPDATE 一致，且 H2 / PG 通用。</p>
+ * <p>"存在则改、不存在则插"用 UPDATE-未命中再-INSERT 表达，
+ * 并用唯一键冲突兜住竞态（并发下两个请求同时 INSERT，
+ * 输家改走 UPDATE）。H2 / PG 通用。</p>
  *
  * <p><b>principal 隔离与租约 CAS 是硬契约</b>：
  * token 按 (tenant, principal_type, principal_id, service) 隔离；
@@ -40,7 +39,7 @@ public class McpOAuthRepository {
 
     // ── OAuth 客户端（每服务一个） ──────────────────────────────────────
 
-    /** 对照 GetClient：未注册返回 null（Go 返回 (nil, nil)） */
+    /** 未注册返回 null */
     public McpOAuthClient getClient(long tenantId, String serviceId) {
         return clientMapper.find(tenantId, serviceId);
     }
@@ -98,7 +97,7 @@ public class McpOAuthRepository {
     /**
      * 对照 SaveTokenForPrincipal：principal 必填；user_id 为空时填 principal.StorageID()。
      *
-     * @throws IllegalArgumentException principal 缺失（Go 返回 error）
+     * @throws IllegalArgumentException principal 缺失
      */
     public void saveTokenForPrincipal(McpOAuthToken token) {
         if (isBlank(token.getPrincipalType()) || isBlank(token.getPrincipalId())) {

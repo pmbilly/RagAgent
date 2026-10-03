@@ -18,8 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * MCP 服务凭据子资源（对照 Go internal/handler/mcp_credentials.go 的
- * MCPCredentialsHandler）。把凭据写入从主资源更新里拆出来带来三点收益：
+ * MCP 服务凭据子资源。把凭据写入从主资源更新里拆出来带来三点收益：
  *
  * <ol>
  *   <li>主 PUT 正文<b>永不</b>携带秘密——从契约层面消灭"掩码值回传覆盖已存密钥"这类 bug，
@@ -31,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </ol>
  *
  * <p><b>攻击面收敛</b>：本控制器<b>只</b>持有 {@link McpServiceService}，
- * 构造签名刻意不接受任何其它依赖（对照 Go 的 {@code NewMCPCredentialsHandler(svc)}）。</p>
+ * 构造签名刻意不接受任何其它依赖。</p>
  *
  * <p>路由（WebConfig 注册，均 Admin+）：
  * {@code PUT /api/v1/mcp-services/{id}/credentials}、
@@ -50,9 +49,9 @@ public class McpCredentialsController {
     }
 
     /**
-     * PUT /credentials 的请求体（对照 Go {@code mcpCredentialsPutRequest}）。
+     * PUT /credentials 的请求体。
      *
-     * <p>两个字段都是包装类型（Go 的 {@code *string}），以便 handler 区分
+     * <p>两个字段都是包装类型，以便 handler 区分
      * "未提供"（保持原值）与"提供了但为空串"（空操作；要删除请用 DELETE）。
      * 非空值替换已存的秘密。</p>
      */
@@ -102,8 +101,8 @@ public class McpCredentialsController {
     }
 
     /**
-     * 删除单个凭据字段。可识别的字段只有 {@code apiKey} 与 {@code token}（§14.9n M1 起
-     * 路径值随 JSON 键一起改 camelCase——它镜像的是响应里 credentials 映射的键名）；
+     * 删除单个凭据字段。可识别的字段只有 {@code apiKey} 与 {@code token}（路径值与
+     * JSON 键同为 camelCase——它镜像的是响应里 credentials 映射的键名）；
      * 成功返回 204（即使该字段本来就是空的——幂等）— Admin+。
      */
     @DeleteMapping("/{id}/credentials/{field}")
@@ -125,7 +124,7 @@ public class McpCredentialsController {
         return ResponseEntity.noContent().build();
     }
 
-    /** 对照 Go：{@code svc.AuthConfig != nil && svc.AuthConfig.APIKey != ""} */
+    /** 判定"已配置"：配置非 null 且对应字段非空串 */
     private static boolean configured(McpService service, boolean apiKey) {
         if (service.getAuthConfig() == null) {
             return false;
@@ -151,7 +150,7 @@ public class McpCredentialsController {
         return e.getMessage() == null ? "" : e.getMessage();
     }
 
-    /** 成功响应：裸对象（§14.9n M1：凭据面已去 {data,success} 信封）。 */
+    /** 成功响应：裸对象（不带 {data,success} 信封）。 */
     private static ResponseEntity<?> ok(Object body) {
         return ResponseEntity.ok(body);
     }

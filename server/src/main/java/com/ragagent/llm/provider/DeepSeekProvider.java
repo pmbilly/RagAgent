@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.DeepSeekProvider（deepseek.go）。
+ * DeepSeek。
  */
 public class DeepSeekProvider implements Provider {
 

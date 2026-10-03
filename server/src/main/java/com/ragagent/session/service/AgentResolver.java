@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * agent 解析（对照 Go handler/session 的 {@code resolveAgent} 简化版）。
+ * agent 解析。
  * 空间分享裁撤后只有自有 agent 一条路径：本租户直查；查询失败用默认空配置。
  */
 @Component
@@ -52,7 +52,7 @@ public class AgentResolver {
         return new ResolvedAgent(customAgent, effectiveTenantId, false);
     }
 
-    /** config 列（jsonb 文本）→ ObjectNode；非法 → RuntimeException（照 Go 的 json 失败路径）。 */
+    /** config 列（jsonb 文本）→ ObjectNode；非法 → RuntimeException。 */
     public static ObjectNode parseAgentConfig(CustomAgentEntity row) {
         try {
             return (ObjectNode) MAPPER.readTree(row.getConfig() == null ? "{}" : row.getConfig());

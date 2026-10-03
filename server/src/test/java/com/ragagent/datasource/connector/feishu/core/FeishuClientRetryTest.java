@@ -16,13 +16,12 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.datasource.ConnectorException;
 
 /**
- * 对照 Go {@code core/client_retry_test.go} 全文：429 尊重 Retry-After、5xx 只重试一次、
- * 4xx 不重试、{@code parseRetryAfter} 的 0/负/不可解析三态，外加
- * {@code wiki/connector_test.go} 的 {@code TestClientTokenCaching}。
+ * 429 尊重 Retry-After、5xx 只重试一次、4xx 不重试、
+ * {@code parseRetryAfter} 的 0/负/不可解析三态，外加 token 缓存。
  *
  * <h2>不靠墙钟造时间</h2>
- * <p>Go 用 {@code Retry-After: 0}（客户端把它强制成 100ms 短延迟）让用例跑得快。
- * Java 侧除了照抄这条，还把 {@link FeishuClient#retry5xxDelay} 与
+ * <p>用 {@code Retry-After: 0}（客户端把它强制成 100ms 短延迟）让用例跑得快；
+ * 再把 {@link FeishuClient#retry5xxDelay} 与
  * {@link FeishuClient#retryBackoff} 在 {@code @BeforeAll} 里压到毫秒级并在
  * {@code @AfterAll} 还原——这两个字段本来就是为测试留的注入缝（见生产代码注释），
  * 断言只看<b>调用次数</b>，不看耗时。</p>

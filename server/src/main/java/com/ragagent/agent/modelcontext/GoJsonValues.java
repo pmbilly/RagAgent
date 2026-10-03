@@ -7,8 +7,8 @@ import com.fasterxml.jackson.databind.node.DoubleNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * modelcontext 包内的 Go JSON 语义小工具：解析容错与 float64 归一。
- * 编码统一走 agent.tools 的 GoJsonCodec（map 键排序 + HTML 转义 + Go 浮点）。
+ * modelcontext 包内的 JSON 语义小工具：解析容错与 double 归一。
+ * 编码统一走 agent.tools 的 GoJsonCodec（map 键排序 + HTML 转义 + 64 位浮点）。
  */
 final class GoJsonValues {
 
@@ -18,7 +18,7 @@ final class GoJsonValues {
     private GoJsonValues() {
     }
 
-    /** 解析失败返回 null（对照 Go json.Unmarshal 的 err != nil 分支）。 */
+    /** 解析失败返回 null。 */
     static JsonNode parse(String raw) {
         if (raw == null || raw.isEmpty()) {
             return null;
@@ -31,9 +31,9 @@ final class GoJsonValues {
     }
 
     /**
-     * Go 的 json.Unmarshal 把一切 JSON 数字读成 float64。凡是要重新 marshal 的树，
-     * 先把整型/大数/Decimal 节点归一成 DoubleNode，编码字节才与 Go 一致
-     * （大整数超出 double 精度时按 Go 同样损失精度）。
+     * 一切 JSON 数字都按 double 读入。凡是要重新序列化的树，
+     * 先把整型/大数/Decimal 节点归一成 DoubleNode，编码字节才稳定
+     * （大整数超出 double 精度时按同样规则损失精度）。
      */
     static JsonNode goFloatTree(JsonNode node) {
         if (node.isObject()) {
@@ -61,9 +61,8 @@ final class GoJsonValues {
     }
 
     /**
-     * Go reflect.DeepEqual 在两棵 interface{} 树上的语义：两边都经
-     * json.Unmarshal（数字全是 float64，map 无序）→ 深比较忽略对象键序。
-     * 任一侧解析失败 → 退回字符串相等（对照 jsonEquivalent）。
+     * JSON 值等价比较：数字一律按 double 语义、对象键序无关的深比较。
+     * 任一侧解析失败 → 退回字符串相等。
      */
     static boolean jsonEquivalent(String left, String right) {
         JsonNode lv = parse(left);

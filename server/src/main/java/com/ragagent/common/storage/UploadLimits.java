@@ -9,7 +9,7 @@ package com.ragagent.common.storage;
  */
 public final class UploadLimits {
 
-    /** 环境变量名（对照 Go 读取的 MAX_FILE_SIZE_MB）。 */
+    /** 环境变量名。 */
     public static final String MAX_FILE_SIZE_MB_ENV = "MAX_FILE_SIZE_MB";
 
     private static final int DEFAULT_MB = 50;
@@ -18,7 +18,7 @@ public final class UploadLimits {
     }
 
     /**
-     * 配置原始值（{@code MAX_FILE_SIZE_MB}）——**启动期快照**（B6 批 6）。
+     * 配置原始值（{@code MAX_FILE_SIZE_MB}）——**启动期快照**。
      *
      * <p>本类是纯静态规则（调用点散布 knowledge/model/initialization 四处），没有 Spring
      * 装配点，故值由 {@code config.RuntimeSnapshotWiring} 在启动期写入一次；
@@ -39,7 +39,7 @@ public final class UploadLimits {
             try {
                 mb = Integer.parseInt(env.trim());
             } catch (NumberFormatException ignored) {
-                // 非法值回落缺省（对照原实现）
+                // 非法值回落缺省
             }
         }
         return (long) mb * 1024 * 1024;

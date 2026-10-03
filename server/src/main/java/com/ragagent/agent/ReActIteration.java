@@ -21,7 +21,7 @@ import com.ragagent.tracing.langfuse.Span;
 
 /**
  * 单个 ReAct 迭代（think → analyze → act → observe）的编排协作者：轮 span 生命周期、
- * 压缩与 steer 注入时序、停止条件到循环走向（next/continue/break）的翻译。
+ * 压缩与 steer 注入时序、停止条件到循环走向（next/continue/break）的映射。
  *
  * <p>持有 {@link AgentEngine} 回引以访问引擎字段与各段协作者；本类不得独立实例化。</p>
  */

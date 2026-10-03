@@ -8,13 +8,11 @@ import com.ragagent.common.security.SsrfGuard;
 import org.springframework.stereotype.Component;
 
 /**
- * OIDC 业务（对照 Go internal/application/service/user.go 的 OIDC 段：
- * GetOIDCAuthorizationURL L435、LoginWithOIDC L484 的门控部分、
- * getOIDCConfig L1518、populateOIDCEndpoints L1542、validateOIDCEndpoint(s) L1488）。
+ * OIDC 业务。
  *
- * 翻译边界（记 docs §9 deferral）：只翻确定性部分。
- * enabled 之后的 discovery 抓取（applyOIDCDiscoveryDocument，网络）与 code 交换
- * （exchangeOIDCCode / resolveOIDCUserInfo / provisioning，网络 + JWKS + 建号）
+ * 实现边界：只实现确定性部分（配置校验 + 授权 URL 构造）。
+ * enabled 之后的 discovery 抓取（网络）与 code 交换
+ * （网络 + JWKS + 建号）
  * 整体推迟——dev 两侧 OIDC 均 disabled，这些分支不可达。
  */
 @Component
@@ -32,24 +30,23 @@ public class OidcService {
         this.ssrfGuard = ssrfGuard;
     }
 
-    /** service 层错误（对照 Go error；消息会进 403 details / login_failed description） */
+    /** service 层错误；消息会进 403 details / login_failed description */
     public static class OidcException extends RuntimeException {
         public OidcException(String message) {
             super(message);
         }
     }
 
-    /** 对照 types.OIDCAuthURLResponse（nonce 不进 JSON，由 handler 绑 cookie） */
+    /** 授权 URL 构造结果（nonce 不进 JSON，由 controller 绑 cookie） */
     public record AuthorizationUrl(String providerDisplayName, String authorizationUrl,
                                    String state, String nonce) {
     }
 
-    /** 对照 getOIDCConfig + populateOIDCEndpoints + validateOIDCEndpoints */
+    /** 配置就绪校验：启用开关 + 显式端点或 discovery 缺一不可 + 各端点 SSRF 校验 */
     public OidcConfig requireConfig() {
         if (config == null || !config.isEnable()) {
             throw new OidcException("OIDC login is disabled");
         }
-        // populateOIDCEndpoints
         boolean needsDiscovery = isBlank(config.getAuthorizationEndpoint())
                 || isBlank(config.getTokenEndpoint())
                 || isBlank(config.getJwksUri())
@@ -60,7 +57,7 @@ public class OidcService {
                     throw new OidcException("OIDC discovery_url or explicit endpoints are required");
                 }
             } else {
-                // deferral：applyOIDCDiscoveryDocument 的 HTTP 抓取不翻（dev 不可达）
+                // discovery 的 HTTP 抓取不实现（dev 不可达）
                 throw new OidcException("OIDC discovery document loading is not available in this deployment");
             }
         }
@@ -74,7 +71,7 @@ public class OidcService {
         return config;
     }
 
-    /** 对照 validateOIDCEndpoint(label, endpoint, required) */
+    /** 端点 SSRF 校验 */
     private void validateEndpoint(String label, String endpoint, boolean required) {
         String ep = endpoint == null ? "" : UserService.goTrimSpace(endpoint);
         if (ep.isEmpty()) {
@@ -90,20 +87,20 @@ public class OidcService {
         }
     }
 
-    /** 对照 GetOIDCAuthorizationURL（user.go L435-478） */
+    /** 构造授权 URL。 */
     public AuthorizationUrl getAuthorizationUrl(String redirectUri) {
         OidcConfig cfg = requireConfig();
         if (isBlank(redirectUri)) {
             throw new OidcException("redirect_uri is required");
         }
-        // generateRandomString(24)：24 随机字节 base64url nopad（32 字符）
+        // 24 随机字节 base64url 无填充（32 字符）
         byte[] nonceBytes = new byte[24];
         RANDOM.nextBytes(nonceBytes);
         String nonce = Base64.getUrlEncoder().withoutPadding().encodeToString(nonceBytes);
 
         String state = stateCodec.sign(nonce, UserService.goTrimSpace(redirectUri), 0);
 
-        // url.Values.Encode()：键按字母序；值经 Go QueryEscape 语义
+        // query 键按字母序
         StringBuilder query = new StringBuilder();
         appendQuery(query, "client_id", cfg.getClientId());
         appendQuery(query, "redirect_uri", redirectUri);
@@ -117,10 +114,9 @@ public class OidcService {
     }
 
     /**
-     * 对照 LoginWithOIDC 的门控段（user.go L484-500）：code/redirect_uri 空值检查 +
-     * getOIDCConfig 门。其后的 code 交换 / userinfo / provisioning 整体推迟（deferral）。
-     * provisioning 参数与 Go 签名对齐（UserService.PROVISIONING_*），仅在推迟的
-     * provisionOIDCUser 路径使用，当前不读。
+     * 登录门控：code/redirect_uri 空值检查 + 配置就绪门。
+     * 其后的 code 交换 / userinfo / provisioning 整体推迟。
+     * provisioning 参数保留占位（UserService.PROVISIONING_*），当前不读。
      */
     public void loginWithOidc(String code, String redirectUri, String provisioning) {
         if (isBlank(code)) {
@@ -130,7 +126,7 @@ public class OidcService {
             throw new OidcException("redirect_uri is required");
         }
         requireConfig();
-        // deferral：exchangeOIDCCode 起的网络步不翻（dev OIDC disabled，不可达）
+        // code 交换起的网络步不实现（dev OIDC disabled，不可达）
         throw new OidcException("OIDC code exchange is not available in this deployment");
     }
 
@@ -142,7 +138,7 @@ public class OidcService {
     }
 
     /**
-     * Go url.QueryEscape 语义：alnum 与 - _ . ~ 原样，空格 → +，
+     * Query 值转义：alnum 与 - _ . ~ 原样，空格 → +，
      * 其余按 UTF-8 字节 %XX（大写 hex）。注意 Java URLEncoder 会把 ~ 编成 %7E，不可用。
      */
     static String goQueryEscape(String value) {

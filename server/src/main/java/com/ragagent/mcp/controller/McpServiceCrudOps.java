@@ -29,8 +29,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 
 /**
- * MCP 服务 CRUD 协作者（对照 Go MCPServiceHandler 的服务面端点，
- * 自 {@link McpServiceController} 机械搬出）：创建/列表/详情/更新/删除、
+ * MCP 服务 CRUD 协作者（自 {@link McpServiceController} 拆出）：创建/列表/详情/更新/删除、
  * 连接测试、工具与资源读取。更新端点为存在性映射的 210 行单函数。
  * 持门面回引（ctrl）取 mcpServiceService/ssrfGuard；响应助手经门面类名调用。
  */
@@ -56,11 +55,10 @@ final class McpServiceCrudOps {
         long tenantId = McpServiceController.requireTenant();
         McpService service = req.toService();
         service.setTenantId(tenantId);
-        // GORM 的 `gorm:"default:true"` 语义（gorm callbacks/create.go:339-344）：
-        // 非指针 bool 的零值会被**标签默认值**替换，并回写内存结构。于是 Go 侧
-        // POST /mcp-services 无论传不传 enabled（哪怕显式传 false）落库与响应都是 true
+        // 落库语义：非指针 bool 的零值会被列默认值 true 替换并回写内存结构，
+        // 因此 POST /mcp-services 无论传不传 enabled（哪怕显式传 false）落库与响应都是 true
         // ——创建路径根本无法产出 disabled 的服务。Java 的 primitive boolean 零值是 false，
-        // 不补这一步就会漂；此处照抄 Go 的净效果。
+        // 不补这一步行为就会漂移；这里显式对齐该效果。
         service.setEnabled(true);
 
         // 出站 URL 的 SSRF 校验（对照 handler L93-105）
@@ -81,7 +79,7 @@ final class McpServiceCrudOps {
         }
 
         // 响应用 McpServiceResponse：密钥字段在构造期就不存在，无需运行时脱敏。
-        // §1.15：创建类 → 201 + 资源视图
+        // 创建类端点 → 201 + 资源视图
         return ResponseEntity.status(201).body(
                 McpServiceResponse.from(service, McpServiceController.canViewIntegrationSecrets()));
     }
@@ -119,8 +117,8 @@ final class McpServiceCrudOps {
     /**
      * 对照 UpdateMCPService — Admin+。
      *
-     * <p>逐段对照 Go：标量字段用<b>存在性映射</b>（Go 的 updateFields），因为零值无法区分
-     * "没传"与"显式清空"；非标量字段用类型断言，类型不符即静默跳过。
+     * <p>标量字段用<b>存在性映射</b>（updateFields），因为零值无法区分
+     * "没传"与"显式清空"；非标量字段按类型判断，类型不符即静默跳过。
      * 秘密字段（auth_config.api_key / token）<b>永不</b>从主 PUT 读取，只记一条 deprecation 日志。</p>
      */
     public ResponseEntity<?> updateMCPService(@PathVariable("id") String id,
@@ -129,7 +127,7 @@ final class McpServiceCrudOps {
             throw BizException.badRequest("EOF");
         }
         if (!updateData.isObject() && !updateData.isNull()) {
-            // 对照 Go json.Unmarshal 到 map[string]interface{} 失败
+            // 非 JSON 对象 → 400；错误文案是契约的一部分，保持原样
             throw BizException.badRequest("json: cannot unmarshal non-object into Go value of type map[string]interface {}");
         }
         long tenantId = McpServiceController.requireTenant();
@@ -163,7 +161,7 @@ final class McpServiceCrudOps {
             updateFields.put("description", true);
         }
         if (updateData.path("enabled").isBoolean()) {
-            // 显式真/假都算更新（Go 的 if/else 两支等价）
+            // 显式 true/false 都算更新
             service.setEnabled(updateData.get("enabled").asBoolean());
             updateFields.put("enabled", true);
         }
@@ -173,8 +171,8 @@ final class McpServiceCrudOps {
         if (updateData.path("url").isTextual() && !updateData.get("url").asText().isEmpty()) {
             service.setUrl(updateData.get("url").asText());
         } else if (updateData.has("url")) {
-            // 显式 null / 空串：置 nil。⚠️ 与 Go 一样，应用层的 `if service.URL != nil` 会让
-            // 这一步在落库时变成空操作——照抄 Go 的分层语义，不在这里"修好"。
+            // 显式 null / 空串：置 null。⚠️ 应用层"URL 非空才更新"的判断会让
+            // 这一步在落库时变成空操作——既有分层语义如此，不在这里"修好"。
             service.setUrl(null);
         }
 
@@ -188,7 +186,7 @@ final class McpServiceCrudOps {
                 config.setCommand(stdioConfig.get("command").asText());
             }
             if (stdioConfig.path("args").isArray()) {
-                // 对照 Go make([]string, len(args))：非字符串元素占位为空串（不是丢弃）
+                // 非字符串元素占位为空串（不是丢弃）
                 JsonNode args = stdioConfig.get("args");
                 List<String> list = new ArrayList<>(args.size());
                 for (JsonNode arg : args) {
@@ -249,7 +247,7 @@ final class McpServiceCrudOps {
         if (updateData.path("advancedConfig").isObject()) {
             JsonNode advanced = updateData.get("advancedConfig");
             McpAdvancedConfig config = new McpAdvancedConfig();
-            // 对照 Go 的 float64 断言：JSON number → int；其它类型静默跳过
+            // 仅接受 JSON number → int；其它类型静默跳过
             if (advanced.path("timeout").isNumber()) {
                 config.setTimeout(advanced.get("timeout").asInt());
             }
@@ -301,7 +299,7 @@ final class McpServiceCrudOps {
             throw BizException.internal("Failed to delete MCP service: " + McpServiceController.rawMessage(e));
         }
         log.info("MCP service deleted successfully: {}", serviceId);
-        // §1.13：同步完成的删除 → 204（无响应体）
+        // 同步完成的删除 → 204（无响应体）
         return ResponseEntity.noContent().build();
     }
 
@@ -383,7 +381,7 @@ final class McpServiceCrudOps {
             throw BizException.badRequest(ctrl.ssrfGuard.formatSSRFError("MCP service URL", url, e));
         }
     }
-    /** 对照 Go 的 map[string]interface{} → map[string]string（非字符串值丢弃） */
+    /** 只取字符串值：非字符串值丢弃 */
     private static Map<String, String> stringMap(JsonNode node) {
         Map<String, String> out = new LinkedHashMap<>();
         node.fields().forEachRemaining(entry -> {

@@ -12,17 +12,17 @@ import java.util.regex.Pattern;
  *
  * <h2>覆盖范围（对齐 html-to-markdown 的常见行为）</h2>
  * <table border="1">
- *   <caption>支持的标签与输出形状（期望值 = Go 实录，见 {@code JdkHtmlToMarkdownTest}）</caption>
+ *   <caption>支持的标签与输出形状（期望值见 {@code JdkHtmlToMarkdownTest}）</caption>
  *   <tr><th>HTML</th><th>Markdown</th></tr>
  *   <tr><td>{@code <p>}</td><td>段落之间空行；首个段落前不补</td></tr>
  *   <tr><td>{@code <br>} / {@code <br/>}</td><td>{@code "  \n"}（两个空格 + 换行）</td></tr>
  *   <tr><td>{@code <h1>..<h6>}</td><td>{@code "# "} … {@code "###### "}</td></tr>
  *   <tr><td>{@code <strong>} / {@code <b>}</td><td>{@code **x**}</td></tr>
  *   <tr><td>{@code <em>} / {@code <i>}</td><td>{@code *x*}</td></tr>
- *   <tr><td>{@code <a href>}</td><td>{@code [text](href)}（无 href 时 {@code [text]()}，照抄 Go）</td></tr>
+ *   <tr><td>{@code <a href>}</td><td>{@code [text](href)}（无 href 时 {@code [text]()}）</td></tr>
  *   <tr><td>{@code <ul>/<ol>/<li>}</td><td>{@code "- x"} / {@code "1. x"}（{@code <ol start="3">} → {@code "3. x"}）</td></tr>
  *   <tr><td>{@code <code>} / {@code <pre>}</td><td>{@code `x`} / {@code "```\nx\n```"}</td></tr>
- *   <tr><td>{@code <blockquote>}</td><td>每行前缀 {@code "> "}（空行也是 {@code "> "}，照抄 Go）</td></tr>
+ *   <tr><td>{@code <blockquote>}</td><td>每行前缀 {@code "> "}（空行也是 {@code "> "}）</td></tr>
  *   <tr><td>{@code <hr>}</td><td>{@code "* * *"}</td></tr>
  *   <tr><td>{@code <img src alt>}</td><td>{@code ![alt](src)}</td></tr>
  *   <tr><td>{@code <script>/<style>/<!--…-->}</td><td>整段丢弃</td></tr>
@@ -30,29 +30,28 @@ import java.util.regex.Pattern;
  *
  * <h2>⚠️ 刻意<b>不</b>覆盖的部分（逐条列出，别当成 bug）</h2>
  * <ol>
- *   <li><b>表格</b>：Go 把 {@code <table><tr><td>c1</td><td>c2</td></tr></table>} 输出成
+ *   <li><b>表格</b>：参照实现把 {@code <table><tr><td>c1</td><td>c2</td></tr></table>} 输出成
  *       {@code "c1c2"}（不插分隔符）。本实现把 {@code td/th/tr/table} 当<b>未知标签</b>处理
  *       （标签丢掉、内容保留），结果同样是 {@code "c1c2"}——碰巧一致，但不要依赖它做真表格。</li>
- *   <li><b>嵌套列表</b>：Go 输出 {@code "- a\n  \n  - b"}。本实现只按列表深度缩进两格、
+ *   <li><b>嵌套列表</b>：参照实现输出 {@code "- a\n  \n  - b"}。本实现只按列表深度缩进两格、
  *       不写那段空行——形状接近但<b>不逐字节一致</b>。</li>
  *   <li><b>Markdown 转义只做四个字符</b>：{@code \ → \\}、{@code [ → \[}、
- *       {@code < → &lt;}、{@code > → &gt;}。Go 的 html-to-markdown 也不转义
+ *       {@code < → &lt;}、{@code > → &gt;}。参照实现也不转义
  *       {@code * _ #}（实测确认），但对 {@code ]}、行首的 {@code -}/{@code 1.} 等
  *       有更细的规则，本实现不管。</li>
  *   <li><b>实体表是有界的</b>：见 {@link HtmlEntities}——{@code &alpha;} 这类
- *       希腊/数学实体在 Java 侧保持字面量。</li>
+ *       希腊/数学实体保持字面量。</li>
  *   <li><b>属性解析是宽松的</b>：只认 {@code name="v"} / {@code name='v'} / {@code name=v}；
  *       无值属性（{@code <input disabled>}）会被忽略。</li>
  *   <li><b>未知标签一律"行内透明"</b>（{@code span} / {@code font} / {@code td} …）：
- *       标签丢掉、内容保留。与 Go 对 {@code <span>} 的行为一致。</li>
- *   <li><b>编码</b>：输入按"已经是解码后的字符串"处理（Go 侧 html-to-markdown 会看
+ *       标签丢掉、内容保留。与参照实现对 {@code <span>} 的行为一致。</li>
+ *   <li><b>编码</b>：输入按"已经是解码后的字符串"处理（参照实现会看
  *       {@code <meta charset>}）。连接器拿到的是 feed/文章页解码后的正文，所以实务上无差别。</li>
  * </ol>
  *
  * <h2>失败表达</h2>
  * <p>本实现只在输入为 {@code null} 时抛 {@link HtmlConversionException}
- * （其余情况都尽力产出文本）。即使抛了，调用方也会回落到 {@code TrimSpace(html)} 原文
- * ——与 Go 的 {@code htmlToMarkdown} 完全一致。</p>
+ * （其余情况都尽力产出文本）。即使抛了，调用方也会回落到去空白后的 HTML 原文。</p>
  */
 public final class JdkHtmlToMarkdown implements HtmlToMarkdown {
 
@@ -433,7 +432,7 @@ public final class JdkHtmlToMarkdown implements HtmlToMarkdown {
         lastWasSpace = false;
     }
 
-    /** HTML 的空白折叠：{@code [ \t\n\r\f\v]} 连续出现算一个空格（U+00A0 不折，照抄浏览器/Go）。 */
+    /** HTML 的空白折叠：{@code [ \t\n\r\f\v]} 连续出现算一个空格（U+00A0 不折）。 */
     private static String collapse(String text) {
         StringBuilder out = new StringBuilder(text.length());
         boolean inSpace = false;
@@ -452,7 +451,7 @@ public final class JdkHtmlToMarkdown implements HtmlToMarkdown {
         return out.toString();
     }
 
-    /** 与 Go 的 html-to-markdown 对齐的四个转义（实测确认其余字符<em>不</em>转义）。 */
+    /** 与 html-to-markdown 对齐的四个转义（实测确认其余字符<em>不</em>转义）。 */
     private static String escape(char c) {
         return switch (c) {
             case '\\' -> "\\\\";
@@ -528,7 +527,7 @@ public final class JdkHtmlToMarkdown implements HtmlToMarkdown {
         return null;
     }
 
-    /** 一层列表的状态（对照 Go 的 {@code <ol start>} 支持）。 */
+    /** 一层列表的状态（支持 {@code <ol start>}）。 */
     private static final class ListState {
         private final boolean ordered;
         private int next;

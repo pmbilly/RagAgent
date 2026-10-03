@@ -31,7 +31,7 @@ final class AuthOidcOps {
         this.service = service;
     }
 
-    // ── GET /oidc/config（对照 auth.go L383-401，无鉴权公共读） ─────────────
+    // ── GET /oidc/config（无鉴权公共读） ────────────────────────────────────
 
     ResponseEntity<OidcConfigResponse> getOidcConfig() {
         boolean enabled = service.oidcConfig != null && service.oidcConfig.isEnable();
@@ -40,7 +40,7 @@ final class AuthOidcOps {
         return ResponseEntity.ok(new OidcConfigResponse(enabled, providerDisplayName));
     }
 
-    // ── GET /oidc/url（对照 auth.go L311-332） ──────────────────────────────
+    // ── GET /oidc/url ───────────────────────────────────────────────────────
 
     ResponseEntity<OidcAuthUrlResponse> getOidcAuthorizationUrl(
             @RequestParam(value = "redirect_uri", required = false) String redirectUri,
@@ -56,7 +56,7 @@ final class AuthOidcOps {
                 result.authorizationUrl(), result.state()));
     }
 
-    // ── GET /oidc/start（对照 auth.go L365-379：直接 302 到 IdP） ───────────
+    // ── GET /oidc/start（直接 302 到 IdP） ─────────────────────────────────
 
     ResponseEntity<String> oidcStart(HttpServletRequest request, HttpServletResponse response) {
         OidcService.AuthorizationUrl result = authorizationUrlOr403(oidcCallbackUrl(request));
@@ -64,7 +64,7 @@ final class AuthOidcOps {
         return AuthOidcOps.redirectFound(result.authorizationUrl());
     }
 
-    // ── GET /oidc/callback（对照 auth.go L413-472） ─────────────────────────
+    // ── GET /oidc/callback ──────────────────────────────────────────────────
 
     ResponseEntity<String> oidcRedirectCallback(
             @RequestParam(value = "error", required = false) String providerError,
@@ -104,14 +104,14 @@ final class AuthOidcOps {
             return AuthOidcOps.redirectFound(frontendRedirectUri + "#oidc_error=" + AuthOidcOps.urlQueryEscape("login_failed")
                     + "&oidc_error_description=" + AuthOidcOps.urlQueryEscape(e.getMessage()));
         }
-        // 成功分支不可达：loginWithOIDC 的网络步整体推迟（§9 deferral），必抛 OidcException。
+        // 成功分支不可达：loginWithOidc 的网络步整体推迟，必抛 OidcException。
         // encodeOIDCCallbackPayload / !resp.Success 分支随之推迟。
         throw new BizException(AppError.internal("OIDC callback success path is not available"));
     }
 
     // ── OIDC 共享辅助 ───────────────────────────────────────────────────────
 
-    /** 对照 oidcNonceCookieName / oidcNonceCookieMaxAge */
+    /** OIDC nonce cookie 的名字与有效期。 */
     static final String OIDC_NONCE_COOKIE_NAME = "weknora_oidc_nonce";
     static final int OIDC_NONCE_COOKIE_MAX_AGE = 600;
 

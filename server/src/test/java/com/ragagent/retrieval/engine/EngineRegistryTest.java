@@ -24,13 +24,11 @@ import com.ragagent.retrieval.engine.RetrievalEngineTestSupport.FakeEngineServic
 import com.ragagent.retrieval.engine.RetrievalEngineTestSupport.FakeStoreRepo;
 
 /**
- * 注册表（W5γ4.5）对照 Go {@code service/retriever/registry_test.go}（237 行）+
- * {@code registry_rehydrate_test.go}（410 行）：两张表、双表隔离、并发安全，
+ * 注册表：两张表、双表隔离、并发安全，
  * 以及按需重建的六道语义（折叠单次构建、失败冷却、代数、panic 兜底、
  * 数据库故障 vs store 不存在、缺依赖时的降级）。
  *
- * <p>与 Go 的差异：Go 的「leader 取消不毒化等待者」用到 {@code context.WithoutCancel}
- * 与 {@code DoChan} 的 select 语义；本仓无请求级取消（构建恒为共享航班），因此改以
+ * <p>本仓无请求级取消（构建恒为共享航班），「leader 取消不毒化等待者」改以
  * 「等待者确实加入同一次构建（{@code shared=true}，工厂只被调用一次）」验证同一意图。</p>
  */
 class EngineRegistryTest {

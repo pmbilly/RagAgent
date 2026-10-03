@@ -42,11 +42,10 @@ import com.ragagent.retrieval.engine.RetrieveEngineRegistry;
 import com.ragagent.retrieval.engine.TenantStoreOwnership;
 
 /**
- * HybridSearch 执行面（对照 Go internal/application/service/knowledgebase_search.go
- * + _fusion/_storegroup/_fanout/_results/_faq 全族 + retriever/postgres 引擎，
- * 检索引擎批 2026-09-22 翻译；接线批第 4 步 2026-09-25 换装 store-group 路由）。
+ * HybridSearch 执行面：多 KB 检索的 store-group 路由、扇出执行、RRF 融合
+ * 与 FAQ 后处理。
  *
- * <h2>store-group 路由（对照 knowledgebase_search_storegroup.go + _fanout.go）</h2>
+ * <h2>store-group 路由</h2>
  * <ul>
  *   <li>KB 按 (vectorStoreId, kb.tenantId) 分组；每组经
  *       {@link RetrieveEngineFactories#createForKb} 解析复合引擎——env-store 组
@@ -60,15 +59,14 @@ import com.ragagent.retrieval.engine.TenantStoreOwnership;
  *   <li>多组结果跨<b>引擎类型</b>时先过 {@link EngineAwareNormalizer} 归一化再融合
  *       （同引擎保持原刻度）；BM25 分透传。</li>
  *   <li>authorizeKBAccess 在控制器层落地（KnowledgeBaseController 的
- *       kb-permission 段，2026-09-23 走查批接线）——服务层不再重复查授予。</li>
+ *       kb-permission 段）——服务层不再重复查授予。</li>
  * </ul>
  *
- * <h2>与 Go 的形状差异（诚实声明）</h2>
+ * <h2>实现说明</h2>
  * <ul>
- *   <li>组序确定（LinkedHashMap 按首见序）：Go 的 map 遍历随机——检索批的既有
- *       确定性备案延续到分组层，对 golden 友好。</li>
- *   <li>多组扇出的组超时到点即判失败（Go 的 ctx 取消能打断底层 HTTP；Java 引擎
- *       不收 ctx，超时后该组线程自然跑完、结果被丢弃——备案：仅多绑定店场景可达）。</li>
+ *   <li>组序确定（LinkedHashMap 按首见序），结果可复现。</li>
+ *   <li>多组扇出的组超时到点即判失败：超时后该组线程自然跑完、结果被丢弃
+ *       （仅多绑定店场景可达）。</li>
  *   <li>langfuse span 与部分 INFO 日志不入契约。</li>
  * </ul>
  */
@@ -77,16 +75,16 @@ public class HybridSearchService {
 
     private static final Logger log = LoggerFactory.getLogger(HybridSearchService.class);
 
-    /** 对照 maxRetrievalPoolSize（knowledgebase_search.go L20）。 */
+    /** 检索池上限：over-retrieval 的截断上界。 */
     public static final int MAX_RETRIEVAL_POOL_SIZE = 500;
-    /** 对照 types.DefaultRetrievalTopK。 */
+    /** 检索 TopK 缺省值。 */
     public static final int DEFAULT_RETRIEVAL_TOP_K = 50;
-    /** 对照 defaultMultiStoreFanoutLimit（_fanout.go L27）。 */
+    /** 多组扇出的并发上限。 */
     static final int MULTI_STORE_FANOUT_LIMIT = 4;
-    /** 对照 defaultMultiStoreRetrieveTimeout（_fanout.go L26）。 */
+    /** 多组扇出的单组超时缺省值（秒）。 */
     static final long MULTI_STORE_RETRIEVE_TIMEOUT_SEC_DEFAULT = 30;
 
-    // MatchType（types/embedding.go iota 序）。
+    // MatchType 常量（0 起连续编号）。
     public static final int MATCH_EMBEDDING = 0;
     public static final int MATCH_KEYWORDS = 1;
     public static final int MATCH_NEAR_BY_CHUNK = 2;
@@ -127,16 +125,16 @@ public class HybridSearchService {
         this.resultOps = new HybridResultOps(this);
     }
 
-    // ── 检索命中（对照 types.IndexWithScore；复用引擎仓库的 PgVectorRetrieveRepository.IndexHit） ────
+    // ── 检索命中（复用引擎仓库的 PgVectorRetrieveRepository.IndexHit） ────
 
-    /** 检索失败（Go 的 error 通道；message 对照 AppError 文案）。 */
+    /** 检索失败（运行时异常；message 沿用 AppError 文案口径）。 */
     public static final class RetrievalException extends RuntimeException {
         public RetrievalException(String message) {
             super(message);
         }
     }
 
-    // ── storeGroup（对照 knowledgebase_search_storegroup.go L39-81） ────────
+    // ── storeGroup ──────────────────────────────────────────────────────────
 
     /**
      * 一组共享 (VectorStore, 属主租户) 的 KB——HybridSearch 的一个扇出单元。
@@ -164,10 +162,10 @@ public class HybridSearchService {
     }
 
     // ── 有效引擎解析 ────────────────────────────────────────────────────────
-    //    2026-09-25 抽出到 EffectiveEngines（接线批第 2 步）：工厂的 env-store 分支与
+    //    已抽出到 EffectiveEngines：工厂的 env-store 分支与
     //    HybridSearch 的引擎路由用同一份映射表与派发规则。
 
-    // ── 入口（对照 HybridSearch，knowledgebase_search.go L125-301） ───────
+    // ── 入口 ───────────────────────────────────────────────────────────────
 
     public List<SearchResult> hybridSearch(String id, SearchParams params) {
         if (params.getMatchCount() <= 0) {
@@ -191,8 +189,7 @@ public class HybridSearchService {
             throw new RetrievalException("knowledge base not found");
         }
 
-        // 多 KB 检索的嵌入模型一致性闸门（对照 validateSameEmbeddingModel，
-        // storegroup.go L248-289；wiki/graph-only KB 的空键豁免）。
+        // 多 KB 检索的嵌入模型一致性闸门（wiki/graph-only KB 的空键豁免）。
         validateSameEmbeddingModel(kbs);
 
         KnowledgeBaseSearchFacts primary = pickPrimary(kbs, id);
@@ -200,12 +197,12 @@ public class HybridSearchService {
             throw new RetrievalException("knowledge base not found");
         }
 
-        // Over-retrieval：5x per-KB matchCount，floor DefaultRetrievalTopK，
-        // cap maxRetrievalPoolSize（knowledgebase_search.go L193-196）。
+        // Over-retrieval：每 KB 5x matchCount，下限 DEFAULT_RETRIEVAL_TOP_K，
+        // 上限 MAX_RETRIEVAL_POOL_SIZE。
         int overMatchCount = Math.max(matchCount * 5, DEFAULT_RETRIEVAL_TOP_K) * searchKbIds.size();
         overMatchCount = Math.min(overMatchCount, MAX_RETRIEVAL_POOL_SIZE);
 
-        // 查询向量：一次现算，沿 params 下行（Go L206-214）。
+        // 查询向量：一次现算，沿 params 下行。
         boolean vectorEnabled = primary.vectorEnabled();
         if ((params.getQueryEmbedding() == null || params.getQueryEmbedding().length == 0)
                 && vectorEnabled
@@ -214,17 +211,17 @@ public class HybridSearchService {
             params.setQueryEmbedding(getQueryEmbedding(primary.id(), params.getQueryText()));
         }
 
-        // 按 (storeID, 属主租户) 分组并解析各组引擎（Go resolveStoreGroups）。
+        // 按 (storeID, 属主租户) 分组并解析各组引擎。
         List<StoreGroup> groups = resolveStoreGroups(primary, kbs, params, overMatchCount);
         if (groups.isEmpty() || allBaseParamsEmpty(groups)) {
             // Wiki-only / graph-only 扇出：全部 KB 不可检索 → 空而非错（agent 工具
-            // 的多 KB 作用域优雅降级，Go knowledgebase_search.go L245-250）。
+            // 的多 KB 作用域优雅降级）。
             log.info("No retrievable indexing pipelines across {} KBs", kbs.size());
             return null;
         }
 
-        // 对照 Go knowledgebase_search.go L233-256：retrieve span 包住多存储检索执行段
-        //（Input 11 键 / Metadata 4 键照抄；收尾输出走 SummarizeRetrieveOutput）
+        // retrieve span 包住多存储检索执行段
+        //（Input 11 键 / Metadata 4 键；收尾输出走 summarizeRetrieveOutput）
         Map<String, Object> retrieveInput = new LinkedHashMap<>();
         retrieveInput.put("query_text", params.getQueryText());
         retrieveInput.put("kb_ids", searchKbIds);
@@ -236,7 +233,7 @@ public class HybridSearchService {
         retrieveInput.put("keyword_threshold", params.getKeywordThreshold());
         retrieveInput.put("disable_vector_match", params.isDisableVectorMatch());
         retrieveInput.put("disable_keywords_match", params.isDisableKeywordsMatch());
-        retrieveInput.put("group_count", groups.size()); // 对照 Go 的 len(groups)
+        retrieveInput.put("group_count", groups.size()); // 组数
         Map<String, Object> retrieveMeta = new LinkedHashMap<>();
         retrieveMeta.put("primary_kb_id", primary.id());
         retrieveMeta.put("primary_kb_type", primary.type());
@@ -252,7 +249,7 @@ public class HybridSearchService {
             List<RetrieveResult> retrieveResults = retrieveFromStores(groups);
             results = toPgShape(retrieveResults);
         } catch (RuntimeException retrieveErr) {
-            // 对照 Go：retrieveFromStores 返回 err → span.Finish(summary, nil, err)
+            // 检索失败：span 带错误收尾后再抛出。
             retrieveSpan.finish(null, null, retrieveErr.toString());
             throw retrieveErr;
         }
@@ -264,7 +261,7 @@ public class HybridSearchService {
             return null;
         }
 
-        // 分类 + 融合（_fusion.go 全文）。
+        // 分类 + 融合。
         List<PgVectorRetrieveRepository.IndexHit> vectorResults = new ArrayList<>();
         List<PgVectorRetrieveRepository.IndexHit> keywordResults = new ArrayList<>();
         for (PgVectorRetrieveRepository.RetrieveResult rr : results) {
@@ -280,7 +277,7 @@ public class HybridSearchService {
         var rc = currentRetrievalConfig();
         List<PgVectorRetrieveRepository.IndexHit> deduped = fuseOrDeduplicate(vectorResults, keywordResults, rc);
 
-        // FAQ 后处理（_faq.go，现按 storeGroups 扇出——迭代 TopK 对全部绑定店统一生长）。
+        // FAQ 后处理（按 storeGroups 扇出——迭代 TopK 对全部绑定店统一生长）。
         deduped = fusionOps.applyFaqPostProcessing(primary, deduped, vectorResults, groups, params,
                 overMatchCount);
 
@@ -292,7 +289,7 @@ public class HybridSearchService {
         return processSearchResults(deduped, params.isSkipContextEnrichment());
     }
 
-    /** 对照 GetQueryEmbedding（knowledgebase_search.go L26-54）。 */
+    /** 为查询文本现算一条嵌入向量（用 KB 绑定的嵌入模型）。 */
     public float[] getQueryEmbedding(String kbId, String queryText) {
         KnowledgeBaseSearchFacts kb = kbGateway.findSearchFacts(kbId);
         if (kb == null) {
@@ -315,14 +312,13 @@ public class HybridSearchService {
         }
     }
 
-    /** 去重键：模型 ID + KB 属主租户（对照 Go 的 modelRef）。 */
+    /** 去重键：模型 ID + KB 属主租户。 */
     private record ModelRef(String modelId, Long tenantId) {
     }
 
     /**
-     * 对照 ResolveEmbeddingModelKeys（knowledgebase_search.go L82-115）：按
-     * (modelID, KB 属主租户) 去重后逐个解析身份键（name + base URL）——
-     * 跨租户的模型解析在<b>属主租户</b>上下文里做（WithExecutionTenant），同一个
+     * 按 (modelID, KB 属主租户) 去重后逐个解析身份键（name + base URL）——
+     * 跨租户的模型解析在<b>属主租户</b>上下文里做，同一个
      * 底层模型跨租户共享时键相同，多库分组才最优。解析失败回落 modelID。
      */
     public Map<String, String> resolveEmbeddingModelKeys(List<String> kbIds) {
@@ -374,9 +370,8 @@ public class HybridSearchService {
     }
 
     /**
-     * 对照 validateSameEmbeddingModel（storegroup.go L248-289）：多 KB 检索若跨多个
-     * 嵌入模型身份键则 400——不同嵌入空间的分数没有可比性。单 KB no-op；
-     * 解析键为空（wiki-only / graph-only KB 无嵌入模型）豁免。
+     * 多 KB 检索若跨多个嵌入模型身份键则 400——不同嵌入空间的分数没有可比性。
+     * 单 KB no-op；解析键为空（wiki-only / graph-only KB 无嵌入模型）豁免。
      */
     private void validateSameEmbeddingModel(List<KnowledgeBaseSearchFacts> kbs) {
         if (kbs.size() <= 1) {
@@ -411,7 +406,7 @@ public class HybridSearchService {
         return storeGroupOps.resolveStoreGroups(primary, kbs, params, matchCount);
     }
 
-    // ── 检索参数构建（knowledgebase_search.go L383-472） ───────────────────
+    // ── 检索参数构建 ───────────────────────────────────────────────────────
 
     /**
      * 构建一个 store 组的基础检索参数。FAQ/文档分流是<b>逐 KB</b> 属性（kb.Type），
@@ -489,7 +484,7 @@ public class HybridSearchService {
         return p;
     }
 
-    /** 对照 allBaseParamsEmpty（knowledgebase_search.go L360-368）。 */
+    /** 所有组的基础检索参数都为空（无可检索管道）。 */
     private static boolean allBaseParamsEmpty(List<StoreGroup> groups) {
         for (StoreGroup g : groups) {
             if (!g.baseParams.isEmpty()) {
@@ -499,10 +494,10 @@ public class HybridSearchService {
         return true;
     }
 
-    // ── 扇出执行（knowledgebase_search_fanout.go 全文） ────────────────────
+    // ── 扇出执行 ───────────────────────────────────────────────────────────
 
     /**
-     * 对照 retrieveFromStores：单组直接 Retrieve（快速路径，现行主形态）；
+     * 单组直接 Retrieve（快速路径，现行主形态）；
      * 多组虚拟线程扇出（上限 {@link #MULTI_STORE_FANOUT_LIMIT}、组超时），all-or-nothing。
      * 结果跨引擎类型时先过 {@link EngineAwareNormalizer}（同引擎保持原刻度）。
      * 包内可见供测试（StoreGroup 同包）。
@@ -517,7 +512,7 @@ public class HybridSearchService {
             } catch (RuntimeException e) {
                 throw e;
             } catch (Exception e) {
-                // 引擎口的受检异常（Go 的 error 通道）——原样冒给调用方。
+                // 引擎口的受检异常——原样冒给调用方。
                 throw new IllegalStateException(String.valueOf(e.getMessage()), e);
             }
         }
@@ -567,7 +562,7 @@ public class HybridSearchService {
             }
         }
         if (failure != null) {
-            // 照 Go：任何一组失败整条检索塌成 2201（内部原因只在结构化日志里）。
+            // 任何一组失败整条检索塌成 2201（内部原因只在结构化日志里）。
             throw vectorStoreUnavailableStoreFailure();
         }
 
@@ -596,7 +591,7 @@ public class HybridSearchService {
     }
 
     /**
-     * 对照 paramsWithTopK：BaseParams 不可变，TopK 在调用时才覆写——每次重建新列表，
+     * BaseParams 不可变，TopK 在调用时才覆写——每次重建新列表，
      * FAQ 迭代对 TopK 的变更不会被并发读取方观察到。
      */
     private static List<RetrieveParams> paramsWithTopK(StoreGroup group) {
@@ -620,7 +615,7 @@ public class HybridSearchService {
         return out;
     }
 
-    /** 对照 hasMixedEngineTypes：结果跨 2+ 个引擎类型（空值自成一类）。 */
+    /** 结果跨 2+ 个引擎类型（空值自成一类）。 */
     static boolean hasMixedEngineTypes(List<RetrieveResult> results) {
         if (results == null || results.size() < 2) {
             return false;
@@ -635,8 +630,8 @@ public class HybridSearchService {
     }
 
     /**
-     * 对照 isKnownEngineType：EngineAwareNormalizer 有硬编码归一条目的引擎类型
-     * （含 Go 的两个死枚举引用）。未知类型由调用方按请求去重 WARN。
+     * isKnownEngineType：EngineAwareNormalizer 有硬编码归一条目的引擎类型
+     * （含两个仅兼容保留的遗留类型值）。未知类型由调用方按请求去重 WARN。
      */
     static boolean isKnownEngineType(String t) {
         return EngineTypes.ENGINE_ELASTICSEARCH.equals(t) || "elastic_faiss".equals(t)
@@ -648,7 +643,7 @@ public class HybridSearchService {
     }
 
     /**
-     * 对照 multiStoreRetrieveTimeout：读 MULTI_STORE_RETRIEVE_TIMEOUT_SEC，缺省/解析
+     * 读 MULTI_STORE_RETRIEVE_TIMEOUT_SEC，缺省/解析
      * 失败/非正值一律回落 30s。
      */
     static long multiStoreRetrieveTimeout() {
@@ -667,7 +662,7 @@ public class HybridSearchService {
         }
     }
 
-    /** 对照 storeKindLabel：日志里只报 "env" / "bound"，不回显 store UUID。 */
+    /** 日志里只报 "env" / "bound"，不回显 store UUID。 */
     static String storeKindLabel(String storeId) {
         return storeId == null || storeId.isEmpty() ? "env" : "bound";
     }

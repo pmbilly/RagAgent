@@ -49,9 +49,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * 提示词合成的 Go 实录断言（/tmp/wave42rec：prompts.go + grounding_prompt.go +
- * prompts_browser.go + types/placeholder.go + prompt_instructions.go 内嵌；
- * 时间参数化为固定日期 2026-09-20）。
+ * 提示词合成的录制常量断言（时间参数化为固定日期 2026-09-20）。
  *
  * <p>完整输出锁定：KB 目录 XML（含注入攻击夹具与截断）、全量系统提示词三条路径
  * （自定义模板/legacy/技能安装）、占位符渲染、技能元数据、工具与接地指引。</p>
@@ -154,7 +152,7 @@ class AgentPromptsTest {
                                 doc("third-document", "", "", "", "", "", ""))));
         String text = AgentPrompts.formatKnowledgeBaseList(kbs);
         assertThat(text).isEqualTo(STR_KBLIST_INJECTION);
-        // 敏感内容绝不出现（prompt_composition_test.go 的回归语义）
+        // 敏感内容绝不出现（回归语义）
         assertThat(text).doesNotContain("SECRET FAQ ANSWER");
         assertThat(text).doesNotContain("DOCUMENT SUMMARY");
         assertThat(text).doesNotContain("third-document");
@@ -186,10 +184,9 @@ class AgentPromptsTest {
                 List.of(), true, "2026-09-20", "Chinese (Simplified)")).isEqualTo(STR_PHS_FULL);
         assertThat(AgentPrompts.renderPromptPlaceholdersWithStatus(
                 "T={{web_search_status}}", List.of(), false, "2026-09-20", "")).isEqualTo(STR_PHS_DISABLED);
-        // Go 录制 STR_PHS_AUTOFILL = "auto 2026-09-20 Sunday 2026-09-19"（录制日 09-20）。
-        // {{current_week}}/{{yesterday}} 在 Go（types/placeholder.go L215-218）由 time.Now()
-        // 兜底（{{current_time}} 走显式参数），录制常量只在录制当天可复现——09-21 凌晨复核
-        // 时抓回的墙钟 flake（§5 #9）。公式等价性已由录制日全量绿证明，此处按当日现算期望值，
+        // 录制常量 STR_PHS_AUTOFILL = "auto 2026-09-20 Sunday 2026-09-19"（录制日 09-20）。
+        // {{current_week}}/{{yesterday}} 由墙钟现算兜底（{{current_time}} 才走显式参数），
+        // 录制常量只在录制当天可复现（曾因此出过墙钟 flake）。此处按当日现算期望值，
         // 继续钉住替换接线、星期名英文全称与日期格式。
         LocalDate today = LocalDate.now();
         assertThat(AgentPrompts.renderPromptPlaceholdersWithStatus(
@@ -371,7 +368,7 @@ class AgentPromptsTest {
 
     @Test
     void groundingSurvivesTemplateSelection() {
-        // grounding_prompt_test.go：三种模板选择下接地指引都在
+        // 三种模板选择下接地指引都在
         List<AgentPrompts.KnowledgeBaseInfo> ragKbs = List.of(
                 new AgentPrompts.KnowledgeBaseInfo("kb", "", "", "", 0, List.of("chunks"), List.of()));
         String pure = AgentPrompts.buildSystemPromptWithOptions(null, false,

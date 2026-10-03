@@ -8,11 +8,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Agent 完成事件数据（对照 Go {@code event.AgentCompleteData}，internal/event/event_data.go:138-149）。
- * emit 点：finalize.go:161（{@code generateEventID("complete")}），见包注释 emit 表 #16。
+ * Agent 完成事件数据。
+ * emit 点：FinalizePhase（{@code generateEventID("complete")}），见包注释 emit 表 #16。
  *
- * <p>实录锚点：{@code knowledge_refs}/{@code agent_steps}/{@code usage} 带 omitempty——
- * 空列表也省略（{@code emptyRefs} 实录）；{@code total_duration_ms} 无 omitempty 恒输出。</p>
+ * <p>{@code knowledge_refs}/{@code agent_steps}/{@code usage} 空则整键省略
+ * （空列表也省略）；{@code total_duration_ms} 恒输出。</p>
  */
 @JsonPropertyOrder({"session_id", "total_steps", "final_answer", "knowledge_refs",
         "agent_steps", "usage", "total_duration_ms", "message_id", "request_id", "extra"})
@@ -27,36 +27,36 @@ public class AgentCompleteData {
     @JsonProperty("final_answer")
     private String finalAnswer = "";
 
-    /** Go {@code []*types.SearchResult}；Go omitempty（nil 或空都省略，实录锚点） */
+    /** null 或空列表都省略 */
     @JsonProperty("knowledge_refs")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<Object> knowledgeRefs;
 
-    /** Go {@code []types.AgentStep}；Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("agent_steps")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Object agentSteps;
 
-    /** Go {@code *types.TokenUsage}；Go omitempty */
+    /** null 省略 */
     @JsonProperty("usage")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Object usage;
 
-    /** 无 omitempty：0 恒输出 */
+    /** 0 恒输出 */
     @JsonProperty("total_duration_ms")
     private long totalDurationMs;
 
-    /** Assistant message ID；Go omitempty */
+    /** Assistant message ID；空串省略 */
     @JsonProperty("message_id")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String messageId = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("request_id")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String requestId = "";
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("extra")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Object> extra;

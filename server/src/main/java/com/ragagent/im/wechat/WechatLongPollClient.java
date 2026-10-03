@@ -22,18 +22,17 @@ import com.ragagent.im.runtime.ImTypes;
 import com.ragagent.im.runtime.IncomingMessage;
 
 /**
- * 微信 iLink 机器人的 HTTP 长轮询收件（对照 Go {@code internal/im/wechat/longpoll.go}
- * L28-376）。
+ * 微信 iLink 机器人的 HTTP 长轮询收件。
  *
- * <h2>照抄点</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>{@code POST /ilink/bot/getupdates}，体 {@code {get_updates_buf, base_info}}，
  *       认证头同适配器；响应 {@code {ret, errcode, errmsg, msgs, get_updates_buf}}
  *       ——{@code errcode == -14} 即 <b>token 过期</b>（立即停轮询），
  *       {@code ret != 0 && errcode != 0} 算错；成功则<b>推进游标</b>；</li>
- *   <li>退避：1s·2^n 上限 30s（<b>shift 上限 30</b> 防溢出，照 Go 的注释）；
- *       <b>轮询活过 30s 后失败则清零计数</b>（照 Go）；无限重试；</li>
- *   <li>每条消息 <b>detached</b> 交处理器（不阻塞轮询，照 Go 的 goroutine）；</li>
+ *   <li>退避：1s·2^n 上限 30s（<b>shift 上限 30</b> 防溢出）；
+ *       <b>轮询活过 30s 后失败则清零计数</b>；无限重试；</li>
+ *   <li>每条消息 <b>detached</b> 交处理器（不阻塞轮询）；</li>
  *   <li>解析只取 <b>item_list[0]</b>：1=文本（trim 后空则丢）、2=图片（CDN URL +
  *       aeskey/media.aes_key，文件名 {@code <message_id>.png}）、3=语音（取转写文本）、
  *       4=文件（CDN URL + media.aes_key，文件名回落 {@code file_<id>}，len 解析成字节数）；
@@ -52,7 +51,7 @@ public class WechatLongPollClient {
     static final long RECONNECT_MAX_DELAY_MS = 30_000L;
     static final int ERR_CODE_TOKEN_EXPIRED = -14;
 
-    /** 对照 {@code ErrTokenExpired}：token 过期，需要重新扫码登录。 */
+    /** token 过期，需要重新扫码登录。 */
     public static class TokenExpiredException extends RuntimeException {
         public TokenExpiredException(String message) {
             super(message);
@@ -95,7 +94,7 @@ public class WechatLongPollClient {
                 .build();
     }
 
-    /** 对照 {@code Start}：无限重连 + 退避 + token 过期即停。 */
+    /** 无限重连 + 退避 + token 过期即停。 */
     public void start() {
         loopThread = Thread.currentThread();
         log.info("[WeChat] long-poll starting (bot_id={}) channel={}", ilinkBotId, channelId);
@@ -116,7 +115,7 @@ public class WechatLongPollClient {
                 if (stopped.get()) {
                     return;
                 }
-                // 跑了一阵子才失败 → 重置退避（照 Go）
+                // 跑了一阵子才失败 → 重置退避
                 if (System.currentTimeMillis() - pollStart > RECONNECT_MAX_DELAY_MS) {
                     attempts = 0;
                 }
@@ -143,7 +142,7 @@ public class WechatLongPollClient {
         workers.shutdownNow();
     }
 
-    /** 对照 {@code poll}：一次长轮询 + 游标推进 + 逐条派发。 */
+    /** 一次长轮询 + 游标推进 + 逐条派发。 */
     void poll() throws Exception {
         ObjectNode payload = MAPPER.createObjectNode();
         payload.put("get_updates_buf", cursor);
@@ -185,7 +184,7 @@ public class WechatLongPollClient {
             if (incoming == null) {
                 continue;
             }
-            // detached：不阻塞轮询（照 Go 的 go func）
+            // detached：不阻塞轮询
             workers.submit(() -> {
                 try {
                     if (msgHandler != null) {
@@ -198,7 +197,7 @@ public class WechatLongPollClient {
         }
     }
 
-    /** 对照 {@code parseMessage}：只取首 item；BOT 自己的消息丢弃。 */
+    /** 只取首 item；BOT 自己的消息丢弃。 */
     IncomingMessage parseMessage(JsonNode msg) {
         if (msg.path("message_type").asInt(0) == 2) {
             return null;
@@ -297,7 +296,7 @@ public class WechatLongPollClient {
         }
     }
 
-    /** 对照 {@code pollReconnectDelay}：1s·2^(n-1)，上限 30s（shift 上限 30 防溢出）。 */
+    /** 1s·2^(n-1)，上限 30s（shift 上限 30 防溢出）。 */
     static long pollReconnectDelayMs(int attempt) {
         if (attempt < 1) {
             return RECONNECT_BASE_DELAY_MS;

@@ -25,33 +25,30 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 import com.ragagent.retrieval.engine.RetrieveEngineRepository;
 
 /**
- * SQLite 检索引擎仓储——对照 Go {@code repository/retriever/sqlite/}
- * （repository.go 661 + move.go 17，约 680 行非测试）。
+ * SQLite 检索引擎仓储。
  *
- * <h2>Go 的口径</h2>
- * Go 的 SQLite 引擎<b>用的是产品库本身</b>（{@code createSQLiteEngine(_ types.VectorStore, db
- * *gorm.DB)}——忽略 store 配置，直接用 GORM 的 {@code *gorm.DB}），在库里建三张表：
- * {@code lite_embeddings}（元数据，GORM AutoMigrate）、{@code lite_embeddings_fts}
+ * <h2>数据口径</h2>
+ * SQLite 引擎<b>用的是独立的 SQLite 文件库</b>（忽略 store 的连接配置），在库里建三张表：
+ * {@code lite_embeddings}（元数据）、{@code lite_embeddings_fts}
  * （<b>FTS5 contentless</b> + 手写 CJK 二元切分）、{@code vec_embeddings_<dim>}
- * （sqlite-vec 的 {@code vec0} 虚拟表，cosine）。写入是 {@code OnConflict DoNothing}
+ * （cosine）。写入是 {@code OnConflict DoNothing}
  * （靠 (source_id, source_type) 唯一索引去重）+ FTS 行 + 向量行；关键词走 FTS5 {@code MATCH}
- * 与 {@code bm25()} 打分（×-1000000 变正分数）；向量走 vec0 的 KNN（先取 k 近邻、再按
+ * 与 {@code bm25()} 打分（×-1000000 变正分数）；向量走 KNN（先取 k 近邻、再按
  * {@code rowid IN (过滤子查询)} 收窄）；阈值在取回后于内存里衰减。
  *
- * <h2>本仓口径（差异备案）</h2>
+ * <h2>本仓口径</h2>
  * <ol>
- *   <li><b>存储介质</b>：Go 挂产品库（SQLite 形态）；本仓产品库是 PostgreSQL，
- *       "SQLite 引擎"改为一颗<b>独立的 SQLite 文件</b>（{@code SQLITE_PATH}，缺省
+ *   <li><b>存储介质</b>：一颗<b>独立的 SQLite 文件</b>（{@code SQLITE_PATH}，缺省
  *       {@code ./data/weknora-retrieval.sqlite}）——引擎名与对外语义不变，介质就近成文件；
  *       驱动用 {@code org.xerial:sqlite-jdbc}（平台 native 随 Maven 分发，仓内零二进制）。</li>
  *   <li><b>vec0 → 普通表 + Java 标量函数</b>：sqlite-vec 扩展未随包分发，改存
- *       {@code embedding BLOB}（小端 float32，与 {@code sqlite_vec.SerializeFloat32} 同格式），
+ *       {@code embedding BLOB}（小端 float32），
  *       相似度由注册的 {@code vec_distance_cosine(blob, blob)} Java 函数算——<b>平面扫描</b>
- *       取代 ANN 索引；排序/取 k/过滤顺序与 Go 逐句一致（cosine 的 KNN 结果完全相同，
+ *       取代 ANN 索引；排序/取 k/过滤顺序与 vec0 KNN 一致（cosine 的 KNN 结果完全相同，
  *       仅复杂度不同）。</li>
  *   <li><b>FTS5 照用</b>：实测 xerial 3.46.1 的打包版支持 FTS5/contentless_delete/bm25
- *       → 关键词面与 Go 基本同构（含"老表非 contentless 时重建 + 用二元切分回填"的迁移）。</li>
- *   <li>事务语义：Go 的 GORM 是连接池；本仓每次操作开一条连接（SQLite 文件锁 + WAL）。</li>
+ *       → 关键词面与 vec0/FTS5 原生语义同构（含"老表非 contentless 时重建 + 用二元切分回填"的迁移）。</li>
+ *   <li>事务语义：每次操作开一条连接（SQLite 文件锁 + WAL）。</li>
  * </ol>
  */
 public class SqliteRetrieveRepository
@@ -95,7 +92,7 @@ public class SqliteRetrieveRepository
         this.writeOps = new SqliteWriteOps(this);
     }
 
-    /** 照 {@code NewSQLiteRetrieveEngineRepository}（AutoMigrate + initFTS5 + 既有向量表）。 */
+    /** 启动自举：建表（AutoMigrate 风格）+ FTS5 初始化 + 补建既有向量表。 */
     public static SqliteRetrieveRepository create(String dbPath) {
         log.info("[SQLite] Initializing SQLite retriever engine repository with sqlite-vec");
         return new SqliteRetrieveRepository(dbPath);
@@ -239,7 +236,7 @@ public class SqliteRetrieveRepository
         initFts();
     }
 
-    /** 照 {@code initFTS5}：老表非 contentless → 重建并用二元切分回填。 */
+    /** 老表非 contentless → 重建并用二元切分回填。 */
     private void initFts() {
         try (Connection conn = open()) {
             String existing = null;
@@ -298,7 +295,7 @@ public class SqliteRetrieveRepository
         }
     }
 
-    /** 照 {@code ensureExistingVecTables}：按元数据里的既有维度补建向量表。 */
+    /** 按元数据里的既有维度补建向量表。 */
     private void ensureExistingVecTables() {
         List<Integer> dims = new ArrayList<>();
         try (Connection conn = open();
@@ -317,7 +314,7 @@ public class SqliteRetrieveRepository
         }
     }
 
-    /** 照 {@code ensureVecTable}：向量表一次性建（普通表 + BLOB；vec0 的等价面）。 */
+    /** 向量表一次性建（普通表 + BLOB；vec0 的等价面）。 */
     void ensureVecTable(int dim) {
         if (dim <= 0 || vecTables.containsKey(dim)) {
             return;
@@ -369,7 +366,7 @@ public class SqliteRetrieveRepository
         return List.of(EngineTypes.RETRIEVER_KEYWORDS, EngineTypes.RETRIEVER_VECTOR);
     }
 
-    /** 照 {@code EstimateStorageSize}：每条 {@code len(content)+200}（字节长度）。 */
+    /** 每条 {@code len(content)+200}（字节长度）。 */
     @Override
     public long estimateStorageSize(List<IndexInfo> indexInfoList, Map<String, Object> params) {
         if (indexInfoList == null) {
@@ -386,13 +383,13 @@ public class SqliteRetrieveRepository
         return s == null ? 0 : s.getBytes(StandardCharsets.UTF_8).length;
     }
 
-    // ── 写入（照 Save/BatchSave：INSERT OR IGNORE + FTS + 向量） ───────────
+    // ── 写入（INSERT OR IGNORE + FTS + 向量） ──────────────────────────────
 
-    // ── 删除（照 Go：先查行 → 删向量/FTS → 删元数据） ──────────────────────
+    // ── 删除（先查行 → 删向量/FTS → 删元数据） ─────────────────────────────
 
-    // ── 批量更新（逐 chunk UPDATE 元数据，照 Go） ──────────────────────────
+    // ── 批量更新（逐 chunk UPDATE 元数据） ─────────────────────────────────
 
-    // ── 拷贝（照 Go：逐 chunk 读源行 → 新 UUID SourceID → 复制 FTS/向量） ──
+    // ── 拷贝（逐 chunk 读源行 → 新 UUID SourceID → 复制 FTS/向量） ─────────
 
     @Override
     public void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
@@ -445,7 +442,7 @@ public class SqliteRetrieveRepository
     }
 
 
-    // ── move（照 move.go：一条 UPDATE，FTS/向量行靠 rowid 关联不动） ───────
+    // ── move（一条 UPDATE，FTS/向量行靠 rowid 关联不动） ───────────────────
 
     @Override
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
@@ -465,7 +462,7 @@ public class SqliteRetrieveRepository
     // ── 检索 ────────────────────────────────────────────────────────────────
 
     /**
-     * 照 Go 的分派：{@code keywords} 或<b>空类型</b>跑关键词、{@code vector} 或<b>空类型</b>
+     * 检索分派：{@code keywords} 或<b>空类型</b>跑关键词、{@code vector} 或<b>空类型</b>
      * 跑向量——空类型会<b>两条都跑</b>并合并（其他店是"未知类型报错"，此店是特例）。
      */
     @Override
@@ -506,7 +503,7 @@ public class SqliteRetrieveRepository
         return s == null ? "" : s;
     }
 
-    /** 对照 Go {@code common.CleanInvalidUTF8}（丢 NUL 与孤立代理项）。 */
+    /** 丢 NUL 与孤立代理项。 */
     static String cleanInvalidUtf8(String s) {
         if (s == null || s.isEmpty()) {
             return "";

@@ -19,11 +19,8 @@ import com.ragagent.session.service.QaSupport.SseStreamContext;
 import com.ragagent.session.service.TemporaryDocumentService;
 
 /**
- * {@code KnowledgeQaController} 的**附件解析簇**（§14.9c 刀 6a）：临时文档/内联图片的解析与
+ * {@code KnowledgeQaController} 的**附件解析簇**：临时文档/内联图片的解析与
  * 等待、解析结果的持久化；SSE 侧只负责经它拿结果。
- *
- * <p>为什么先落它（§11.26 判据）：执行簇（刀 6）会回调 {@code resolveTemporaryAttachments}
- * （实例方法、110 行）——先把它搬进本协作者，执行协作者持有本类即可，无需回调宿主。</p>
  */
 final class QaAttachmentResolver {
 
@@ -40,7 +37,7 @@ final class QaAttachmentResolver {
         this.turnFinalizer = turnFinalizer;
     }
 
-    /** resolveTemporaryAttachments（qa.go L1417-1512）：等待 → ResolveForPrompt → 注入。 */
+    /** 等待附件就绪 → 解析为提示词内容 → 注入本回合。 */
     void resolveTemporaryAttachments(SseStreamContext streamCtx, QaRequestContext reqCtx) {
         if (reqCtx.attachmentIDs.isEmpty()) {
             return;
@@ -124,7 +121,7 @@ final class QaAttachmentResolver {
             return;
         }
         List<MessageAttachment> attachments = resolved.attachments();
-        // 对照 Go：handler 侧再按 supported_file_types 过滤一层（不支持的附件不进提示词）
+        // agent 配置的 supported_file_types 再过滤一层（不支持的附件不进提示词）
         if (reqCtx.agentConfig != null && !attachments.isEmpty()) {
             List<String> supported = KnowledgeQaController.stringListOf(reqCtx.agentConfig.get("supportedFileTypes"));
             if (!supported.isEmpty()) {
@@ -152,7 +149,7 @@ final class QaAttachmentResolver {
         }
     }
     /**
-     * 对照 Go {@code persistResolvedAttachmentContent}（qa.go L1516-1560）：把解析出的
+     * 把解析出的
      * 附件内容回写到已存的 user 消息（attachments 列）——消息创建时只带元数据，
      * 内容在 SSE 起流后才选出；不回写的话多轮历史重建时附件是空的。
      *

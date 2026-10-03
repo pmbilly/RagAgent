@@ -20,13 +20,11 @@ import com.ragagent.model.domain.Model;
 import com.ragagent.model.service.ModelRuntimeConfigs;
 
 /**
- * 对照 Go internal/models/provider/provider_test.go（TestProviderRegistry / TestDetectProvider /
- * TestListByModelType / TestLiteLLMProviderValidation 的注册部分）与 TestLiteLLM 目录断言。
+ * 厂商注册表 / URL 探测 / 按类型列出 / 厂商校验的单元测试。
  * 纯单元测试，不依赖 Spring 上下文。
  */
 class ProviderRegistryTest {
 
-    /** 对照 Go TestProviderRegistry/default providers registered */
     @Test
     void defaultProvidersRegistered() {
         List<ProviderInfo> providers = ProviderRegistry.list();
@@ -40,7 +38,7 @@ class ProviderRegistryTest {
         }
     }
 
-    /** List() 顺序 = Go AllProviders() 声明序，且全部 27 个厂商都已注册 */
+    /** List() 顺序 = allProviders() 声明序，且全部 27 个厂商都已注册 */
     @Test
     void listFollowsAllProvidersOrder() {
         assertEquals(27, ProviderRegistry.allProviders().size());
@@ -48,17 +46,16 @@ class ProviderRegistryTest {
                 ProviderRegistry.list().stream().map(ProviderInfo::name).toList());
     }
 
-    /** 对照 Go TestProviderRegistry/GetOrDefault fallback */
     @Test
     void getOrDefaultFallsBackToGeneric() {
-        // Go: GetOrDefault("nonexistent") → 未注册 → generic
+        // 未注册的名字 → generic（getOrDefault 回退）
         assertSame(ProviderName.GENERIC,
                 ProviderRegistry.getOrDefault(ProviderName.fromValue("nonexistent")).info().name());
         assertSame(ProviderName.GENERIC, ProviderRegistry.getOrDefault(null).info().name());
     }
 
     /**
-     * 对照 Go TestDetectProvider 的表（逐条照抄，含顺序敏感用例），并按 Go 的 switch 顺序补充
+     * detectProvider 匹配表（含顺序敏感用例），并补充
      * 容易踩坑的用例（azure vs openai、litellm 占位符、local→generic）。
      */
     @ParameterizedTest(name = "{0} → {1}")
@@ -85,7 +82,7 @@ class ProviderRegistryTest {
             "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking, NVIDIA",
             // 顺序语义：openai.azure.com 必须先于 api.openai.com 命中
             "https://myres.openai.azure.com/openai/deployments/gpt-4o, AZURE_OPEN_AI",
-            // 其余厂商（Go switch 里靠后的分支）
+            // 其余厂商（匹配序靠后的分支）
             "https://api.siliconflow.cn/v1, SILICONFLOW",
             "https://api.jina.ai/v1, JINA",
             "https://api-inference.modelscope.cn/v1, MODELSCOPE",
@@ -103,10 +100,10 @@ class ProviderRegistryTest {
     }
 
     /**
-     * ⚠️ Go 侧不一致（照抄，勿"修正"）：七牛云的默认 URL 是 https://api.qnaigc.com/v1，
+     * ⚠️ 既有行为（勿"修正"）：七牛云的默认 URL 是 https://api.qnaigc.com/v1，
      * 而 DetectProvider 只认子串 "qiniuapi.com" / "qiniu" —— 两者互不包含，所以把七牛云的
-     * 目录默认地址喂回 DetectProvider，Go 会返回 generic（QINIU 分支永远命中不了自家默认 URL）。
-     * Java 版按 Go 行为照抄：此断言即该行为的 golden。
+     * 目录默认地址喂回 DetectProvider 会返回 generic（QINIU 分支命中不了自家默认 URL）。
+     * 此断言即该行为的 golden。
      */
     @Test
     void qiniuDefaultUrlIsNotDetectedAsQiniu() {
@@ -134,7 +131,7 @@ class ProviderRegistryTest {
         }
     }
 
-    /** 对照 Go TestListByModelType/chat models：支持 chat 的厂商不少于 9 个 */
+    /** 支持 chat 的厂商不少于 9 个 */
     @Test
     void listByModelTypeChat() {
         List<ProviderInfo> providers = ProviderRegistry.listByModelType(ModelType.KNOWLEDGE_QA);
@@ -142,7 +139,7 @@ class ProviderRegistryTest {
         assertTrue(providers.size() >= 9, "chat providers >= 9, actual=" + providers.size());
     }
 
-    /** 对照 Go TestListByModelType/rerank models：三家 Rerank URL 必须各归其主 */
+    /** 三家 Rerank URL 必须各归其主 */
     @Test
     void listByModelTypeRerank() {
         List<ProviderInfo> providers = ProviderRegistry.listByModelType(ModelType.RERANK);
@@ -169,7 +166,7 @@ class ProviderRegistryTest {
         assertTrue(foundVolcengine, "Volcengine should support rerank");
     }
 
-    /** 对照 Go TestListByModelType/embedding models include openrouter */
+    /** embedding 列表含 openrouter */
     @Test
     void listByModelTypeEmbeddingIncludesOpenRouter() {
         List<ProviderInfo> providers = ProviderRegistry.listByModelType(ModelType.EMBEDDING);
@@ -186,7 +183,7 @@ class ProviderRegistryTest {
         assertTrue(found, "OpenRouter should support embedding");
     }
 
-    /** 对照 Go TestListByModelType/embedding models include gemini（走原生 Gemini API，非兼容端点） */
+    /** embedding 列表含 gemini（走原生 Gemini API，非兼容端点） */
     @Test
     void listByModelTypeEmbeddingIncludesGemini() {
         List<ProviderInfo> providers = ProviderRegistry.listByModelType(ModelType.EMBEDDING);
@@ -203,7 +200,7 @@ class ProviderRegistryTest {
         assertTrue(found, "Gemini should support embedding via the native Gemini API");
     }
 
-    /** 对照 Go TestLiteLLMProviderValidation/info + registered and listed */
+    /** LiteLLM 的 info / 注册 / 列出 */
     @Test
     void litellmProvider() {
         Provider p = new LiteLLMProvider();
@@ -228,7 +225,7 @@ class ProviderRegistryTest {
                 .anyMatch(i -> i.name() == ProviderName.LITELLM), "LiteLLM should appear for embedding models");
     }
 
-    /** GetDefaultURL 回退语义（对照 Go (*ProviderInfo).GetDefaultURL）：缺失类型回退 Chat，再缺失 "" */
+    /** getDefaultURL 回退语义：缺失类型回退 Chat，再缺失 "" */
     @Test
     void getDefaultUrlFallsBackToChat() {
         ProviderInfo info = new DeepSeekProvider().info();
@@ -252,7 +249,7 @@ class ProviderRegistryTest {
         assertFalse(info.modelTypes().isEmpty());
     }
 
-    /** 对照 Go NewConfigFromModel：provider 为空则用 BaseURL 探测；model 为 nil 报错 */
+    /** newConfigFromModel：provider 为空则用 BaseURL 探测；model 为 null 报错 */
     @Test
     void newConfigFromModel() {
         Model model = new Model();

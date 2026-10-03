@@ -3,14 +3,14 @@ package com.ragagent.datasource.connector.notion;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 富文本的样式信息（对照 Go {@code notionAnnotations}，types.go L167-174）。
+ * 富文本的样式信息。
  *
  * <p><b>内部 API 形状，不是契约</b>：只进出于 Notion API 的 JSON。
- * Go 里它按**值类型**用（缺字段即零值），故 {@link #EMPTY} 是那个零值。</p>
+ * 缺字段即"全关"的默认形态，故 {@link #EMPTY} 是那个零值。</p>
  */
 public final class NotionAnnotations {
 
-    /** 对照 Go 的零值 {@code notionAnnotations{}}。 */
+    /** 缺省形态：所有样式关闭。 */
     public static final NotionAnnotations EMPTY = new NotionAnnotations();
 
     @JsonProperty("bold")

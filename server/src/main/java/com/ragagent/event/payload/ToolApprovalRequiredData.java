@@ -5,18 +5,16 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 危险 MCP 工具即将执行时的"请求批准"事件体
- * （对照 Go {@code event.ToolApprovalRequiredData}，internal/event/event_data.go:254-270）。
- * emit 点：agent/approval/gate.go:381（{@code <pendingID>-approval-required}），见包注释 emit 表 #10。
+ * 危险 MCP 工具即将执行时的"请求批准"事件体。
+ * emit 点：common/approval/Gate（{@code <pendingID>-approval-required}），见包注释 emit 表 #10。
  *
- * <p>实录锚点（minimal 形态）：{@code args}/{@code args_json}/{@code request_id} 带
- * omitempty；其余恒输出——零值时
+ * <p>minimal 形态：{@code args}/{@code args_json}/{@code request_id} 空则省略；其余恒输出——零值时
  * {@code {"pending_id":"","tenant_id":0,"session_id":"","assistant_message_id":"","service_id":"",
  * "service_name":"","mcp_tool_name":"","registered_tool_name":"","description":"",
  * "timeout_seconds":0,"requested_at":0,"tool_call_id":""}}。</p>
  *
  * <p>{@code args} 是解析后的 JSON 对象（给 UI 渲染表单），{@code args_json} 是原始
- * JSON 串（给回填）——Go 同时给两者。</p>
+ * JSON 串（给回填），两者都提供。</p>
  */
 @JsonPropertyOrder({"pending_id", "tenant_id", "session_id", "assistant_message_id",
         "service_id", "service_name", "mcp_tool_name", "registered_tool_name", "description",
@@ -26,7 +24,7 @@ public class ToolApprovalRequiredData {
     @JsonProperty("pending_id")
     private String pendingId = "";
 
-    /** Go uint64；无 omitempty：0 恒输出 */
+    /** 0 恒输出 */
     @JsonProperty("tenant_id")
     private long tenantId;
 
@@ -51,12 +49,12 @@ public class ToolApprovalRequiredData {
     @JsonProperty("description")
     private String description = "";
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("args")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Object args;
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("args_json")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String argsJson = "";
@@ -64,14 +62,14 @@ public class ToolApprovalRequiredData {
     @JsonProperty("timeout_seconds")
     private int timeoutSeconds;
 
-    /** Go {@code RequestedAtUnix int64 `json:"requested_at"`}；无 omitempty：0 恒输出 */
+    /** 请求发出时间（unix 秒）；0 恒输出 */
     @JsonProperty("requested_at")
     private long requestedAtUnix;
 
     @JsonProperty("tool_call_id")
     private String toolCallId = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("request_id")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String requestId = "";

@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.VolcengineProvider（volcengine.go）：火山引擎 Ark。
+ * 火山引擎 Ark。
  * Chat/VLLM 用同一 URL，Embedding（多模态）与 Rerank（知识库托管）各用独立 URL。
  */
 public class VolcengineProvider implements Provider {

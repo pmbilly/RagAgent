@@ -7,8 +7,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 错误事件数据（对照 Go {@code event.ErrorData}，internal/event/event_data.go:64-71）。
- * agent 引擎唯一 emit 点：engine.go:362（stage="agent_execution"），见包注释 emit 表 #20。
+ * 错误事件数据。
+ * agent 引擎唯一 emit 点：AgentEngine（stage="agent_execution"），见包注释 emit 表 #20。
  */
 @JsonPropertyOrder({"error", "error_code", "stage", "session_id", "query", "extra"})
 public class ErrorData {
@@ -16,24 +16,24 @@ public class ErrorData {
     @JsonProperty("error")
     private String error = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("error_code")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String errorCode = "";
 
-    /** 错误发生的阶段（无 omitempty） */
+    /** 错误发生的阶段（恒输出） */
     @JsonProperty("stage")
     private String stage = "";
 
     @JsonProperty("session_id")
     private String sessionId = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("query")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String query = "";
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("extra")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Object> extra;

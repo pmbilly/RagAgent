@@ -259,7 +259,7 @@ public interface AsrTranscriber {
                 case '7':
                 case '8':
                 case '9':
-                    // 深结构错误：不可复刻，回落占位（备案）
+                    // 深结构错误：原文无法还原，回落占位
                     return "unparsable JSON body";
                 default:
                     return "invalid character '" + c + "' looking for beginning of value";

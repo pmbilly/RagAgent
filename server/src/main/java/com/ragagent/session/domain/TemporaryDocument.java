@@ -10,9 +10,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonRawValue;
 
 /**
- * 会话附件（临时文档），对照 Go types.TemporaryDocument（types/temporary_document.go L24-48）。
+ * 会话附件（临时文档）。
  *
- * <p>序列化要点（§14.9l S3 换锚后）：HTTP 响应键名＝Java 字段名（camelCase），
+ * <p>序列化要点：HTTP 响应键名＝Java 字段名（camelCase），
  * 无条件键（可空字段显式 null）；{@code resource_ref} / {@code content} / {@code chunks}
  * / {@code processing_options} / {@code deleted_at} 是 {@code @JsonIgnore}（不出现在响应里）。
  * 三列 Java 构造的 jsonb 同样走字段名：{@code chunks} 元素是
@@ -20,9 +20,8 @@ import com.fasterxml.jackson.annotation.JsonRawValue;
  * 元素是 {@code originalRef/url/mimeType}、{@code processing_options} 见
  * {@code TemporaryDocumentService.CreateOptions.toJson}。</p>
  *
- * <p>时间列在真库是 TIMESTAMP WITHOUT TIME ZONE（naive）：GORM 读回的是本地时区
- * 时间，序列化带 +08:00——Java 侧用 {@link LocalDateTime}（naive）承载，由
- * GoTimeSerializer 按 JVM 默认时区补偏移（与 GoTimeConvert 的既有对齐方式一致）。</p>
+ * <p>时间列在真库是 TIMESTAMP WITHOUT TIME ZONE（naive）：读路径按 JVM 默认时区
+ * 补偏移后序列化（由 GoTimeSerializer 家族统一处理）。</p>
  */
 // autoResultMap = true：jsonb/时间列的 typeHandler 在 MP 生成的 insert/update SQL 里
 // 生效的前提（缺了会按 String 直写，真 PG 上报 jsonb 类型错——A/B 实测）
@@ -41,7 +40,7 @@ public class TemporaryDocument {
 
     private String sessionId;
 
-    /** Go json:"-"——不进响应。 */
+    /** 不进响应。 */
     @JsonIgnore
     private String resourceRef;
 
@@ -55,11 +54,11 @@ public class TemporaryDocument {
 
     private String status;
 
-    /** Go json:"-"——不进响应。 */
+    /** 不进响应。 */
     @JsonIgnore
     private String content;
 
-    /** Go json:"-"——不进响应。 */
+    /** 不进响应。 */
     @TableField(value = "chunks", typeHandler = com.ragagent.common.web.PgJsonTypeHandler.class)
     @JsonIgnore
     private String chunks;
@@ -74,7 +73,7 @@ public class TemporaryDocument {
     @JsonRawValue
     private String metadata;
 
-    /** Go json:"-"——不进响应。 */
+    /** 不进响应。 */
     @TableField(value = "processing_options", typeHandler = com.ragagent.common.web.PgJsonTypeHandler.class)
     @JsonIgnore
     private String processingOptions;
@@ -106,7 +105,7 @@ public class TemporaryDocument {
     @TableField(value = "updated_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
     private OffsetDateTime updatedAt;
 
-    /** Go gorm.DeletedAt json:"-"——不进响应。 */
+    /** 软删除时间，不进响应。 */
     @JsonIgnore
     private OffsetDateTime deletedAt;
 

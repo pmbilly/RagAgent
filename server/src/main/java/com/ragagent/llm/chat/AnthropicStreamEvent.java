@@ -4,8 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Anthropic 流式事件（对照 Go chat.anthropicStreamEvent，
- * internal/models/chat/anthropic.go:85-113）。
+ * Anthropic 流式事件。
  *
  * <p>事件类型：{@code message_start} / {@code content_block_start} / {@code content_block_delta}
  * / {@code content_block_stop} / {@code message_delta} / {@code message_stop} / {@code error}。</p>
@@ -32,7 +31,7 @@ public class AnthropicStreamEvent {
     @JsonProperty("error")
     private AnthropicResponse.Error error;
 
-    /** 对照 Go 里 message_start 事件内联的 usage 结构。 */
+    /** message_start 事件内联的 message 载荷（含 usage）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class MessagePayload {
         @JsonProperty("usage")
@@ -41,7 +40,7 @@ public class AnthropicStreamEvent {
         public AnthropicResponse.Usage getUsage() { return usage; }
     }
 
-    /** 对照 Go 里 delta 的内联结构（text_delta / input_json_delta / message_delta 共用）。 */
+    /** delta 的内联结构（text_delta / input_json_delta / message_delta 共用）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Delta {
         @JsonProperty("type")

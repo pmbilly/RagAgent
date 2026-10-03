@@ -7,7 +7,7 @@ import java.util.Map;
 import com.ragagent.embedding.Embedder;
 
 /**
- * embedding 客户端的 langfuse 装饰器（对照 Go internal/models/embedding/langfuse_wrapper.go）：
+ * embedding 客户端的 langfuse 装饰器：
  * Embed/BatchEmbed 各发一条 generation；用量按「码点数/4 + 1」估算
  * （provider 不返回 usage，Langfuse 成本报表需要非零 input tokens）。
  * 由 {@code ModelRuntimeFactory.getEmbeddingModel} 装配。
@@ -20,7 +20,7 @@ public final class LangfuseEmbedder implements Embedder {
         this.inner = inner;
     }
 
-    /** 对照 wrapEmbedderLangfuse：未启用/空客户端原样返回。 */
+    /** 未启用/空客户端原样返回。 */
     public static Embedder wrap(Embedder embedder) {
         if (embedder == null || !LangfuseManager.get().enabled()) {
             return embedder;

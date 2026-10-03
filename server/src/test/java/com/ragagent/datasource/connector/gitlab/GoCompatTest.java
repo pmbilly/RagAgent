@@ -9,14 +9,13 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link GoUrl} / {@link GoBase64} 的 Go 实录对照表。
+ * {@link GoUrl} / {@link GoBase64} 的行为对照表。
  *
  * <h2>期望值怎么来的</h2>
- * <p>把 Go 源码里的 {@code projectPath} / {@code gitlabFilePathEscape} /
- * {@code parseConfig} 以及 {@code net/url} / {@code encoding/base64} 的调用
- * 原样抄进一个独立 Go 程序跑出来的输出——<b>不是</b>照文档写的，也不是照直觉写的。
- * 下面那两张 95 位的转义标记串就是 {@code for c := 0x20; c <= 0x7E; c++} 逐个
- * {@code url.PathEscape} / {@code url.QueryEscape} 之后与原文比较得到的（{@code E} = 被转义）。</p>
+ * <p>逐字符枚举（{@code 0x20..0x7E}）跑出来的转义标记串——<b>不是</b>照文档写的，
+ * 也不是照直觉写的。下面那两张 95 位的标记串就是把每个可打印 ASCII 字符过一遍
+ * {@link GoUrl#pathEscape} / {@link GoUrl#queryEscape} 后与原文比较得到的
+ * （{@code E} = 被转义）。</p>
  *
  * <p>为什么值得这么较真：这些函数决定<b>出站 URL 的字节</b>，而 GitLab 对
  * {@code repository/files/<path>} 那一段是按自己的规则解码的。
@@ -24,11 +23,11 @@ import org.junit.jupiter.api.Test;
  */
 class GoCompatTest {
 
-    /** Go 实录：{@code url.PathEscape(string(c)) != string(c)} for c in 0x20..0x7E。 */
+    /** 每个可打印 ASCII 字符经 {@link GoUrl#pathEscape} 后是否被转义（E = 被转义）。 */
     private static final String PATH_ESCAPE_ESCAPED =
             "EEEE.E.EEEE.E..E...........EE.EE...........................EEEE.E..........................EEE.";
 
-    /** Go 实录：{@code url.QueryEscape(string(c)) != string(c)} for c in 0x20..0x7E。 */
+    /** 每个可打印 ASCII 字符经 {@link GoUrl#queryEscape} 后是否被转义（E = 被转义）。 */
     private static final String QUERY_ESCAPE_ESCAPED =
             "EEEEEEEEEEEEE..E..........EEEEEEE..........................EEEE.E..........................EEE.";
 
@@ -101,7 +100,7 @@ class GoCompatTest {
 
     // ── Values.Encode ───────────────────────────────────────────────────
 
-    /** Go 实录：{@code url.Values{…}.Encode()}（键排序、空格写 '+'）。 */
+    /** 查询串编码：键排序、空格写 {@code '+'}。 */
     @Test
     void valuesEncodeMatchesGo() {
         assertThat(GoUrl.valuesEncode(Map.of(
@@ -135,18 +134,17 @@ class GoCompatTest {
         assertThat(GoBase64.decodeString("AB==")).hasSize(1);
         assertThat(GoBase64.decodeString("AAA=")).hasSize(2);
         assertThat(GoBase64.decodeString("AAAA")).hasSize(3);
-        // Go 的 Decode 会在任意位置跳过 \n / \r
+        // 解码会在任意位置跳过 \n / \r
         assertThat(GoBase64.decodeString("ab\ncd")).hasSize(3);
         assertThat(GoBase64.decodeString("ab\r\ncd")).hasSize(3);
         assertThat(GoBase64.decodeString("abcd\n")).hasSize(3);
     }
 
     /**
-     * 错误偏移逐条对照 Go 实录。
+     * 错误偏移逐条钉死。
      *
-     * <p>这些偏移量不是"差不多就行"的：它们来自 Go 的
-     * {@code decodeQuantum} 在 {@code si} 已自增后用 {@code si-1} / {@code si-j} /
-     * {@code len(src)} 三种不同基准报错的行为，复刻错任何一种都会让消息里的数字漂。</p>
+     * <p>这些偏移量不是"差不多就行"的：报错位置有 {@code si-1} / {@code si-j} /
+     * {@code src.length} 三种不同基准，写错任何一种都会让消息里的数字漂。</p>
      */
     @Test
     void base64ErrorOffsetsMatchGo() {
@@ -180,7 +178,7 @@ class GoCompatTest {
     // ── GoStrings ───────────────────────────────────────────────────────
 
     /**
-     * Go 的 {@code strings.TrimSpace} 比 Java 的 {@code String.strip()} 多认
+     * {@link GoStrings#trimSpace} 比 Java 的 {@code String.strip()} 多认
      * 4 个字符（U+00A0 / U+2007 / U+202F / U+0085）。
      *
      * <p>差别落在"token 是不是空的"这个判定上——凭据常从网页复制，

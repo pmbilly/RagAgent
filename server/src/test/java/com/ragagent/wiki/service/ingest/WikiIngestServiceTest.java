@@ -40,20 +40,12 @@ import com.ragagent.wiki.service.page.WikiPageService;
 import com.ragagent.wiki.service.page.WikiTextUtils;
 
 /**
- * {@link WikiIngestService} 核心行为的对等测试（对照 Go wiki_ingest_test.go 的
- * L304-636：{@code TestGenerateWithTemplateMasksImageURLsBeforeLLM} /
- * {@code TestGenerateWikiPageModifyUsesCacheableMessageLayout} /
- * {@code TestAwaitWikiPromptWarmupBlocksFollowersUntilLeaderCompletes} /
- * {@code TestGenerateWithTemplateCoalescesIdenticalConcurrentRequests} /
- * {@code TestWikiIngestCleanupContextDetachedFromCancelledParent} /
- * {@code TestTrimPendingListReturnsDeleteError} /
- * {@code TestRequeueFailedOpsReturnsReleaseError} /
- * {@code TestGenerateWithTemplateSetsMaxTokens}）。
+ * {@link WikiIngestService} 核心行为的测试（prompt 脱敏 / 消息布局缓存 /
+ * 预热门 / 并发合并 / 脱钩清理 / 待办结算 / 队列解码）。
  *
- * <p>Go 的 {@code templateCaptureChatModel} / {@code blockingTemplateChatModel}
- * 测试替身在这里以 {@link LlmChatClient} 的内部类形式重现。</p>
+ * <p>测试替身以 {@link LlmChatClient} 的内部类形式提供。</p>
  *
- * <p>Go 用 {@code ctx} 承载租户；Java 用 {@link TenantContext}（ThreadLocal，约定 §5）。
+ * <p>租户由 {@link TenantContext}（ThreadLocal，约定 §5）承载。
  * 需要"有租户"的用例显式 set，{@link #clearTenant()} 在每个用例后清掉。</p>
  */
 class WikiIngestServiceTest {
@@ -72,7 +64,7 @@ class WikiIngestServiceTest {
         cleanup.clear();
     }
 
-    /** 对照 Go {@code templateCaptureChatModel}：记录 prompt / messages / options / 缓存元数据。 */
+    /** 记录 prompt / messages / options / 缓存元数据的替身。 */
     static class CapturingChatClient implements LlmChatClient {
         volatile String prompt = "";
         volatile List<ChatMessage> messages = List.of();
@@ -112,7 +104,7 @@ class WikiIngestServiceTest {
         }
     }
 
-    /** 对照 Go {@code blockingTemplateChatModel}：阻塞直到被测释放，用于验证并发合并。 */
+    /** 阻塞直到被测释放的替身，用于验证并发合并。 */
     static class BlockingChatClient implements LlmChatClient {
         final AtomicInteger calls = new AtomicInteger();
         final CountDownLatch started = new CountDownLatch(1);
@@ -148,7 +140,7 @@ class WikiIngestServiceTest {
         }
     }
 
-    /** 空 provider：getIfAvailable() 恒为 null，对应 Go 里该依赖为 nil 的分支。 */
+    /** 空 provider：getIfAvailable() 恒为 null，即"该依赖未接线"的分支。 */
     @SuppressWarnings("unchecked")
     private static <T> org.springframework.beans.factory.ObjectProvider<T> emptyProvider() {
         return mock(org.springframework.beans.factory.ObjectProvider.class);
@@ -157,7 +149,7 @@ class WikiIngestServiceTest {
     /**
      * 全部可选依赖缺席的 service —— generateWithTemplate / warmup / 调度路径不触碰它们。
      *
-     * <p>Go 用 {@code nil} 表达"未接线"，Java 用"provider 里没有 bean"。
+     * <p>"未接线" = "provider 里没有 bean"。
      * 生产环境里 Spring 永远注入一个非 null 的 provider，因此这里也必须给 provider
      * （而不是裸 null）才能复现真实装配形态。</p>
      */
@@ -266,12 +258,12 @@ class WikiIngestServiceTest {
                 .startsWith("Content=hello")
                 .contains("<wiki_content_business_instructions>")
                 .contains("Always cite laws.");
-        // 非页面修改模板的记账 purpose 是 wiki_generation（对照 Go 的 default 分支）
+        // 非页面修改模板的记账 purpose 是 wiki_generation（默认分支）
         assertThat(model.purpose).isEqualTo("wiki_generation");
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestAwaitWikiPromptWarmupBlocksFollowersUntilLeaderCompletes（Go L406-431）
+    // 预热门
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -313,7 +305,7 @@ class WikiIngestServiceTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestGenerateWithTemplateCoalescesIdenticalConcurrentRequests（Go L458-483）
+    // 并发合并
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -329,7 +321,7 @@ class WikiIngestServiceTest {
         CountDownLatch secondDone = new CountDownLatch(1);
 
         // TenantContext 是 ThreadLocal（约定 §5）：跨线程必须显式传递，
-        // 否则第二个线程会走"无租户 → 跳过跨调用合并"的分支（Go 用显式 ctx 传参）。
+        // 否则第二个线程会走"无租户 → 跳过跨调用合并"的分支。
         Thread t1 = new Thread(() -> {
             try {
                 setTenant(7L);
@@ -418,12 +410,12 @@ class WikiIngestServiceTest {
         WikiIngestService service = serviceWithRepo(repo);
 
         setTenant(42L);
-        // 对照 Go：父 ctx 已被取消
+        // 模拟父作用域已被取消（中断位）
         Thread.currentThread().interrupt();
         try {
             service.trimPendingListDetached(List.of(7L));
         } finally {
-            // close() 会把中断位恢复（对照 Go 清理结束后调用方仍看到父作用域已取消）
+            // close() 会把中断位恢复（清理结束后调用方仍看到父作用域已取消）
             assertThat(Thread.interrupted()).isTrue();
         }
 
@@ -434,7 +426,7 @@ class WikiIngestServiceTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestTrimPendingListReturnsDeleteError（Go L506-515）
+    // 待办删除的错误透传
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -460,7 +452,7 @@ class WikiIngestServiceTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestRequeueFailedOpsReturnsReleaseError（Go L517-531）
+    // 失败 op 重排的错误透传
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -497,7 +489,7 @@ class WikiIngestServiceTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 队列解码（对照 Go decodePendingRows 的 last-write-wins 去重）
+    // 队列解码（last-write-wins 去重）
     // ═══════════════════════════════════════════════════════════════
 
     @Nested
@@ -573,7 +565,7 @@ class WikiIngestServiceTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // finalize 通道的行载荷（对照 Go enqueueFinalize L711-779）
+    // finalize 通道的行载荷
     // ═══════════════════════════════════════════════════════════════
 
     @Nested
@@ -621,13 +613,13 @@ class WikiIngestServiceTest {
             service.scheduleFinalize(WikiIngestPayload.of("kb-1"));
             service.scheduleFinalizeRetry(WikiIngestPayload.of("kb-1"));
             service.scheduleCappedRetry(WikiIngestPayload.of("kb-1"));
-            // 无 pendingRepo 时 scheduleStaleClaimRecheck 返回 false（对照 Go 的失败分支）
+            // 无 pendingRepo 时 scheduleStaleClaimRecheck 返回 false（失败分支）
             assertThat(service.scheduleStaleClaimRecheck(WikiIngestPayload.of("kb-1"))).isFalse();
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 既有 taxonomy 渲染（对照 Go formatExistingTaxonomyForPrompt L1966-1987）
+    // 既有 taxonomy 渲染
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -637,7 +629,7 @@ class WikiIngestServiceTest {
                 List.of("节日", "传统节日"),
                 List.of("人物"),
                 List.of("节日", "现代节日")));
-        // Go 的 sort.Strings 是**字节序**（UTF-8 下等价于码点序）：
+        // 同级按**字节序**排序（UTF-8 下等价于码点序）：
         // "人物"(U+4EBA) < "节日"(U+8282)，因此人物在前。
         assertThat(tree).isEqualTo("""
 人物
@@ -651,7 +643,7 @@ class WikiIngestServiceTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // goQuote / xmlEscape（对照 Go 的 %q 与 xmlEscape）
+    // goQuote / xmlEscape（%q 风格引号与 XML 转义）
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -672,7 +664,7 @@ class WikiIngestServiceTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 墓碑快路径（对照 Go isKnowledgeGone L2797-2815）
+    // 墓碑快路径
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -710,7 +702,7 @@ class WikiIngestServiceTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 内容重建（对照 Go reconstructContent / reconstructEnrichedContent）
+    // 内容重建
     // ═══════════════════════════════════════════════════════════════
 
     @Test

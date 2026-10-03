@@ -9,9 +9,9 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * SSE 流读取器（对照 Go internal/models/chat/sse_reader.go 全文）。
+ * SSE 流读取器。
  *
- * <p>逐条对齐的解析纪律：</p>
+ * <p>解析规则：</p>
  * <ol>
  *   <li>空行跳过；</li>
  *   <li>整行 {@code == "data: [DONE]"} → 结束事件（<b>全行精确匹配</b>，
@@ -19,18 +19,18 @@ import java.util.Optional;
  *   <li>前缀 {@code "data: "} → 取其后全部内容为数据（含前导空格的兼容写法）；</li>
  *   <li>前缀 {@code "data:"}（冒号后没空格）→ 同样取其后全部内容（增强兼容性）；</li>
  *   <li>{@code event:} / {@code id:} / 其它行一律跳过（本读取器不消费这些字段）；</li>
- *   <li>行长上限 1MB（思维链内容可能很长，Go 用 {@code bufio.Scanner.Buffer(buf, 1MB)}）；
- *       超限与 Go 一样报 "bufio.Scanner: token too long"；</li>
- *   <li>流结束（EOF）→ 返回空 Optional（= Go 的 {@code io.EOF}）。</li>
+ *   <li>行长上限 1MB（思维链内容可能很长）；
+ *       超限报 "bufio.Scanner: token too long"；</li>
+ *   <li>流结束（EOF）→ 返回空 {@link Optional}。</li>
  * </ol>
  *
- * <p>行尾的 {@code \r\n} 按 Go 的 Scanner 语义剥掉 {@code \r}。</p>
+ * <p>行尾的 {@code \r\n} 会剥掉 {@code \r}。</p>
  *
  * <p>非线程安全：一个流一个实例。</p>
  */
 public final class SseReader {
 
-    /** 对照 Go 的 1MB 行缓冲上限。 */
+    /** 1MB 行缓冲上限。 */
     public static final int MAX_LINE_BYTES = 1024 * 1024;
 
     private final InputStream in;
@@ -39,10 +39,10 @@ public final class SseReader {
         this.in = reader instanceof BufferedInputStream ? reader : new BufferedInputStream(reader);
     }
 
-    /** 一个 SSE 事件（对照 Go SSEEvent）。 */
+    /** 一个 SSE 事件。 */
     public record SseEvent(byte[] data, boolean done) {
 
-        /** 对照 Go {@code SSEEvent{Done: true}}（Data 为零值 nil）。 */
+        /** 结束事件（data 为 null）。 */
         public static SseEvent doneEvent() {
             return new SseEvent(null, true);
         }
@@ -57,14 +57,14 @@ public final class SseReader {
     }
 
     /**
-     * 对照 Go SSEReader.ReadEvent：读下一个事件；
-     * 流已结束返回 {@link Optional#empty()}（Go 返回 {@code io.EOF}）。
+     * 读下一个事件；
+     * 流已结束返回 {@link Optional#empty()}。
      */
     public Optional<SseEvent> readEvent() throws IOException {
         while (true) {
             byte[] lineBytes = readLine();
             if (lineBytes == null) {
-                // Go：先看 scanner.Err()，无错则 io.EOF
+                // EOF：无更多事件
                 return Optional.empty();
             }
             String line = new String(lineBytes, StandardCharsets.UTF_8);
@@ -87,8 +87,7 @@ public final class SseReader {
 
     /**
      * 读一行（不含换行符，剥掉尾部 {@code \r}）；EOF 且无内容时返回 null。
-     * 超过 {@link #MAX_LINE_BYTES} 时抛 IOException——与 Go 的
-     * {@code bufio.Scanner.Err() == ErrTooLong} 对齐。
+     * 超过 {@link #MAX_LINE_BYTES} 时抛 IOException。
      */
     private byte[] readLine() throws IOException {
         ByteArrayOutputStream line = new ByteArrayOutputStream(256);
@@ -108,7 +107,7 @@ public final class SseReader {
         return stripCr(line);
     }
 
-    /** 对照 Go bufio 的 dropCR：行尾的 \r 不计入内容。 */
+    /** 行尾的 \r 不计入内容。 */
     private static byte[] stripCr(ByteArrayOutputStream line) {
         byte[] bytes = line.toByteArray();
         if (bytes.length > 0 && bytes[bytes.length - 1] == '\r') {

@@ -27,11 +27,10 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * Elasticsearch v7 检索引擎仓库（W5γ4.2）对照 Go {@code elasticsearch/v7/repository.go}
- * （1452 行）+ {@code v7/move.go}。重点验"与 v8 的差异被逐条照抄"：
- * keywords-only 的 Support/分派、PUT _create/{uuid}、带空格的 bulk 动作行、SDK 只告警不失败、
- * 数字 settings、singular term 的 move、以及两处 Go 怪癖（命中恒标 MatchTypeKeywords、
- * CopyIndices 丢向量）。
+ * Elasticsearch v7 检索引擎仓库。
+ * 重点验 v7 特有形状：keywords-only 的 Support/分派、PUT _create/{uuid}、带空格的 bulk 动作行、
+ * SDK 只告警不失败、数字 settings、singular term 的 move；另钉两处有意修正：
+ * 向量命中标 MatchTypeEmbedding、CopyIndices 向量随行带上。
  */
 class ElasticsearchV7RetrieveRepositoryTest {
 

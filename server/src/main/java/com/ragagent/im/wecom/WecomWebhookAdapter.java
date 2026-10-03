@@ -1,7 +1,6 @@
 package com.ragagent.im.wecom;
 
 import java.net.URI;
-import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -10,10 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
@@ -35,9 +31,9 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.runtime.ReplyMessage;
 
 /**
- * 企业微信自建应用 webhook 适配器（对照 Go {@code internal/im/wecom/webhook_adapter.go} L83-705）。
+ * 企业微信自建应用 webhook 适配器。
  *
- * <p>照抄点：<b>验签</b>走 {@link FeishuWecomCrypt#wecomVerifySignature}（SHA1 排序串接 + 常时比较）；
+ * <p>行为要点：<b>验签</b>走 {@link FeishuWecomCrypt#wecomVerifySignature}（SHA1 排序串接 + 常时比较）；
  * <b>解密</b>自持（AES-CBC + PKCS#7 + 信封 {@code random(16)+len(4)+msg+corpId}，且校 corp_id——
  * 共享的 {@code wecomDecryptMessage} 只解信封不校 corp_id）；URL 验证（GET + echostr 解密回显）；
  * 解析（群聊剥 {@code @} 提及、text/image 两型、其它忽略）；发送（群先试
@@ -46,7 +42,7 @@ import com.ragagent.im.runtime.ReplyMessage;
  * 文件名依次取 Content-Disposition → URL 路径 → Content-Type 推断）；
  * <b>IM 平台主机白名单</b>（qyapi/api/open.work/novac2c/ilinkai）绕过 SSRF 校验，其余仍校验。</p>
  *
- * <p>文本与 markdown 内容照 Go <b>原样</b>（不做 {@code FormatIMDisplayContent}）。</p>
+ * <p>文本与 markdown 内容<b>原样</b>发送（不做 {@code FormatIMDisplayContent}）。</p>
  */
 public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
         AdapterInterfaces.FileDownloader {
@@ -80,7 +76,7 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
     }
 
     /**
-     * 测试用：{@code validateEndpoint=false} 跳过端点校验（生产构造照 Go 强制
+     * 测试用：{@code validateEndpoint=false} 跳过端点校验（生产构造强制
      * https + SSRF——本地 stub 是 http，过不了该校验）。
      */
     WecomWebhookAdapter(String corpId, String agentSecret, String token,
@@ -93,7 +89,7 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
         this.corpAgentId = corpAgentId;
         this.ssrfGuard = ssrfGuard;
         try {
-            // 照 Go：43 字符的 EncodingAESKey + "=" 后解出 32 字节
+            // 43 字符的 EncodingAESKey + "=" 后解出 32 字节
             this.aesKey = Base64.getDecoder().decode(this.encodingAesKey + "=");
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("decode encoding_aes_key: " + e.getMessage());
@@ -114,12 +110,12 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
                 .build();
     }
 
-    /** 对照 {@code validateEndpointURL}（公共件实现）：默认端点放行；自定义必须 https + SSRF。 */
+    /** 默认端点放行；自定义必须 https + SSRF。 */
     static void validateEndpointUrl(String endpoint, SsrfGuard ssrfGuard) {
         WecomSupport.validateEndpointUrl(endpoint, DEFAULT_API_BASE_URL, "https", ssrfGuard);
     }
 
-    /** 对照 {@code extraHostFromEndpoint}（公共件实现）。 */
+    /** 自定义端点的主机名（公共件实现）。 */
     static String extraHostFromEndpoint(String endpoint) {
         return WecomSupport.extraHostFromEndpoint(endpoint, DEFAULT_API_BASE_URL);
     }
@@ -153,7 +149,7 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
         return ok ? null : new AdapterInterfaces.VerifyException("invalid signature");
     }
 
-    /** 对照 {@code HandleURLVerification}：GET + echostr → 解密回显（失败 400）。 */
+    /** GET + echostr → 解密回显（失败 400）。 */
     @Override
     public boolean handleURLVerification(CallbackExchange exchange) {
         if (!"GET".equalsIgnoreCase(exchange.method())) {
@@ -226,7 +222,7 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
         return null;
     }
 
-    /** 对照 {@code stripAtMentionBasic}（longconn.go L750-771）：剥群聊 @提及。 */
+    /** 剥群聊 @提及。 */
     static String stripAtMentionBasic(String content) {
         String value = content == null ? "" : content.trim();
         if (!value.startsWith("@")) {
@@ -274,7 +270,7 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
         sendToUser(accessToken, incoming.userId, reply);
     }
 
-    /** 对照 {@code sendToAppChat}：{@code /cgi-bin/appchat/send}，markdown。 */
+    /** {@code /cgi-bin/appchat/send}，markdown。 */
     private void sendToAppChat(String accessToken, String chatId, ReplyMessage reply)
             throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -289,7 +285,7 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 {@code sendToUser}：{@code /cgi-bin/message/send}，markdown + agentid。 */
+    /** {@code /cgi-bin/message/send}，markdown + agentid。 */
     private void sendToUser(String accessToken, String userId, ReplyMessage reply)
             throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -305,7 +301,7 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 {@code getAccessToken}：7200s，缓存留 5 分钟余量。 */
+    /** 取 access_token：7200s，缓存留 5 分钟余量。 */
     String getAccessToken() throws Exception {
         synchronized (tokenLock) {
             if (!tokenCache.isEmpty() && Instant.now().isBefore(tokenExpiresAt)) {
@@ -350,26 +346,26 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
         return downloadFromUrl(apiUrl, fileName);
     }
 
-    /** 对照 {@code downloadFromURL}（公共件实现）：白名单绕过 SSRF；文件名三级推断。 */
+    /** 白名单绕过 SSRF；文件名三级推断。 */
     DownloadedFile downloadFromUrl(String rawUrl, String fileName) throws Exception {
         WecomSupport.Downloaded downloaded = WecomSupport.downloadFromUrl(
                 http, rawUrl, fileName, extraAllowedHost, ssrfGuard);
         return new DownloadedFile(downloaded.content(), downloaded.fileName());
     }
 
-    /** 对照 {@code isAllowedIMAPIHost}（公共件实现）。 */
+    /** IM 平台下载域白名单（公共件实现）。 */
     static boolean isAllowedImApiHost(String rawUrl, String extraHost) {
         return WecomSupport.isAllowedImApiHost(rawUrl, extraHost);
     }
 
-    /** 对照 {@code contentTypeToExt}（公共件实现）。 */
+    /** Content-Type → 扩展名推断（公共件实现）。 */
     static String contentTypeToExt(String contentType) {
         return WecomSupport.contentTypeToExt(contentType);
     }
 
     // ── 解密（自持：共享件不校 corp_id） ────────────────────────────────────
 
-    /** 对照 {@code decrypt}：AES-CBC + PKCS#7 + 信封拆解 + corp_id 校验。 */
+    /** AES-CBC + PKCS#7 + 信封拆解 + corp_id 校验。 */
     byte[] decrypt(String encrypted) {
         byte[] ciphertext;
         try {
@@ -448,7 +444,7 @@ public class WecomWebhookAdapter implements AdapterInterfaces.Adapter,
         return raw == null || raw.length == 0 ? MAPPER.createObjectNode() : MAPPER.readTree(raw);
     }
 
-    /** 极简 XML 读取（Go 用 encoding/xml；Java 无 XML 依赖，走 JDK DOM）。 */
+    /** 极简 XML 读取（无第三方 XML 依赖，走 JDK DOM）。 */
     static final class WecomXml {
 
         private WecomXml() {

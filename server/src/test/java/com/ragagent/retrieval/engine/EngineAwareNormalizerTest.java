@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * EngineAwareNormalizer 对照 Go {@code retriever/normalizer.go} 的钉子：
+ * EngineAwareNormalizer 的钉子：
  * Milvus 带符号余弦的重缩放、[0,1] 族的透传 + clamp、BM25 透传、未知引擎防御 clamp、
  * clamp01 的 NaN/±Inf 边界（NaN → 0 保严格弱序）。
  */

@@ -4,11 +4,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 对照 Go langfuse.TokenUsage（events.go L9-18）：Langfuse 规范化用量 schema，
- * 作为 {@code langfuse.observation.usage_details} 属性的 JSON 值。
+ * Langfuse 规范化用量 schema，作为 {@code langfuse.observation.usage_details}
+ * 属性的 JSON 值。
  *
- * <p>Go 的 json tag 带 omitempty → 零值字段省略；Java 侧逐字段
- * {@code @JsonInclude(NON_DEFAULT)}（unit 走 NON_EMPTY）。字段序 = Go 声明序。</p>
+ * <p>零值字段省略：逐字段 {@code @JsonInclude(NON_DEFAULT)}（unit 走 NON_EMPTY）。</p>
  */
 public final class TokenUsage {
 
@@ -43,7 +42,7 @@ public final class TokenUsage {
     public TokenUsage() {
     }
 
-    /** 三值便利构造（input/output/total；Go 调用点最常见的形态）。 */
+    /** 三值便利构造（input/output/total）。 */
     public static TokenUsage of(int input, int output, int total) {
         TokenUsage u = new TokenUsage();
         u.input = input;

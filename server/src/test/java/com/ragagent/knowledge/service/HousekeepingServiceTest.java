@@ -16,7 +16,7 @@ import com.ragagent.TestSchema;
 import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
 
 /**
- * 知识管家清扫（对照 Go {@code knowledge_housekeeping.go} + 其测试套件）的 H2 钉子：
+ * 知识管家清扫（{@code HousekeepingService}）的 H2 钉子：
  *
  * <ul>
  *   <li>清扫 A：卡死的 pending/processing 行 → failed（含阈值文案与子任务计数清零）；</li>
@@ -24,11 +24,11 @@ import com.ragagent.knowledge.task.KnowledgeTaskExecutor;
  *   <li>第二道闸：瞬时队列仍有活的行保留（探测失败按仍卡死处理）；wiki 持久 op 命中的行
  *       保留（<b>不依赖 inspector</b>——Lite 装配下 inspector 为 null）；</li>
  *   <li>清扫 B：summary_status=processing 且陈旧 → failed；</li>
- *   <li>阈值与开关：{@code WEKNORA_DOCUMENT_PROCESS_TIMEOUT} 的 Go duration 解析与回落、
+ *   <li>阈值与开关：{@code WEKNORA_DOCUMENT_PROCESS_TIMEOUT} 的 duration 解析（如 1h30m、500ms）与回落、
  *       {@code WEKNORA_HOUSEKEEPING_ENABLED} 的缺省开启语义。</li>
  * </ul>
  *
- * <p>阈值口径照 Go 测试：DocumentProcessTimeout 传 1 小时 ⇒ 1h 下限 + 10min 缓冲 =
+ * <p>阈值口径：DocumentProcessTimeout 传 1 小时 ⇒ 1h 下限 + 10min 缓冲 =
  * 70 分钟 cutoff，测试里的相对时间（-3h / 现在）因此远离边界。</p>
  */
 @SpringBootTest
@@ -256,7 +256,7 @@ class HousekeepingServiceTest {
                 .isEqualTo(Duration.ofSeconds(45));
         assertThat(HousekeepingService.documentProcessTimeoutFromEnv("500ms"))
                 .isEqualTo(Duration.ofMillis(500));
-        // 文法错误 / 非正数 → 回落缺省（照 Go 的 ParseDuration 失败分支）
+        // 文法错误 / 非正数 → 回落缺省（解析失败分支）
         assertThat(HousekeepingService.documentProcessTimeoutFromEnv("bogus"))
                 .isEqualTo(Duration.ofHours(2));
         assertThat(HousekeepingService.documentProcessTimeoutFromEnv("5"))

@@ -4,18 +4,14 @@ import com.ragagent.datasource.domain.DataSourceConfig;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * 可选的连接器能力接口（对照 Go {@code datasource.StreamingConnector}，
- * internal/datasource/connector.go L77-94）。
+ * 可选的连接器能力接口。
  *
  * <p>实现它的连接器让 service 层把「抓取→灌入→检查点」交错起来：大型同步
  * 因此是增量落库的、超时后能续跑，而不是把所有条目攒在内存里、重试时
  * 全部进度归零。不实现它的连接器<b>原样</b>回落到
  * {@link Connector#fetchAll} / {@link Connector#fetchIncremental}。</p>
  *
- * <h2>Go 的接口内嵌 vs Java 的方法可见性</h2>
- * <p>Go 是 {@code interface { Connector; FetchStream(...) }}。Java 直接
- * {@code extends Connector}，效果一致：实现类两者都得到。service 层判定走
- * {@code connector instanceof StreamingConnector}（对照 Go 的类型断言）。</p>
+ * <p>service 层判定走 {@code connector instanceof StreamingConnector}。</p>
  */
 public interface StreamingConnector extends Connector {
 

@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.RequestyProvider（requesty.go）。
+ * Requesty。
  */
 public class RequestyProvider implements Provider {
 

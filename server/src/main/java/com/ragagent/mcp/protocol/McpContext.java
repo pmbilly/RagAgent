@@ -4,20 +4,17 @@ import java.time.Duration;
 import java.time.Instant;
 
 /**
- * 调用上下文（对照 Go 侧 MCP 客户端方法签名里的 {@code ctx context.Context}）。
- *
- * <p>只建模 Go ctx 被真正用到的两件事：<b>绝对截止时刻</b>（deadline）与<b>取消</b>
- * （见 {@link McpCancellation}）。对照关系：</p>
+ * 调用上下文：只建模两件事——<b>绝对截止时刻</b>（deadline）与<b>取消</b>
+ * （见 {@link McpCancellation}）。
  * <ul>
- *   <li>{@code ctx.Err() != nil} → {@link #isCancelled()}；</li>
- *   <li>{@code context.DeadlineExceeded} → {@link #throwIfExpired()} 抛
- *       {@code "context deadline exceeded"}（文案对齐 Go）；</li>
- *   <li>{@code ctx.Done()} → {@link McpCancellation#future()}。</li>
+ *   <li>取消 → {@link #isCancelled()} / {@link #throwIfCancelled()}；</li>
+ *   <li>超时 → {@link #throwIfExpired()} 抛
+ *       {@code "context deadline exceeded"}（固定文案）；</li>
+ *   <li>等待取消 → {@link McpCancellation#future()}。</li>
  * </ul>
  *
- * <p>⚠️ 与 Go 一致：<b>manager 传给 Connect 的是连接生命周期，而不是调用方这一轮的
- * deadline</b>（manager.go:155-156 注释："SSE needs the connection lifetime, not the
- * requesting turn's deadline"）。所以 Connect 用的通常是"只有取消、没有 deadline"的 ctx。</p>
+ * <p>⚠️ <b>manager 传给 Connect 的是连接生命周期，而不是调用方这一轮的 deadline</b>
+ * ——SSE 建流需要的是连接级生命周期。所以 Connect 用的通常是"只有取消、没有 deadline"的 ctx。</p>
  */
 public final class McpContext {
 
@@ -67,8 +64,7 @@ public final class McpContext {
     }
 
     /**
-     * 对照 Go 的 {@code if err := ctx.Err(); err != nil { return err }}：
-     * 取消优先于超时的判定顺序与 Go 一致（canceled 先被 Err() 报出）。
+     * 取消优先于超时：先报取消，再报超时。
      */
     public void throwIfCancelled() {
         cancellation.throwIfCancelled();
@@ -83,7 +79,7 @@ public final class McpContext {
 
     /**
      * 单次 HTTP 请求应施加的超时：取"服务的 timeout"与"距离 deadline 的剩余时间"的较小值
-     * （对照 Go：http.Client.Timeout 与 ctx deadline 同时生效，谁先到谁生效）。
+     * （两个限制同时生效，谁先到谁生效）。
      *
      * @param serviceTimeout 服务的出站超时（{@code McpAdvancedConfig.timeout}，默认 30s）
      */
@@ -99,8 +95,7 @@ public final class McpContext {
     }
 
     /**
-     * 距离 deadline 的剩余时长（可能为负）；无 deadline 时返回 {@code null}
-     * （对照 Go {@code ctx.Deadline()} 的 ok 返回值）。
+     * 距离 deadline 的剩余时长（可能为负）；无 deadline 时返回 {@code null}。
      */
     public Duration remaining() {
         if (deadline == null) {

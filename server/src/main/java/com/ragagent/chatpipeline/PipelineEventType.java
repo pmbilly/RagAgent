@@ -1,10 +1,10 @@
 package com.ragagent.chatpipeline;
 
 /**
- * RAG 管线阶段（对照 Go {@code types.EventType} 与其常量，internal/types/chat_manage.go:268-285）。
+ * RAG 管线阶段事件类型。
  *
- * <p>命名避开 JDK 自带的 {@code EventType}（com.ragagent.event 已占用），加 Pipeline 前缀；
- * 值是 Go 侧的字符串字面量，逐字符一致。</p>
+ * <p>命名避开 com.ragagent.event 已占用的 {@code EventType}，加 Pipeline 前缀；
+ * 值为小写下划线形式的字符串字面量。</p>
  */
 public final class PipelineEventType {
 

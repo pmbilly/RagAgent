@@ -11,14 +11,13 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Ollama {@code POST /api/chat} 请求体（对照 ollamaapi.ChatRequest，
- * ollama@v0.23.2/api/types.go:120-146）。
+ * Ollama {@code POST /api/chat} 请求体（对齐 ollama v0.23.2 API）。
  *
- * <p>字段序 = Go 声明序（KeepAlive 本模块不设置，故略）。omitempty 语义：</p>
+ * <p>JSON 字段序 = 声明序（KeepAlive 本模块不设置，故略）。省略规则：</p>
  * <ul>
- *   <li>{@code messages} / {@code options} 恒输出（Go 无 omitempty）；{@code options} 是
+ *   <li>{@code messages} / {@code options} 恒输出；{@code options} 是
  *       "非 nil map"，所以哪怕只有 temperature 也会发 {@code {"temperature":0}}；</li>
- *   <li>{@code stream}：{@code *bool}，nil 省略 → NON_NULL；</li>
+ *   <li>{@code stream}：可空布尔，null 省略 → NON_NULL；</li>
  *   <li>{@code format} / {@code tools} / {@code think}：空则省略。</li>
  * </ul>
  *
@@ -65,7 +64,7 @@ public class OllamaChatRequest {
     public Object getThink() { return think; }
     public void setThink(Object v) { think = v; }
 
-    /** 对照 Go {@code chatReq.Options["x"] = v}。 */
+    /** 写入一个模型参数。 */
     public void putOption(String key, Object value) {
         if (options == null) {
             options = new LinkedHashMap<>();

@@ -14,8 +14,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.auth.domain.Tenant;
 
 /**
- * 有效引擎解析（W5γ4.5 抽出共享件）对照 Go {@code types/tenant.go GetEffectiveEngines}
- * + {@code GetDefaultRetrieverEngines}。
+ * 有效引擎解析：
  *
  * <p>只验不依赖环境的那些分支：租户显式配置优先；无配置时回落到
  * {@code RETRIEVE_DRIVER} 派生的默认（未设该环境变量即空集——本部署的实测行为，
@@ -23,7 +22,7 @@ import com.ragagent.auth.domain.Tenant;
  */
 class EffectiveEnginesTest {
 
-    /** B6 批 3 起驱动串由调用方注入（读点不再读进程环境）——测试用固定值。 */
+    /** 驱动串由调用方注入（读点不读进程环境）——测试用固定值。 */
     private static final String DRIVER = "postgres,elasticsearch";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

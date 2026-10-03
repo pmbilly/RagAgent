@@ -28,13 +28,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 对照 Go internal/application/repository/wiki_page_test.go（643 行，基于 SQLite 内存库）。
+ * Wiki 页面仓储测试（H2 内存库，见 {@code src/test/resources/application.yml}），
+ * 表结构统一由 {@link TestSchema} 建立。
  *
- * <p>Java 侧用 H2 内存库（见 {@code src/test/resources/application.yml}），
- * 表结构统一由 {@link TestSchema} 建立。Go 的 SQLite 专用断言（
- * {@code TestList_CategoryPathFilterMatchesOnSQLite} 的 BLOB 比较、
- * {@code TestCountOrphans_SQLiteCountsEmptyInLinks}）在本文件里翻成 H2 语义的等价断言：
- * 覆盖的是同一批坑（JSON 数组列的比较与空判定），只是方言换成 H2。</p>
+ * <p>JSON 数组列的比较与空判定是方言相关的坑，本文件按 H2 语义写等价断言。</p>
  */
 @SpringBootTest
 class WikiPageRepositoryTest {
@@ -57,7 +54,7 @@ class WikiPageRepositoryTest {
 
     // ──────────────────────────── 测试夹具 ────────────────────────────
 
-    /** 对照 Go makeWikiPage：title 取 slug 的最后一段，wiki_path = pageType/title */
+    /** 夹具：title 取 slug 的最后一段，wiki_path = pageType/title */
     private static WikiPage makeWikiPage(String kbId, String slug, String pageType, String status) {
         String title = slug;
         int idx = slug.lastIndexOf('/');
@@ -96,7 +93,7 @@ class WikiPageRepositoryTest {
                 WikiConstants.PRUNABLE_EDIT_SOURCES, hardKeepFromVersion);
     }
 
-    /** 对照 Go makeWikiRevision */
+    /** 修订行夹具 */
     private static WikiPageRevision makeWikiRevision(WikiPage page, int version, String editSource) {
         WikiPageRevision rev = new WikiPageRevision();
         rev.setId(UUID.randomUUID().toString());
@@ -124,7 +121,7 @@ class WikiPageRepositoryTest {
     // ──────────────────────────── 列表排序 / 过滤 ────────────────────────────
 
     /**
-     * 对照 Go TestList_WikiPathSortReturnsCategorizedPagesFirst：侧边栏是 IDE 式树，
+     * 侧边栏是 IDE 式树，
      * 分页发生在仓储层，数据库必须把带 category_path 的页面排在散落的根页面之前，
      * 否则前端根本不知道后面几页里藏着目录。
      */
@@ -151,9 +148,9 @@ class WikiPageRepositoryTest {
     }
 
     /**
-     * 对照 Go TestList_CategoryPathFilterMatchesOnSQLite：侧边栏用 category_path +
-     * category_depth 加载某个目录的页面；Go 的 SQLite 分支要处理 BLOB 与 TEXT 不相等的问题，
-     * Java/H2 分支要处理的是「jsonb 文本带 `", "` 分隔符」的问题（PG 的 jsonb 渲染会插入空格，
+     * 侧边栏用 category_path +
+     * category_depth 加载某个目录的页面；
+     * H2 分支要处理的是「jsonb 文本带 `", "` 分隔符」的问题（PG 的 jsonb 渲染会插入空格，
      * Jackson 写的是紧凑形式）。
      */
     @Test
@@ -276,7 +273,7 @@ class WikiPageRepositoryTest {
     // ──────────────────────────── 文件夹树 ────────────────────────────
 
     /**
-     * 对照 Go TestFolderTree_CRUDAndChildListing：子目录按 sort_order/name 排序、
+     * 子目录按 sort_order/name 排序、
      * 按名查找、目录下页面计数、ListDistinctCategoryPaths 反映文件夹路径。
      */
     @Test
@@ -362,7 +359,6 @@ class WikiPageRepositoryTest {
     // ──────────────────────────── 索引瘦投影 / 分页 ────────────────────────────
 
     /**
-     * 对照 Go TestListByTypeLight_ProjectsNarrowColumnsAndExcludesArchived：
      * 索引视图只取 slug/title/summary 等窄列并尊重归档过滤——这正是把该方法
      * 从 ListByType 拆出来的全部意义：索引读取不该为 TEXT 正文付传输代价。
      */
@@ -383,7 +379,7 @@ class WikiPageRepositoryTest {
         assertThat(got.entries().get(1).getSlug()).isEqualTo("entity/beta");
     }
 
-    /** 对照 Go TestListByTypeLight_Pagination：total 跨页稳定 */
+    /** total 跨页稳定 */
     @Test
     void listByTypeLightPagination() {
         for (String s : List.of("entity/a", "entity/b", "entity/c", "entity/d", "entity/e")) {
@@ -408,7 +404,7 @@ class WikiPageRepositoryTest {
         assertThat(page4.entries()).isEmpty();
     }
 
-    /** 对照 Go TestListByTypeLight_EmptyType_ReturnsZero：count 为 0 时不浪费一次 SELECT */
+    /** count 为 0 时不浪费一次 SELECT */
     @Test
     void listByTypeLightEmptyTypeReturnsZero() {
         WikiPageRepository.LightList got = repo.listByTypeLight("kb-empty", "synthesis", 50, 0);
@@ -416,7 +412,7 @@ class WikiPageRepositoryTest {
         assertThat(got.entries()).isEmpty();
     }
 
-    /** 对照 Go TestListByTypeLight_ClampsLimit：limit 夹在 [1, 200]，0 回落到 50 */
+    /** limit 夹在 [1, 200]，0 回落到 50 */
     @Test
     void listByTypeLightClampsLimit() {
         for (int i = 0; i < 250; i++) {
@@ -427,7 +423,7 @@ class WikiPageRepositoryTest {
         assertThat(repo.listByTypeLight("kb-cap", "entity", 5000, 0).entries()).hasSizeLessThanOrEqualTo(200);
     }
 
-    /** 对照 Go ListByTypeRecent：最近更新的 N 条瘦投影，排除归档 */
+    /** 最近更新的 N 条瘦投影，排除归档 */
     @Test
     void listByTypeRecentExcludesArchived() {
         repo.create(makeWikiPage("kb-r", "summary/a", "summary", "published"));
@@ -438,7 +434,7 @@ class WikiPageRepositoryTest {
                 .extracting("slug").containsExactly("summary/a");
     }
 
-    /** 对照 Go TestListPagesCursorExcludesArchivedPages */
+    /** 游标分页排除归档页 */
     @Test
     void listPagesCursorExcludesArchivedPages() {
         WikiPage a = makeWikiPage("kb-lint", "concept/live-a", "concept", "published");
@@ -470,7 +466,7 @@ class WikiPageRepositoryTest {
 
     // ──────────────────────────── 统计 ────────────────────────────
 
-    /** 对照 Go TestCountOrphans_SQLiteCountsEmptyInLinks（H2 语义等价版） */
+    /** in_links 为空的页面计入 orphan 数（H2 语义） */
     @Test
     void countOrphansCountsEmptyInLinks() {
         WikiPage orphan = makeWikiPage("kb-orphans", "entity/orphan", "entity", "published");
@@ -488,7 +484,7 @@ class WikiPageRepositoryTest {
         assertThat(repo.countOrphans("kb-orphans")).isEqualTo(1);
     }
 
-    /** 对照 Go TestWikiStatsQueriesExcludeArchivedPages */
+    /** 统计查询排除归档页 */
     @Test
     void wikiStatsQueriesExcludeArchivedPages() {
         WikiPage live = makeWikiPage("kb-stats", "entity/live", "entity", "published");
@@ -516,7 +512,7 @@ class WikiPageRepositoryTest {
         }
     }
 
-    /** 对照 Go ListRecentForSuggestions：排除 index 与归档，只取 published 且 title 非空 */
+    /** 排除 index 与归档，只取 published 且 title 非空 */
     @Test
     void listRecentForSuggestionsExcludesIndexAndArchived() {
         repo.create(makeWikiPage("kb-sug", "entity/live", "entity", "published"));
@@ -534,8 +530,7 @@ class WikiPageRepositoryTest {
     // ──────────────────────────── 修订历史 ────────────────────────────
 
     /**
-     * 对照 Go TestUpdateWithRevisionRollsBackSnapshotOnVersionConflict：
-     * 被拒绝的写入既不能留下涨过的版本号，也不能留下快照——否则历史里会出现
+     * 版本冲突下被拒绝的写入既不能留下涨过的版本号，也不能留下快照——否则历史里会出现
      * 一个"仍然是当前版本"的条目，而且无法回滚。
      */
     @Test
@@ -560,7 +555,7 @@ class WikiPageRepositoryTest {
                 .isZero();
     }
 
-    /** 对照 Go TestUpdateWithRevisionIgnoresDuplicateSnapshot：并发写者的同版本快照不得报错 */
+    /** 并发写者的同版本快照不得报错 */
     @Test
     void updateWithRevisionIgnoresDuplicateSnapshot() {
         WikiPage page = makeWikiPage("kb-dup", "concept/dup", "concept", "published");
@@ -583,7 +578,6 @@ class WikiPageRepositoryTest {
     }
 
     /**
-     * 对照 Go TestPruneRevisionsKeepsHumanEditsUntilHardCap：
      * v1 是被人埋在一长串管道重写底下的人工编辑——软上限只能删可剪枝来源的快照，
      * 人工/agent 的版本要一直留到硬上限。
      */
@@ -621,7 +615,7 @@ class WikiPageRepositoryTest {
         assertThat(countWikiRevisions(page.getId())).isEqualTo(21);
     }
 
-    /** 对照 Go TestDeleteRevisionsByPageOnlyTouchesThatPage（含空 id 护栏） */
+    /** 按 page 删修订只影响该页（含空 id 护栏） */
     @Test
     void deleteRevisionsByPageOnlyTouchesThatPage() {
         WikiPage victim = makeWikiPage("kb-del", "concept/victim", "concept", "published");
@@ -664,9 +658,8 @@ class WikiPageRepositoryTest {
     // ──────────────────────────── jsonb 列往返 ────────────────────────────
 
     /**
-     * Go 的 StringArray Value/Scan 往返（types/wiki_page_test.go 的
-     * TestStringArrayValueScan 在 Java 侧的落点）：这里走真实 JDBC 往返，
-     * 覆盖 TypeHandler 的写入与读回，包括 aliases / category_path / 各种 links。
+     * 字符串数组列的真实 JDBC 往返：覆盖 TypeHandler 的写入与读回，
+     * 包括 aliases / category_path / 各种 links。
      */
     @Test
     void jsonbListColumnsRoundTrip() {
@@ -690,12 +683,12 @@ class WikiPageRepositoryTest {
         assertThat(got.getOutLinks()).containsExactly("concept/c", "entity/e");
         assertThat(got.getDepth()).isEqualTo(2);
         // page_metadata 未赋值 → 写入 SQL NULL（insertStrategy=ALWAYS），读回 null。
-        // 契约依据：Go golden 实录里该键是 "page_metadata":null（不是 {}）——
-        // 尽管列默认值是 '{}'，Go 的 nil JSON 会显式写 NULL 覆盖它。
+        // 契约依据：该键输出 "page_metadata":null（不是 {}）——
+        // 尽管列默认值是 '{}'，未赋值的写入会显式写 NULL 覆盖它。
         assertThat(got.getPageMetadata()).isNull();
     }
 
-    /** 未设置的可选 jsonb 列读回空列表（不是 null），与 Go 的非指针零值语义一致 */
+    /** 未设置的可选 jsonb 列读回空列表（不是 null） */
     @Test
     void unsetJsonbColumnsReadBackAsEmptyLists() {
         WikiPage page = makeWikiPage("kb-json2", "entity/bare", "entity", "published");
@@ -738,7 +731,7 @@ class WikiPageRepositoryTest {
     }
 
     /**
-     * 对照 Go ListSummariesByKnowledgeIDs：按"撰写摘要的 knowledge id"取正文，
+     * 按"撰写摘要的 knowledge id"取正文，
      * 只认 summary 类型、排除归档，并兼容 "id|title" 旧形态。
      */
     @Test
@@ -825,7 +818,7 @@ class WikiPageRepositoryTest {
 
     // ──────────────────────────── 版本语义 ────────────────────────────
 
-    /** UpdateMeta / UpdateAutoLinkedContent 不递增 version（对照 Go 的版本语义） */
+    /** UpdateMeta / UpdateAutoLinkedContent 不递增 version */
     @Test
     void bookkeepingWritesDoNotBumpVersion() {
         WikiPage page = makeWikiPage("kb-v", "concept/v", "concept", "published");
@@ -855,7 +848,7 @@ class WikiPageRepositoryTest {
         assertThat(repo.getBySlug("kb-v", "concept/v").getVersion()).isEqualTo(2);
     }
 
-    /** Update 走显式列映射，因此"清空字段"也能落库（Go 曾因 struct Updates 跳过零值而丢过清空） */
+    /** Update 走显式列映射，因此"清空字段"也能落库（零值不会被跳过） */
     @Test
     void updatePersistsClearedFields() {
         WikiPage page = makeWikiPage("kb-clr", "concept/c", "concept", "published");
@@ -943,7 +936,7 @@ class WikiPageRepositoryTest {
         assertThat(repo.listIssues("kb-i", "entity/a", "").get(0).getStatus()).isEqualTo("resolved");
     }
 
-    /** 浅拷贝：模拟 Go 里的 `stale := *page`（值拷贝语义） */
+    /** 浅拷贝：构造独立的值副本（模拟一份陈旧读） */
     private static WikiPage copyOf(WikiPage src) {
         WikiPage p = new WikiPage();
         p.setId(src.getId());

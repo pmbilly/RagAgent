@@ -1,27 +1,25 @@
 package com.ragagent.common.context;
 
 /**
- * 对照 Go context.Context 传递的认证会话信息（applyAuthSession 写入的键）。
- * 由 Filter 链（对应 Go middleware 链）填充，service 层经 current*() 读取。
+ * 请求级认证会话信息：由 Filter 链填充，service 层经 current*() 读取。
  * 虚拟线程下安全（每请求一个线程），但跨线程传递必须显式取值传递。
  *
- * tenantId 为 null 表示 tenantless 会话（身份级路由）；role 为 null 表示未附加角色
- * （对照 Go "attach no role key"，读取方 fail-closed 默认 Viewer）。
+ * tenantId 为 null 表示 tenantless 会话（身份级路由）；role 为 null 表示未附加角色，
+ * 读取方 fail-closed 默认 Viewer。
  */
 public final class TenantContext {
 
-    /** 对照 Go types.Principal{Type, ID}；Type 取值见 PrincipalTypes（与 Go 字符串常量逐值对应） */
+    /** 认证主体（type + id）；type 取值见 PrincipalTypes */
     public record Principal(String type, String id) {}
 
-    /** 对照 Go types/principal.go 的 PrincipalType 常量 */
+    /** 主体类型常量 */
     public static final class PrincipalTypes {
         public static final String WEB_USER = "web_user";
         public static final String API_TENANT = "api_tenant";
         public static final String API_PLATFORM = "api_platform";
         public static final String API_EXTERNAL_USER = "api_external_user";
-        /** 对照 Go {@code PrincipalIMUser}：IM 渠道用户（会话 owner 判定会回落到普通 user id）。 */
+        /** IM 渠道用户（会话 owner 判定会回落到普通 user id）。 */
         public static final String IM_USER = "im_user";
-        /** 对照 Go {@code PrincipalEmbedChannel}。 */
         public static final String EMBED_CHANNEL = "embed_channel";
         public static final String EMBED_SESSION = "embed_session";
         public static final String EMBED_VISITOR = "embed_visitor";

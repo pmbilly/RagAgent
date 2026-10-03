@@ -3,15 +3,15 @@ package com.ragagent.im.runtime;
 import java.io.IOException;
 
 /**
- * IM 平台适配器接口族（对照 Go internal/im/adapter.go L125-182）。
- * 每个平台一个实现（γ3）；γ2 的 Service 只依赖这些接口。
+ * IM 平台适配器接口族。
+ * 每个平台一个实现；Service 只依赖这些接口。
  */
 public final class AdapterInterfaces {
 
     private AdapterInterfaces() {
     }
 
-    /** 每个平台必须实现的接口（对照 Go {@code im.Adapter}，L126-144）。 */
+    /** 每个平台必须实现的接口。 */
     public interface Adapter {
 
         /** 平台标识。 */
@@ -19,7 +19,7 @@ public final class AdapterInterfaces {
 
         /**
          * 校验回调签名/token；通过返回 null，失败<b>返回</b>异常对象
-         * （对照 Go 的 {@code error} 返回值约定——调用点 {@code ImCallbackController}
+         * （调用点 {@code ImCallbackController}
          * 判空即折 401/403，不要改成抛出）。
          */
         Exception verifyCallback(CallbackExchange exchange);
@@ -37,10 +37,10 @@ public final class AdapterInterfaces {
     }
 
     /**
-     * 验签失败（对照 Go 的 error 返回；文案由各平台适配器给出）。
+     * 验签失败（文案由各平台适配器给出）。
      *
-     * <p>{@code public}：各平台适配器在 {@code com.ragagent.im.<platform>} 包下
-     * （γ3），要能构造它。</p>
+     * <p>{@code public}：各平台适配器在 {@code com.ragagent.im.<platform>} 包下，
+     * 要能构造它。</p>
      */
     public static class VerifyException extends RuntimeException {
         public VerifyException(String message) {
@@ -49,7 +49,7 @@ public final class AdapterInterfaces {
     }
 
     /**
-     * 可选：流式回复（对照 Go {@code im.StreamSender}，L150-164）。stream 输出模式
+     * 可选：流式回复。stream 输出模式
      * 下实时推送分片；full 模式可把同一可替换消息当进度占位、完成后一次性替换。
      */
     public interface StreamSender {
@@ -69,8 +69,7 @@ public final class AdapterInterfaces {
     }
 
     /**
-     * 可选：流以可见占位开头、可安全一次替换为完整答案的适配器能力
-     * （对照 Go {@code im.FullOutputProgressSender}，L169-172）。
+     * 可选：流以可见占位开头、可安全一次替换为完整答案的适配器能力。
      * full 输出模式永不调 updateStreamContent。
      */
     public interface FullOutputProgressSender extends StreamSender {
@@ -78,7 +77,7 @@ public final class AdapterInterfaces {
     }
 
     /**
-     * 可选：从平台下载文件附件（对照 Go {@code im.FileDownloader}，L178-182）。
+     * 可选：从平台下载文件附件。
      * 文件/图片消息由此供 QA 作附件；配置了 knowledge_base_id 时也支撑异步入库。
      */
     public interface FileDownloader {

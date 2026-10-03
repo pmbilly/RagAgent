@@ -5,7 +5,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 
 /**
- * 对照 Go internal/ipclass：出站请求目标的 IP 分类。
+ * 出站请求目标的 IP 分类。
  * SSRF 用户 URL 策略：除 {@link #classify} 返回 PUBLIC 外全部拒绝。
  */
 public final class IpClass {
@@ -30,10 +30,10 @@ public final class IpClass {
         if (ip == null) {
             return new Result(Class.INVALID, Class.INVALID.reason);
         }
-        // net.IP 谓词优先（对照 Go Classify：IsPrivate/IsLoopback/IsLinkLocal*/IsMulticast/IsUnspecified）
+        // 谓词判定顺序：unspecified → loopback → link-local → multicast；
         // Java 谓词集无 IsPrivate 等价物（siteLocal 近似但顺序靠后不影响，私网段不与其他谓词重叠）；
-        // isAnyLocalAddress = Go IsUnspecified（0.0.0.0 / ::），不能与 loopback 合并——
-        // Go 对 0.0.0.0 报 "unspecified address"，不是 "loopback address"。
+        // isAnyLocalAddress = 0.0.0.0 / ::，不能与 loopback 合并——
+        // 对 0.0.0.0 报 "unspecified address"，不是 "loopback address"。
         if (ip.isAnyLocalAddress()) {
             return new Result(Class.UNSPECIFIED, Class.UNSPECIFIED.reason);
         }
@@ -49,7 +49,7 @@ public final class IpClass {
         byte[] b = ip.getAddress();
         // fec0::/10 deprecated site-local 必须先于 isSiteLocalAddress：Java 的
         // Inet6Address.isSiteLocalAddress() 覆盖 fec0::/10，放后面会先命中 PRIVATE，
-        // 文案偏离 Go 的 "restricted range fec0::/10"（此前是永不可达的死分支）
+        // 文案就不是 "restricted range fec0::/10" 了
         if (ip instanceof Inet6Address && b[0] == (byte) 0xfe && (b[1] & 0xc0) == 0xc0) {
             return new Result(Class.SITE_LOCAL_IPV6, "restricted range fec0::/10");
         }
@@ -62,7 +62,7 @@ public final class IpClass {
             if (v == 0) {
                 return new Result(Class.UNSPECIFIED, Class.UNSPECIFIED.reason);
             }
-            // restrictedIPv4Ranges（对照 ipclass.go；0.0.0.0/8 已由 unspecified 覆盖一部分，保留完整表）
+            // 受限 IPv4 段完整表（0.0.0.0/8 已由 unspecified 覆盖一部分，仍保留完整表）
             if (inRange(v, 0x00000000, 0x00ffffff)) return reserved("0.0.0.0/8");
             if (inRange(v, 0x64400000, 0x647fffff)) return cgnat();
             if (inRange(v, 0xc6120000, 0xc613ffff)) return reserved("198.18.0.0/15");
@@ -106,7 +106,7 @@ public final class IpClass {
         return new Result(Class.PUBLIC, "");
     }
 
-    /** 链路本地多播：224.0.0.0/24（v4）与 ff02::/16、ff12::/16（v6），对照 Go IsLinkLocalMulticast */
+    /** 链路本地多播：224.0.0.0/24（v4）与 ff02::/16、ff12::/16（v6）。 */
     private static boolean isLinkLocalMulticast(InetAddress ip) {
         if (!ip.isMulticastAddress()) {
             return false;

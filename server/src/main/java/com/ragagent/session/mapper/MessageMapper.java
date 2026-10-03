@@ -22,8 +22,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * messages 的 MyBatis-Plus 基础仓储（对照 Go
- * internal/application/repository/message.go 的 {@code messageRepository}）。
+ * messages 的 MyBatis-Plus 基础仓储。
  *
  * <p>{@code ListMessagesBySessionAfterCursor}（依赖 memory 模块的
  * {@code MemoryMessageCursor}）已在 {@link MessageRepository} 落地——memory 的 service
@@ -41,9 +40,9 @@ import org.apache.ibatis.annotations.Update;
 public interface MessageMapper extends BaseMapper<Message> {
 
     /**
-     * 取某会话里指定角色的第一条消息（对照 Go {@code GetFirstMessageOfUser}，L153-161）。
+     * 取某会话里指定角色的第一条消息。
      *
-     * <p>Go 用 {@code First}，GORM 自动补 {@code deleted_at IS NULL} 并加 {@code LIMIT 1}。</p>
+     * <p>SQL 显式 {@code deleted_at IS NULL} 并 {@code LIMIT 1}。</p>
      */
     @Select("SELECT * FROM messages WHERE session_id = #{sessionId} AND role = #{role} "
             + "AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1")
@@ -51,11 +50,10 @@ public interface MessageMapper extends BaseMapper<Message> {
                                         @Param("role") String role);
 
     /**
-     * 取某会话里每条消息的 artifacts（对照 Go {@code GetSessionArtifacts}，L342-371）。
+     * 取某会话里每条消息的 artifacts。
      *
-     * <p>只投影 {@code artifacts} 一列（{@code created_at} 仅用于 SQL 排序，Go 的行结构体里
-     * 虽然带着它但从未读取）。<b>不在 SQL 里过滤空 artifacts</b>——Go 是在内存里
-     * {@code len == 0 → continue} 跳过的，保持同一处置。</p>
+     * <p>只投影 {@code artifacts} 一列（{@code created_at} 仅用于 SQL 排序）。
+     * <b>不在 SQL 里过滤空 artifacts</b>——空列表由调用方在内存里跳过，保持同一处置。</p>
      */
     @Select("SELECT artifacts FROM messages "
             + "WHERE session_id = #{sessionId} AND deleted_at IS NULL ORDER BY created_at ASC")
@@ -66,9 +64,9 @@ public interface MessageMapper extends BaseMapper<Message> {
     List<ArtifactRow> selectArtifactRows(@Param("sessionId") String sessionId);
 
     /**
-     * 取某会话里每条消息的 attachments（对照 Go {@code GetSessionAttachments}，L375-398）。
+     * 取某会话里每条消息的 attachments。
      *
-     * <p>与上面那条的差别：Go 这条**不跳过空值**（少了那段 {@code continue}）。行为差异照抄。</p>
+     * <p>与上面那条的差别：这条**不跳过空值**——空列表也原样返回。</p>
      */
     @Select("SELECT attachments FROM messages "
             + "WHERE session_id = #{sessionId} AND deleted_at IS NULL ORDER BY created_at ASC")
@@ -78,7 +76,7 @@ public interface MessageMapper extends BaseMapper<Message> {
     })
     List<AttachmentRow> selectAttachmentRows(@Param("sessionId") String sessionId);
 
-    /** 只写 {@code images} 列（对照 Go {@code UpdateMessageImages}，L306-311）。 */
+    /** 只写 {@code images} 列。 */
     @Update("UPDATE messages SET images = "
             + "#{images, typeHandler=com.ragagent.session.domain.MessageImageListTypeHandler, "
             + "jdbcType=OTHER} "
@@ -87,7 +85,7 @@ public interface MessageMapper extends BaseMapper<Message> {
                      @Param("messageId") String messageId,
                      @Param("images") Object images);
 
-    /** 只写 {@code rendered_content} 列（对照 Go {@code UpdateMessageRenderedContent}，L314-319）。 */
+    /** 只写 {@code rendered_content} 列。 */
     @Update("UPDATE messages SET rendered_content = #{renderedContent} "
             + "WHERE id = #{messageId} AND session_id = #{sessionId}")
     int updateRenderedContent(@Param("sessionId") String sessionId,
@@ -95,29 +93,27 @@ public interface MessageMapper extends BaseMapper<Message> {
                               @Param("renderedContent") String renderedContent);
 
     /**
-     * 只写 {@code knowledge_id} 列（对照 Go {@code UpdateMessageKnowledgeID}，L327-334）。
+     * 只写 {@code knowledge_id} 列。
      *
-     * <p>注意 Go 这条**没有 session_id 条件**——只按主键。别顺手补上。</p>
+     * <p>注意这条**没有 session_id 条件**——只按主键。别顺手补上。</p>
      */
     @Update("UPDATE messages SET knowledge_id = #{knowledgeId} WHERE id = #{messageId}")
     int updateKnowledgeId(@Param("messageId") String messageId,
                           @Param("knowledgeId") String knowledgeId);
 
     /**
-     * 按 {@code knowledge_id} 取回消息（对照 Go {@code GetMessagesByKnowledgeIDs}，
-     * repository/message.go L250-267）：向量搜索把 KB 命中映射回消息的查询。
+     * 按 {@code knowledge_id} 取回消息：向量搜索把 KB 命中映射回消息的查询。
      *
-     * <p>Go 是一条 JOIN SQL：{@code INNER JOIN sessions ON sessions.id = messages.session_id
+     * <p>一条 JOIN SQL：{@code INNER JOIN sessions ON sessions.id = messages.session_id
      * AND sessions.deleted_at IS NULL}（会话已软删的消息**直接排除**——这是必须保真的语义，
      * 不能像另外两条那样两步化）＋ {@code messages.deleted_at IS NULL}；无 ORDER BY
      * （调用方按 KB 分数重排）。</p>
      *
-     * <p>⚠️ 自定义 {@code @Select} 不套实体的 {@code @TableField(typeHandler=...)}
-     * （约定 §5 第 7 条，波 0 memory 同款）：{@code messages.*} 里的 9 个 jsonb 列
+     * <p>⚠️ 自定义 {@code @Select} 不套实体的 {@code @TableField(typeHandler=...)}：
+     * {@code messages.*} 里的 9 个 jsonb 列
      * 必须逐列写进方法级 {@code @Results}，否则读回来恒为 null 或解析炸。
      * {@code is_completed}/{@code is_fallback} 的实体属性名**不带 is 前缀**
-     * （{@code completed}/{@code fallback}）——漏显式映射就恒 false（与波 1 G1
-     * queryPaged 的 is_pinned 同族缺陷）。</p>
+     * （{@code completed}/{@code fallback}）——漏显式映射就恒 false。</p>
      */
     @Select("<script>SELECT messages.*, sessions.title AS session_title FROM messages "
             + "INNER JOIN sessions ON sessions.id = messages.session_id "
@@ -192,8 +188,8 @@ public interface MessageMapper extends BaseMapper<Message> {
     }
 
     /**
-     * {@code GetMessagesByKnowledgeIDs} 的投影行：Message ＋ JOIN 出来的
-     * {@code session_title}（对照 Go {@code types.MessageWithSession} 的 struct 嵌入）。
+     * {@code selectMessagesByKnowledgeIds} 的投影行：Message ＋ JOIN 出来的
+     * {@code session_title}。
      * 继承 Message 只为让 {@code @Results} 直接映射到消息属性——不参与 MyBatis-Plus
      * 的任何 CRUD，转 {@code MessageWithSession} 时也直接以此为消息本体（只读）。
      */

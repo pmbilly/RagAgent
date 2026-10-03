@@ -22,8 +22,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 追问建议 HTTP 层（对照 Go {@code internal/handler/message_suggestion.go}，
- * 路由对照 routes_chat.go L89-91 的 3 条）。
+ * 追问建议 HTTP 层。
  *
  * <h2>响应形态（§2.1：裸对象，无 {"data","success"} 信封）</h2>
  * <ul>
@@ -32,9 +31,9 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>RecordEvent：<b>204 无响应体</b>。</li>
  * </ul>
  *
- * <h2>writeError 的子串映射（逐条对照 Go L135-155，顺序有语义）</h2>
+ * <h2>writeError 的子串映射（顺序有语义）</h2>
  * <ul>
- *   <li>gorm.ErrRecordNotFound（含消息不存在）→ 404 "suggestions not found"；</li>
+ *   <li>消息不存在 / 建议集合不存在 → 404 "suggestions not found"；</li>
  *   <li>会话不可见 → 404 "session not found"（独立分支）；</li>
  *   <li>"completed assistant" / "invalid suggestion event" / "requires question_id" /
  *       "does not belong" / "not allowed" → 400 + 原文；</li>
@@ -56,7 +55,7 @@ public class MessageSuggestionController {
     }
 
     /**
-     * 对照 Go {@code Ensure}（L48-71）。⚠️ 请求体<b>只在非空时解析</b>——空 body 合法
+     * ⚠️ 请求体<b>只在非空时解析</b>——空 body 合法
      * （regenerate=false），但畸形 JSON → 400 固定文案 "invalid request body"
      * （不是解析器原文，与其他端点不同）。
      */
@@ -88,12 +87,11 @@ public class MessageSuggestionController {
         return ResponseEntity.status(status).body(set);
     }
 
-    /** 对照 Go {@code EnsureMessageSuggestionsRequest}。 */
     private record EnsureRequest(Boolean regenerate) {
     }
 
     /**
-     * 对照 Go {@code Get}（L83-94）。Go 的 GET 同时注册在 :session_id 与 :id 两个通配下
+     * GET 同时注册在 :session_id 与 :id 两个通配下
      * （router 两种写法并存），Spring 用双 pattern 表达同一件事。
      */
     @GetMapping({"/api/v1/sessions/{session_id}/messages/{message_id}/suggestions",
@@ -114,7 +112,7 @@ public class MessageSuggestionController {
     }
 
     /**
-     * 对照 Go {@code RecordEvent}（L115-133）：成功是 <b>204 无响应体</b>；
+     * 成功是 <b>204 无响应体</b>；
      * 解析失败（含空 body、required 字段缺失）→ 400 固定文案 "invalid request body"。
      */
     @PostMapping("/api/v1/sessions/{session_id}/suggestion-events")
@@ -145,7 +143,7 @@ public class MessageSuggestionController {
         return ResponseEntity.noContent().build();
     }
 
-    /** 对照 Go {@code SuggestionEventRequest}。请求体键名＝Java 字段名（camelCase）。 */
+    /** 请求体键名＝Java 字段名（camelCase）。 */
     private record EventRequest(
             String suggestionSetId,
             String questionId,
@@ -157,18 +155,17 @@ public class MessageSuggestionController {
     }
 
     /**
-     * 对照 Go {@code writeError}（L135-155）的子串分派。顺序有语义：
-     * gorm.NotFound 在前（消息不存在也落 "suggestions not found"），
+     * 错误到 HTTP 状态的子串分派。顺序有语义：
+     * not-found 类异常在前（消息不存在也落 "suggestions not found"），
      * 会话 404 独立分支，业务 400 靠子串匹配，其余 500 固定文案。
      */
     private static BizException writeError(RuntimeException e) {
         if (e instanceof MessageSuggestionSetNotFoundException
                 || e instanceof MessageNotFoundException) {
-            // Go：errors.Is(err, gorm.ErrRecordNotFound) → 404 "suggestions not found"
             return BizException.notFound("suggestions not found");
         }
         if (e instanceof SessionNotFoundException) {
-            // 独立分支：ErrSessionNotFound 不包装 gorm 错误，需自己的 404
+            // 独立分支：SessionNotFoundException 需自己的 404 文案
             return BizException.notFound("session not found");
         }
         String message = e.getMessage() == null ? "" : e.getMessage();

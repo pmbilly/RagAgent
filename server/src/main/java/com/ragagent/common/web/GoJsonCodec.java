@@ -14,8 +14,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * <ol>
  *   <li><b>map 键按字节序排序</b>（所有层级）；</li>
  *   <li><b>HTML 转义恒开</b>：{@code < > &} → {@code \u003c \u003e \u0026}
- *       （实录：{@code {"s":"<b>&"}} → {"s":"\u003cb\u003e\u0026"}）；</li>
- *   <li><b>数字按浮点形态编码</b>（{@link GoDoubleSerializer}；实录：{@code 1e21}）；</li>
+ *       （例：{@code {"s":"<b>&"}} → {"s":"\u003cb\u003e\u0026"}）；</li>
+ *   <li><b>数字按浮点形态编码</b>（{@link GoDoubleSerializer}；例：{@code 1e21}）；</li>
  *   <li><b>紧凑输出</b>（无空格无换行）。</li>
  * </ol>
  *

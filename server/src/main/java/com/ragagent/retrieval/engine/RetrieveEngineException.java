@@ -1,24 +1,23 @@
 package com.ragagent.retrieval.engine;
 
 /**
- * 检索引擎解析的哨兵异常族——对照 Go {@code internal/application/service/retriever/factory.go}
- * L17-42 的四个 sentinel error，外加 registry 里两处 {@code fmt.Errorf} 的分类位。
+ * 检索引擎解析的哨兵异常族——四个哨兵分类（租户信息缺失 / store 不可得 / 不可用 / 禁访），
+ * 外加注册表内部错误的分类位。
  *
- * <h2>照抄点（Go 注释原文的语义）</h2>
+ * <h2>行为契约</h2>
  * <ul>
- *   <li><b>面向用户的文案一律不含 store UUID</b>——Go 的哨兵"故意省略 store UUID 以防枚举泄漏"，
- *       租户/store 只进结构化日志。Java 侧同样如此（异常 message 与 Go 逐字一致）。</li>
- *   <li><b>NOT_FOUND / FORBIDDEN 是永久失败</b>（异步 worker 据此丢弃任务，对应 Go 的
- *       {@code asynq.SkipRetry}）；<b>UNAVAILABLE 是可重试失败</b>（元数据库不可达、后端
- *       暂时下线——把可重试的故障报成 not-found 就是"把一次性抖动变成永久丢单"）。</li>
- *   <li>TENANT_INFO_MISSING：同步无绑定路径需要 ctx 里的 TenantInfo 而不得。</li>
+ *   <li><b>面向用户的文案一律不含 store UUID</b>（防枚举泄漏），租户/store 只进结构化日志。</li>
+ *   <li><b>NOT_FOUND / FORBIDDEN 是永久失败</b>（异步 worker 据此丢弃任务、不再重试）；
+ *       <b>UNAVAILABLE 是可重试失败</b>（元数据库不可达、后端暂时下线——把可重试的故障报成
+ *       not-found 就是"把一次性抖动变成永久丢单"）。</li>
+ *   <li>TENANT_INFO_MISSING：同步无绑定路径需要租户上下文而不得。</li>
  * </ul>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现说明</h2>
  * <ul>
- *   <li>Go 用 {@code errors.Is} 做分类；Java 用 {@link Kind} 枚举沿 cause 链匹配
- *       （{@link #isKind}）——等价且对"带 store ID 文案的每调用新建异常"同样成立。</li>
- *   <li>Go 的 {@code context.Canceled / DeadlineExceeded} → Java 的
+ *   <li>分类用 {@link Kind} 枚举沿 cause 链匹配（{@link #isKind}）——对"带 store ID 文案的
+ *       每调用新建异常"同样成立。</li>
+ *   <li>取消/超时对应
  *       {@code CancellationException / TimeoutException / InterruptedException}（沿 cause 链），
  *       与 {@code com.ragagent.im.runtime.ImFormat.isCanceledOrDeadline} 的既有约定一致。</li>
  * </ul>
@@ -27,21 +26,21 @@ public class RetrieveEngineException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
-    /** 哨兵分类（对照 Go 的四个 sentinel + registry 内部两处 fmt.Errorf）。 */
+    /** 哨兵分类（四个 store 哨兵 + 注册表内部错误）。 */
     public enum Kind {
-        /** 对照 {@code ErrTenantInfoMissing}。 */
+        /** 上下文缺租户信息。 */
         TENANT_INFO_MISSING,
-        /** 对照 {@code ErrVectorStoreNotFound}。 */
+        /** store 不可得（永久失败）。 */
         VECTOR_STORE_NOT_FOUND,
-        /** 对照 {@code ErrVectorStoreUnavailable}。 */
+        /** store 暂不可用（可重试）。 */
         VECTOR_STORE_UNAVAILABLE,
-        /** 对照 {@code ErrVectorStoreForbidden}。 */
+        /** store 禁访（永久失败）。 */
         VECTOR_STORE_FORBIDDEN,
-        /** 对照 registry 的 {@code store %s not found in registry}（非哨兵，分类时并入 UNAVAILABLE）。 */
+        /** store 未在注册表（非哨兵，分类时并入 UNAVAILABLE）。 */
         STORE_NOT_REGISTERED,
-        /** 对照 registry 的 {@code repository of type %s not found}。 */
+        /** 引擎类型未注册仓库。 */
         ENGINE_TYPE_NOT_REGISTERED,
-        /** 对照 registry 的 {@code repository type %s already registered}。 */
+        /** 引擎类型重复注册。 */
         ENGINE_TYPE_ALREADY_REGISTERED,
     }
 
@@ -56,28 +55,28 @@ public class RetrieveEngineException extends RuntimeException {
         return kind;
     }
 
-    // ── 哨兵单例（文案与 Go 逐字一致） ──────────────────────────────────────
+    // ── 哨兵单例 ────────────────────────────────────────────────────────────
 
-    /** 对照 {@code ErrTenantInfoMissing}。 */
+    /** 租户上下文缺失。 */
     public static final RetrieveEngineException TENANT_INFO_MISSING =
             new RetrieveEngineException(Kind.TENANT_INFO_MISSING, "tenant info not found in context");
 
-    /** 对照 {@code ErrVectorStoreNotFound}。 */
+    /** store 不可得。 */
     public static final RetrieveEngineException VECTOR_STORE_NOT_FOUND =
             new RetrieveEngineException(Kind.VECTOR_STORE_NOT_FOUND, "vector store not available");
 
-    /** 对照 {@code ErrVectorStoreUnavailable}。 */
+    /** store 暂不可用。 */
     public static final RetrieveEngineException VECTOR_STORE_UNAVAILABLE =
             new RetrieveEngineException(Kind.VECTOR_STORE_UNAVAILABLE,
                     "vector store engine unavailable");
 
-    /** 对照 {@code ErrVectorStoreForbidden}。 */
+    /** store 禁访。 */
     public static final RetrieveEngineException VECTOR_STORE_FORBIDDEN =
             new RetrieveEngineException(Kind.VECTOR_STORE_FORBIDDEN, "vector store access denied");
 
     // ── 分类助手 ────────────────────────────────────────────────────────────
 
-    /** 对照 {@code errors.Is(err, sentinel)}（沿 cause 链按 kind 匹配）。 */
+    /** 沿 cause 链按 kind 匹配。 */
     public static boolean isKind(Throwable err, Kind kind) {
         for (Throwable c = err; c != null; c = c.getCause()) {
             if (c instanceof RetrieveEngineException e && e.kind == kind) {
@@ -91,9 +90,9 @@ public class RetrieveEngineException extends RuntimeException {
     }
 
     /**
-     * 对照 {@code isContextError}：调用方"放弃"（取消/超时）而非对 store 的判定。
+     * 调用方"放弃"（取消/超时）而非对 store 的判定。
      *
-     * <p>与 Go 的分野同样重要：异步 worker 把 store 哨兵当永久失败而停止重试，
+     * <p>异步 worker 把 store 哨兵当永久失败而停止重试，
      * 因此取消/超时绝不能被报成 store 哨兵。</p>
      */
     public static boolean isCancellation(Throwable err) {
@@ -111,8 +110,7 @@ public class RetrieveEngineException extends RuntimeException {
     }
 
     /**
-     * 分类后重抛（对照 Go 的 {@code return err} / {@code return classifyLookupError(err)}）。
-     * 非受检异常在 Java 里就是错误通道，故直接抛。
+     * 已是本类型/运行时异常/Error → 原样抛；其余折成 UNAVAILABLE 哨兵。
      */
     public static RetrieveEngineException rethrow(Throwable err) {
         if (err instanceof RetrieveEngineException e) {

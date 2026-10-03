@@ -1,19 +1,16 @@
 package com.ragagent.llm.provider;
 
 /**
- * 对照 Go provider.ProviderName（internal/models/provider/provider.go + weknoracloud.go）。
+ * 服务商名枚举（值即 "openai"/"anthropic"/...），既做注册表 key 也做路由判断的返回值。
+ * {@link #value()} 的字面量与 DB/线上格式逐字相同（含下划线的 azure_openai）。
  *
- * Go 侧是 string 类型别名（值即 "openai"/"anthropic"/... ），既做注册表 key 也做
- * 路由判断的返回值。Java 用枚举承载同一组字面量，{@link #value()} 与 Go 字符串逐字相同
- * （含下划线的 azure_openai）。
- *
- * ⚠️ 与 Go 的差异（枚举的固有限制，调用方需知悉）：Go 允许任意字符串（例如 DB 里写入的
- * 未知厂商名）作为 ProviderName 继续流转，下游 switch 落到 default 分支；Java 侧
- * {@link #fromValue(String)} 对未知值返回 null，调用方必须把 null 当作 Go 的 default 分支处理。
+ * ⚠️ 枚举的固有限制（调用方需知悉）：未知厂商名（例如 DB 里写入的任意字符串）
+ * 无法入枚举，{@link #fromValue(String)} 对未知值返回 null，
+ * 调用方必须按"未知厂商"分支处理 null。
  */
 public enum ProviderName {
 
-    // ---- 声明序 = Go provider.go 的常量声明序（OpenAI 起，Azure OpenAI 止），weknoracloud 排在最后 ----
+    // ---- 声明序即注册表与展示顺序（OpenAI 起，Azure OpenAI 止），weknoracloud 排在最后 ----
     /** 对照 ProviderOpenAI */
     OPENAI("openai"),
     /** 对照 ProviderAnthropic */
@@ -66,7 +63,7 @@ public enum ProviderName {
     NOVITA("novita"),
     /** 对照 ProviderAzureOpenAI */
     AZURE_OPEN_AI("azure_openai"),
-    /** 对照 weknoracloud.go 的 ProviderWeKnoraCloud */
+    /** WeKnora 云服务 */
     WEKNORA_CLOUD("weknoracloud");
 
     private final String value;
@@ -75,12 +72,12 @@ public enum ProviderName {
         this.value = value;
     }
 
-    /** Go 侧字符串字面量（注册表 key / DetectProvider 返回值 / DB parameters.provider） */
+    /** 字符串字面量（注册表 key / DB parameters.provider） */
     public String value() {
         return value;
     }
 
-    /** 字符串 → 枚举；未知或空返回 null（对照 Go 的零值 ""；调用方按 default 分支处理 null） */
+    /** 字符串 → 枚举；未知或空返回 null（调用方需处理 null） */
     public static ProviderName fromValue(String value) {
         if (value == null || value.isEmpty()) {
             return null;

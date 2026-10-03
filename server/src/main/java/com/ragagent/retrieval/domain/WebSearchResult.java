@@ -4,12 +4,11 @@ import java.time.OffsetDateTime;
 
 
 /**
- * 网络搜索结果条目（对照 Go {@code types.WebSearchResult}，
- * internal/types/web_search.go L84-96）。
+ * 网络搜索结果条目。
  *
- * <p>字段序 = Go struct 声明序；{@code age} / {@code published_at} 带 omitempty
- * （空时省略整键）。不落库、不作响应体的内部承载类型——注解形状按契约保留，
- * 供后续检索/agent 波次直接复用。</p>
+ * <p>字段按声明序序列化；{@code age} / {@code published_at} 为空时省略整键。
+ * 不落库、不作响应体的内部承载类型——注解形状按契约保留，
+ * 供检索/agent 链路直接复用。</p>
  */
 public class WebSearchResult {
 
@@ -23,7 +22,7 @@ public class WebSearchResult {
 
     private String source = "";
 
-    /** Provider 报告的相对年龄，不臆造精确发布时间（omitempty：空串省略）。 */
+    /** Provider 报告的相对年龄，不臆造精确发布时间（空串时省略该键）。 */
     private String age = "";
 
         private OffsetDateTime publishedAt;

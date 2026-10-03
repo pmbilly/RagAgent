@@ -20,7 +20,7 @@ public record ExtractChunkPayload(
         /** 该分块在父知识文本分块集中的 0 基序数（子 span 名后缀 {@code chunk[i]}）。 */
         int chunkIndex,
         /**
-         * 观测载体（B5：嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
+         * 观测载体（嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
          *
          * <p>知识域约定：字段一律<b>显式输出</b>、键名即 Java 字段名（禁 {@code @JsonInclude}/
          * {@code @JsonProperty}）——故此处不加注解，空载体输出 {@code "tracing":{}}；

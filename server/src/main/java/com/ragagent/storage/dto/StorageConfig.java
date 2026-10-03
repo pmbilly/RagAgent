@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
  * 对象存储后端配置（{@code storage_backends.config} jsonb 的载荷类型）。
- * 键名即 Java 字段名（camelCase，§2 第 11 条）；未知键容忍（jsonb 演进 + 历史行）。
+ * 键名即 Java 字段名（camelCase）；未知键容忍（jsonb 演进 + 历史行）。
  * accessKeyId / secretAccessKey 的密文在仓储层序列化写回时处理（加密与键名正交）。
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

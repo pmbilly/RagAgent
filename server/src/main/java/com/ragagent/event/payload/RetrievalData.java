@@ -7,11 +7,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 检索事件数据（对照 Go {@code event.RetrievalData}，internal/event/event_data.go:17-27）。
+ * 检索事件数据。
  *
- * <p>实录锚点：零值输出
+ * <p>零值输出
  * {@code {"query":"","knowledge_base_id":"","top_k":0,"threshold":0,"retrieval_type":"","result_count":0}}
- * （results/duration_ms/extra 被 omitempty 省略）。</p>
+ * （results/duration_ms/extra 空则省略）。</p>
  */
 @JsonPropertyOrder({"query", "knowledge_base_id", "top_k", "threshold", "retrieval_type",
         "result_count", "results", "duration_ms", "extra"})
@@ -26,8 +26,8 @@ public class RetrievalData {
     @JsonProperty("top_k")
     private int topK;
 
-    /** float64；Go 的 0 也输出（无 omitempty）。用包装类型：Jackson 对 primitive double
-     * 走内置 PrimitiveDoubleSerializer，会绕过 EventJson 注册的 Go 浮点格式化（0.0 ≠ Go 的 0，实测踩过） */
+    /** 0 也输出。用包装类型 Double：primitive double 走 Jackson 内置
+     * PrimitiveDoubleSerializer，会绕过 EventJson 注册的浮点格式（0.0 ≠ 0，实测踩过） */
     @JsonProperty("threshold")
     private Double threshold = 0.0;
 
@@ -38,17 +38,17 @@ public class RetrievalData {
     @JsonProperty("result_count")
     private int resultCount;
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("results")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Object results;
 
-    /** 检索耗时（毫秒）；Go omitempty */
+    /** 检索耗时（毫秒）；0 省略 */
     @JsonProperty("duration_ms")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private long durationMs;
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("extra")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Object> extra;

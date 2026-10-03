@@ -27,13 +27,12 @@ import com.ragagent.model.service.ModelRuntimeConfigs;
 import com.ragagent.session.support.PipelineViews;
 
 /**
- * agent 问答 service 面（对照 Go session_agent_qa.go 全文 + agent_history.go 的
- * 历史装载 + agent_service.go 的 CreateAgentEngine 装配路径）。
+ * agent 问答 service 面。
  *
- * <p>装配边界（对照 agent_service.go L180-295，每一条的取舍已在报告备案）：
- * MCP 目录随 {@code registerMcpTools} 接线（Go L211 调用 / L297-372 实现）；
- * sandbox/browser/skills 的生产接线在 dev 部署（无 docker、无 browser 集成）与
- * Go 的 nil/disable 分支一致——工具注册的硬门控逐条保留；
+ * <p>装配边界：
+ * MCP 目录随 {@code registerMcpTools} 接线；
+ * sandbox/browser/skills 的生产接线在 dev 部署（无 docker、无 browser 集成）走
+ * 未启用分支——工具注册的硬门控逐条保留；
  * 检索工具族（knowledge_search 等）在检索执行面缺失时注册同样无产出，
  * 因此 dev 路径注册的核心是 thinking/todo_write/工具白名单可达集。</p>
  */
@@ -42,7 +41,7 @@ public class SessionAgentQaService {
 
     private static final Logger log = LoggerFactory.getLogger(SessionAgentQaService.class);
 
-    /** 对照 agent_service.go L30（MaxIterations 上限）。 */
+    /** agent 引擎的最大迭代次数上限。 */
     static final int MAX_ITERATIONS = 100;
 
     static final int AGENT_HISTORY_FETCH_MULTIPLIER = 2;
@@ -54,29 +53,29 @@ public class SessionAgentQaService {
     private final SessionKnowledgeQaService knowledgeQa;
     private final AgentToolBackends toolBackends;
 
-    /** 历史/消息装配簇（§14.9c 刀 1）。 */
+    /** 历史/消息装配簇。 */
     private final AgentHistoryAssembler historyAssembler;
 
-    /** 配置装配簇（§14.9c 刀 2）。 */
+    /** 配置装配簇。 */
     private final AgentConfigAssembler configAssembler;
 
-    /** 引擎/工具装配簇（§14.9c 刀 3）。 */
+    /** 引擎/工具装配簇。 */
     private final AgentEngineAssembler engineAssembler;
     private final com.ragagent.storage.service.ResourceCatalogService resourceCatalog;
     private final javax.sql.DataSource dataSource;
     private final ArtifactCollectorWiring artifactCollectorWiring;
     private final com.ragagent.knowledge.service.KnowledgeService knowledgeService;
     private final FaqEntryQueryService faqService;
-    /** 并发闸门（对照 Go container 的 chat 工厂注入；null 会让 ConcurrencyChatClient NPE）。 */
+    /** 并发闸门（chat 工厂注入；null 会让 ConcurrencyChatClient NPE）。 */
     private final com.ragagent.llm.limiter.ConcurrencyGovernor concurrencyGovernor;
     private final org.springframework.beans.factory.ObjectProvider<com.ragagent.llm.ollama.OllamaService>
             ollamaService;
-    /** MCP 服务面（Go agentService 的 mcpServiceService/mcpManager/toolApprovalGate）。 */
+    /** MCP 服务面（mcpServiceService/mcpManager/toolApprovalGate）。 */
     private final com.ragagent.mcp.service.McpServiceService mcpServiceService;
     private final com.ragagent.mcp.service.McpMetadataService mcpMetadataService;
     private final com.ragagent.mcp.protocol.McpClientManager mcpClientManager;
     private final com.ragagent.common.approval.Gate toolApprovalGate;
-    /** 工具图片 VLM 描述器装配（对照 agent_service.go L246-256 的 SetImageDescriber 段）。 */
+    /** 工具图片 VLM 描述器装配。 */
     private final VlmDescriberWiring vlmDescriberWiring;
     /** 指令型技能的宿主目录（选项 B；weknora.skills.host-dirs，逗号分隔）。 */
     private final List<String> hostSkillDirs;
@@ -139,7 +138,7 @@ public class SessionAgentQaService {
     }
 
     // ==================================================================
-    // AgentQA（session_agent_qa.go L20-287）
+    // AgentQA
     // ==================================================================
 
     public void agentQA(QaSupport.QaRequest req, EventBus eventBus) {
@@ -186,7 +185,7 @@ public class SessionAgentQaService {
                 // Go: err != nil → 零值
             }
             agentConfig.setChatModelSupportsVision(supportsVision);
-            // AgentMaxContextTokens（types/agent.go L24-32）：显式设置 > 模型声明 > 缺省
+            // 上下文 token 上限：显式设置 > 模型声明 > 缺省
             agentConfig.setMaxContextTokens(agentConfig.getMaxContextTokens() > 0
                     ? agentConfig.getMaxContextTokens()
                     : (modelContextWindow > 0 ? modelContextWindow
@@ -207,7 +206,7 @@ public class SessionAgentQaService {
                         + "skipping rerank model initialization");
             }
 
-            // Multi-turn history（agent_history.go LoadAgentHistory）
+            // Multi-turn history 装载
             List<ChatMessage> llmContext = new ArrayList<>();
             if (agentConfig.isMultiTurnEnabled()) {
                 int historyTurns = agentConfig.getHistoryTurns() <= 0 ? 5 : agentConfig.getHistoryTurns();
@@ -222,7 +221,7 @@ public class SessionAgentQaService {
                 log.info("Multi-turn disabled for this agent, running without history");
             }
 
-            // Create agent engine（agent_service.go CreateAgentEngine 装配）
+            // Create agent engine
             AgentEngine engine = engineAssembler.createAgentEngine(agentConfig, summaryModel, rerankModel, eventBus,
                     sessionId, req.assistantMessageId);
 
@@ -300,24 +299,24 @@ public class SessionAgentQaService {
     }
 
     // ==================================================================
-    // buildAgentConfig（session_agent_qa.go L291-430）
+    // buildAgentConfig
     // ==================================================================
 
 
     // ==================================================================
-    // CreateAgentEngine（agent_service.go L180-295 的 dev 可达集）
+    // CreateAgentEngine
     // ==================================================================
 
 
-    // ── resolveKBAndDocInfos（agent_service.go L368-394 + L1184-1327）────────
+    // ── resolveKBAndDocInfos ────────
 
 
     /**
-     * registerWebPageFiles（agent_web_pages.go L108-159）：web 抓取页的完整快照面。
+     * web 抓取页的完整快照面。
      * web_search 共享会话 web_fetch 的快照缓存（WithPageReader）；read_file 未被
      * 沙箱路径注册时以 web:// 读取范围注册（描述随来源变化）。存储写字节面
-     * （FileService.SaveBytes/ResourceCatalog.Bind 生产实现）未翻译——经
-     * {@link AgentWebPages} 的接缝落 Go 的 save-failure 分支，见类 Javadoc。
+     * 未落地——经
+     * {@link AgentWebPages} 的接缝落保存失败分支，见类 Javadoc。
      */
     /** weknora.skills.host-dirs（逗号分隔）→ 目录列表；空白项丢弃。 */
     private static List<String> parseHostSkillDirs(String raw) {
@@ -357,7 +356,7 @@ public class SessionAgentQaService {
     }
 
     // ==================================================================
-    // LoadAgentHistory（agent_history.go L50-186 + 构造族）
+    // LoadAgentHistory
     // ==================================================================
 
 

@@ -27,7 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 语雀（yuque.com）数据源连接器（对照 Go {@code yuque/connector.go} 全文）。
+ * 语雀（yuque.com）数据源连接器。
  *
  * <h2>只同步什么</h2>
  * <ul>
@@ -42,12 +42,12 @@ import org.slf4j.LoggerFactory;
  * <h2>⚠️ 300ms 限速是可注入的</h2>
  * <p>{@code walk} 在**每个** {@code GetDocDetail} 之前睡
  * {@link #DEFAULT_DOC_FETCH_DELAY}（{@code 300ms}）以避开语雀的限流
- * （个人令牌大约 100 请求/5 分钟）。生产语义照抄不改；但<b>测试必须能把它压到 0</b>
- * ——否则每个含 N 篇文档的用例都要等 N×300ms，整套对等测试会从毫秒级涨到分钟级。
+ * （个人令牌大约 100 请求/5 分钟）。生产语义保持不变；但<b>测试必须能把它压到 0</b>
+ * ——否则每个含 N 篇文档的用例都要等 N×300ms，整套测试会从毫秒级涨到分钟级。
  * 所以它走构造参数（{@code docFetchDelay}），测试注入 {@link Duration#ZERO}。
  * 同理，客户端的重试退避走 {@link YuqueRetryPolicy#immediate()}。</p>
  *
- * <h2>刻意照抄、不要"修好"的两处</h2>
+ * <h2>刻意保留、不要"修好"的两处</h2>
  * <ol>
  *   <li>{@code ListUserGroups} 失败被当成"没有团队"（404 是语雀对"没加入任何团队"
  *       的正常回答），个人仓库已经抓到了，继续；</li>
@@ -55,18 +55,17 @@ import org.slf4j.LoggerFactory;
  *       其余团队继续。</li>
  * </ol>
  *
- * <h2>与 Go 的一处刻意的确定性差异</h2>
- * <p>删除检测那段 Go 是 {@code for prevDocID := range prevTimes} ——<b>map 迭代
- * 顺序随机</b>，所以墓碑的相对顺序在 Go 侧本来就不可复现。Java 侧按 doc_id
+ * <h2>确定性的墓碑顺序</h2>
+ * <p>删除检测的墓碑按 doc_id
  * 升序发出（{@code currentDocs} 用 {@link LinkedHashSet} 保持声明序，墓碑按键排序），
- * 集合内容与 Go 完全一致，只有顺序更稳定。</p>
+ * 保证同一次同步的结果可复现。</p>
  */
 public class YuqueConnector implements Connector {
 
     private static final Logger log = LoggerFactory.getLogger(YuqueConnector.class);
 
     /**
-     * 对照 Go {@code 300 * time.Millisecond}：每个文档详情请求前的限速间隔。
+     * 每个文档详情请求前的限速间隔（默认 300ms）。
      * 见类注释——它是**默认值**，测试注入 0。
      */
     public static final Duration DEFAULT_DOC_FETCH_DELAY = Duration.ofMillis(300);
@@ -90,10 +89,9 @@ public class YuqueConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code Validate}：调 {@code GET /api/v2/user} 验凭据。
+     * 调 {@code GET /api/v2/user} 验凭据。
      *
-     * <p>外层 {@code "yuque connection failed: "} 与 Go 的
-     * {@code fmt.Errorf("yuque connection failed: %w", err)} <b>文本逐字相同</b>；
+     * <p>外层 {@code "yuque connection failed: "} 前缀保持原样；
      * 分类信息在异常链上（{@code getCause()}），理由同 {@code ImaConnector.validate}。</p>
      */
     @Override
@@ -107,7 +105,7 @@ public class YuqueConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code ResolveResourceAncestors}：语雀的仓库是**扁平**列表、
+     * 语雀的仓库是**扁平**列表、
      * 没有嵌套，选择项没有祖先可揭示，回空列表。
      */
     @Override
@@ -116,7 +114,7 @@ public class YuqueConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code ListResources}：返回该令牌可访问的全部仓库（个人 + 团队）。
+     * 返回该令牌可访问的全部仓库（个人 + 团队）。
      *
      * <p>团队令牌（{@code /api/v2/user} 返回 {@code type="Group"}）走"直接列本团队仓库"
      * 的分支——这个令牌代表的是团队而不是个人用户。
@@ -220,20 +218,20 @@ public class YuqueConnector implements Connector {
             out.add(res);
         }
         // 稳定的确定性顺序，供 UI 渲染与响应体缓存。
-        // ⚠️ 注意这是**字符串**序（Go 的 out[i].ExternalID < out[j].ExternalID）：
-        // "10" 排在 "9" 前面，不是数值序。照抄。
+        // ⚠️ 注意这是**字符串**序：
+        // "10" 排在 "9" 前面，不是数值序（保持既有排序语义）。
         out.sort(Comparator.comparing(Resource::getExternalId));
         return out;
     }
 
-    /** 对照 Go {@code FetchAll}：全量同步（cursor 不参与）。 */
+    /** 全量同步（cursor 不参与）。 */
     @Override
     public List<FetchedItem> fetchAll(DataSourceConfig config, List<String> resourceIds) {
         return walk(config, resourceIds, null, false).items();
     }
 
     /**
-     * 对照 Go {@code FetchIncremental}：返回自上次 cursor 以来变更（或删除）的条目。
+     * 增量同步：返回自上次 cursor 以来变更（或删除）的条目。
      *
      * <p>删除检测：上一轮 cursor 里有、当前列表里没有的文档，发出
      * {@code IsDeleted=true} 的占位项。</p>
@@ -258,12 +256,12 @@ public class YuqueConnector implements Connector {
         return new FetchIncrementalResult(result.items(), newCursor);
     }
 
-    /** 对照 Go {@code walk} 的 {@code (items, *yuqueCursor, error)} 三返回值。 */
+    /** 一次 walk 的结果：条目 + 新游标。 */
     private record WalkResult(List<FetchedItem> items, YuqueCursor cursor) {
     }
 
     /**
-     * 对照 Go {@code walk}：{@code FetchAll} / {@code FetchIncremental} 的共享实现。
+     * {@code FetchAll} / {@code FetchIncremental} 的共享实现。
      * {@code incremental} 为 false 时 {@code prev} 被忽略、返回的 cursor 无意义。
      */
     private WalkResult walk(DataSourceConfig config, List<String> resourceIds,
@@ -325,14 +323,13 @@ public class YuqueConnector implements Connector {
 
                 // 增量：内容没变就跳过。
                 //
-                // ⚠️ 这里**照抄** Go 的一个 map 零值细节：Go 写的是
-                // `prevTimes[docIDStr] == d.ContentUpdatedAt`——键**缺失**时
-                // 取到的是 ""，于是"上一轮没有这个 doc **且**它也恰好没有
-                // content_updated_at"也会被判成"未变"而跳过。
+                // ⚠️ 这里刻意保留一个"缺键视为空串"的细节：
+                // 键**缺失**时取到 ""，于是"上一轮没有这个 doc **且**它也恰好没有
+                // content_updated_at"会被判成"未变"而跳过。
                 // 也就是说：语雀不返回 content_updated_at 的文档，
                 // 只有**全量**同步才会被抓到（增量永远跳过它）。
-                // 这看起来像 bug，但它是线上的实际行为，改掉会让 Java 多吐出
-                // Go 不会吐的条目——所以逐字复刻，并用用例钉住。
+                // 这看起来像 bug，但它是线上的实际行为，改掉会让同步多吐出
+                // 既有行为不会吐的条目——所以保留原语义，并用用例钉住。
                 if (incremental && prev != null && prev.getBookDocTimes() != null) {
                     Map<String, String> prevTimes = prev.getBookDocTimes().get(bookIdStr);
                     if (prevTimes != null) {
@@ -451,10 +448,9 @@ public class YuqueConnector implements Connector {
     }
 
     /**
-     * 对照 Go 的 {@code strconv.ParseInt(bookIDStr, 10, 64)} 失败分支：
-     * 错误文本逐字复刻 Go 的 {@code *strconv.NumError.Error()}
-     * （{@code strconv.ParseInt: parsing "abc": invalid syntax} /
-     * {@code ... : value out of range}），这样两边的日志与 error_message 能对上。
+     * 解析 book ID。非法输入的错误文本带
+     * {@code strconv.ParseInt: parsing "abc": invalid syntax} /
+     * {@code ... : value out of range} 形态——这是既有的日志/错误文案契约，别改。
      */
     private static long parseBookId(String raw) {
         String s = raw == null ? "" : raw;

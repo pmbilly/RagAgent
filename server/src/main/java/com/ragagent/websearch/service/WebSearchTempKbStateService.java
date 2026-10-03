@@ -15,23 +15,22 @@ import com.ragagent.knowledge.service.KnowledgeBaseService;
 import com.ragagent.knowledge.service.KnowledgeService;
 
 /**
- * web 搜索临时 KB 的 Redis 状态（对照 Go internal/application/service/web_search_state.go
- * 全文：Get/Save/Delete 三方法，键 {@code tempkb:<sessionID>}，JSON 形态
- * {@code {"kbID":…,"knowledgeIDs":[…],"seenURLs":{…}}}——与 Go 双端可互读）。
+ * web 搜索临时 KB 的 Redis 状态（Get/Save/Delete 三方法，键
+ * {@code tempkb:<sessionID>}，JSON 形态
+ * {@code {"kbID":…,"knowledgeIDs":[…],"seenURLs":{…}}}）。
  *
- * <h2>调用面（对照 Go 现状）</h2>
- * <p>Go 的 chat_pipeline/search.go 里 Get/Save 两个调用点<b>当前被注释掉</b>（状态压缩
- * 路径休眠），真正会调的只有会话删除的 {@code DeleteWebSearchTempKBState}——因此
- * {@link com.ragagent.chatpipeline.PipelinePorts.WebSearchStateService} 端口保持
- * 存而不读，本服务只被 {@code SessionService} 的清理三件套消费。</p>
+ * <h2>调用面</h2>
+ * <p>状态压缩路径休眠：get/save 当前无调用方，真正消费的只有会话删除清理——
+ * 因此 {@link com.ragagent.chatpipeline.PipelinePorts.WebSearchStateService} 端口保持
+ * 存而不读，本服务只被 {@code SessionService} 的清理三件套调用。</p>
  *
- * <h2>Delete 语义（对照 DeleteWebSearchTempKBState L89-136，错误被调用方吞掉）</h2>
+ * <h2>Delete 语义（错误被调用方吞掉）</h2>
  * <ol>
  *   <li>键不存在 → 无事可做；</li>
  *   <li>JSON 损坏 → 只删键；</li>
  *   <li>kbID 空白 → 只删键；</li>
  *   <li>否则逐个删知识条目（失败逐条 warn 继续）→ 删临时 KB（失败 warn 继续）→
- *       删 Redis 键（失败才上抛，Go 形态 {@code failed to delete Redis key: %w}）。</li>
+ *       删 Redis 键（失败才上抛，文案 {@code failed to delete Redis key: ...}）。</li>
  * </ol>
  */
 @Service
@@ -39,11 +38,11 @@ public class WebSearchTempKbStateService {
 
     private static final Logger log = LoggerFactory.getLogger(WebSearchTempKbStateService.class);
 
-    /** 对照 Go 的 stateKey：fmt.Sprintf("tempkb:%s", sessionID)。 */
+    /** Redis 键前缀，完整键 = tempkb:&lt;sessionID&gt;。 */
     private static final String STATE_KEY_PREFIX = "tempkb:";
 
     /**
-     * web 搜索临时 KB 的 Redis 状态载荷；键名 = Java 字段名（camelCase，§2 第 11 条）。
+     * web 搜索临时 KB 的 Redis 状态载荷；键名 = 字段名（camelCase）。
      * Redis 是跨进程 + TTL 窗口（同 mcp OAuthState）：部署窗口内读到旧键
      * {@code kbID/knowledgeIDs/seenURLs} 时按已知映射改名后再反序列化（{@link
      * #migrateLegacyKeys}，窗口过后连同该方法删除）。
@@ -54,7 +53,7 @@ public class WebSearchTempKbStateService {
             Map<String, Boolean> seenUrls) {
     }
 
-    /** 对照 encoding/json：忽略未知字段（Go 默认语义）。 */
+    /** 忽略未知字段（容忍键演进）。 */
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -107,12 +106,12 @@ public class WebSearchTempKbStateService {
                 }
             }
         } catch (RuntimeException | JsonProcessingException e) {
-            // Go：getErr 或 unmarshal err 都走空三元组返回
+            // 读取或反序列化失败都返回空三元组
         }
         return new TempKbState("", List.of(), Map.of());
     }
 
-    /** 对照 SaveWebSearchTempKBState：marshal 失败静默丢弃（Go 的 {@code _ =}）。 */
+    /** 保存：序列化失败静默丢弃。 */
     public void saveTempKbState(String sessionId, String tempKbId,
             Map<String, Boolean> seenUrls, List<String> knowledgeIds) {
         String stateKey = STATE_KEY_PREFIX + sessionId;
@@ -121,13 +120,13 @@ public class WebSearchTempKbStateService {
                     new TempKbState(tempKbId, knowledgeIds, seenUrls));
             redis.opsForValue().set(stateKey, new String(json, java.nio.charset.StandardCharsets.UTF_8));
         } catch (RuntimeException | JsonProcessingException e) {
-            // Go：marshal err == nil 才 Set，失败静默
+            // 序列化失败静默丢弃
         }
     }
 
     /**
-     * 对照 DeleteWebSearchTempKBState（L89-136）。仅最后的 Redis 删除失败才上抛
-     * （Go {@code fmt.Errorf("failed to delete Redis key: %w", delErr)}），调用方
+     * 删除临时 KB 状态。仅最后的 Redis 删除失败才上抛
+     * （文案 {@code failed to delete Redis key: ...}），调用方
      * （会话删除三件套）吞掉并 warn。
      */
     public void deleteTempKbState(String sessionId) {
@@ -136,7 +135,7 @@ public class WebSearchTempKbStateService {
         try {
             raw = redis.opsForValue().get(stateKey);
         } catch (RuntimeException e) {
-            // Go：getErr != nil → "No state found, nothing to clean up"
+            // Redis 读取失败 → 视同无状态，无需清理
             return;
         }
         if (raw == null || raw.isEmpty()) {
@@ -159,8 +158,7 @@ public class WebSearchTempKbStateService {
 
         log.info("Cleaning temporary KB for session {}: {}", sessionId, kbId);
 
-        // Delete all knowledge items（对照 deleteReferencedKnowledge(ctx, svc, kbID, [kid])；
-        // Java 侧清理面按既有备案走 deleteKnowledge 的同步尽力而为形态）
+        // 删除全部知识条目（清理面按既有备案走 deleteKnowledge 的同步尽力而为形态）
         List<String> knowledgeIds = state.knowledgeIds() == null ? List.of() : state.knowledgeIds();
         for (String kid : knowledgeIds) {
             try {

@@ -12,7 +12,7 @@ import com.ragagent.chatpipeline.PipelinePorts;
 import com.ragagent.llm.extract.PipelineConfig;
 
 /**
- * LOAD_HISTORY 阶段插件（对照 Go chat_pipeline/load_history.go）：
+ * LOAD_HISTORY 阶段插件：
  * MaxRounds ≤ 0 视为多轮显式关闭（跳过，不回落全局默认）；fetchCount = maxRounds*2+10。
  */
 public final class PluginLoadHistory implements Plugin {

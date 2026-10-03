@@ -9,43 +9,42 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
- * sessions 表实体（对照 Go {@code types.Session}，internal/types/session.go L76-139）。
+ * sessions 表实体。
  *
- * <p><b>响应形态（§14.9l S1 换锚后）</b>：GET /sessions/{id}、POST /sessions、PUT /sessions/{id}
+ * <p><b>响应形态</b>：GET /sessions/{id}、POST /sessions、PUT /sessions/{id}
  * 都直接返回本对象（201/200 + 裸对象，无 {@code {data,success}} 信封）；JSON 键名＝Java 字段名
  * （camelCase）、键序＝字段声明序，所有字段恒输出（§1.6 禁止条件键：未置顶时
  * {@code pinnedAt:null}、无 IM 来源时 {@code imPlatform:""}）。</p>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库隐式行为清单</h2>
  * <ul>
  *   <li><b>钩子 BeforeCreate</b>（L141-144）：无条件 {@code s.ID = uuid.New().String()}——
  *       注意它**覆盖**调用方传入的 ID，不是"为空才生成"。<br>
  *       等效 Java：{@code SessionRepository.create} 无条件用新 UUID 覆盖。</li>
- *   <li><b>软删除</b>：{@code gorm.DeletedAt}。按 §9 的既定做法**不用** {@code @TableLogic}，
+ *   <li><b>软删除</b>：deleted_at 列。**不用** {@code @TableLogic}，
  *       而是在每条查询里显式写 {@code deleted_at IS NULL}（datetime 逻辑删除值在 MP 各版本
  *       行为敏感，显式条件语义确定）。{@code Delete} 等效为 UPDATE deleted_at=now()。</li>
  *   <li><b>默认排序</b>：仓库层显式 {@code Order("updated_at DESC")}（L100/L129），
  *       列表另有 pin 优先的排序串（见 {@code SessionRepository.queryPaged}）。</li>
- *   <li><b>jsonb 列 {@code agent_config}</b>：Go 把它当成 {@code SessionLastRequestState} 存
- *       （字段注释说明了为什么复用这一列："避免新增迁移"）。<b>注意 Go 的
- *       {@code sessionRepository.Update} 不写这一列</b>，只有
- *       {@code UpdateLastRequestState} 单独写——Java 侧同样分开。</li>
+ *   <li><b>jsonb 列 {@code agent_config}</b>：存的是 {@code SessionLastRequestState}
+ *       （复用这一列以避免新增迁移）。<b>注意
+ *       {@code SessionRepository.update} 不写这一列</b>，只有
+ *       {@code updateLastRequestState} 单独写——两条路径分开。</li>
  *   <li><b>未映射的遗留列</b>：迁移 000001 建的一批策略配置列（{@code knowledge_base_id} /
  *       {@code max_rounds} / {@code enable_rewrite} / … / {@code summary_parameters}）
- *       在 Go 的 struct 里是**注释掉的**，因此 GORM 不碰它们、保持 DB 默认值。
- *       Java 实体同样**不映射**——那批列上的 NOT NULL 由 DB 默认值兜住，别顺手补上。</li>
+ *       实体**不映射**、保持 DB 默认值——那批列上的 NOT NULL 由 DB 默认值兜住，别顺手补上。</li>
  * </ul>
  */
 @TableName(value = "sessions", autoResultMap = true)
 public class Session {
 
-    /** 对照 Go {@code SessionSourceAPI}：跨整租户的 API-Key 会话视图（仅 Admin+，且不做按人隔离）。 */
+    /** 跨整租户的 API-Key 会话视图（仅 Admin+，且不做按人隔离）。 */
     public static final String SOURCE_API = "api";
-    /** 对照 Go {@code SessionSourceWeb}：用户自己的 Web 控制台会话。 */
+    /** 用户自己的 Web 控制台会话。 */
     public static final String SOURCE_WEB = "web";
-    /** 对照 Go {@code types.EmbedSessionMarkerPrefix}（embed_channel.go L153）。 */
+    /** embed 访客会话在 user_id / description 里的标记前缀。 */
     public static final String EMBED_SESSION_MARKER_PREFIX = "embed_channel:";
-    /** 对照 Go {@code types.SkillMaintenanceSessionMarker}（tenant_skill.go L40）。 */
+    /** skill 维护会话在 description 里的隐藏标记前缀。 */
     public static final String SKILL_MAINTENANCE_SESSION_MARKER = "skill_maintenance:";
 
     @TableId(value = "id", type = IdType.INPUT)
@@ -80,7 +79,7 @@ public class Session {
     @TableField("is_pinned")
     private boolean pinned;
 
-    /** 置顶时刻；未置顶时为 null（Go 的 *time.Time）。 */
+    /** 置顶时刻；未置顶时为 null。 */
     private OffsetDateTime pinnedAt;
 
     /**
@@ -109,12 +108,12 @@ public class Session {
     public Session() {
     }
 
-    // ── 对照 types/session.go 的包级判定函数 ────────────────────────────────
+    // ── 来源/可见性判定 ─────────────────────────────────────────────────────
 
     /**
      * 列表的来源筛选是否会暴露**租户级**渠道流量（API / IM / embed）。
      *
-     * <p>对照 Go {@code SessionListSourceRequiresAdmin}（L157-163）：空串与 {@code web}
+     * <p>空串与 {@code web}
      * （忽略大小写）返回 false，**其余一切都返回 true**——包括未知的 source 值。</p>
      */
     public static boolean listSourceRequiresAdmin(String source) {
@@ -128,7 +127,7 @@ public class Session {
     /**
      * 该会话是否为「渠道托管流量」——非管理员的 Web 用户不该从控制台打开。
      *
-     * <p>对照 Go {@code SessionRequiresAdminConsoleRead}（L167-185）。四条判定**逐条照抄**，
+     * <p>四条判定都要有，
      * 顺序无影响但都要有：API owner 前缀、embed 标记（description 前缀**或** user_id 前缀）、
      * skill 维护标记、以及 IM 平台非空。</p>
      */
@@ -152,13 +151,13 @@ public class Session {
         return imPlatform != null && !imPlatform.trim().isEmpty();
     }
 
-    /** 对照 Go {@code IsSkillMaintenanceDescription}：description 是否带隐藏标记。 */
+    /** description 是否带隐藏标记。 */
     public static boolean isSkillMaintenanceDescription(String description) {
         return description != null && description.startsWith(SKILL_MAINTENANCE_SESSION_MARKER);
     }
 
     /**
-     * 对照 Go {@code SanitizeClientSessionDescription}（L197-205）。
+     * 客户端提交的 description 的洗白规则。
      *
      * <p>已经落库的维护会话**保留原 description**，这样一次 PUT 无法把它"洗白"再暴露出来；
      * 其余情况丢掉客户端塞进来的标记，而不是接受它。</p>

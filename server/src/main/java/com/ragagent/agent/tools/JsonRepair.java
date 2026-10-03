@@ -16,7 +16,7 @@ import java.util.List;
  *   <li>缺外层花括号的 {@code key=value} / 带 {@code :} 文本 → 补花括号包裹。</li>
  * </ul>
  *
- * <p><b>刻意不修</b>（实录钉死）：单引号键值（{@code {'a':1}} 原样返回）、
+ * <p><b>刻意不修</b>：单引号键值（{@code {'a':1}} 原样返回）、
  * markdown 代码围栏（{@code ```json ... ```} 会被当作普通文本包进花括号——保持既有怪异行为）、
  * {@code //} 注释（不识别，但顶层值截断常能顺带修好）。</p>
  *
@@ -102,7 +102,7 @@ public final class JsonRepair {
                 i++;
                 continue;
             }
-            // 字符串里遇到反斜杠。看下一个 rune 决定是不是合法 JSON 转义。
+            // 字符串里遇到反斜杠。看下一个码点决定是不是合法 JSON 转义。
             if (i + 1 >= cps.length) {
                 // EOF 悬空反斜杠——转义成 \\，别让字符串停在"等待转义"状态。
                 out.append("\\\\");
@@ -117,7 +117,7 @@ public final class JsonRepair {
                 out.appendCodePoint(next);
                 i += 2;
             } else {
-                // 非法转义——多半是忘了双重转义的正则元字符。输出字面反斜杠 + 下一 rune。
+                // 非法转义——多半是忘了双重转义的正则元字符。输出字面反斜杠 + 下一码点。
                 out.append("\\\\");
                 out.appendCodePoint(next);
                 i += 2;
@@ -217,7 +217,7 @@ public final class JsonRepair {
         return result.toString();
     }
 
-    /** 从 start 起找下一个非空白 rune 的下标；没有返回 -1。 */
+    /** 从 start 起找下一个非空白码点的下标；没有返回 -1。 */
     private static int findNextNonSpace(int[] runes, int start) {
         for (int i = start; i < runes.length; i++) {
             if (!isGoSpace(runes[i])) {

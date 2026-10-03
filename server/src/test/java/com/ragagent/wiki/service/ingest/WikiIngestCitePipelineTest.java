@@ -22,13 +22,9 @@ import com.ragagent.common.wiki.ExtractedItem;
 import com.ragagent.wiki.service.page.NewSlugFromCitation;
 
 /**
- * {@link WikiIngestCitePipeline} 的对等测试（对照 Go
- * internal/application/service/wiki_ingest_cite_test.go，196 行）。
- *
- * <p>Go 的测试只覆盖了 {@code mergeCitationsIntoItems} 与
- * {@code splitChunksIntoCitationBatches} 两个纯函数；Java 侧在此之上补了
- * <b>句柄表</b>与 {@code classifyChunkCitations} 的句柄翻译（后者是 Go 测试用
- * {@code b.handles.Len()} 间接覆盖的部分，也是整个协议最容易出错的地方）。</p>
+ * {@link WikiIngestCitePipeline} 的测试：覆盖 {@code mergeCitationsIntoItems} 与
+ * {@code splitChunksIntoCitationBatches} 两个纯函数，以及<b>句柄表</b>与
+ * {@code classifyChunkCitations} 的句柄翻译（句柄翻译是整个协议最容易出错的地方）。
  */
 class WikiIngestCitePipelineTest {
 
@@ -66,7 +62,6 @@ class WikiIngestCitePipelineTest {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code TestMergeCitationsIntoItems_PopulatesSourceChunksOnCandidates}：
      * 分类遍返回的引用要回填到匹配的候选条目上，未引用的候选保持原样。
      */
     @Test
@@ -96,7 +91,6 @@ class WikiIngestCitePipelineTest {
     }
 
     /**
-     * 对照 Go {@code TestMergeCitationsIntoItems_AddsNewSlugsAndUnionsChunksAcrossBatches}：
      * Pass 0 漏掉的崭新 slug 要追加到正确的类型切片；同一 slug 在两个批次出现时要合并
      * 引用 chunk 的并集；与既有候选重复的条目不产生重复项。
      */
@@ -131,7 +125,6 @@ class WikiIngestCitePipelineTest {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code TestSplitChunksIntoCitationBatches_RespectsBudgetAndOrder}：
      * 分桶绝不超预算、保持文档顺序、超大的 chunk 独占一个批次；并且每个批次的句柄表
      * 条目数等于该批次的 chunk 数。
      */
@@ -167,7 +160,7 @@ class WikiIngestCitePipelineTest {
         }
     }
 
-    /** 对照 Go：非 text 类型与空内容的 chunk 被过滤；全空时返回 nil */
+    /** 非 text 类型与空内容的 chunk 被过滤；全空/空入参时返回空 */
     @Test
     @DisplayName("分桶只引用 text chunk")
     void splitChunksFiltersNonTextAndEmpty() {
@@ -190,7 +183,7 @@ class WikiIngestCitePipelineTest {
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 对照 Go {@code modelcontext.NewHandleTable("c", 3, 0)}：{@code c000} 起编号、
+     * {@code c000} 起编号、
      * 零填充 3 位、重复注册稳定、未知句柄 resolve 返回 null、空键返回空句柄。
      */
     @Test
@@ -208,13 +201,13 @@ class WikiIngestCitePipelineTest {
         assertThat(table.resolve("c999")).as("未知句柄必须被拒绝").isNull();
         assertThat(table.resolve("")).isNull();
 
-        // 不分配的反查（对照 Go HandleTable.Handle）
+        // 不分配句柄的反查
         assertThat(table.handleForKey("chunk-a")).isEqualTo("c000");
         assertThat(table.handleForKey("chunk-zzz")).isNull();
         assertThat(table.size()).as("handleForKey 不得分配新句柄").isEqualTo(2);
     }
 
-    /** 编号超过宽度时不截断（对照 Go {@code %0*d} 只补齐不裁剪） */
+    /** 编号超过宽度时只加宽、不截断 */
     @Test
     @DisplayName("句柄编号超过宽度不截断")
     void chunkHandleTableWidens() {
@@ -225,7 +218,7 @@ class WikiIngestCitePipelineTest {
         assertThat(table.register("chunk-1000")).isEqualTo("c1000");
     }
 
-    /** 对照 Go {@code renderChunksXML}：用句柄代替原始 UUID，并带上 ChunkIndex */
+    /** 用句柄代替原始 UUID，并带上 chunk index 属性 */
     @Test
     @DisplayName("renderChunksXML 使用句柄与 index 属性")
     void renderChunksXml() {
@@ -239,7 +232,7 @@ class WikiIngestCitePipelineTest {
         assertThat(xml).doesNotContain("uuid-0");
     }
 
-    /** 对照 Go {@code renderCandidateSlugsXML}：跳过空 slug / 空 name，aliases 用 %q */
+    /** 跳过空 slug / 空 name 的候选，aliases 带引号输出 */
     @Test
     @DisplayName("renderCandidateSlugsXML 渲染候选清单")
     void renderCandidateSlugsXml() {
@@ -265,8 +258,7 @@ class WikiIngestCitePipelineTest {
      * 分类遍的核心不变量：模型输出里的句柄必须翻回<b>真实</b> chunk UUID；
      * 未知句柄被丢弃；跨批次的引用求并集；new_slugs 的 SourceChunks 同样被翻译。
      *
-     * <p>Go 用一个真实的（被打桩的）chat 模型来覆盖这段；Java 侧用一个假的
-     * {@link WikiIngestService#generateWithTemplate} 返回值达到同样的效果——
+     * <p>用打桩的 {@link WikiIngestService#generateWithTemplate} 返回值驱动——
      * <b>不触碰网络</b>（约定 §6）。</p>
      */
     @Test
@@ -322,7 +314,7 @@ class WikiIngestCitePipelineTest {
         assertThat(result.newSlugs().get(0).sourceChunks()).containsExactly("uuid-big");
     }
 
-    /** 对照 Go：空候选 XML 或没有可分桶的 chunk 时直接返回空结果，不打 LLM */
+    /** 空候选 XML 或没有可分桶的 chunk 时直接返回空结果，不打 LLM */
     @Test
     @DisplayName("无候选或无分块时分类遍短路")
     void classifyShortCircuits() {
@@ -343,7 +335,7 @@ class WikiIngestCitePipelineTest {
     // 引用正文解析
     // ═══════════════════════════════════════════════════════════════
 
-    /** 对照 Go {@code collectCitedChunkContent}：按给定顺序拼接、空内容跳过、双换行分隔 */
+    /** 按给定顺序拼接、空内容跳过、双换行分隔 */
     @Test
     @DisplayName("collectCitedChunkContent 按序拼接逐字正文")
     void collectCitedChunkContent() {
@@ -358,7 +350,7 @@ class WikiIngestCitePipelineTest {
         assertThat(WikiIngestCitePipeline.collectCitedChunkContent(null, byId)).isEmpty();
     }
 
-    /** 对照 Go：citedChunkSet 是全部引用的去重集合 */
+    /** citedChunkSet 是全部引用的去重集合 */
     @Test
     @DisplayName("citedChunkSet 去重")
     void citedChunkSet() {
@@ -369,7 +361,7 @@ class WikiIngestCitePipelineTest {
         assertThat(WikiIngestCitePipeline.citedChunkSet(null)).isEmpty();
     }
 
-    /** 对照 Go 的 {@code prevSlugsText} 构造：只保留 entity/ concept/ 前缀 */
+    /** 前序 slug 提示只保留 entity/ concept/ 前缀 */
     @Test
     @DisplayName("前序 slug 提示只保留 entity/concept 前缀")
     void previousSlugsHint() {

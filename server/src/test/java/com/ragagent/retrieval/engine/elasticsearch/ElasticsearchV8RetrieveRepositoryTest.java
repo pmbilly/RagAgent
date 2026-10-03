@@ -30,14 +30,13 @@ import com.ragagent.retrieval.engine.elasticsearch.ElasticsearchV8RetrieveReposi
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * Elasticsearch v8 检索引擎仓库（W5γ4.1）对照 Go
- * {@code retriever/elasticsearch/v8/repository.go} + {@code elasticsearch/structs.go}：
+ * Elasticsearch v8 检索引擎仓库：
  * 自举（建索引 + 映射探测决定 .keyword 后缀）、文档双向转换与存储估算、写入（单条/NDJSON 批量）、
  * 三种按 terms 删除、script_score 向量检索与 match 关键词检索的<b>请求体形状</b>与响应解析、
  * update_by_query 改状态/标签、CopyIndices 的分页 + 改名 + SourceID 三态。
  *
- * <p>桩是本地 ES 假服务：断言的是"发出去的 JSON 长什么样"，等价于 Go typed client 的序列化结果
- * （Go 侧未录 fixture：该批无 golden 面，逐请求断言即本批的字节契约）。</p>
+ * <p>桩是本地 ES 假服务：断言的是"发出去的 JSON 长什么样"（该面无 golden fixture，
+ * 逐请求断言即字节契约）。</p>
  */
 class ElasticsearchV8RetrieveRepositoryTest {
 
@@ -447,7 +446,7 @@ class ElasticsearchV8RetrieveRepositoryTest {
         List<Captured> tagUpdates = captured.stream()
                 .filter(c -> c.path().endsWith("/_update_by_query")).toList();
         assertEquals(2, tagUpdates.size(), "按 tag 分两组");
-        // Map.of 无序 → 组间顺序不保证，按 tag 名归集断言（组内成员数照 Go 的分组语义）
+        // Map.of 无序 → 组间顺序不保证，按 tag 名归集断言
         java.util.Map<String, Integer> groupSizes = new java.util.TreeMap<>();
         for (Captured c : tagUpdates) {
             JsonNode body = MAPPER.readTree(c.body());
@@ -513,7 +512,7 @@ class ElasticsearchV8RetrieveRepositoryTest {
         assertEquals("k-new", doc1.path("knowledge_id").asText());
         assertEquals("kb-new", doc1.path("knowledge_base_id").asText());
         // 修复后：向量按"目标 SourceID"为键随行带上——doc1（普通块）拿自己的 [0.25,0.5]；
-        // doc2（生成问题，目标 SourceID c-new1-q9）也拿自己的 [0.7]（Go 会丢/串）
+        // doc2（生成问题，目标 SourceID c-new1-q9）也拿自己的 [0.7]
         assertEquals(2, doc1.path("embedding").size());
         assertEquals(0.25, doc1.path("embedding").get(0).asDouble(), 1e-6);
 
@@ -537,7 +536,7 @@ class ElasticsearchV8RetrieveRepositoryTest {
         assertNotNull(ElasticsearchV8RetrieveRepository.resolveIndexName(INDEX));
     }
 
-    // ── 迁移知识（v8/move.go，含 Go 的 9 例完整性表） ────────────────────────
+    // ── 迁移知识（9 例完整性校验） ───────────────────────────────────────────
 
     @Test
     @DisplayName("迁移知识：terms 数组 + bool.filter + refresh=true + 脚本无 lang；9 例完整性校验")

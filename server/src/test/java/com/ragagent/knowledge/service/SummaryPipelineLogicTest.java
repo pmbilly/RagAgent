@@ -140,7 +140,7 @@ class SummaryPipelineLogicTest {
         }, 7L, List.of("chunkA"))).isNull();
     }
 
-    // ── generatedQuestionSourceId（Go faq.go L41-50） ──────────────────────
+    // ── generatedQuestionSourceId ──────────────────────
 
     @Test
     void questionSourceIdConcatenatesWhenShort() {
@@ -156,7 +156,7 @@ class SummaryPipelineLogicTest {
         assertThat(out).startsWith(chunkId + "-q");
         assertThat(out).hasSize(chunkId.length() + 2 + 24); // "-q" + sha256 前 12 字节 hex
         assertThat(out.substring(chunkId.length() + 2)).matches("[0-9a-f]{24}");
-        // 同样的 questionID 恒得同一折叠值（Go 语义：历史索引行仍可寻址）
+        // 同样的 questionID 恒得同一折叠值（历史索引行仍可寻址）
         assertThat(ChunkSearchUtil.generatedQuestionSourceId(chunkId, questionId)).isEqualTo(out);
     }
 
@@ -171,7 +171,7 @@ class SummaryPipelineLogicTest {
         assertThat(a.substring(a.length() - 24)).isEqualTo(b.substring(b.length() - 24));
     }
 
-    // 空列表防御（对照 Go len==0 分支在调用方的行为）
+    // 空列表防御（空入参短路返回 null）
     @Test
     void collectAcceptsNullIds() {
         assertThat(ImageInfoEnricher.collectImageInfoByChunkIds(

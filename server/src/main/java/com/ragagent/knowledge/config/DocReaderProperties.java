@@ -3,7 +3,7 @@ package com.ragagent.knowledge.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * DocReader（文档解析服务）的连接配置（B6 批 5）。
+ * DocReader（文档解析服务）的连接配置。
  *
  * <p>env 名保持原样：{@code DOCREADER_ADDR} → {@code docreader.addr}、
  * {@code DOCREADER_TRANSPORT} → {@code docreader.transport}（Spring 松散绑定）。</p>

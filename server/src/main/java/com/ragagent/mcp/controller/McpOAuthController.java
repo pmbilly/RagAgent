@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 每用户维度的 MCP OAuth2 授权码流程 HTTP 层（对照 Go internal/handler/mcp_oauth.go 全文）。
+ * 每用户维度的 MCP OAuth2 授权码流程 HTTP 层。
  *
  * <h3>端点清单（路由前缀 {@code /api/v1} 由主会话在 WebConfig 注册）</h3>
  * <ol>
@@ -53,13 +53,13 @@ import org.springframework.web.bind.annotation.RestController;
  * </ol>
  *
  * <p><b>主会话注册路由时的路径注意</b>：回调刻意注册在 {@code /mcp-services} 组<b>之外</b>
- * （Go 的注释：避开静态段与 {@code /:id} 的动态段冲突）。
- * Spring 的 {@code PathPattern} 对字面量段天然优先于变量段，但为与 Go 完全同形、
- * 也为了避免任何歧义，请仍把回调挂在 {@code /api/v1/mcp-oauth/callback} 下。</p>
+ * （避开静态段与 {@code /{id}} 动态段的路由歧义）。
+ * Spring 的 {@code PathPattern} 对字面量段天然优先于变量段，但为避免任何歧义，
+ * 请仍把回调挂在 {@code /api/v1/mcp-oauth/callback} 下。</p>
  *
  * <p>两个依赖刻意用 {@link ObjectProvider} 而非直接注入：{@code Gate} 与
- * {@code McpClientManager} 目前都还没有 Spring bean，且 Go 侧对它们做了 nil 判断
- * （{@code if h.gate == nil} / {@code if h.mcpManager != nil}）。</p>
+ * {@code McpClientManager} 的 bean 都可能缺失（未接线时），使用处各自做了
+ * 缺省判断。</p>
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -67,7 +67,7 @@ public class McpOAuthController {
 
     private static final Logger log = LoggerFactory.getLogger(McpOAuthController.class);
 
-    /** 对照 Go {@code fallbackRedirect}：前端地址缺失时的兜底。 */
+    /** 前端地址缺失时的兜底。 */
     static final String FALLBACK_REDIRECT = "/";
 
     private final OAuthManager oauth;
@@ -87,15 +87,11 @@ public class McpOAuthController {
     // ── 1. 发起授权 ────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code mcpOAuthAuthorizeRequest}（§14.9n M4 后键名＝组件名：
-     * 前端按 {@code redirectUri} / {@code frontendRedirect} 提交）。
+     * 发起授权的请求体：前端按 {@code redirectUri} / {@code frontendRedirect} 提交。
      */
     public record AuthorizeRequest(String redirectUri, String frontendRedirect) {
     }
 
-    /**
-     * 对照 Go {@code AuthorizeURL}。
-     */
     @PostMapping("/mcp-services/{id}/oauth/authorize-url")
     public ResponseEntity<Map<String, Object>> authorizeUrl(@PathVariable("id") String serviceId,
                                                             @RequestBody(required = false) AuthorizeRequest req) {
@@ -105,8 +101,7 @@ public class McpOAuthController {
             throw BizException.unauthorized("authentication required");
         }
         if (req == null) {
-            // 对照 Go 的 gin ShouldBindJSON：空 body 的解码错误原文是 "EOF"
-            // （emb-pub-mcp-authorize-nobody golden 钉死；直连路由同 handler 同文案）
+            // 空 body → 400，文案固定为 "EOF"（有契约测试钉死；直连路由同 handler 同文案）
             throw BizException.badRequest("EOF");
         }
         String redirectUri = trim(req.redirectUri());
@@ -149,7 +144,7 @@ public class McpOAuthController {
     // ── 2. 公开回调 ────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code Callback}：<b>公开路由</b>（无 bearer），靠一次性 state 自证。
+     * <b>公开路由</b>（无 bearer），靠一次性 state 自证。
      *
      * <p>结果经 URL fragment 回传前端：成功 {@code #mcp_oauth_result=success}，
      * 失败 {@code #mcp_oauth_error=<code>}。</p>
@@ -182,7 +177,7 @@ public class McpOAuthController {
             if (frontendRedirect.isEmpty()) {
                 frontendRedirect = FALLBACK_REDIRECT;
             }
-            // 对照 Go：失败路径<b>不</b>回收连接（旧的传输可能仍然是好的）
+            // 失败路径不回收连接（旧的传输可能仍然是好的）
             log.error("MCP OAuth callback failed: {} (service_id={})", e.getMessage(),
                     LogSanitizer.sanitize(serviceId));
             return redirect(frontendRedirect + "#mcp_oauth_error=" + urlQueryEscape("authorization_failed"));
@@ -198,7 +193,7 @@ public class McpOAuthController {
     // ── 3. 授权状态 ────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code Status}：不带 {@code authorization_attempt} 时返回 token 生命周期状态；
+     * 不带 {@code authorization_attempt} 时返回 token 生命周期状态；
      * 带的时候<b>只</b>回答"这一次尝试是否完成"（历史 token 不算数）。
      */
     @GetMapping("/mcp-services/{id}/oauth/status")
@@ -236,7 +231,7 @@ public class McpOAuthController {
 
     // ── 4. 撤销 ────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code Revoke}：204 + 回收缓存连接，让下一次调用重新走授权。 */
+    /** 撤销授权：204 + 回收缓存连接，让下一次调用重新走授权。 */
     @DeleteMapping("/mcp-services/{id}/oauth/token")
     public ResponseEntity<Void> revoke(@PathVariable("id") String serviceId) {
         long tenantId = tenantIdOrZero();
@@ -255,12 +250,12 @@ public class McpOAuthController {
 
     // ── 5. 会话内 OAuth 挂起 / 取消 ─────────────────────────────────────
 
-    /** 对照 Go {@code resolveMCPOAuthBody}（§14.9n M4 后键名＝组件名：{@code serviceId}）。 */
+    /** 会话内 OAuth 处理的请求体（键名 {@code serviceId}）。 */
     public record ResolveRequest(String serviceId, String decision) {
     }
 
     /**
-     * 对照 Go {@code ResolveMCPOAuth}：前端在弹窗授权完成后调用；后端<b>先确认 token
+     * 前端在弹窗授权完成后调用；后端<b>先确认 token
      * 真的存在</b>再放行，免得过早/失败的授权把工具调用放回火坑再失败一次。
      */
     @PostMapping("/agent/mcp-oauth-resolutions/{pending_id}")
@@ -278,7 +273,7 @@ public class McpOAuthController {
             throw BizException.internal("OAuth gate is not configured");
         }
         if (body == null) {
-            // 对照 Go 的 gin ShouldBindJSON：空 body → "EOF"（同 authorize-url）
+            // 空 body → 400 "EOF"（同 authorize-url）
             throw BizException.badRequest("EOF");
         }
         String serviceId = trim(body.serviceId());
@@ -318,7 +313,7 @@ public class McpOAuthController {
     }
 
     /**
-     * 对照 Go {@code CancelMCPOAuth}：用户主动跳过授权，以"拒绝"解除 Agent 阻塞。
+     * 用户主动跳过授权，以"拒绝"解除 Agent 阻塞。
      */
     @PostMapping("/agent/mcp-oauth-resolutions/{pending_id}/cancel")
     public ResponseEntity<Void> cancelMcpOAuth(@PathVariable("pending_id") String pendingId) {
@@ -338,8 +333,7 @@ public class McpOAuthController {
     // ── 内部工具 ───────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code mcpOAuthPrincipalsFromContext}：token 用 principal 走
-     * {@code MCPOAuthPrincipalFromContext}（embed 访客会被细分），
+     * token 用 principal 走 oauthPrincipalFromContext（embed 访客会被细分），
      * 而 gate 的 userID 用<b>原始</b> principal 的 StorageID（会话所有者）。
      */
     private static String gateUserId() {
@@ -356,7 +350,7 @@ public class McpOAuthController {
     }
 
     /**
-     * 对照 Go {@code mcp_oauth.go:311-360} 的 {@code gate.Resolve} 错误映射。
+     * {@code gate.Resolve} 的错误映射。
      *
      * <p>四类哨兵 → 404 / 400 各一，其余（INTERNAL）→ 500（文案取异常消息）。</p>
      */
@@ -382,7 +376,7 @@ public class McpOAuthController {
         }
     }
 
-    /** 对照 Go {@code if h.mcpManager != nil && serviceID != ""} 的回收动作。 */
+    /** manager 已接线且 serviceId 非空时，回收该服务的缓存连接。 */
     private void closeClient(String serviceId) {
         if (serviceId == null || serviceId.isEmpty()) {
             return;
@@ -394,7 +388,7 @@ public class McpOAuthController {
         try {
             manager.closeClient(serviceId);
         } catch (RuntimeException e) {
-            // 对照 Go：`_ = h.mcpManager.CloseClient(...)` —— 回收失败不影响本次响应
+            // 回收失败不影响本次响应
             log.warn("failed to close MCP client after OAuth change, service_id={}",
                     LogSanitizer.sanitize(serviceId), e);
         }
@@ -407,9 +401,8 @@ public class McpOAuthController {
     }
 
     /**
-     * 对照 Go {@code urlQueryEscape}（internal/handler/auth.go:494-505）：
-     * 只替换 7 个字符，<b>不是</b>完整的 percent-encoding——顺序敏感，
-     * 必须先把 {@code %} 换成 {@code %25} 再处理其余，否则会二次编码。
+     * fragment 值的轻量转义：只替换 7 个字符，<b>不是</b>完整的 percent-encoding——
+     * 顺序敏感，必须先把 {@code %} 换成 {@code %25} 再处理其余，否则会二次编码。
      */
     static String urlQueryEscape(String value) {
         if (value == null) {

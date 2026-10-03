@@ -9,9 +9,8 @@ import java.util.function.Function;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * IM 工具步骤显示（对照 Go internal/im/tool_display.go 全文，波 5 W5γ1 逐行翻译；
- * 文案与 Web 端 agentStream/RagPipelineProgress 对齐）。字节契约：
- * contracts/w5g1-im-foundation.tsv（overlay 探针 2026-09-21）。
+ * IM 工具步骤显示（文案与 Web 端 agentStream/RagPipelineProgress 对齐）。字节契约：
+ * contracts/w5g1-im-foundation.tsv。
  */
 public final class ToolDisplay {
 
@@ -20,7 +19,7 @@ public final class ToolDisplay {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    /** 一个工具调用的 IM 显示状态（tool_display.go L10-18）。 */
+    /** 一个工具调用的 IM 显示状态。 */
     public static final class IMToolStep {
         public String toolCallId = "";
         public String toolName = "";
@@ -59,7 +58,7 @@ public final class ToolDisplay {
         }
     }
 
-    /** zh-CN 工具名（对齐前端 agentStream.tools；tool_display.go L21-60）。 */
+    /** zh-CN 工具名（对齐前端 agentStream.tools）。 */
     static String imLocalizedToolName(String toolName) {
         String name = IM_TOOL_NAME_LABELS.get(toolName);
         if (name != null) {
@@ -111,7 +110,7 @@ public final class ToolDisplay {
         if (rest.isEmpty()) {
             return rawName;
         }
-        // Go strings.Split + Join：空段也占一位（"a__b" → "A  B" 双空格），逐字保留。
+        // 按 "_" 切分时空段也占一位（"a__b" → "A  B" 双空格）。
         String[] parts = rest.split("_", -1);
         String[] out = new String[parts.length];
         for (int i = 0; i < parts.length; i++) {
@@ -121,7 +120,7 @@ public final class ToolDisplay {
         return String.join(" ", out);
     }
 
-    // ── 参数/数据提取（tool_display.go L77-226） ─────────────────────────
+    // ── 参数/数据提取 ────────────────────────────────────────────────────
 
     private static List<String> collectQueryStrings(Object value) {
         if (value == null) {
@@ -160,7 +159,7 @@ public final class ToolDisplay {
         return null;
     }
 
-    /** args 可以是已解析的 map，也可以是 JSON 字符串（对照 Go 的 any 断言链）。 */
+    /** args 可以是已解析的 map，也可以是 JSON 字符串。 */
     private static Map<String, Object> asRecord(Object args) {
         if (args instanceof String s) {
             try {
@@ -280,7 +279,7 @@ public final class ToolDisplay {
         return base + "：「" + String.join("、", display) + more + "」";
     }
 
-    // ── 行格式化（tool_display.go L249-307） ─────────────────────────────
+    // ── 行格式化 ─────────────────────────────────────────────────────────
 
     /** agent 工具步一行（无 emoji；对齐 Web getToolTitle）。 */
     public static String formatIMToolLine(IMToolStep step) {
@@ -336,7 +335,7 @@ public final class ToolDisplay {
         }
     }
 
-    // ── 标题族（tool_display.go L309-487） ───────────────────────────────
+    // ── 标题族 ───────────────────────────────────────────────────────────
 
     private static String imSandboxMutationTitle(IMToolStep step, boolean pending) {
         String name = imLocalizedToolName(step.toolName);
@@ -535,7 +534,7 @@ public final class ToolDisplay {
             }
     }
 
-    // ── 汇总行（tool_display.go L542-732） ───────────────────────────────
+    // ── 汇总行 ───────────────────────────────────────────────────────────
 
     static final String RETRIEVAL_SOURCE_KNOWLEDGE = "knowledge";
     static final String RETRIEVAL_SOURCE_WEB = "web";
@@ -730,7 +729,7 @@ public final class ToolDisplay {
         return b.substring(0, end);
     }
 
-    // ── briefToolSummary（service.go L2452-2481，纯函数所以放这里共享） ────
+    // ── 工具输出短摘要（纯函数，供多处共享） ──────────────────────────────
 
     /** 从工具输出提取一行短摘要；结构化数据（JSON/XML）与空输出返回空。 */
     public static String briefToolSummary(String output) {

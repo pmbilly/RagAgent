@@ -1,10 +1,10 @@
 package com.ragagent.chatpipeline;
 
 /**
- * 会话的模型调用配置（对照 Go {@code types.SummaryConfig}，internal/types/session.go:22-52）。
+ * 会话的模型调用配置。
  *
- * <p>仅作管线内部的配置载体（Java 的 session 域未翻这个类型）；字段与 Go 声明序一致。
- * {@code thinking} 是三态 Boolean（Go 的 *bool，null=由模型默认决定）。</p>
+ * <p>仅作管线内部的配置载体。
+ * {@code thinking} 是三态 Boolean（null=由模型默认决定）。</p>
  */
 public final class SummaryConfig {
 
@@ -61,7 +61,7 @@ public final class SummaryConfig {
     public Boolean getThinking() { return thinking; }
     public void setThinking(Boolean v) { thinking = v; }
 
-    /** 值拷贝（对照 Go 的结构体值语义：Clone 时 SummaryConfig 按值复制）。 */
+    /** 值拷贝（各字段独立复制）。 */
     public SummaryConfig copy() {
         SummaryConfig c = new SummaryConfig();
         c.maxTokens = maxTokens;

@@ -15,15 +15,14 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * {@code memory_item_embeddings} 的仓储（对照 Go internal/application/repository/memory.go
- * L481-586 与 memory_vector.go 全部）。
+ * {@code memory_item_embeddings} 的仓储。
  *
  * <h2>⚠️ 主键是 {@code item_id}，不是 {@code id}</h2>
  * <p>upsert 的冲突靶子是 {@code item_id}（PG 上就是主键）。</p>
  *
  * <h2>⚠️ {@code embedding} 列刻意不映射进实体</h2>
  * <p>它是 pgvector 的 {@code halfvec}，只在装了 extension 的 PG 上存在
- * （迁移 000095 条件创建）。Go 只用裸 SQL 碰它，Java 侧同理——
+ * （迁移 000095 条件创建）。只用裸 SQL 碰它——
  * 写进实体会让 H2 上的 insert 直接炸。所以下面两条向量 SQL 都用
  * {@code @Select}/{@code @Update} 的裸 SQL，且只在 {@code vectorColumnReady()} 为真时调用。</p>
  *
@@ -50,7 +49,7 @@ public interface MemoryItemEmbeddingMapper extends BaseMapper<MemoryItemEmbeddin
      * H2 没有 {@code ON CONFLICT}：先删后插。
      *
      * <p>语义与 PG 的 {@code DO UPDATE} 有细微差别——这里的 created_at 会被重置
-     * （Go 的 {@code DoUpdates} 列集里**没有** created_at，所以 PG 上它保持原值）。
+     * （PG 的 {@code DO UPDATE} 列集里**没有** created_at，所以 PG 上它保持原值）。
      * 为对齐这一点，仓储层在走这条路时会把已有的 created_at 读出来带上。</p>
      */
     @Insert("INSERT INTO memory_item_embeddings "
@@ -157,7 +156,7 @@ public interface MemoryItemEmbeddingMapper extends BaseMapper<MemoryItemEmbeddin
      * 对照 {@code rankInDatabase}：让数据库自己按余弦距离排序、只回前 k 条。
      *
      * <p><b>只在 {@code vectorColumnReady()} 为真时调用</b>（{@code embedding} 列与
-     * {@code <=>} 运算符都是 pgvector 才有的东西）。SQL 逐字对照 Go：</p>
+     * {@code <=>} 运算符都是 pgvector 才有的东西）。SQL：</p>
      * <ul>
      *   <li>JOIN 条件同时带 {@code tenant_id}/{@code subject_id}——只按 id 连会跨主体；</li>
      *   <li>{@code e.dims = ?} 用**查询向量的长度**，与其它模型的向量不混算；</li>
@@ -166,7 +165,7 @@ public interface MemoryItemEmbeddingMapper extends BaseMapper<MemoryItemEmbeddin
      * </ul>
      *
      * <p>⚠️ 这条路径**没有测试覆盖**：H2 上没有 pgvector，测试恒走
-     * {@code rankInProcess} 兜底（与 Go 在 SQLite 上的情形一致）。</p>
+     * {@code rankInProcess} 兜底。</p>
      */
     @Select("<script>"
             + "SELECT e.item_id AS item_id, "

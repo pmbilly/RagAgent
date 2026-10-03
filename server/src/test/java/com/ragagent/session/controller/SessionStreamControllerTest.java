@@ -39,10 +39,9 @@ import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;
 
 /**
- * {@code continue-stream} 端点的行为契约（对照 Go {@code stream.go} 的
- * {@code ContinueStream}）。
+ * {@code continue-stream} 端点的行为契约。
  *
- * <p>重点是<b>错误映射</b>与<b>帧序列</b>：Go 在这条路径上有四种互不相同的失败
+ * <p>重点是<b>错误映射</b>与<b>帧序列</b>：这条路径上有四种互不相同的失败
  * （两种 404 文案不同、一种 400、一种 403），还有"已经完成就只回放不进轮询"这条分支。
  * 这些都不是能从直觉推出来的。</p>
  */
@@ -59,7 +58,7 @@ class SessionStreamControllerTest {
     private SessionStreamController controller;
 
     /**
-     * 与线上等价的 mapper：**必须**带上 Go 的转义表（线上由 {@code JacksonConfig} 全局装）。
+     * 与线上等价的 mapper：**必须**带上那套 HTML 转义表（线上由 {@code JacksonConfig} 全局装）。
      * {@code SseFrameWriterTest} 用容器里的真 bean 覆盖这条；这里只是为了让控制器测试
      * 不必启动整个 Spring 上下文。
      */
@@ -181,8 +180,8 @@ class SessionStreamControllerTest {
     }
 
     /**
-     * 消息不存在时用的是 {@code gorm.ErrRecordNotFound.Error()} 的原文
-     * ——{@code "record not found"}，**不是** {@code "message not found"}。
+     * 消息不存在时的文案是 {@code "record not found"}，
+     * **不是** {@code "message not found"}。
      */
     @Test
     void messageNotFoundIs404WithGormWording() {
@@ -272,7 +271,7 @@ class SessionStreamControllerTest {
 
     // ── 辅助函数 ────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code secutils.SanitizeForLog}：换行/制表归一成空格，其余控制字符丢弃。 */
+    /** {@code sanitizeForLog}：换行/制表归一成空格，其余控制字符丢弃。 */
     @Test
     void sanitizeForLogMatchesGo() {
         assertThat(SessionStreamController.sanitizeForLog("a\nb")).isEqualTo("a b");

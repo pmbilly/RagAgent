@@ -39,7 +39,7 @@ final class HybridFusionOps {
         this.service = service;
     }
 
-    // ── 融合（knowledgebase_search_fusion.go 全文） ──────────────────────
+    // ── 融合 ─────────────────────────────────────────────────────────────
 
     static List<PgVectorRetrieveRepository.IndexHit> fuseOrDeduplicate(
             List<PgVectorRetrieveRepository.IndexHit> vectorResults,
@@ -74,7 +74,7 @@ final class HybridFusionOps {
         return deduped;
     }
 
-    /** 对照 fuseWithRRF：RRF = vW/(k+vRank) + kW/(k+kRank)，rank 1-indexed。 */
+    /** RRF 融合：vW/(k+vRank) + kW/(k+kRank)，rank 1-indexed。 */
     static List<PgVectorRetrieveRepository.IndexHit> fuseWithRRF(
             List<PgVectorRetrieveRepository.IndexHit> vectorResults,
             List<PgVectorRetrieveRepository.IndexHit> keywordResults,
@@ -122,7 +122,7 @@ final class HybridFusionOps {
         return result;
     }
 
-    // ── FAQ 后处理（knowledgebase_search_faq.go，现按 storeGroups） ────────
+    // ── FAQ 后处理（按 storeGroups 扇出） ─────────────────────────────────
 
     List<PgVectorRetrieveRepository.IndexHit> applyFaqPostProcessing(
             KnowledgeBaseSearchFacts primary, List<PgVectorRetrieveRepository.IndexHit> chunks,
@@ -143,12 +143,12 @@ final class HybridFusionOps {
     static boolean needsIterativeRetrieval(SearchParams params, int matchCount,
             List<PgVectorRetrieveRepository.IndexHit> chunks,
             List<PgVectorRetrieveRepository.IndexHit> vectorResults) {
-        // 对照 _faq.go L40：唯一 chunk 不足 且 首轮向量结果打满 over-retrieval 池。
+        // 触发条件：唯一 chunk 不足 且 首轮向量结果打满 over-retrieval 池。
         return chunks.size() < params.getMatchCount() && vectorResults.size() == matchCount;
     }
 
     /**
-     * 对照 iterativeRetrieveWithDeduplication（_faq.go L55-191）：只涨各组的 TopK，
+     * 迭代取回去重：只涨各组的 TopK，
      * 引擎与分组在上游算好复用；类型化失败（2201）上抛，瞬时故障 WARN 后带部分结果退出。
      */
     List<PgVectorRetrieveRepository.IndexHit> iterativeRetrieveWithDeduplication(
@@ -243,7 +243,7 @@ final class HybridFusionOps {
         }
     }
 
-    /** 对照 matchesNegativeQuestions：子串命中即负例。 */
+    /** 子串命中即负例。 */
     static boolean matchesNegativeQuestions(String queryTextLower, List<String> negativeQuestions) {
         if (negativeQuestions == null || negativeQuestions.isEmpty()) {
             return false;

@@ -29,7 +29,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * Milvus 驱动（W5γ4.14）对照 Go {@code retriever/milvus/} 全包：惰性建集合
+ * Milvus 驱动：惰性建集合
  * （BM25 函数 + 稀疏列 + indexParams 内联 + load）、行式 Upsert、{@code field in [...]}
  * 删除、enabled/tag 的"查整行→改字段→回写"（enabled 失败聚合冒泡 / tag 失败只 WARN）、
  * 向量 search（radius 范围）与 BM25 文本 search（data 为字符串）、CopyIndices 的 offset
@@ -347,7 +347,7 @@ class MilvusRetrieveRepositoryTest {
         assertThat(body.path("limit").asInt()).isEqualTo(5);
         assertThat(body.path("outputFields").get(0).asText()).isEqualTo("*");
         assertThat(body.path("searchParams").path("radius").asDouble()).isEqualTo(0.7);
-        // 逻辑连接是左结合全括号（照 Go 的 (a) and (b) 形状）
+        // 逻辑连接是左结合全括号
         assertThat(body.path("filter").asText()).isEqualTo(
                 "((knowledge_base_id in [\"kb1\"]) and (chunk_id not in [\"c9\"])) "
                         + "and (is_enabled == true)");

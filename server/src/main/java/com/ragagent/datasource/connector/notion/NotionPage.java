@@ -7,21 +7,19 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Notion 的 page / database / data_source 三种对象共用的形状
- * （对照 Go {@code notionPage}，types.go L54-71）。
+ * Notion 的 page / database / data_source 三种对象共用的形状。
  *
  * <p><b>内部 API 形状，不是契约</b>：只进出于 Notion API 的 JSON，从不落 jsonb、
  * 从不作 HTTP 响应体。</p>
  *
- * <h2>三个必须照抄的点</h2>
+ * <h2>三个关键点</h2>
  * <ol>
- *   <li><b>{@code Title} 是 {@code json:"-"}</b>：它不是 API 字段，而是
- *       {@code extractTitle} 在反序列化之后填进去的派生值。Java 侧标 {@link JsonIgnore}
- *       ——字段名叫 {@code title} 会与 {@link #rawTitle} 的 {@code "title"} 抢同一个
- *       属性名（Go 里靠 {@code json:"-"} 避开，这里同理）。</li>
- *   <li><b>{@code RawTitle} 是**顶层** {@code title} 数组</b>（数据库对象用它，
- *       页面对象用 {@code properties}）。Go 的 {@code omitempty} 只影响写出。</li>
- *   <li><b>{@code RawProperties} 保留原始 JSON</b>：后续 {@code extractTitle} /
+ *   <li><b>{@code title} 派生字段标 {@link JsonIgnore}</b>：它不是 API 字段，而是
+ *       {@code extractTitle} 在反序列化之后填进去的派生值——字段名叫 {@code title}
+ *       会与 {@link #rawTitle} 的 {@code "title"} 抢同一个属性名。</li>
+ *   <li><b>{@code rawTitle} 是**顶层** {@code title} 数组</b>（数据库对象用它，
+ *       页面对象用 {@code properties}）。</li>
+ *   <li><b>{@code rawProperties} 保留原始 JSON</b>：后续 {@code extractTitle} /
  *       {@code extractPropertySchema} / {@code propertyToString} 都在这棵原始树上做
  *       "按文档序取第一个 title"与"按名字取值"，而不是反序列化成强类型——
  *       这正是这些函数"通用、不硬编码 22 种属性"的原因。</li>
@@ -43,9 +41,8 @@ public final class NotionPage {
     public String url;
 
     /**
-     * 值类型语义：Notion 若省了这个字段，Go 留下零值 {@code time.Time}，
-     * {@code FetchedItem.UpdatedAt} 便会写出 {@code "0001-01-01T00:00:00Z"}。
-     * Java 侧保持 {@code null} 由 {@code FetchedItem} 的 setter 归一成 Go 零值，
+     * Notion 若省了这个字段，这里保持 {@code null}，
+     * {@code FetchedItem.UpdatedAt} 随后归一成零值 {@code "0001-01-01T00:00:00Z"}，
      * 判定"有没有时间"用 {@code != null}。
      */
     @JsonProperty("last_edited_time")
@@ -54,7 +51,7 @@ public final class NotionPage {
     @JsonProperty("in_trash")
     public boolean inTrash;
 
-    /** 由 {@code extractTitle} 填；对照 Go 的 {@code json:"-"}。 */
+    /** 由 {@code extractTitle} 填（不参与 JSON）。 */
     @JsonIgnore
     public String title;
 
@@ -89,7 +86,7 @@ public final class NotionPage {
         return parent == null ? new NotionParent() : parent;
     }
 
-    /** 对照 Go {@code (*notionPage).isDatabase}：database 与 data_source 都算。 */
+    /** database 与 data_source 都算。 */
     public boolean isDatabase() {
         String obj = object();
         return "database".equals(obj) || "data_source".equals(obj);

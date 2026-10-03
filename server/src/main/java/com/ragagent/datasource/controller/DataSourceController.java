@@ -29,29 +29,26 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 数据源管理端点（对照 Go {@code internal/handler/datasource.go} 全文，
- * 路由对照 {@code internal/router/routes_infra.go} 的 {@code RegisterDataSourceRoutes}
- * L292-333）。
+ * 数据源管理端点。
  *
  * <h2>错误形态：纯字符串 {@code {"error":"..."}}，不是 AppError 信封</h2>
- * <p>本文件的 handler <b>全部</b>用 {@code c.JSON(status, gin.H{"error": msg})} 直写
- * ——没有一处走 {@code c.Error(...)}，所以线上永远是 {@code {"error":"..."}} 单键。
- * 凭据子资源那个文件（{@code datasource_credentials.go}）走的是 AppError 信封，
+ * <p>本类的 handler <b>全部</b>直写 {@code {"error": msg}} 单键体，
+ * 所以线上永远是 {@code {"error":"..."}} 单键。
+ * 凭据子资源控制器（{@code DataSourceCredentialsController}）走的是 AppError 信封，
  * <b>两者形态不同，别统一</b>。</p>
  *
  * <h2>鉴权分三层，缺一不可</h2>
  * <ol>
- *   <li><b>角色</b>：{@code routes_infra.go} 里读端 Viewer+、其余 Admin+（见 WebConfig）；</li>
+ *   <li><b>角色</b>：读端 Viewer+、其余 Admin+（见 WebConfig）；</li>
  *   <li><b>租户归属</b>：{@link #ownDataSource} —— 数据源持有外部服务的凭据，
  *       只有属主租户能碰；</li>
  *   <li><b>API-Key 的 KB 白名单</b>：{@code AuthorizeTenantAPIKeyKnowledgeBases}，
- *       写在 {@link #ownKnowledgeBase} 里（所有端点都经过它，一处覆盖全部；
- *       Go 侧也是集中在 {@code getOwnedKnowledgeBase} 一处）。</li>
+ *       写在 {@link KnowledgeBaseOwnerGuard} 里（所有端点都经过它，一处覆盖全部）。</li>
  * </ol>
  *
  * <h2>为什么每个端点都自己取一次租户</h2>
- * <p>Go 里是每个 handler 开头都 {@code c.GetUint64(TenantIDContextKey)} 并判 0 → 401。
- * Java 侧照抄这个形状而不是抽成切面：401 的<b>文案在两组端点里不同</b>
+ * <p>每个端点开头都取当前租户并判 0 → 401，不抽成切面：
+ * 401 的<b>文案在两组端点里不同</b>
  * （create/list 是 {@code "unauthorized: workspace context missing"}，其余是
  * {@code "unauthorized"}），抽公共方法反而要额外传参。</p>
  */
@@ -59,14 +56,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class DataSourceController {
 
     /**
-     * 请求体解析器：{@code FAIL_ON_UNKNOWN_PROPERTIES=false} 对齐 Go 的
-     * {@code encoding/json}（默认忽略未知字段）。Jackson 的裸配置默认会<b>失败</b>
-     * ——前端多带一个字段就整条 400 是这里最不该发生的事（§7.5 第 6 条的同族坑）。</p>
+     * 请求体解析器：{@code FAIL_ON_UNKNOWN_PROPERTIES=false}
+     * （默认忽略未知字段）。Jackson 的裸配置默认会<b>失败</b>
+     * ——前端多带一个字段就整条 400 是这里最不该发生的事。</p>
      */
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    /** 对照 Go {@code handler/list_pagination.go} L15 的 {@code maxListPageSize}。 */
+    /** 列表分页的最大页大小。 */
     static final int MAX_LIST_PAGE_SIZE = 100;
 
     private final DataSourceService service;
@@ -80,11 +77,10 @@ public class DataSourceController {
     // ══════════════════════════ 连接器目录 ══════════════════════════
 
     /**
-     * 对照 Go {@code GetAvailableConnectors}（L609-612）。
+     * 列出可用连接器。
      *
-     * <p>返回<b>裸数组</b>（没有 data/success 信封），元素是 {@link ConnectorMetadata}。
-     * ⚠️ Go 的实现先遍历 map（随机序）再做<b>稳定</b>插入排序，于是同优先级的条目
-     * 顺序每次调用都不同——这条响应在 Go 侧本来就不可能逐字节复现。Java 用声明序，
+     * <p>返回<b>裸数组</b>（没有 data/success 信封），元素是 {@link ConnectorMetadata}，
+     * 按优先级做<b>稳定</b>排序（同优先级保持声明序）。
      * 比对时按 type 建索引，别按下标比（见 {@link ConnectorCatalog}）。</p>
      */
     @GetMapping("/api/v1/datasource/types")
@@ -95,7 +91,7 @@ public class DataSourceController {
     // ══════════════════════════ CRUD ══════════════════════════
 
     /**
-     * 对照 Go {@code CreateDataSource}（L91-122）：成功是 <b>201</b> Created。
+     * 新建数据源：成功是 <b>201</b> Created。
      *
      * <p>顺序：租户 → 解析请求体（400 {@code invalid request}）→ 知识库归属
      * （400/403/404）→ 强制 {@code req.TenantID = tenantID} → service。
@@ -125,7 +121,7 @@ public class DataSourceController {
         return ResponseEntity.status(201).body(DataSourceResponse.from(ds));
     }
 
-    /** 对照 Go {@code GetDataSource}（L133-150）。 */
+    /** 查询单个数据源。 */
     @GetMapping("/api/v1/datasource/{id}")
     public ResponseEntity<?> getDataSource(@PathVariable("id") String id) {
         Long tenantId = TenantContext.currentTenantId();
@@ -140,10 +136,9 @@ public class DataSourceController {
     }
 
     /**
-     * 对照 Go {@code ListDataSources}（L161-186）。
+     * 列出数据源。
      *
-     * <p>⚠️ 空列表输出 {@code []} 而不是 {@code null}——Go 显式做了
-     * {@code if dataSources == nil { dataSources = make(...) }}。Java 侧仓储本来就回
+     * <p>⚠️ 空列表输出 {@code []} 而不是 {@code null}——仓储本来就回
      * 空列表，这里再兜一次是为了不依赖下游的实现细节。</p>
      */
     @GetMapping("/api/v1/datasource")
@@ -172,7 +167,7 @@ public class DataSourceController {
     }
 
     /**
-     * 对照 Go {@code UpdateDataSource}（L199-231）。
+     * 更新数据源。
      *
      * <p>顺序有一个<b>容易写错的细节</b>：先解析请求体、<b>再</b>查归属。
      * 所以"非法 JSON + 不存在的数据源"返回的是 400 {@code invalid request}，不是 404。</p>
@@ -207,7 +202,7 @@ public class DataSourceController {
         return ResponseEntity.ok(DataSourceResponse.from(ds));
     }
 
-    /** 对照 Go {@code DeleteDataSource}（L241-262）：成功是 <b>204</b>，无响应体。 */
+    /** 删除数据源：成功是 <b>204</b>，无响应体。 */
     @DeleteMapping("/api/v1/datasource/{id}")
     public ResponseEntity<?> deleteDataSource(@PathVariable("id") String id) {
         Long tenantId = TenantContext.currentTenantId();
@@ -228,7 +223,7 @@ public class DataSourceController {
 
     // ══════════════════════════ 连接与资源 ══════════════════════════
 
-    /** 对照 Go {@code ValidateConnection}（L272-293）：成功回 {@code {"status":"connected"}}。 */
+    /** 校验已存连接：成功回 {@code {"status":"connected"}}。 */
     @PostMapping("/api/v1/datasource/{id}/validate")
     public ResponseEntity<?> validateConnection(@PathVariable("id") String id) {
         Long tenantId = TenantContext.currentTenantId();
@@ -248,11 +243,10 @@ public class DataSourceController {
     }
 
     /**
-     * 对照 Go {@code ValidateCredentials}（L309-332）：用裸凭据试连，<b>不落库</b>。
+     * 用裸凭据试连，<b>不落库</b>。
      *
      * <p>请求体缺失/解析失败/字段缺一，都回<b>同一句</b>
-     * {@code invalid request: type and credentials are required}——Go 里 bind 失败与
-     * 字段校验是同一条语句。</p>
+     * {@code invalid request: type and credentials are required}。</p>
      */
     @PostMapping("/api/v1/datasource/validate-credentials")
     public ResponseEntity<?> validateCredentials(@RequestBody(required = false) String rawBody) {
@@ -268,7 +262,7 @@ public class DataSourceController {
         } catch (Exception ignored) {
             req = null;
         }
-        // 对照 gin 的 binding:"required"：字符串判空、map 判 nil（空 map 是合法的）
+        // 字段校验：字符串判空、map 判 null（空 map 是合法的）
         if (req == null || req.type() == null || req.type().isEmpty() || req.credentials() == null) {
             return error(400, "invalid request: type and credentials are required");
         }
@@ -280,12 +274,12 @@ public class DataSourceController {
         return ResponseEntity.ok(statusBody("connected"));
     }
 
-    /** 对照 Go 的匿名请求结构体 {@code struct{Type string; Credentials map}}。 */
+    /** 试连请求体（{@code type} + {@code credentials}）。 */
     record ValidateCredentialsRequest(String type, Map<String, Object> credentials) {
     }
 
     /**
-     * 对照 Go {@code ListAvailableResources}（L343-369）。
+     * 列出可同步资源。
      *
      * <p>{@code parent_id} 为空串即列顶层——这是"惰性加载层级资源"（飞书 wiki 这种
      * 大源）的入口。空列表同样归一成 {@code []}。</p>
@@ -312,11 +306,11 @@ public class DataSourceController {
     }
 
     /**
-     * 对照 Go {@code ResolveResourceAncestors}（L381-412）。
+     * 解析资源祖先。
      *
-     * <p>⚠️ 请求体解析失败时 Go 回的是 {@code err.Error()}——<b>encoding/json 的原文</b>
-     * （例如 {@code invalid character 'o' in literal null}）。Java 的 Jackson 措辞不同，
-     * 这是既有的已知差异族（§9 阶段 1 差异 #2），契约测试掩码该字段。</p>
+     * <p>⚠️ 请求体解析失败时直接回解析器的原文
+     * （例如 {@code invalid character 'o' in literal null}），不同解析器措辞不同，
+     * 契约测试掩码该字段。</p>
      */
     @PostMapping("/api/v1/datasource/{id}/resource-ancestors")
     public ResponseEntity<?> resolveResourceAncestors(@PathVariable("id") String id,
@@ -348,14 +342,14 @@ public class DataSourceController {
         return ResponseEntity.ok(body);
     }
 
-    /** 对照 Go {@code resolveAncestorsRequest}（**没有** binding tag，字段可缺）。 */
+    /** 资源祖先请求体（{@code resourceIds} 字段可缺）。 */
     record ResolveAncestorsRequest(List<String> resourceIds) {
     }
 
     // ══════════════════════════ 同步控制 ══════════════════════════
 
     /**
-     * 对照 Go {@code ManualSync}（L427-449）：返回新建的 sync_log 裸实体。
+     * 手动触发同步：返回新建的 sync_log 裸实体。
      *
      * <p>注意两条 400 的文案不同：数据源不存在（404 {@code data source not found}）
      * 与状态不允许（400 {@code data source is not active}）——别合并。</p>
@@ -379,7 +373,7 @@ public class DataSourceController {
         return ResponseEntity.ok(syncLog);
     }
 
-    /** 对照 Go {@code PauseDataSource}（L459-480）。 */
+    /** 暂停数据源。 */
     @PostMapping("/api/v1/datasource/{id}/pause")
     public ResponseEntity<?> pauseDataSource(@PathVariable("id") String id) {
         Long tenantId = TenantContext.currentTenantId();
@@ -398,7 +392,7 @@ public class DataSourceController {
         return ResponseEntity.ok(statusBody("paused"));
     }
 
-    /** 对照 Go {@code ResumeDataSource}（L490-511）。 */
+    /** 恢复数据源。 */
     @PostMapping("/api/v1/datasource/{id}/resume")
     public ResponseEntity<?> resumeDataSource(@PathVariable("id") String id) {
         Long tenantId = TenantContext.currentTenantId();
@@ -420,11 +414,11 @@ public class DataSourceController {
     // ══════════════════════════ 同步日志 ══════════════════════════
 
     /**
-     * 对照 Go {@code GetSyncLogs}（L524-567）。
+     * 查询同步日志列表。
      *
      * <p>分页参数<b>不</b>容错：{@code limit} 只要给了就必须落在 1..100，否则 400
-     * （注意这与 memory 模块那个"非法 limit 一律归 50"是<b>相反</b>的处置——
-     * Go 在这里显式写了错误分支）。{@code offset} 反而容错：解析失败或为负都归 0。</p>
+     * （注意这与 memory 模块那个"非法 limit 一律归 50"是<b>相反</b>的处置）。
+     * {@code offset} 反而容错：解析失败或为负都归 0。</p>
      */
     @GetMapping("/api/v1/datasource/{id}/logs")
     public ResponseEntity<?> getSyncLogs(@PathVariable("id") String id,
@@ -465,7 +459,7 @@ public class DataSourceController {
     }
 
     /**
-     * 对照 Go {@code GetSyncLog}（L578-600）。
+     * 查询单条同步日志。
      *
      * <p>⚠️ 判定顺序有语义：<b>先</b>按 log_id 查（查不到 → 404
      * {@code sync log not found}），<b>再</b>校验它所属数据源的租户归属。所以
@@ -497,7 +491,7 @@ public class DataSourceController {
     }
 
     /**
-     * 对照 Go {@code DataSourceHandler.getOwnedDataSource}（L64-79）：
+     * 归属判定：
      * 先按 id 取数据源（取不到 → 404 {@code data source not found}），
      * 再校验它所属的知识库归属。
      *
@@ -522,8 +516,8 @@ public class DataSourceController {
     // ══════════════════════════ 工具 ══════════════════════════
 
     /**
-     * 对照 Go {@code c.ShouldBindJSON(&req)}：空 body 与非法 JSON 都回
-     * {@code invalid request}（本文件的 handler 只用这一句，不像凭据那个文件会带上
+     * 解析请求体：空 body 与非法 JSON 都回
+     * {@code invalid request}（本类的 handler 只用这一句，不像凭据那个控制器会带上
      * 解析器原文）。
      */
     private static DataSource parseDataSource(String rawBody) {
@@ -545,14 +539,14 @@ public class DataSourceController {
         }
     }
 
-    /** 对照 Go 的 {@code gin.H{"status": "..."}}（单键）。 */
+    /** 单键 {@code {"status": "..."}}。 */
     static Map<String, Object> statusBody(String status) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("status", status);
         return body;
     }
 
-    /** 对照 Go 的 {@code gin.H{"error": msg}}。 */
+    /** 单键 {@code {"error": msg}}。 */
     static ResponseEntity<Map<String, Object>> error(int status, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", message == null ? "" : message);
@@ -560,12 +554,11 @@ public class DataSourceController {
     }
 
     /**
-     * 知识库归属 + API-Key KB 白名单的联合守卫（对照 Go
-     * {@code DataSourceHandler.getOwnedKnowledgeBase} L40-62）。
+     * 知识库归属 + API-Key KB 白名单的联合守卫。
      *
-     * <p>抽成独立 bean 而不是 controller 的私有方法：凭据子资源那个 handler 也要用
-     * 同一套判定（Go 那边是复制了一份 {@code ownDataSource}，两份的<b>错误形态已经
-     * 不同</b>——本类回纯字符串，那个回 AppError 信封，所以只共享知识库这一层）。</p>
+     * <p>抽成独立 bean 而不是 controller 的私有方法：凭据子资源那个控制器也要用
+     * 同一套知识库判定（两个控制器的<b>错误形态不同</b>——本类回纯字符串，
+     * 那个回 AppError 信封，所以只共享这一层）。</p>
      */
     @org.springframework.stereotype.Component
     public static class KnowledgeBaseOwnerGuard {
@@ -586,10 +579,9 @@ public class DataSourceController {
                 return error(400, "kb_id is required");
             }
             // ⚠️ 这里**不能**用 kbService.getKnowledgeBase(id)：那个方法带租户过滤，
-            // 会把"库不存在"与"库属于别人"压成同一个 404，而 Go 侧是
+            // 会把"库不存在"与"库属于别人"压成同一个 404；本守卫要保持
             // 404（不存在）与 403（存在但属别人）两种应答——跨租户探测的形态不同。
-            // Go 的 repo.GetKnowledgeBaseByID 本身也不带租户条件，故走同一口径的
-            // KnowledgeBridge.findKnowledgeBase。
+            // 故走不带租户条件的 KnowledgeBridge.findKnowledgeBase。
             KnowledgeBase kb = knowledge.findKnowledgeBase(kbId);
             if (kb == null) {
                 return error(404, "knowledge base not found");

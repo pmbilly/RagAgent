@@ -436,7 +436,7 @@ class ChunkEditServiceTest {
         knowledge(DOC, KB);
         Chunk c = chunk(DOC, "body");
 
-        // Go：gorm.ErrRecordNotFound 原文 → RevertChunk handler 包 400
+        // 未知 revision → 400，message 为 "record not found" 原文
         assertThatThrownBy(() -> service.revertDocumentChunk(c.getId(), 9, null))
                 .isInstanceOfSatisfying(BizException.class, e -> {
                     assertThat(e.appError().httpCode()).isEqualTo(400);
@@ -566,7 +566,7 @@ class ChunkEditServiceTest {
         Chunk c = chunk(DOC, "body");
 
         // 模型在、出站不可达（测试模型 baseUrl=127.0.0.1:1）→ 上层标 index_status=failed
-        // 并返回 chunk（不抛）——Go 在 BatchIndex 失败时同款（index_status=failed 仍落库）
+        // 并返回 chunk（不抛）——index_status=failed 仍落库
         Chunk out = service.updateDocumentChunk(c.getId(), "edited", null, null);
         assertThat(out.getIndexStatus()).isEqualTo("failed");
         assertThat(indexStatus(c.getId())).isEqualTo("failed");

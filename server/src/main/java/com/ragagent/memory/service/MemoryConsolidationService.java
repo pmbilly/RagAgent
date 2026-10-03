@@ -28,8 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 整仓回顾：把同一个主体近重复的记忆折成一条，并把搁置太久的任务降级
- * （对照 Go {@code internal/application/service/memory/consolidate.go} 全文）。
+ * 整仓回顾：把同一个主体近重复的记忆折成一条，并把搁置太久的任务降级。
  *
  * <h2>为什么是独立的一趟</h2>
  * <p>蒸馏只看得到最新的那段对话，这对单轮是正确的范围，对"注意到三周里五轮
@@ -46,37 +45,37 @@ public class MemoryConsolidationService {
     private static final Logger log = LoggerFactory.getLogger(MemoryConsolidationService.class);
 
     /**
-     * 对照 Go {@code consolidateInterval}：两次整仓回顾之间的最小间隔。
+     * 两次整仓回顾之间的最小间隔。
      * 这是维护，不是用户在等的功能，而且每次运行都花一次模型调用，所以刻意低频。
      */
     static final Duration CONSOLIDATE_INTERVAL = Duration.ofHours(24);
 
     /**
-     * 对照 Go {@code forcedConsolidateInterval}：用户主动要求的两次回顾之间的地板。
+     * 用户主动要求的两次回顾之间的地板。
      * 短到真正的重试（修好模型、再按一次）不被挡住，长到按钮无法被脚本化成
      * 一串模型调用。
      */
     static final Duration FORCED_CONSOLIDATE_INTERVAL = Duration.ofMinutes(1);
 
     /**
-     * 对照 Go {@code consolidateMinItems}：低于这个仓库存量就没有值得回顾的东西
+     * 低于这个仓库存量就没有值得回顾的东西
      * ——一把记忆不可能已经漂移出矛盾。
      */
     static final int CONSOLIDATE_MIN_ITEMS = 6;
 
-    /** 对照 Go {@code consolidateMaxClusters}：一次回顾的模型调用上限。 */
+    /** 一次回顾的模型调用上限。 */
     static final int CONSOLIDATE_MAX_CLUSTERS = 3;
-    /** 对照 Go {@code forcedMaxClusters}。 */
+    /** 用户主动要求的回顾的模型调用上限（比每日那趟宽）。 */
     static final int FORCED_MAX_CLUSTERS = 8;
 
     /**
-     * 对照 Go {@code consolidateMinOverlap}：两条记忆要共享多少措辞，
+     * 两条记忆要共享多少措辞，
      * 每日那一趟才肯花一次模型调用去比较它们。
      */
     static final double CONSOLIDATE_MIN_OVERLAP = 0.55;
 
     /**
-     * 对照 Go {@code forcedMinOverlap}：用户主动要求的回顾用的同一道门槛。
+     * 用户主动要求的回顾用的同一类措辞重合门槛。
      *
      * <p><b>刻意低</b>。候选选取是**召回**，不是判断——每一组都会被交给模型，
      * 而模型在发现这些记录其实是不同的事时会回一句空话。严门槛只会把成对的东西
@@ -86,17 +85,17 @@ public class MemoryConsolidationService {
      */
     static final double FORCED_MIN_OVERLAP = 0.3;
 
-    /** 对照 Go {@code consolidateMinCosine} / {@code forcedMinCosine}。 */
+    /** 余弦相似度门槛：每日 / 用户主动。 */
     static final double CONSOLIDATE_MIN_COSINE = 0.86;
     static final double FORCED_MIN_COSINE = 0.75;
 
     /**
-     * 对照 Go {@code staleTaskAge}：一个任务可以被无视多久之后不再争抢空间。
+     * 一个任务可以被无视多久之后不再争抢空间。
      * "我这周在重构支付"这一周值得召回，三个月后就是误导。
      */
     static final Duration STALE_TASK_AGE = Duration.ofDays(45);
 
-    /** 对照 Go {@code consolidationSystemPrompt}（逐字照抄）。 */
+    /** 整理任务的系统提示词（内容是固定契约）。 */
     static final String CONSOLIDATION_SYSTEM_PROMPT = """
             你在整理一个人的长期记忆。下面几条记录说的是同一件事，请合并成一条。
 
@@ -108,7 +107,7 @@ public class MemoryConsolidationService {
             - 只输出 JSON：{"statement":"合并后的一句话"}
             - 如果这些记录其实不是同一件事，输出 {"statement":""}。""";
 
-    /** 对照 Go {@code consolidationSchema}。 */
+    /** 整理任务的响应 schema。 */
     static final String CONSOLIDATION_SCHEMA = """
             {
               "type": "object",
@@ -132,7 +131,7 @@ public class MemoryConsolidationService {
     }
 
     /**
-     * 对照 Go {@code consolidateIfDue}：最多一天一次地回顾一个主体的整个仓库。
+     * 最多一天一次地回顾一个主体的整个仓库。
      * 它**从不**跑在请求路径上。
      */
     void consolidateIfDue(MemoryScope scope, MemoryConfig cfg, String modelId, MemoryRunBudget budget) {
@@ -140,7 +139,7 @@ public class MemoryConsolidationService {
     }
 
     /**
-     * 对照 Go {@code ConsolidateNow}：立刻回顾调用者的仓库，
+     * 立刻回顾调用者的仓库，
      * 不必等搭在蒸馏上的每日维护那一趟。
      */
     public MemoryConsolidationResult consolidateNow() {
@@ -155,7 +154,7 @@ public class MemoryConsolidationService {
     }
 
     /**
-     * 对照 Go {@code reviewStore}：回顾一个主体的整个仓库。
+     * 回顾一个主体的整个仓库。
      *
      * @param force  {@code true} = 用户主动按的按钮（用自己的节流钟、更宽的预算）
      * @param budget 整次运行还剩下的时间；{@code Handle} 传的是带 9 分钟上限的那个
@@ -268,7 +267,7 @@ public class MemoryConsolidationService {
     }
 
     /**
-     * 对照 Go {@code demoteStaleTasks}：把几个月没人提过的任务降低重要度。
+     * 把几个月没人提过的任务降低重要度。
      *
      * <p>删掉它们是错的——用户从没说过做完了，而我们不删被告知的东西。
      * 降低重要度就够了：它们掉出常驻块，在仓库触顶时最先被拿走，
@@ -301,12 +300,12 @@ public class MemoryConsolidationService {
         return demoted;
     }
 
-    /** {@link #mergeRedundant} 的三返回值（对照 Go 的 {@code (merged, candidates, skipped)}）。 */
+    /** {@link #mergeRedundant} 的三返回值。 */
     record MergeOutcome(int merged, int candidates, String skipped) {
     }
 
     /**
-     * 对照 Go {@code mergeRedundant}：把一组组近重复的记忆折成一条陈述。
+     * 把一组组近重复的记忆折成一条陈述。
      *
      * <p>{@code candidates} 是找到的组数，不是封顶之后的 {@code len(clusters)}——
      * 它是用来告诉调用方"空结果意味着没有任何东西看起来相似"还是"模型说了不"的。</p>
@@ -381,7 +380,7 @@ public class MemoryConsolidationService {
     }
 
     /**
-     * 对照 Go {@code mergeCandidates}：把可能说的是同一件事的记忆分组。
+     * 把可能说的是同一件事的记忆分组。
      *
      * <p>两个信号，任一个够就成立。措辞重合抓同一句话的复述；召回已经存下的向量上的
      * 余弦抓"同一件事换个说法"，那是数 token 数多少遍都抓不到的。
@@ -411,7 +410,7 @@ public class MemoryConsolidationService {
     }
 
     /**
-     * 对照 Go {@code clusterSimilar}：同 kind 且措辞几乎一样的记忆分组，
+     * 同 kind 且措辞几乎一样的记忆分组，
      * 用无人值守那一趟的门槛。
      */
     static List<List<MemoryItem>> clusterSimilar(List<MemoryItem> items) {
@@ -421,7 +420,7 @@ public class MemoryConsolidationService {
     }
 
     /**
-     * 对照 Go {@code clusterBy}：把同一个 kind 且 {@code same} 判为一回事的记忆分组。
+     * 把同一个 kind 且 {@code same} 判为一回事的记忆分组。
      * 只有一条的组不会被返回。
      */
     static List<List<MemoryItem>> clusterBy(List<MemoryItem> items,
@@ -457,12 +456,12 @@ public class MemoryConsolidationService {
         return clusters;
     }
 
-    /** {@link #callConsolidationModel} 的双返回值（对照 Go 的 {@code (statement, unavailable)}）。 */
+    /** {@link #callConsolidationModel} 的双返回值。 */
     record ConsolidationCall(String statement, boolean unavailable) {
     }
 
     /**
-     * 对照 Go {@code callConsolidationModel}：请模型合并一组。
+     * 请模型合并一组。
      *
      * <p>关思考，理由同 {@code completeExtraction}：一个推理模型会把这份预算全花在
      * 自己的斟酌上、什么都不返回，而在这里那会悄悄跳过每一次合并。</p>
@@ -503,7 +502,7 @@ public class MemoryConsolidationService {
                             ChatMessage.user(b.toString())),
                     options);
         } catch (RuntimeException e) {
-            // 含 RunExpiredException：Go 的 ctx 错误也落进同一条 warn 分支。
+            // 含 RunExpiredException：预算耗尽也落进同一条 warn 分支。
             log.warn("memory: consolidation call failed: {}", e.toString());
             return new ConsolidationCall("", true);
         }

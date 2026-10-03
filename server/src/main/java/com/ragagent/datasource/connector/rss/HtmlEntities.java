@@ -3,7 +3,7 @@ package com.ragagent.datasource.connector.rss;
 import java.util.Map;
 
 /**
- * HTML 实体表（对照 Go 侧 {@code golang.org/x/net/html.UnescapeString} 的<b>子集</b>）。
+ * HTML 实体表（语义参照 {@code golang.org/x/net/html.UnescapeString} 的<b>子集</b>）。
  *
  * <h2>两个用途</h2>
  * <ol>
@@ -12,24 +12,23 @@ import java.util.Map;
  *       都要自己解。</li>
  *   <li>{@link #makeXmlSafe(String)}：给 {@link JdkXmlFeedParser} 用——JDK 的 DOM 解析器是
  *       <b>严格</b>的，{@code &nbsp;} 这种未在 DTD 里声明的实体是<b>致命错误</b>；
- *       而 Go 的 goxpp 是自研的宽松 pull parser，连裸 {@code &} 都放行。
+ *       而参照解析器 gofeed 的 goxpp 是宽松的 pull parser，连裸 {@code &} 都放行。
  *       这个预处理把"未声明的命名实体"改写成数字实体，把裸 {@code &} 转义，
  *       让严格解析器能读下去。</li>
  * </ol>
  *
  * <h2>⚠️ 已知差异：命名实体表是有界的</h2>
- * <p>Go 的 {@code html.UnescapeString} 认识 <b>HTML5 全部 2000+ 个命名实体</b>；
+ * <p>参照实现认识 <b>HTML5 全部 2000+ 个命名实体</b>；
  * 本表只收最常见的那批。差异的表现是：{@code &alpha;} / {@code &sum;} 这类
- * <b>数学/希腊/箭头</b>实体在 Java 侧会<b>原样保留字面量</b>（{@code "&alpha;"}），
- * 而 Go 会解成 {@code "α"}。</p>
+ * <b>数学/希腊/箭头</b>实体在这里会<b>原样保留字面量</b>（{@code "&alpha;"}），
+ * 参照实现会解成 {@code "α"}。</p>
  * <p>为什么不做全表：一张 2000 行的表塞进这个模块，维护成本远大于它带来的收益，
  * 而 feed 正文里出现希腊字母实体的概率极低（真出现时是"少解码"而不是"丢内容"）。
- * 这条差异<b>不影响控制流</b>——两边都只是把同一段文本换个写法。</p>
+ * 这条差异<b>不影响控制流</b>——都只是把同一段文本换个写法。</p>
  *
- * <h2>未知实体两边行为一致</h2>
- * <p>对表里没有的名字，Go 的 {@code UnescapeString("&foo;")} 原样返回，
- * 本实现也原样返回——所以"未知实体"这件事两边是对齐的，分叉只发生在
- * "Go 认识、本表没有"的那部分。</p>
+ * <h2>未知实体行为一致</h2>
+ * <p>对表里没有的名字，本实现原样返回（与参照实现的 {@code UnescapeString("&foo;")} 行为一致）
+ * ——分叉只发生在"参照认识、本表没有"的那部分。</p>
  */
 final class HtmlEntities {
 
@@ -80,11 +79,11 @@ final class HtmlEntities {
     }
 
     /**
-     * 对照 Go {@code html.UnescapeString}：解出命名实体与数字实体，
+     * 解出命名实体与数字实体，
      * 认不出来的原样保留。
      *
-     * <p>与 Go 一致的另一个点：{@code &} 后面没有合法实体形状时，
-     * Go 原样保留（{@code "AT&T"} 还是 {@code "AT&T"}）。这里的实现同理。</p>
+     * <p>{@code &} 后面没有合法实体形状时原样保留
+     * （{@code "AT&T"} 还是 {@code "AT&T"}）。</p>
      */
     static String decode(String s) {
         if (s == null || s.indexOf('&') < 0) {
@@ -150,8 +149,8 @@ final class HtmlEntities {
      *   <li>本表认识的命名实体 → 改写成 {@code &#NNNN;}；</li>
      *   <li>表里没有的命名实体 → 把 {@code &} 转义成 {@code &amp;}，
      *       于是解析后 DOM 里拿到的仍是字面量 {@code "&name;"}——
-     *       <b>与 Go 的 {@code html.UnescapeString} 对未知实体的处理一致</b>；</li>
-     *   <li>其它裸 {@code &} → {@code &amp;}（Go 的宽松 parser 直接放行，两边解出来都是 {@code &}）。</li>
+     *       <b>对未知实体的处理与参照实现一致</b>；</li>
+     *   <li>其它裸 {@code &} → {@code &amp;}（宽松 parser 直接放行，解出来都是 {@code &}）。</li>
      * </ul>
      *
      * <p>调用方必须用 <b>ISO-8859-1</b> 做 bytes↔String 的往返，这样非 UTF-8 的

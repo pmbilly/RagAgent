@@ -7,8 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Anthropic 非流式响应（对照 Go chat.anthropicResponse，
- * internal/models/chat/anthropic.go:61-83）。
+ * Anthropic 非流式响应。
  *
  * <p><b>关键在于 {@code cache_creation_input_tokens} / {@code cache_read_input_tokens} 是
  * 可空指针</b>（Java 用包装类型）："没上报"（null）与"上报了 0"是两回事，
@@ -32,7 +31,7 @@ public class AnthropicResponse {
     @JsonProperty("error")
     private Error error;
 
-    /** 对照 Go anthropicResponse.content 的匿名结构体。 */
+    /** content 数组元素（content block）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Block {
         @JsonProperty("type")
@@ -53,7 +52,7 @@ public class AnthropicResponse {
         public JsonNode getInput() { return input; }
     }
 
-    /** 对照 Go anthropicResponse.usage。 */
+    /** usage 计数。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Usage {
         @JsonProperty("input_tokens")
@@ -72,7 +71,7 @@ public class AnthropicResponse {
         public Integer getCacheReadInputTokens() { return cacheReadInputTokens; }
     }
 
-    /** 对照 Go 的匿名 error 结构体。 */
+    /** 错误信息。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Error {
         @JsonProperty("type")

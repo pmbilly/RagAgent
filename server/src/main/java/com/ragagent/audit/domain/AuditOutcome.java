@@ -1,11 +1,9 @@
 package com.ragagent.audit.domain;
 
 /**
- * 审计结果常量（逐值对照 Go internal/types/audit_log.go 的
- * {@code AuditOutcome} 与常量块 L168-178）。
+ * 审计结果常量。
  *
- * <p>同 {@link AuditAction}：Go 里是 {@code type AuditOutcome string}，
- * 列 varchar(16)，用 String 常量而非 enum。</p>
+ * <p>同 {@link AuditAction}：列 varchar(16)、允许任意值，用 String 常量而非 enum。</p>
  */
 public final class AuditOutcome {
 
@@ -25,8 +23,7 @@ public final class AuditOutcome {
     public static final String CANCELED = "canceled";
 
     /**
-     * 对照 Go {@code AuditLog.Outcome} 的 gorm 默认值 {@code default:success}，
-     * 以及 service.Log 的 {@code if entry.Outcome == "" { entry.Outcome = success }}。
+     * 写入缺省：outcome 列默认 {@code success}，service 层对空串做同一归一。
      */
     public static final String DEFAULT = SUCCESS;
 }

@@ -7,14 +7,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * langfuse 装配（对照 Go container.go 的 {@code langfuse.Init(LoadConfigFromEnv())} +
- * 退出时的 {@code mgr.Shutdown(ctx)}）：启动即按环境变量安装单例；配置无效
- * （启用但缺 host/keys）直接抛异常拒启（Go 的 provider 错误向上传播）。
+ * langfuse 装配：启动即按环境变量安装单例；配置无效
+ * （启用但缺 host/keys）直接抛异常拒启。
  *
- * <p>未设 LANGFUSE_* → 自动禁用（no-op 单例），零成本；与 Go 一致。</p>
+ * <p>未设 LANGFUSE_* → 自动禁用（no-op 单例），零成本。</p>
  *
- * <p>取值走 {@link LangfuseEnvProperties} 的 {@code @ConfigurationProperties} 绑定
- * （B6 批 2，2026-10-02）：变量名与解析规则均未变。</p>
+ * <p>取值走 {@link LangfuseEnvProperties} 的 {@code @ConfigurationProperties} 绑定。</p>
  */
 @Configuration
 public class LangfuseWiring {
@@ -27,7 +25,7 @@ public class LangfuseWiring {
         this.envProperties = envProperties;
     }
 
-    /** 对照 langfuse.Init：失败即启动失败（must 语义）。 */
+    /** 失败即启动失败。 */
     @PostConstruct
     public void init() {
         LangfuseConfig cfg = LangfuseConfig.fromEnv(envProperties);
@@ -37,7 +35,7 @@ public class LangfuseWiring {
         }
     }
 
-    /** 对照退出清理（manager.Shutdown）：终刷未导出 span。 */
+    /** 退出清理：终刷未导出 span。 */
     @PreDestroy
     public void shutdown() {
         LangfuseManager.shutdown();

@@ -24,8 +24,7 @@ import com.ragagent.vectorstore.domain.VectorStore;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * 引擎工厂（W5γ4.4b）对照 Go {@code container/engine_factory.go}：createEngineServiceFromStore
- * 的 ES v7/v8 分支（版本前缀判定、索引配置取值、Basic Auth、驱动自举）与
+ * 引擎工厂：按 store 建引擎的 ES v7/v8 分支（版本前缀判定、索引配置取值、Basic Auth、驱动自举）与
  * validateRuntimeVectorStoreAddresses 的逐引擎地址策略；未落地引擎走诚实 XDEP。
  */
 class EngineFactoryTest {

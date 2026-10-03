@@ -1,8 +1,6 @@
 package com.ragagent.websearch.provider;
 
-import java.io.IOException;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -16,7 +14,7 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * Bocha AI 搜索 provider（对照 Go {@code web_search/bocha.go} 全文）。
+ * Bocha AI 搜索 provider。
  *
  * <p>URL 硬编码（防 SSRF）；freshness 缺省 noLimit（白名单校验，非法值构造报错，
  * 文案用原始 extra_config 值）；summary 缺省 true（仅 "false" 关闭）。
@@ -49,7 +47,7 @@ public final class BochaProvider implements WebSearchProvider {
         this.summary = bochaSummary(params.getExtraConfig());
     }
 
-    /** 对照 ValidateBochaParameters。 */
+    /** 入参校验：api_key 必填；freshness/summary 必须在白名单内。 */
     public static void validateParameters(WebSearchProviderParams params) {
         if (params.getApiKey().trim().isEmpty()) {
             throw new SearchHttp.SearchHttpException("API key is required for Bocha provider");
@@ -163,7 +161,7 @@ public final class BochaProvider implements WebSearchProvider {
         return body;
     }
 
-    /** 对照 bochaHTTPError：message/msg 字段优先，body 截 4096。 */
+    /** 错误体解析：message/msg 字段优先，body 截 4096。 */
     static SearchHttp.SearchHttpException httpError(int statusCode, byte[] body) {
         JsonNode apiError = GoJson.parse(body);
         if (apiError != null && apiError.isObject()) {
@@ -187,7 +185,7 @@ public final class BochaProvider implements WebSearchProvider {
                 "Bocha API returned status " + statusCode + ": " + detail);
     }
 
-    /** 对照 parseBochaDate/parseBochaLastCrawled：三个 layout 依序尝试（失败 null）。 */
+    /** 三个时间格式依序尝试（失败 null）。 */
     static OffsetDateTime parseFlexibleDate(String value, boolean lastCrawledSemantics) {
         String v = value == null ? "" : value.trim();
         if (v.isEmpty()) {
@@ -197,20 +195,20 @@ public final class BochaProvider implements WebSearchProvider {
             // dateLastCrawled 的历史遗留：UTC+8 墙钟被标 Z，仅该字段按 +08:00 修正
             v = v.substring(0, v.length() - 1) + "+08:00";
         }
-        // layout 1：time.RFC3339Nano（必须带偏移；ISO 解析容忍 1-9 位小数）
+        // 格式 1：RFC3339（必须带偏移；ISO 解析容忍 1-9 位小数）
         try {
             return OffsetDateTime.parse(v);
         } catch (RuntimeException ignored) {
             // 尝试下一个
         }
-        // layout 2："2006-01-02 15:04:05"（无偏移 → Go time.Parse 的 UTC 墙钟）
+        // 格式 2：yyyy-MM-dd HH:mm:ss（无偏移按 UTC 墙钟解释）
         try {
             return java.time.LocalDateTime.parse(v,
                     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).atOffset(ZoneOffset.UTC);
         } catch (RuntimeException ignored) {
             // 尝试下一个
         }
-        // layout 3："2006-01-02"
+        // 格式 3：yyyy-MM-dd
         try {
             return java.time.LocalDate.parse(v).atStartOfDay().atOffset(ZoneOffset.UTC);
         } catch (RuntimeException ignored) {
@@ -218,7 +216,7 @@ public final class BochaProvider implements WebSearchProvider {
         }
     }
 
-    /** 对照 bochaCode.UnmarshalJSON：字符串/数字/空 双形态容错。 */
+    /** code 字段容错解析：字符串/数字/空 双形态。 */
     static int parseFlexibleCode(JsonNode node) {
         if (node == null || node.isNull() || node.isMissingNode()) {
             return 0;

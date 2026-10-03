@@ -1,8 +1,8 @@
 package com.ragagent.agent;
 
 /**
- * Go 实录常量（§9.1 方法：/tmp/wave42rec 的独立 Go 程序逐字内嵌 WeKnora 源码跑出真值，
- * 本文件由实录输出直接生成——禁止手改；重生成需重跑录制程序）。
+ * 历史线格式录制常量（由录制程序对旧实现跑出真值后直接生成——
+ * 禁止手改；重生成需重跑录制程序）。
  * 每个常量对应录制输出里的一个 @name 记录（常量名 = STR_ + name 大写）。
  */
 public final class GoRecording {

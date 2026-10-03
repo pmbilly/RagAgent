@@ -41,7 +41,7 @@ final class AuthBindingSupport {
             throw invalidParams(message, "EOF");
         }
         try {
-            // Go 的 json.Decoder 忽略未知字段：Jackson 默认同样忽略
+            // Jackson 默认忽略未知字段（与既定绑定语义一致）
             return AuthController.MAPPER.readValue(rawBody, type);
         } catch (Exception e) {
             throw invalidParams(message, e.getMessage());

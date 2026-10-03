@@ -5,19 +5,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Milvus 过滤表达式构造——对照 Go {@code milvus/filter.go}（算子表 / 逻辑括号形状 /
- * 字面量转义）。
+ * Milvus 过滤表达式构造（算子表 / 逻辑括号形状 / 字面量转义）。
  *
- * <h2>与 Go 的差异（备案）</h2>
- * Go 走 SDK 的<b>模板参数</b>（`field == {field_1}` + {@code WithTemplateParam}）；Milvus
- * <b>REST v2 不支持模板参数</b>（实测：{@code filterParams} 被忽略 → "the value of expression
- * template variable name {ids} is not found"），故本仓把值<b>按 Go 的字面量规则内联</b>
- * （{@code formatValue}/{@code escapeDoubleQuotes} 同款：字符串加双引号并转义 {@code "}、
- * 布尔 true/false、数值原样）。表达式的算子、括号与 and/or 结合形状与 Go 逐字一致。
+ * <p>Milvus <b>REST v2 不支持模板参数</b>（实测：{@code filterParams} 被忽略 → "the value of expression
+ * template variable name {ids} is not found"），故值直接<b>内联</b>进表达式
+ * （{@code formatValue}/{@code escapeDoubleQuotes}：字符串加双引号并转义 {@code "}、
+ * 布尔 true/false、数值原样）。算子、括号与 and/or 结合形状与 Milvus 表达式语法逐字一致。</p>
  */
 public final class MilvusFilter {
 
-    // ── 算子（照 Go 常量） ─────────────────────────────────────────────────
+    // ── 算子 ──────────────────────────────────────────────────────────────
 
     public static final String OP_AND = "and";
     public static final String OP_OR = "or";
@@ -33,7 +30,7 @@ public final class MilvusFilter {
     public static final String OP_NOT_LIKE = "not like";
     public static final String OP_BETWEEN = "between";
 
-    /** 对照 {@code comparisonOperators}。 */
+    /** 比较算子到表达式记号的映射。 */
     static final Map<String, String> COMPARISON_OPERATORS = Map.of(
             OP_EQ, "==",
             OP_NE, "!=",
@@ -47,7 +44,7 @@ public final class MilvusFilter {
     private MilvusFilter() {
     }
 
-    /** 一条过滤条件（比较 / 逻辑 / in / between 统一载体，照 {@code universalFilterCondition}）。 */
+    /** 一条过滤条件（比较 / 逻辑 / in / between 统一载体）。 */
     public static final class Condition {
 
         final String field;
@@ -86,8 +83,8 @@ public final class MilvusFilter {
     }
 
     /**
-     * 对照 {@code filter.Convert}：返回 Milvus 表达式串（值已内联）。失败文案照 Go
-     * （{@code milvus filter condition is nil} 等）——它们是调用方与测试的契约。
+     * 返回 Milvus 表达式串（值已内联）。失败文案
+     * （{@code milvus filter condition is nil} 等）是调用方与测试的契约。
      */
     public static String expr(Condition condition) {
         return convert(condition);
@@ -120,7 +117,7 @@ public final class MilvusFilter {
         return cond.field + " " + operator + " " + formatValue(cond.value);
     }
 
-    /** 对照 {@code convertLogicalCondition}：(a) and (b)，左结合嵌套括号。 */
+    /** 逻辑条件：{@code (a) and (b)}，左结合嵌套括号。 */
     private static String convertLogical(Condition cond) {
         if (cond.value == null) {
             throw new IllegalArgumentException("milvus filter condition is nil");
@@ -177,8 +174,8 @@ public final class MilvusFilter {
     }
 
     /**
-     * 对照 {@code formatValue}：字符串 → {@code "…"}（转义 {@code "}）；布尔 → true/false；
-     * 数值 → {@code %d}/{@code %v} 形态；其它 → {@code "%v"} 引号包裹。
+     * 值内联：字符串 → {@code "…"}（转义 {@code "}）；布尔 → true/false；
+     * 数值 → 整数十进制/浮点计数形态；其它 → {@code "…"} 引号包裹。
      */
     public static String formatValue(Object value) {
         if (value == null) {
@@ -200,7 +197,7 @@ public final class MilvusFilter {
         return "\"" + value + "\"";
     }
 
-    /** 对照 {@code escapeDoubleQuotes}：只转义双引号（照 Go，不碰反斜杠）。 */
+    /** 只转义双引号（不碰反斜杠）。 */
     static String escapeDoubleQuotes(String s) {
         return s.replace("\"", "\\\"");
     }

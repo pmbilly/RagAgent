@@ -14,25 +14,23 @@ import com.zaxxer.hikari.HikariDataSource;
 
 /**
  * {@link DorisSqlExecutor} 的 JDBC 实现：MySQL 协议（mysql-connector-j）+ Hikari
- * 连接池，对照 Go {@code createDorisEngine} 的 {@code sql.Open("mysql", dsn)} +
- * {@code SetMaxOpenConns(20)} / {@code SetMaxIdleConns(5)} / {@code SetConnMaxLifetime(1h)}。
+ * 连接池。
  *
- * <p><b>与 Go 的差异（备案）</b>：① Go 注册了全局 SSRF dialer（
- * {@code RegisterMySQLSSRFDialer}）在每次连接建立时校验目标主机；本类在<b>构造期</b>
- * 用 {@link SsrfGuard} 校验一次 addr（与 ES/OpenSearch 驱动的 Java 侧姿态一致——
- * 构造期一次校验，不做逐连接重校验）；② Go 的 DSN 参数 {@code parseTime=true&loc=Local}
- * 面向时间列，本驱动不读时间列（只读字符串/整型/布尔/ARRAY 字面量），未等价设置；
+ * <p><b>实现说明</b>：① 地址在<b>构造期</b>
+ * 用 {@link SsrfGuard} 校验一次（与 ES/OpenSearch 驱动的姿态一致——
+ * 构造期一次校验，不做逐连接重校验）；② 不读时间列（只读字符串/整型/布尔/ARRAY 字面量），
+ * 连接串不带时间参数；
  * ③ {@code charset=utf8mb4} 由连接器的 {@code characterEncoding=UTF-8} 承担
  * （mysql-connector-j 8+ 默认映射到 utf8mb4）；④ Hikari 的 {@code initializationFailTimeout=-1}
- * 保留 Go {@code sql.Open} 的惰性建连语义（池创建不拨号，首次执行才失败）。</p>
+ * 保留惰性建连语义（池创建不拨号，首次执行才失败）。</p>
  */
 public final class JdbcDorisSqlExecutor implements DorisSqlExecutor {
 
-    /** 对照 Go 的 db.SetMaxOpenConns(20)。 */
+    /** 连接池最大连接数。 */
     static final int MAX_POOL_SIZE = 20;
-    /** 对照 Go 的 db.SetMaxIdleConns(5)。 */
+    /** 最小空闲连接数。 */
     static final int MIN_IDLE = 5;
-    /** 对照 Go 的 db.SetConnMaxLifetime(time.Hour)。 */
+    /** 连接最大存活时长。 */
     static final long MAX_LIFETIME_MS = 3_600_000L;
 
     private final HikariDataSource pool;
@@ -49,7 +47,7 @@ public final class JdbcDorisSqlExecutor implements DorisSqlExecutor {
         cfg.setMaximumPoolSize(MAX_POOL_SIZE);
         cfg.setMinimumIdle(MIN_IDLE);
         cfg.setMaxLifetime(MAX_LIFETIME_MS);
-        cfg.setInitializationFailTimeout(-1); // 惰性：不在池创建时拨号（照 sql.Open）
+        cfg.setInitializationFailTimeout(-1); // 惰性：不在池创建时拨号
         cfg.setPoolName("doris-" + addr);
         this.pool = new HikariDataSource(cfg);
     }
@@ -59,7 +57,7 @@ public final class JdbcDorisSqlExecutor implements DorisSqlExecutor {
         return jdbcUrl(addr, database, 10_000);
     }
 
-    /** 测试口：不建池（仅暴露 URL 拼装规则）；探针路径用 5s（照 Go 的 cfg.Timeout）。 */
+    /** 测试口：不建池（仅暴露 URL 拼装规则）；探针路径用 5s 连接超时。 */
     static String jdbcUrl(String addr, String database, int connectTimeoutMs) {
         return "jdbc:mysql://" + addr + "/" + (database == null ? "" : database)
                 + "?characterEncoding=UTF-8&sslMode=DISABLED&allowPublicKeyRetrieval=true"

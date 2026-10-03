@@ -13,39 +13,37 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 一个记忆空间：**一个工作区里的一个主体**
- * （对照 Go {@code types.MemorySubject}，internal/types/memory.go L191-232）。
+ * 一个记忆空间：**一个工作区里的一个主体**。
  * scope 一律从请求上下文推导，绝不来自客户端传的 id。
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库隐式行为清单（约定 §3）</h2>
  * <ol>
- *   <li><b>自动时间戳</b>：{@code created_at}/{@code updated_at} 走 GORM 的
- *       {@code CreatedAt}/{@code UpdatedAt} 字段名约定（AutoCreateTime / AutoUpdateTime），
- *       所以 Go 在 INSERT 时**显式**写入当前时间，DB 的 {@code DEFAULT CURRENT_TIMESTAMP}
+ *   <li><b>自动时间戳</b>：{@code created_at}/{@code updated_at} 按字段名约定，
+ *       INSERT 时**显式**写入当前时间，DB 的 {@code DEFAULT CURRENT_TIMESTAMP}
  *       实际上永远用不上。Java 侧在 {@code MemoryRepository.ensureSubject} 里显式赋值——
- *       <b>不</b>依赖 DDL 默认值，与 Go 的落库字节一致。</li>
+ *       <b>不</b>依赖 DDL 默认值。</li>
  *   <li><b>钩子</b>：无 BeforeCreate/AfterFind 之类的钩子（id 由仓储层显式生成）。</li>
  *   <li><b>关联预加载</b>：无（本表没有任何关联）。</li>
  *   <li><b>软删除</b>：无（本表没有 deleted_at 列，删除都是物理删）。</li>
  *   <li><b>默认排序</b>：无——读路径恒是"按 (tenant_id, subject_id) 取唯一一行"。</li>
- *   <li><b>唯一索引</b>：{@code idx_memory_subjects_scope (tenant_id, subject_id)}。
- *       Go 把它**同时**声明在模型 tag 上（{@code uniqueIndex:idx_memory_subjects_scope}）
- *       而不只是在迁移里，这样 {@code EnsureSubject} 的 upsert 在任何自动迁移出来的库上
- *       都有约束可以打。Java 侧同样依赖这条约束（{@code ON CONFLICT ... DO NOTHING}）。</li>
- *   <li><b>DEFAULT 列</b>：{@code enabled}（{@code default:true} 的 struct tag）、
+ *   <li><b>唯一索引</b>：{@code idx_memory_subjects_scope (tenant_id, subject_id)}，
+ *       模型与迁移**同时**声明——它是 {@code ensureSubject} 的 upsert
+ *       （{@code ON CONFLICT ... DO NOTHING}）在任何库上都有约束可打的前提。
+ *       Java 侧同样依赖这条约束。</li>
+ *   <li><b>DEFAULT 列</b>：{@code enabled}（DDL {@code default:true}）、
  *       {@code item_count}（{@code default:0}）、{@code block_text}（迁移里的
- *       {@code DEFAULT ''}）。<b>GORM 实测对带字面量 default tag 的字段仍会显式写入</b>
- *       （{@code DefaultValueInterface} 非 nil → 列进 INSERT 列表），
+ *       {@code DEFAULT ''}）。<b>带字面量 default tag 的字段落库时仍会显式写入</b>
+ *       （列进 INSERT 列表），
  *       所以 Java 侧也一律显式赋值，不依赖 DDL 默认值。
  *       ⚠️ {@code extraction_state} / {@code pending_sessions} 是 jsonb，
  *       恒写入一段 JSON（**从不** NULL），故策略取 {@code ALWAYS}（§9 的 DEFAULT 列坑）。</li>
  * </ol>
  *
- * <h2>JSON 形态（§14.9k M2 换锚后：键名＝Java 字段名，键序＝声明序）</h2>
+ * <h2>JSON 形态（键名＝Java 字段名，键序＝声明序）</h2>
  * <p>本类型**不是** HTTP 响应体（handler 只回 MemorySettings / MemoryItem / 各种 View），
  * 它的 JSON 面只出现在测试与 jsonb 列里。</p>
  * <ul>
- *   <li>{@code extractionState} 是 {@code @JsonIgnore}（Go 的 {@code json:"-"}）→ 一个键都不出；</li>
+ *   <li>{@code extractionState} 是 {@code @JsonIgnore} → 一个键都不出；</li>
  *   <li>{@code pendingSessions} 为 null 时输出 {@code null}
  *       （而**落库**时 nil 写 {@code []}，两件事不冲突，见类型处理器）；</li>
  *   <li>三个 {@code *time.Time} 指针字段输出 {@code null}；</li>
@@ -61,15 +59,15 @@ public class MemorySubject {
 
     private Long tenantId = 0L;
 
-    /** 对照 Go {@code Principal.StorageID()}："web_user:<uuid>" / "im_user:wecom:<ch>:<u>"。 */
+    /** 主体 id 形如 "web_user:<uuid>" / "im_user:wecom:<ch>:<u>"。 */
     private String subjectId = "";
 
     /**
      * 每用户自己的开关。工作区的开关在 {@code tenants.memory_config} 上，**优先于**它。
      *
-     * <p>字段默认值取 Go 的**零值 {@code false}**（不是 DDL 的 {@code DEFAULT true}）——
-     * Go 实录里 {@code MemorySubject{}} 输出的是 {@code "enabled":false}。
-     * {@code EnsureSubject} 会显式置 true，所以线上几乎见不到 false 的新行。</p>
+     * <p>字段默认值是 {@code false}（不是 DDL 的 {@code DEFAULT true}）——
+     * 零值对象输出的是 {@code "enabled":false}。
+     * {@code ensureSubject} 会显式置 true，所以线上几乎见不到 false 的新行。</p>
      */
     private boolean enabled;
 
@@ -92,7 +90,7 @@ public class MemorySubject {
     private OffsetDateTime extractCursor;
 
     /**
-     * tag 是 {@code json:"-"}：**一个键都不出**（对照 Go 的 {@code json:"-"}）。
+     * {@code @JsonIgnore}：**一个键都不出**。
      * 它不是"派生访问器"，只是不出响应。
      */
     @TableField(value = "extraction_state", typeHandler = MemoryExtractionStateTypeHandler.class,
@@ -104,15 +102,14 @@ public class MemorySubject {
      * 遗留队列：下一次 enqueue 或 claim 时一次性导入到有索引的进度行里。
      * 新 worker 不会让它变长。
      *
-     * <p>无 omitempty：nil 在响应里是 {@code null}，但**落库**写 {@code []}
-     * （Go 的 {@code Value()} 对 nil 返回 {@code json.Marshal([]string{})}）。</p>
+     * <p>JSON 里 null 就输出 {@code null}，但**落库**写 {@code []}
+     * （类型处理器对 null 归一）。</p>
      *
-     * <p>⚠️ 所以字段默认值是 {@code null}（对齐 Go 零值的 JSON），
-     * <b>不是</b>空列表——{@code EnsureSubject} 与 {@code saveExtractionState}
+     * <p>⚠️ 所以字段默认值是 {@code null}，
+     * <b>不是</b>空列表——{@code ensureSubject} 与 {@code saveExtractionState}
      * 这两条落库路径各自负责把 null 归一成空列表，别指望字段默认值兜。
-     * 反过来，读库回来的 {@code []} 会变成**非 null 的空列表**（Go 的
-     * {@code json.Unmarshal("[]")} 也会 MakeSlice），于是响应是 {@code []}——
-     * "新建对象是 null、读回来的行是 []"两种形态并存，与 Go 一致。</p>
+     * 反过来，读库回来的 {@code []} 会变成**非 null 的空列表**，于是响应是 {@code []}——
+     * "新建对象是 null、读回来的行是 []"两种形态并存。</p>
      */
     @TableField(value = "pending_sessions", typeHandler = MemoryStringListTypeHandler.class,
             insertStrategy = FieldStrategy.ALWAYS, updateStrategy = FieldStrategy.ALWAYS)
@@ -195,12 +192,11 @@ public class MemorySubject {
     }
 
     /**
-     * 浅拷贝，供 {@code EnqueuePendingSession} 取"更新前的快照"用。
+     * 浅拷贝，供 {@code enqueuePendingSession} 取"更新前的快照"用。
      *
-     * <p>Go 里那句是 {@code snapshot = *subject}——**结构体按值复制**，
-     * 所以之后对 {@code subject} 的字段赋值（清空 pending 队列、写
-     * {@code extract_scheduled_at}）都不会影响快照。Java 的对象是引用，
-     * 不显式复制就会把修改后的状态当成"更新前"返回给调用方。
+     * <p>Java 的对象是引用：不显式复制，之后对 {@code subject} 的字段赋值
+     * （清空 pending 队列、写 {@code extract_scheduled_at}）
+     * 就会把修改后的状态当成"更新前"返回给调用方。
      * {@code pendingSessions} 也换成一个新的列表，理由同上。</p>
      *
      * <p>名字刻意不带 {@code get}/{@code is} 前缀（§7.5 第 2 条）。</p>

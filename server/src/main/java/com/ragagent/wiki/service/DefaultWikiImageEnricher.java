@@ -19,10 +19,10 @@ import org.springframework.stereotype.Component;
  *       {@code <image>/<image_ocr>/<image_caption>} 块内联进正文；否则原样返回。</li>
  * </ol>
  *
- * <p>此前该接口无实现 bean，{@code WikiIngestService} 恒走
- * {@link WikiImageEnricher#identity}，导致图片 /
- * 扫描件密集文档的 wiki 抽取为空。原料（{@link ImageInfoEnricher}）早已翻译并被
- * chatpipeline 与 KnowledgeService 使用，本类只补齐桥接，调用方零改动。</p>
+ * <p>没有实现 bean 时 {@code WikiIngestService} 恒走
+ * {@link WikiImageEnricher#identity}，图片 /
+ * 扫描件密集文档的 wiki 抽取会为空。底层能力（{@link ImageInfoEnricher}）
+ * 已被 chatpipeline 与 KnowledgeService 使用，本类只补齐桥接，调用方零改动。</p>
  */
 @Component
 public class DefaultWikiImageEnricher implements WikiImageEnricher {

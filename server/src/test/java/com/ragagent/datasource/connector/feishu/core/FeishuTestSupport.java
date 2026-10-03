@@ -19,8 +19,7 @@ import com.ragagent.datasource.domain.DataSourceConstants;
  * 标准鉴权桩路由。
  *
  * <h2>SSRF 白名单是进程级静态状态（必须还原）</h2>
- * <p>对照 Go 的 {@code TestMain} 里
- * {@code os.Setenv("SSRF_WHITELIST", "127.0.0.1,::1,localhost")}。Java 进程内改不了 env，
+ * <p>env 里放的值是 {@code SSRF_WHITELIST=127.0.0.1,::1,localhost}。Java 进程内改不了 env，
  * 按 {@code McpSseTransportTest} 的既有惯例：{@code @BeforeAll} 调
  * {@link #allowLoopback()}，{@code @AfterAll} 调 {@link #restoreSsrf()}。</p>
  *
@@ -32,11 +31,10 @@ import com.ragagent.datasource.domain.DataSourceConstants;
 public final class FeishuTestSupport {
 
     /**
-     * 放行本机回环与飞书官方 origin 的白名单（对照 Go {@code core/helpers_test.go} 与
-     * {@code wiki/connector_test.go} 的 {@code TestMain}：
-     * {@code SSRF_WHITELIST=127.0.0.1,localhost,open.feishu.cn,open.larksuite.com}）。
+     * 放行本机回环与飞书官方 origin 的白名单
+     * （{@code SSRF_WHITELIST=127.0.0.1,localhost,open.feishu.cn,open.larksuite.com}）。
      *
-     * <p>飞书那两个域名必须放行：{@code ParseFeishuConfig} 会拿解析出来的 base_url
+     * <p>飞书那两个域名必须放行：配置解析会拿解析出来的 base_url
      * （region 默认就是 {@code https://open.feishu.cn}）过一遍 SSRF 策略，
      * 而**测试不会真的连它们**——只是不让白名单校验把配置解析挡掉。</p>
      */
@@ -66,8 +64,9 @@ public final class FeishuTestSupport {
     }
 
     /**
-     * 对照 Go {@code utils.mergeSSRFWhitelistRaws}：把两个 env 合并成一份原始白名单。
-     * （{@code SsrfGuard.mergeRaws} 是包级可见、本包调不到，故按同形复刻这几行。）
+     * 把两个 env 合并成一份原始白名单（与 {@code SsrfGuard} 的合并语义一致：
+     * 主表空则取附加表，附加表空则取主表，都有则逗号拼接）。
+     * （{@code SsrfGuard.mergeRaws} 是包级可见、本包调不到，故就地实现这几行。）
      */
     private static String envWhitelistRaw() {
         String primary = System.getenv("SSRF_WHITELIST");
@@ -84,7 +83,7 @@ public final class FeishuTestSupport {
     }
 
     /**
-     * 造一份指向本机桩服务器的数据源配置（对照 Go {@code makeConfig}）。
+     * 造一份指向本机桩服务器的数据源配置。
      *
      * @param connectorType 连接器类型（{@code feishu} / {@code feishu_drive} / {@code lark_drive}）
      */
@@ -93,7 +92,7 @@ public final class FeishuTestSupport {
         return config(connectorType, baseUrl, resourceIds, false);
     }
 
-    /** 带多模态开关的版本（对照 Go {@code makeDriveConfig}）。 */
+    /** 带多模态开关的版本。 */
     public static DataSourceConfig config(String connectorType, String baseUrl,
                                           List<String> resourceIds, boolean multimodal) {
         Map<String, Object> creds = new LinkedHashMap<>();
@@ -128,8 +127,8 @@ public final class FeishuTestSupport {
     }
 
     /**
-     * 对照 Go 各测试文件里的 {@code recordingHandler}：记录 Emit 的条目与 Checkpoint 的
-     * 游标快照（照抄 Go 的"Checkpoint 里同步序列化"约定——快照在调用时取）。
+     * 记录型 StreamHandler：记录 Emit 的条目与 Checkpoint 的
+     * 游标快照（快照在调用时取）。
      */
     public static final class RecordingHandler implements StreamHandler {
 
@@ -148,7 +147,7 @@ public final class FeishuTestSupport {
          */
         public final List<Map<String, Object>> cursorSnapshots = new ArrayList<>();
 
-        /** 非空时，Emit 会把它的返回值当异常抛出（对照 Go 的 {@code emitErr}）。 */
+        /** 非空时，Emit 会把它的返回值当异常抛出（用例里注入失败用）。 */
         public RuntimeException emitFailure;
 
         /** 非空时，Checkpoint 抛这个异常（连接器应当只记日志、继续）。 */

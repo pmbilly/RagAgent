@@ -5,15 +5,14 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Anthropic 工具定义（对照 Go chat.anthropicTool，
- * internal/models/chat/anthropic_tools.go:11-15）。
+ * Anthropic 工具定义。
  *
  * <p><b>三个字段都没有 omitempty</b>：description 为空串照发，input_schema 为 null 时输出
  * {@code "input_schema":null}。</p>
  *
  * <p>与 OpenAI 路径的关键差异：Anthropic 的 schema 字段名是 {@code input_schema}（不是
  * {@code parameters}），且 <b>schema 原样透传</b>——{@code $defs} / {@code $ref} / {@code oneOf}
- * / {@code additionalProperties} 全部保留（anthropic_tools_test 明确断言这一点）。</p>
+ * / {@code additionalProperties} 全部保留。</p>
  */
 @JsonPropertyOrder({"name", "description", "input_schema"})
 public class AnthropicTool {

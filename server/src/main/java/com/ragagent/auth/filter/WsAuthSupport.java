@@ -22,12 +22,12 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 /**
- * 对照 Go internal/middleware/ws_auth.go 的 AttachAuthenticatedUser（W5d 沙箱终端 WS 用）。
+ * JWT 认证装配支持（沙箱终端 WS 等非过滤器入口复用）。
  *
  * <p>本 bean 承载「给已解析的用户安装与 Auth 中间件相同的认证会话」这条能力链
  * （空间解析 → 成员判定 → 角色装配），从 {@link AuthFilter} 抽出：{@code AuthFilter}
  * 不是 Spring bean（{@code WebConfig} 里 {@code new AuthFilter(...)} 塞进
- * {@code FilterRegistrationBean}），而 W5d 的 {@code SandboxTerminalController}
+ * {@code FilterRegistrationBean}），而 {@code SandboxTerminalController}
  * 需要注入这条能力——过滤器依赖网保持小（本类只依赖 user/tenant/member 服务与
  * TenantProperties，不碰 APIKeyAuthChannel）。{@code AuthFilter} 自身的通道 2
  * （Bearer JWT）同样委托本类，保证两条入口的认证装配逻辑只有一份。</p>
@@ -53,7 +53,6 @@ public class WsAuthSupport {
     }
 
     /**
-     * 对照 AttachAuthenticatedUser（middleware/ws_auth.go 全文，W5d 沙箱终端 WS 用）：
      * 给**已解析**的用户安装与 Auth 中间件相同的认证会话。浏览器 WS 握手带不了
      * Authorization 头——票据在 handler 内解析出 user 后，由本方法完成空间解析、
      * 成员判定与角色装配（tenant 取 jwtTenantID，除非调用方已带 X-Tenant-ID 头）。
@@ -68,7 +67,7 @@ public class WsAuthSupport {
         if (jwtTenantId != 0
                 && (request.getHeader("X-Tenant-ID") == null
                         || request.getHeader("X-Tenant-ID").trim().isEmpty())) {
-            // 对照 Go 的 c.Request.Header.Set（L43-45）：只改本请求可见的头
+            // 只改本请求可见的头
             request = new jakarta.servlet.http.HttpServletRequestWrapper(request) {
                 @Override
                 public String getHeader(String name) {
@@ -92,7 +91,7 @@ public class WsAuthSupport {
     }
 
     /**
-     * 对照 authenticateJWTUser（auth.go L197-267）。
+     * JWT 用户认证装配。
      * 返回 true 表示可继续链路；false 表示响应已写入。
      */
     boolean authenticateJwtUser(HttpServletRequest request, HttpServletResponse response,
@@ -112,7 +111,7 @@ public class WsAuthSupport {
                 return true;
             }
             response.setStatus(409);
-            // Go 侧为 gin.H map，键按字母序：code < error
+            // JSON 键按字母序：code < error
             writeJson(response, "{\"code\":\"TENANT_REQUIRED\",\"error\":\"Workspace required\"}");
             return false;
         }
@@ -144,7 +143,7 @@ public class WsAuthSupport {
     }
 
     /**
-     * 对照 resolveTargetTenant（auth.go L284-338）。
+     * 目标空间解析。
      * 优先级：X-Tenant-ID 头 → JWT tenant claim（fallback user.TenantID）→ 首个 active membership。
      * 返回 null 表示响应已写入（畸形头/无权限/目标不存在）。
      */
@@ -163,7 +162,7 @@ public class WsAuthSupport {
             } catch (NumberFormatException e) {
                 parsedTenantId = 0;
             }
-            // 对照 strconv.ParseUint：负数/0/溢出均视为畸形
+            // 负数/0/溢出均视为畸形
             if (parsedTenantId <= 0) {
                 log.warn("Invalid X-Tenant-ID header from user={}: \"{}\"", vt.user().getId(), tenantHeader);
                 writePlainError(response, 400, "Invalid X-Tenant-ID header");
@@ -191,7 +190,7 @@ public class WsAuthSupport {
         return new TargetResolution(targetTenantId, null, targetTenantId != homeTenantId);
     }
 
-    /** 对照 IsTenantAccessible（access.go L77-101）：home / 跨空间超管 / active membership */
+    /** 目标空间可访问性：home / 跨空间超管 / active membership */
     private boolean isTenantAccessible(User user, long targetTenantId) {
         if (user == null || targetTenantId == 0) {
             return false;
@@ -204,7 +203,7 @@ public class WsAuthSupport {
         return m != null && TenantMemberService.STATUS_ACTIVE.equals(m.getStatus());
     }
 
-    /** 对照 resolveFirstMembershipTarget（auth.go L345-369） */
+    /** 首个 active membership 的空间 id（无则 0） */
     private long resolveFirstMembershipTarget(User user) {
         if (user == null) {
             return 0;
@@ -224,7 +223,7 @@ public class WsAuthSupport {
     }
 
     /**
-     * 对照 resolveTenantRole（auth.go L750-827）。返回 null 表示拒绝（调用方 403）：
+     * 目标空间角色解析。返回 null 表示拒绝（调用方 403）：
      *  1. active membership → 该行 role
      *  2. 跨空间超管（crossTenantSwitch && CanAccessAllTenants）→ 临时 Admin（不落库）
      *  3. 孤儿空间自愈：home tenant 且无任何 active 成员 → 自动晋升 Owner 并落库
@@ -269,7 +268,7 @@ public class WsAuthSupport {
 
     // ── 响应写入（契约逐字符锁定，golden 测试比对） ──────────────────────────
 
-    /** 对照 gin JSON 401：{"error":"Unauthorized: ..."} */
+    /** 401 响应体：{"error":"Unauthorized: ..."} */
     static void writeUnauthorized(HttpServletResponse response, String message) throws IOException {
         writePlainError(response, 401, message);
     }

@@ -5,10 +5,9 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * 有类型、调用局部的双向映射（对照 Go internal/modelcontext/handles.go 的
- * {@code HandleTable}，全文移植）。当提示词需要为持久值分配紧凑句柄时使用
- * （wiki issue 的 iN、ingest 的 ref-N、c000 引用批次句柄）。句柄绝不持久化；
- * Resolve 先把模型输出转回持久值。它是 handleTable 的导出词边界感知包装。
+ * 有类型、调用局部的双向映射。当提示词需要为持久值分配紧凑句柄时使用
+ * （wiki issue 的 iN、ingest 的 ref-N、c000 引用句柄）。句柄绝不持久化；
+ * resolve 先把模型输出转回持久值。它是 {@link HandleStore} 的导出词边界感知包装。
  */
 public final class HandleTable {
 
@@ -26,7 +25,7 @@ public final class HandleTable {
         this.table = store;
     }
 
-    /** 返回 value 在本表中分配到的稳定句柄（对照 Register）。 */
+    /** 返回 value 在本表中分配到的稳定句柄。 */
     public String register(String value) {
         if (value == null) {
             return "";
@@ -38,17 +37,17 @@ public final class HandleTable {
         return table.register(value, value, null, null);
     }
 
-    /** 已注册句柄的查询，不新建（对照 Handle；Go 零值 ""）。 */
+    /** 已注册句柄的查询，不新建；未命中返回空串。 */
     public String handle(String value) {
         String handle = table.handleForKey(value);
         return handle == null ? "" : handle;
     }
 
-    /** (handle, ok) 二元组（Go 多返回值的 Java 形态）。 */
+    /** handle 与命中标志的二元组。 */
     public record Resolved(String value, boolean ok) {
     }
 
-    /** 把已知句柄转回持久值（对照 Resolve）。 */
+    /** 把已知句柄转回持久值。 */
     public Resolved resolve(String handle) {
         if (handle == null) {
             return new Resolved("", false);
@@ -66,7 +65,7 @@ public final class HandleTable {
     }
 
     /**
-     * 把已注册的持久值替换为句柄（对照 EncodeKnownText）。
+     * 把已注册的持久值替换为句柄。
      * 长值先处理，避免子串遮蔽。
      */
     public String encodeKnownText(String value) {
@@ -82,7 +81,7 @@ public final class HandleTable {
     }
 
     /**
-     * 在完整文本中还原已注册句柄（对照 DecodeKnownText）。与资源编解码不同，
+     * 在完整文本中还原已注册句柄。与资源编解码不同，
      * 替换是词边界感知的——i1 这类短句柄不会在普通单词中间误触发。
      */
     public String decodeKnownText(String value) {

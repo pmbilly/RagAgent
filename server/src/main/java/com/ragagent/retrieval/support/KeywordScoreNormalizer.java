@@ -4,18 +4,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 关键词分数的稳健归一化（对照 Go {@code internal/searchutil/normalize.go} 全文）。
+ * 关键词分数的稳健归一化。
  *
- * <p>泛型签名用函数式取/设分数复刻（Go 的 {@code isKeyword/getScore/setScore} 三
- * 回调 + {@code KeywordScoreCallbacks}）。规则逐条对照：单条置 1；无方差全置 1 并
- * 触发 OnNoVariance；≥10 条时用 p5/p95 百分位界；百分位把区间压塌时全置 1。</p>
+ * <p>泛型签名用函数式取/设分数（{@code isKeyword/getScore/setScore} 三回调 +
+ * {@link Callbacks}）。规则：单条置 1；无方差全置 1 并触发 onNoVariance；≥10 条时用
+ * p5/p95 百分位界；百分位把区间压塌时全置 1。</p>
  */
 public final class KeywordScoreNormalizer {
 
     private KeywordScoreNormalizer() {
     }
 
-    /** 对照 KeywordScoreCallbacks（可空回调）。 */
+    /** 归一化过程的可空回调。 */
     public interface Callbacks {
         default void onNoVariance(int count, double score) {
         }

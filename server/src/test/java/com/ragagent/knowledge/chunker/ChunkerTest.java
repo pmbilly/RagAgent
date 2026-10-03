@@ -11,9 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * chunker 移植测试（用例逐字对照 Go internal/infrastructure/chunker/*_test.go：
- * splitter_test.go / strategy_test.go / heading_splitter_test.go /
- * heuristic_splitter_test.go）。纯单元测试，不依赖 Spring 上下文。
+ * chunker 单元测试，不依赖 Spring 上下文。
  *
  * <p>核心断言：chunk 数量、每块 content、start/end（rune 偏移，非 char/byte）。</p>
  */
@@ -27,13 +25,12 @@ class ChunkerTest {
         return cfg;
     }
 
-    /** 对照 Go TestSplitText_Empty（splitter_test.go:201）。 */
     @Test
     void splitTextEmpty() {
         assertEquals(0, LegacySplitter.splitText("", SplitterConfig.defaultConfig()).size());
     }
 
-    /** 对照 Go TestSplitText_SingleCharChinese（splitter_test.go:208）：单字符 [0,1)。 */
+    /** 单字符落在 [0,1)。 */
     @Test
     void splitTextSingleCharChinese() {
         List<ParsedChunk> chunks = LegacySplitter.splitText("你", cfg(10, 0, List.of("\n")));
@@ -42,7 +39,6 @@ class ChunkerTest {
         assertEquals(1, chunks.get(0).getEnd());
     }
 
-    /** 对照 Go TestSplitText_ChineseText_StartEndAreRuneOffsets（splitter_test.go:26）。 */
     @Test
     void splitTextChineseStartEndAreRuneOffsets() {
         String text = "你好世界这是一个测试文本用于检验分割位置";
@@ -56,7 +52,6 @@ class ChunkerTest {
         assertEquals(runeCount, chunks.get(0).getEnd(), "End must be rune offset, not byte offset");
     }
 
-    /** 对照 Go TestSplitText_MixedChineseAndASCII（splitter_test.go:97）。 */
     @Test
     void splitTextMixedChineseAndAscii() {
         String text = "Hello你好World世界Test测试";
@@ -65,7 +60,7 @@ class ChunkerTest {
         assertEquals(CodePoints.len(text), chunks.get(0).getEnd() - chunks.get(0).getStart());
     }
 
-    /** 对照 Go TestSplitText_BasicASCII（splitter_test.go:10）：拼接还原原文。 */
+    /** 拼接还原原文。 */
     @Test
     void splitTextBasicAscii() {
         String text = "Hello world. This is a test.";
@@ -78,7 +73,6 @@ class ChunkerTest {
         assertEquals(text, combined.toString());
     }
 
-    /** 对照 Go TestSplitText_ChineseMultiChunk_StartEndConsistency（splitter_test.go:53）。 */
     @Test
     void splitTextChineseMultiChunkConsistency() {
         String line = "这是一段中文内容用于测试分割功能是否正确。";
@@ -102,7 +96,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestSplitText_OverlapChunks_NonNegativeStart（splitter_test.go:257）。 */
     @Test
     void splitTextOverlapNonNegativeStart() {
         String text = "中文测试内容，".repeat(50);
@@ -114,7 +107,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestSplitText_RecursiveSeparators_NoOversizeChunks（splitter_test.go:176）。 */
     @Test
     void splitTextRecursiveSeparatorsNoOversizeChunks() {
         String body = "This is one fairly short line of text.\n".repeat(50);
@@ -129,7 +121,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestSplitBySeparators（splitter_test.go:575）。 */
     @Test
     void splitBySeparators() {
         record Case(String text, List<String> separators, int wantParts) {
@@ -146,7 +137,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestFindSemanticOverlapBoundary_PriorityThenEarliest（splitter_test.go:273）。 */
     @Test
     void findSemanticOverlapBoundaryPriorityThenEarliest() {
         record Case(String name, String text, String want) {
@@ -176,7 +166,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestFindSemanticOverlapBoundary_NoConfiguredSemanticSeparator（splitter_test.go:345）。 */
     @Test
     void findSemanticOverlapBoundaryNoConfiguredSemanticSeparator() {
         for (String text : List.of(
@@ -190,7 +179,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestFindSemanticOverlapBoundary_IgnoresProtectedContent（splitter_test.go:359）。 */
     @Test
     void findSemanticOverlapBoundaryIgnoresProtectedContent() {
         for (String text : List.of(
@@ -202,7 +190,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestFindSemanticOverlapBoundary_FiltersEligibilityBeforePriorityAndPosition（splitter_test.go:371）。 */
     @Test
     void findSemanticOverlapBoundaryFiltersEligibilityBeforePriorityAndPosition() {
         record Case(String name, String text, int minEnd, String want) {
@@ -219,7 +206,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestComputeOverlap_FindsBoundaryInsideLargeUnit（splitter_test.go:405）。 */
     @Test
     void computeOverlapFindsBoundaryInsideLargeUnit() {
         String text = "abcdefgh。尾巴内容";
@@ -241,7 +227,6 @@ class ChunkerTest {
         return sb.toString();
     }
 
-    /** 对照 Go TestComputeOverlap_NoBoundaryMeansNoOverlap（splitter_test.go:421）。 */
     @Test
     void computeOverlapNoBoundaryMeansNoOverlap() {
         String text = "abcdefgh尾巴内容";
@@ -251,7 +236,6 @@ class ChunkerTest {
         assertEquals(0, ov.len());
     }
 
-    /** 对照 Go TestComputeOverlap_RespectsNextChunkCapacity（splitter_test.go:431）。 */
     @Test
     void computeOverlapRespectsNextChunkCapacity() {
         String text = "abcdefgh。尾巴";
@@ -261,7 +245,6 @@ class ChunkerTest {
         assertTrue(ov.len() + 5 <= 8, "overlap plus next content exceeds chunk size");
     }
 
-    /** 对照 Go TestComputeOverlap_LookbehindBoundaryEligibility（splitter_test.go:444）。 */
     @Test
     void computeOverlapLookbehindBoundaryEligibility() {
         record Case(String name, String text, String want) {
@@ -281,7 +264,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestSplitText_TableHeaderPrependedToChunks（splitter_test.go:664）。 */
     @Test
     void splitTextTableHeaderPrependedToChunks() {
         String text = "前面的文字\n\n"
@@ -316,7 +298,6 @@ class ChunkerTest {
         assertTrue(headerPrependCount > 0, "expected at least one chunk with prepended table header");
     }
 
-    /** 对照 Go TestHeaderTracker_BasicLifecycle（splitter_test.go:762）。 */
     @Test
     void headerTrackerBasicLifecycle() {
         HeaderTracker ht = new HeaderTracker();
@@ -337,7 +318,7 @@ class ChunkerTest {
         assertFalse(ht.getHeaders().isEmpty(), "expected new header to be tracked after previous table ended");
     }
 
-    /** 对照 Go TestSplitText_RestoreTextWithTable（splitter_test.go:1124）：位置不变式 + 原文可还原。 */
+    /** 位置不变式 + 原文可还原。 */
     @Test
     void splitTextRestoreTextWithTable() {
         String text = "这是文档前言部分的内容。\n\n"
@@ -375,16 +356,14 @@ class ChunkerTest {
     }
 
     // ------------------------------------------------------------------
-    // strategy.go 用例（strategy_test.go）
+    // Chunker（策略入口）用例
     // ------------------------------------------------------------------
 
-    /** 对照 Go TestSplit_EmptyText（strategy_test.go:8）。 */
     @Test
     void splitEmptyText() {
         assertTrue(Chunker.split("", SplitterConfig.defaultConfig()).isEmpty());
     }
 
-    /** 对照 Go TestSplit_LegacyStrategy_MatchesSplitText（strategy_test.go:14）。 */
     @Test
     void splitLegacyStrategyMatchesSplitText() {
         String text = "Hello world.\n\n".repeat(30);
@@ -398,7 +377,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestSplit_EmptyStrategyEqualsLegacy（strategy_test.go:29）。 */
     @Test
     void splitEmptyStrategyEqualsLegacy() {
         String text = "Sentence one. Sentence two.\n".repeat(20);
@@ -410,7 +388,6 @@ class ChunkerTest {
         assertEquals(b.size(), a.size(), "empty Strategy should equal legacy");
     }
 
-    /** 对照 Go TestSplit_HeadingStrategyKeepsDistinctTopLevelHeadings（strategy_test.go:51）。 */
     @Test
     void splitHeadingStrategyKeepsDistinctTopLevelHeadings() {
         String doc = "# Intro\nshort intro.\n\n# Usage\nshort usage.\n\n# FAQ\nshort faq.";
@@ -425,7 +402,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestSplit_PreservesPositionInvariantAcrossTiers（strategy_test.go:77）。 */
     @Test
     void splitPreservesPositionInvariantAcrossTiers() {
         String headingTier = "# Top\nintro paragraph here.\n\n## Section A\nbody A here.\n\n"
@@ -454,7 +430,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestMergeBreadcrumbs（strategy_test.go:175）。 */
     @Test
     void mergeBreadcrumbs() {
         record Case(String name, String parent, String child, String want) {
@@ -473,7 +448,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestSplitParentChild_LegacyStrategy（strategy_test.go:199）。 */
     @Test
     void splitParentChildLegacyStrategy() {
         String text = "This is a sentence. Another one.\n\n".repeat(50);
@@ -492,7 +466,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestEnsureDefaults（strategy_test.go:214）。 */
     @Test
     void ensureDefaults() {
         SplitterConfig cfg = Chunker.ensureDefaults(new SplitterConfig());
@@ -501,7 +474,7 @@ class ChunkerTest {
         assertFalse(cfg.getSeparators().isEmpty(), "expected default separators");
     }
 
-    /** 边界用例：chunk_size 小于 overlap 时 overlap 被截断为 chunk_size/2（strategy.go:347）。 */
+    /** 边界用例：chunk_size 小于 overlap 时 overlap 被截断为 chunk_size/2。 */
     @Test
     void ensureDefaultsCapsOverlapAtHalfChunkSize() {
         SplitterConfig cfg = cfg(20, 50, List.of("\n"));
@@ -509,14 +482,12 @@ class ChunkerTest {
         assertEquals(10, cfg.getChunkOverlap(), "overlap > chunkSize/2 must be capped to chunkSize/2");
     }
 
-    /** 对照 Go TestNormalizeLineEndings（strategy_test.go:240）。 */
     @Test
     void normalizeLineEndings() {
         assertEquals("first\nsecond\nthird\nfourth",
                 TextNormalizer.normalizeLineEndings("first\r\nsecond\rthird\nfourth"));
     }
 
-    /** 对照 Go TestDeriveParentChildConfigs_DefaultSizes（strategy_test.go:247）。 */
     @Test
     void deriveParentChildConfigsDefaultSizes() {
         SplitterConfig base = cfg(1000, 100, List.of("\n\n", "\n"));
@@ -529,7 +500,6 @@ class ChunkerTest {
         assertEquals(384 / 5, pair.child().getChunkOverlap());
     }
 
-    /** 对照 Go TestValidateChunks_*（strategy_test.go:311-354）。 */
     @Test
     void validateChunks() {
         assertFalse(ChunkValidator.validate(List.of(), 1000, 500).ok(), "nil chunks should be invalid");
@@ -558,10 +528,9 @@ class ChunkerTest {
     }
 
     // ------------------------------------------------------------------
-    // heading_splitter_test.go 用例
+    // HeadingSplitter 用例
     // ------------------------------------------------------------------
 
-    /** 对照 Go TestSplitByHeadings_BasicSections（heading_splitter_test.go:8）。 */
     @Test
     void splitByHeadingsBasicSections() {
         String body = "Lorem ipsum dolor sit amet consectetur adipiscing elit. ".repeat(4);
@@ -584,7 +553,6 @@ class ChunkerTest {
         assertTrue(found, "no chunk contains Section B with its body");
     }
 
-    /** 对照 Go TestSplitByHeadings_FallsThroughForUnstructuredDoc（heading_splitter_test.go:43）。 */
     @Test
     void splitByHeadingsFallsThroughForUnstructuredDoc() {
         String doc = "Just a plain paragraph without any headings at all in this text.";
@@ -592,7 +560,6 @@ class ChunkerTest {
         assertEquals(1, chunks.size(), "expected fallthrough single chunk");
     }
 
-    /** 对照 Go TestSplitByHeadings_CoalescesTinyAdjacentSections（heading_splitter_test.go:159）。 */
     @Test
     void splitByHeadingsCoalescesTinyAdjacentSections() {
         String doc = "# Install Log\n\n"
@@ -619,7 +586,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestSplitByHeadings_DoesNotCoalesceDistinctTopLevelHeadings（heading_splitter_test.go:205）。 */
     @Test
     void splitByHeadingsDoesNotCoalesceDistinctTopLevelHeadings() {
         String doc = "# Intro\nshort intro.\n\n# Usage\nshort usage.\n\n# FAQ\nshort faq.";
@@ -632,7 +598,6 @@ class ChunkerTest {
         }
     }
 
-    /** 对照 Go TestSplitByHeadings_DeepSubHeadingInLargeSection（heading_splitter_test.go:331）。 */
     @Test
     void splitByHeadingsDeepSubHeadingInLargeSection() {
         String filler = "clause body sentence that pads the section out. ".repeat(20);
@@ -664,10 +629,9 @@ class ChunkerTest {
     }
 
     // ------------------------------------------------------------------
-    // heuristic_splitter_test.go 用例
+    // HeuristicSplitter 用例
     // ------------------------------------------------------------------
 
-    /** 对照 Go TestSplitByHeuristics_FormFeedBoundary（heuristic_splitter_test.go:8）。 */
     @Test
     void splitByHeuristicsFormFeedBoundary() {
         String doc = "page one body text. ".repeat(30) + "\f" + "page two body. ".repeat(30);
@@ -676,7 +640,6 @@ class ChunkerTest {
         assertTrue(chunks.size() >= 2, "form feed should produce ≥2 chunks, got " + chunks.size());
     }
 
-    /** 对照 Go TestSplitByHeuristics_NumberedSections（heuristic_splitter_test.go:17）。 */
     @Test
     void splitByHeuristicsNumberedSections() {
         String body = "body sentence. ".repeat(8);
@@ -686,7 +649,6 @@ class ChunkerTest {
         assertTrue(chunks.size() >= 2, "numbered sections should split: got " + chunks.size());
     }
 
-    /** 对照 Go TestSplitByHeuristics_GermanChapterMarkers（heuristic_splitter_test.go:27）。 */
     @Test
     void splitByHeuristicsGermanChapterMarkers() {
         String body = "Beispieltext. ".repeat(10);
@@ -696,7 +658,6 @@ class ChunkerTest {
         assertTrue(chunks.size() >= 2, "German chapter markers should split: got " + chunks.size());
     }
 
-    /** 对照 Go TestSplitByHeuristics_ChineseChapterMarkers（heuristic_splitter_test.go:37）。 */
     @Test
     void splitByHeuristicsChineseChapterMarkers() {
         String body = "内容内容内容。".repeat(60);
@@ -707,7 +668,6 @@ class ChunkerTest {
         assertTrue(chunks.size() >= 2, "Chinese chapter markers should split: got " + chunks.size());
     }
 
-    /** 对照 Go TestSplitByHeuristics_FallsThroughForUnstructuredDoc（heuristic_splitter_test.go:47）。 */
     @Test
     void splitByHeuristicsFallsThroughForUnstructuredDoc() {
         String doc = "plain prose without structure. ".repeat(5);
@@ -716,7 +676,6 @@ class ChunkerTest {
         assertEquals(1, chunks.size(), "unstructured short doc should be one chunk");
     }
 
-    /** 对照 Go TestSplitByHeuristics_OverlapActuallyOverlaps（heuristic_splitter_test.go:95）。 */
     @Test
     void splitByHeuristicsOverlapActuallyOverlaps() {
         StringBuilder sb = new StringBuilder();
@@ -751,7 +710,6 @@ class ChunkerTest {
         assertTrue(saw, "expected at least one chunk pair to overlap by >=20 chars");
     }
 
-    /** 对照 Go TestSplitByHeuristics_DropsBoundariesInsideProtectedSpans（heuristic_splitter_test.go:147）。 */
     @Test
     void splitByHeuristicsDropsBoundariesInsideProtectedSpans() {
         String body = "filler. ".repeat(30);
@@ -777,8 +735,7 @@ class ChunkerTest {
     // ------------------------------------------------------------------
 
     /**
-     * 分隔符全部不命中时的行为（已用临时 Go 测试核实 SplitText 输出）：
-     * 单单元 2000 runes < 7500 绝对上限，legacy 不进一步强切，产出单块 [0,2000)。
+     * 分隔符全部不命中时的行为：单单元 2000 runes < 7500 绝对上限，legacy 不进一步强切，产出单块 [0,2000)。
      * 该输出在策略链中会被 ValidateChunks 以 "chunk exceeds 2x target size" 拒绝后兜底返回。
      */
     @Test

@@ -20,7 +20,7 @@ public final class ChunkSearchUtil {
 
     /**
      * * {@code !\[([^\]]*)\]\(([^)]+)\)} —— Markdown 图片链接，分组 2 是 URL。
-     * RE2 与 Java 的语义在这条正则上重合（无锚点、无回溯分歧），逐字照抄。
+     * 正则无锚点、无回溯分歧。
      */
     public static final Pattern MARKDOWN_IMAGE_REGEX =
             Pattern.compile("!\\[([^\\]]*)\\]\\(([^)]+)\\)");
@@ -184,7 +184,7 @@ public final class ChunkSearchUtil {
     }
 
     /**
-     * 缺 U+0085/U+00A0，显式复刻（与 ChunkRepository.trimSpace 同一份表）。
+     * 显式空白字符表：缺 U+0085/U+00A0（与 ChunkRepository.trimSpace 同一份表）。
      * 包内可见：ChunkService 的内容编辑 trim 与 HTML src 清洗共用。
      */
     public static String trimSpace(String s) {

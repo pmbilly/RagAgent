@@ -4,7 +4,7 @@ package com.ragagent.agent.tools;
  * 工具取消探测。
  *
  * <p>约定：返回 <b>null 表示未取消</b>，非 null 是要写进 {@code ToolResult.error}
- * 的原文（registry 原样照抄，不加工）。</p>
+ * 的原文（registry 原样透传，不加工）。</p>
  */
 @FunctionalInterface
 public interface ToolCancellation {

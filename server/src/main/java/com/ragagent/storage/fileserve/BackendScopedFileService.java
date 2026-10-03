@@ -4,8 +4,7 @@ import java.io.IOException;
 import java.net.URI;
 
 /**
- * 后端作用域包装（对照 Go {@code service/file/backend_scoped.go
- * backendScopedFileService} 的 GetFile / GetFileURL 子集）：
+ * 后端作用域包装（{@code GetFile / GetFileURL} 子集）：
  *
  * <ul>
  *   <li>{@code GetFile}：先 unwrap {@code storage://<id>/…} 包装——id 与本实例不符 →

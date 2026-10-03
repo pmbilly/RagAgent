@@ -18,18 +18,16 @@ import org.junit.jupiter.api.Timeout;
 import com.ragagent.mcp.service.Adapter;
 
 /**
- * 对照 Go internal/agent/approval/gate_test.go 的逐用例翻译
- * （stubChecker / TestGate_* / TestAdapter_IsEnabled）。
+ * {@code Gate} 的逐用例覆盖（请求-等待 / Resolve / IsEnabled / OAuth 等待族）。
  *
- * <p>Go 的 goroutine 在 Java 侧用虚拟线程；Go 的 ctx 用 {@link Cancellation}；
- * Go 的 {@code require.*} 用 JUnit 断言。</p>
+ * <p>并发回调用虚拟线程；取消信号用 {@link Cancellation}；断言用 JUnit。</p>
  */
 @Timeout(20)
 class GateTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    /** 对照 Go {@code NewGate(&config.Config{Agent: &config.AgentConfig{ToolApprovalTimeoutSeconds: N}}, ...)} */
+    /** 从全局配置装 {@link GateOptions}（审批超时秒数） */
     private static GateOptions options(int timeoutSeconds) {
         return GateOptions.fromConfig(timeoutSeconds, true);
     }
@@ -46,7 +44,7 @@ class GateTest {
         }
     }
 
-    /** 对照 Go 测试里 “在 Required 事件回调里起 goroutine 调 Resolve” 的写法 */
+    /** 在 Required 事件回调里起虚拟线程调 Resolve */
     private static void resolveOnRequired(RecordingEventBus bus, Gate gate, long tenantId, String userId, Decision d) {
         bus.on(ResponseType.TOOL_APPROVAL_REQUIRED, evt -> {
             String pendingId = ((ToolApprovalRequiredData) evt.data()).pendingId();
@@ -64,7 +62,6 @@ class GateTest {
     }
 
     /**
-     * 对照 Go TestGate_RequestAndWait_Approve：
      * Required 事件里 Resolve（带替换参数）→ 决策为批准且带 ModifiedArgs。
      */
     @Test
@@ -115,7 +112,7 @@ class GateTest {
         assertTrue(resolved.approved());
     }
 
-    /** 对照 Go TestGate_RequestAndWait_Timeout：无人 Resolve → 超时且不批准。 */
+    /** 无人 Resolve → 超时且不批准。 */
     @Test
     void requestAndWaitTimeout() {
         Gate gate = new Gate(options(1).withTimeout(Duration.ofMillis(200)), new StubChecker(true), null);
@@ -134,7 +131,7 @@ class GateTest {
                 types(bus));
     }
 
-    /** 补充用例（Go 未覆盖）：ctx 取消 → ContextCanceled 决策，且取消后 Resolve 不再生效。 */
+    /** 补充用例：取消信号触发 → ContextCanceled 决策，且取消后 Resolve 不再生效。 */
     @Test
     void requestAndWaitCancelled() {
         Gate gate = new Gate(options(30), new StubChecker(true), null);
@@ -167,7 +164,7 @@ class GateTest {
                 || err.is(ApprovalException.Kind.PENDING_NOT_FOUND), String.valueOf(err));
     }
 
-    /** 对照 Go TestGate_NeedsApproval_NoChecker */
+    /** 无 checker：不进入审批门。 */
     @Test
     void needsApprovalNoChecker() {
         Gate gate = new Gate((GateOptions) null, null, null);
@@ -201,7 +198,7 @@ class GateTest {
         assertFalse(gate.needsApproval(Cancellation.none(), 1, "svc", ""));
     }
 
-    /** 对照 Go TestGate_Resolve_NotFound */
+    /** 不存在的 pending → NotFound。 */
     @Test
     void resolveNotFound() {
         Gate gate = new Gate(options(1), new StubChecker(true), null);
@@ -210,7 +207,7 @@ class GateTest {
         assertTrue(err.is(ApprovalException.Kind.PENDING_NOT_FOUND));
     }
 
-    /** 对照 Go TestGate_Resolve_TenantMismatch：租户不符被拒，随后合法租户可正常决议。 */
+    /** 租户不符被拒，随后合法租户可正常决议。 */
     @Test
     void resolveTenantMismatch() {
         RecordingEventBus bus = new RecordingEventBus();
@@ -234,7 +231,7 @@ class GateTest {
         assertTrue(mismatch.get().is(ApprovalException.Kind.TENANT_MISMATCH));
     }
 
-    /** 对照 Go TestGate_Resolve_UserMismatch：非会话属主不能决议。 */
+    /** 非会话属主不能决议。 */
     @Test
     void resolveUserMismatch() {
         RecordingEventBus bus = new RecordingEventBus();
@@ -260,7 +257,6 @@ class GateTest {
     }
 
     /**
-     * 对照 Go TestGate_Resolve_EmptyUserIDRejectedWhenWaiterHasUser：
      * 空 userID 不再短路放行（fail-close），否则同租户的他人可冒名批准。
      */
     @Test
@@ -287,7 +283,7 @@ class GateTest {
         assertTrue(mismatch.get().is(ApprovalException.Kind.USER_MISMATCH));
     }
 
-    /** 对照 Go TestGate_Resolve_AlreadyResolvedAfterTimeout：超时返回后条目已删，再 Resolve 即 NotFound。 */
+    /** 超时返回后条目已删，再 Resolve 即 NotFound。 */
     @Test
     void resolveAlreadyResolvedAfterTimeout() throws Exception {
         Gate gate = new Gate(options(1).withTimeout(Duration.ofMillis(200)), new StubChecker(true), null);
@@ -318,7 +314,6 @@ class GateTest {
     }
 
     /**
-     * 对照 Go TestGate_Resolve_RaceWinsAlreadyResolved：
      * 同一 pending 的两次 Resolve，第一次成功；第二次必须是
      * 已解决或（条目已被删）不存在。
      */
@@ -355,28 +350,28 @@ class GateTest {
                 "unexpected error: " + second.get());
     }
 
-    /** 对照 Go TestGate_IsEnabled_NoCheckerKeepsToolsOn */
+    /** 无 checker：工具默认开启。 */
     @Test
     void isEnabledNoCheckerKeepsToolsOn() {
         Gate gate = new Gate((GateOptions) null, null, null);
         assertTrue(gate.isEnabled(Cancellation.none(), 1, "svc", "tool"));
     }
 
-    /** 对照 Go TestGate_IsEnabled_MissingTenantFailClosed */
+    /** 租户缺失：fail-close。 */
     @Test
     void isEnabledMissingTenantFailClosed() {
         Gate gate = new Gate((GateOptions) null, new StubChecker(), null);
         assertFalse(gate.isEnabled(Cancellation.none(), 0, "svc", "tool"));
     }
 
-    /** 对照 Go TestGate_IsEnabled_HonorsChecker */
+    /** 遵从 checker 的判定。 */
     @Test
     void isEnabledHonorsChecker() {
         Gate gate = new Gate((GateOptions) null, StubChecker.enabled(false), null);
         assertFalse(gate.isEnabled(Cancellation.none(), 1, "svc", "tool"));
     }
 
-    /** 对照 Go TestGate_IsEnabled_CheckerErrorPropagates */
+    /** checker 异常直接上抛。 */
     @Test
     void isEnabledCheckerErrorPropagates() {
         StubChecker checker = new StubChecker();
@@ -385,7 +380,7 @@ class GateTest {
         assertThrows(IllegalStateException.class, () -> gate.isEnabled(Cancellation.none(), 1, "svc", "tool"));
     }
 
-    /** 对照 Go TestAdapter_IsEnabled */
+    /** {@link Adapter} 的 isEnabled 委托 checker；无 checker 时不要求审批。 */
     @Test
     void adapterIsEnabled() {
         Adapter adapter = new Adapter(StubChecker.enabled(false));
@@ -396,7 +391,7 @@ class GateTest {
         assertFalse(empty.isRequired(Cancellation.none(), 1, "svc", "tool"));
     }
 
-    /** 补充用例：checker 为 null 时 requestAndWait 直接放行（Go: g.checker == nil → Approved）。 */
+    /** 补充用例：checker 为 null 时 requestAndWait 直接放行。 */
     @Test
     void requestAndWaitWithoutCheckerApprovesImmediately() {
         Gate gate = new Gate((GateOptions) null, null, null);
@@ -405,7 +400,7 @@ class GateTest {
         assertTrue(d.approved());
     }
 
-    /** 补充用例：EventBus 缺失是内部错误（Go: "tool approval: EventBus is nil"）。 */
+    /** 补充用例：EventBus 缺失是内部错误（"EventBus is nil"）。 */
     @Test
     void requestAndWaitWithoutEventBusFails() {
         Gate gate = new Gate(options(1), new StubChecker(true), null);
@@ -416,7 +411,7 @@ class GateTest {
         assertTrue(err.getMessage().contains("EventBus is nil"));
     }
 
-    /** 补充用例：emit 失败必须上抛（Go 包装为 "emit tool approval required: ..."）。 */
+    /** 补充用例：emit 失败必须上抛（包装为 "emit tool approval required: ..."）。 */
     @Test
     void requestAndWaitEmitFailurePropagates() {
         Gate gate = new Gate(options(1), new StubChecker(true), null);
@@ -430,7 +425,7 @@ class GateTest {
         assertTrue(err.is(ApprovalException.Kind.INTERNAL));
     }
 
-    /** 对照 Go RequestOAuthAndWait：授权成功 → Approved=true（工具调用应被重试）。 */
+    /** OAuth 授权成功 → Approved=true（工具调用应被重试）。 */
     @Test
     void requestOAuthAndWaitAuthorized() {
         RecordingEventBus bus = new RecordingEventBus();
@@ -458,7 +453,7 @@ class GateTest {
         assertEquals("svc", resolved.serviceId());
     }
 
-    /** 对照 Go RequestOAuthAndWait：无人授权 → 授权超时。 */
+    /** 无人授权 → 授权超时。 */
     @Test
     void requestOAuthAndWaitTimeout() {
         RecordingEventBus bus = new RecordingEventBus();

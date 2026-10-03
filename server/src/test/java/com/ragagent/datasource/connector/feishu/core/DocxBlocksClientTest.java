@@ -15,11 +15,10 @@ import com.ragagent.datasource.ConnectorHttp;
 import com.ragagent.datasource.connector.feishu.core.DocxBlocks.DocxBlock;
 
 /**
- * 对照 Go {@code core/blocks_test.go} 全文：docx blocks / sheets-v2 / bitable-v1 的
- * 读取、分页、截断与防御性 break。
+ * docx blocks / sheets-v2 / bitable-v1 的读取、分页、截断与防御性 break。
  *
- * <p>桩服务器用 JDK 自带的 {@code com.sun.net.httpserver.HttpServer}（绑 127.0.0.1、
- * 端口 0），喂与 Go {@code httptest} 完全同形的 JSON。</p>
+ * <p>桩服务器用 JDK 自带的 {@code com.sun.net.httpserver.HttpServer}
+ * （绑 127.0.0.1、端口 0），喂与真实 API 同形的 JSON。</p>
  */
 class DocxBlocksClientTest {
 
@@ -72,7 +71,7 @@ class DocxBlocksClientTest {
         assertThat(blocks.get(0).getBlockId()).isEqualTo("b1");
         assertThat(blocks.get(2).getBlockId()).isEqualTo("b3");
 
-        // Go 断言 gotTokens == ['', 'p2']，也就是恰好两次调用
+        // 恰好两次调用：第一页 + 带 page_token 的第二页
         assertThat(server.countPath("/open-apis/docx/v1/documents/doc123/blocks")).isEqualTo(2);
     }
 
@@ -111,7 +110,7 @@ class DocxBlocksClientTest {
         assertThat(range.truncated()).isFalse();
         assertThat(range.rows()).hasSize(3);
         assertThat(range.rows().get(0).get(0)).isEqualTo("名称");
-        // Go 实录：float64(3) → "3"（'f' 格式、最短表示），nil → ""
+        // 数字 3 字符串化按最短表示 → "3"，null → ""
         assertThat(range.rows().get(1).get(1)).isEqualTo("3");
         assertThat(range.rows().get(2).get(1)).isEmpty();
     }

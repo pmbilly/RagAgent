@@ -1,8 +1,8 @@
 package com.ragagent.storage.fileserve;
 
 /**
- * 文件授权失败的三态（对照 Go {@code access.ErrNotFound / ErrUnauthorized / ErrForbidden}
- * 哨兵错误 + {@code router/files.go fileAccessError} 的映射）。
+ * 文件授权失败的三态（NOT_FOUND / UNAUTHORIZED / FORBIDDEN），
+ * 由文件代理服务映射成对应的 HTTP 响应。
  */
 public class FileAccessException extends RuntimeException {
 

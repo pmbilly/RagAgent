@@ -1,7 +1,7 @@
 package com.ragagent.common.error;
 
 /**
- * 对照 Go internal/errors/errors.go 的错误码表（数值一致，前端按 code 分支）。
+ * 全局错误码表（前端按 code 分支）。
  */
 public enum ErrorCode {
     // 通用 (1000-1999)

@@ -12,7 +12,7 @@ import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * 切点选择的 Go 实录断言（/tmp/wave42rec：cutpoint.go + token estimator 内嵌）。
+ * 切点选择的录制常量断言。
  * 六个场景：轮内切分（ReAct 回归场景）、预算装得下、全 tool 无合法切点、
  * 轮边界切分、切在轮内（split）、start&gt;1 的窗口偏移。
  */

@@ -14,17 +14,17 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 
 /**
- * 请求级 trace 的 HTTP 中间件（对照 Go internal/tracing/langfuse/middleware.go 全文）：
+ * 请求级 trace 的 HTTP 中间件：
  * 命中 {@link #shouldTrace} 的路径才开 trace（在线推理/摄取/批处理/诊断/评估），
  * 从 {@code traceparent} 继承上游 trace id（sop3 关联），handler 链返回后自动收尾。
  *
- * <p><b>与 Go 的两处实现差异（备案）</b>：
- * ① trace 名里的路径用 Spring 的路由模式（{@code /api/v1/kb/{id}}），Go 是 Gin 的
- * {@code :id} 形式——同一个网络语义、字符串形态不同；
- * ② {@code response.size} 取 Content-Length 头（未设置 → -1，对照 Go Writer.Size 的
- * -1 语义；SSE/分块响应在 Go 侧拿得到实际字节数，Java 拦截器拿不到）。</p>
+ * <p><b>两处实现形态（备案）</b>：
+ * ① trace 名里的路径用 Spring 的路由模式（{@code /api/v1/kb/{id}}），
+ * 同一网络语义、字符串形态与 {@code :id} 风格不同；
+ * ② {@code response.size} 取 Content-Length 头（未设置 → -1；
+ * SSE/分块响应拿不到实际字节数）。</p>
  *
- * <p>注册顺序对照 Go 链序（Auth → langfuse → Audit）：排在 RBAC/API-Key 门禁之后
+ * <p>注册顺序：排在 RBAC/API-Key 门禁之后
  * （见 WebConfig），被门禁拒绝的请求不产生 trace。</p>
  */
 public class LangfuseHttpInterceptor implements HandlerInterceptor {
@@ -44,7 +44,7 @@ public class LangfuseHttpInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 对照 propagator.Extract：traceparent 合法时先立远端帧（resume），
+        // traceparent 合法时先立远端帧（resume），
         // 随后 startTrace 的根 span 继承上游 trace id 并挂到上游 span 下。
         String traceparent = request.getHeader("traceparent");
         if (traceparent != null) {
@@ -71,7 +71,7 @@ public class LangfuseHttpInterceptor implements HandlerInterceptor {
                 trace.finish(output, null);
             }
         } finally {
-            // §5：请求线程归还容器前清空观测上下文（Tomcat 线程复用）
+            // 请求线程归还容器前清空观测上下文（Tomcat 线程复用）
             LangfuseContext.clear();
         }
     }
@@ -103,7 +103,7 @@ public class LangfuseHttpInterceptor implements HandlerInterceptor {
                 null, metadata, tags, null, null);
     }
 
-    /** 对照 extractUserID：用户 id → "tenant:<id>" → ""。 */
+    /** 用户 id 归属：显式用户 id → "tenant:<id>" → ""。 */
     private static String extractUserId() {
         String userId = TenantContext.currentUserId();
         if (userId != null && !userId.isEmpty()) {
@@ -116,7 +116,7 @@ public class LangfuseHttpInterceptor implements HandlerInterceptor {
         return "";
     }
 
-    /** 对照 extractSessionID：session_id 路径参数 → （sessions 路由下的）id 路径参数 → ""。 */
+    /** session 归属：session_id 路径参数 → （sessions 路由下的）id 路径参数 → ""。 */
     @SuppressWarnings("unchecked")
     private static String extractSessionId(HttpServletRequest request, String pattern) {
         Object vars = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
@@ -134,7 +134,7 @@ public class LangfuseHttpInterceptor implements HandlerInterceptor {
         return "";
     }
 
-    /** 对照 response.size 的取值（Content-Length 头；缺失 -1）。 */
+    /** 载荷字段 response.size 的取值（Content-Length 头；缺失 -1）。 */
     private static int responseSize(HttpServletResponse response) {
         String contentLength = response.getHeader("Content-Length");
         if (contentLength == null || contentLength.isEmpty()) {
@@ -149,7 +149,7 @@ public class LangfuseHttpInterceptor implements HandlerInterceptor {
 
     /**
      * 解析 W3C traceparent（{@code 00-<32hex>-<16hex>-<2hex>}）。
-     * 非法/全零/大写 → null（对照 Go TraceContext propagator 的严格解析）。
+     * 非法/全零/大写 → null（W3C 严格解析）。
      */
     static String[] parseTraceparent(String traceparent) {
         if (traceparent == null) {
@@ -199,7 +199,7 @@ public class LangfuseHttpInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * 对照 shouldTrace：只跟踪会引发 LLM 工作的端点（在线推理/摄取/批处理/诊断/评估），
+     * 只跟踪会引发 LLM 工作的端点（在线推理/摄取/批处理/诊断/评估），
      * 只读列表与静态资源不跟踪。路径为 Spring 路由模式形态（见类注释差异 ①）。
      */
     static boolean shouldTrace(String path, String method) {

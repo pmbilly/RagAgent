@@ -17,18 +17,17 @@ import com.ragagent.event.EventBus;
 import com.ragagent.agent.SteerSink;
 
 /**
- * QA 请求上下文与共享辅助（对照 Go internal/handler/session/qa.go 的
- * {@code qaRequestContext}/{@code sseStreamContext} 与 helpers.go 的纯函数族）。
+ * QA 请求上下文与共享辅助。
  */
 public final class QaSupport {
 
     private QaSupport() {}
 
-    /** 对照 maxAttachmentUploadsPerRequest / maxAttachmentUploadTotalBytes（qa.go L32-35）。 */
+    /** 附件上传的单请求数量 / 总字节上限。 */
     public static final int MAX_ATTACHMENT_UPLOADS_PER_REQUEST = 5;
     public static final long MAX_ATTACHMENT_UPLOAD_TOTAL_BYTES = 100L * 1024 * 1024;
 
-    /** 对照 qaMode（qa.go L966-972）。 */
+    /** QA 执行模式。 */
     public enum QaMode {
         /** KnowledgeQA pipeline (RAG / pure chat) */
         NORMAL,
@@ -37,7 +36,7 @@ public final class QaSupport {
     }
 
     // ==================================================================
-    // qaRequestContext（qa.go L37-93，字段逐一对照；Java 侧 ctx/c 拆开传）
+    // QA 请求上下文
     // ==================================================================
     public static final class QaRequestContext {
         public String sessionId = "";
@@ -97,10 +96,10 @@ public final class QaSupport {
         /** appended to this run's steer sub-list before the run is published as live */
         public List<StreamEvent> steerCarryOver;
 
-        /** agent 快答/工具开关等派生量（Java 侧从 config 树取，对照 Go customAgent.Config.*） */
+        /** agent 快答/工具开关等派生量（从 config 树取） */
         public boolean agentModeEnabled;
 
-        /** 对照 buildQARequest（qa.go L98-123）。 */
+        /** 把上下文装配成引擎入参 {@link QaRequest}。 */
         public QaRequest buildQaRequest() {
             ImageExtraction ext = extractImageUrlsAndOcrText(images);
             QaRequest req = new QaRequest();
@@ -126,20 +125,20 @@ public final class QaSupport {
         }
     }
 
-    /** qa 请求里一张图片的轻量视图（对照 ImageAttachment 的 handler 内消费面）。 */
+    /** qa 请求里一张图片的轻量视图。 */
     public static final class QaRequestsImage {
         public String data = "";
         public String url = "";
         public String caption = "";
     }
 
-    /** extractImageURLsAndOCRText 的二元返回（helpers.go L34-56）。 */
+    /** 图片 URL 列表与 OCR/caption 文本的二元返回。 */
     public static final class ImageExtraction {
         public List<String> urls = new ArrayList<>();
         public String ocrText = "";
     }
 
-    /** 对照 types.TagScope。 */
+    /** 知识库 + 标签范围。 */
     public static final class TagScope {
         public String knowledgeBaseId = "";
         public List<String> tagIds = new ArrayList<>();
@@ -153,11 +152,11 @@ public final class QaSupport {
     }
 
     // ==================================================================
-    // sseStreamContext（qa.go L642-656）
+    // SSE 流上下文
     // ==================================================================
     public static final class SseStreamContext {
         public EventBus eventBus;
-        /** 虚拟线程上显式传租户的快照（对照 asyncCtx 的 ctx 值） */
+        /** 虚拟线程上显式传租户的快照 */
         public com.ragagent.event.TenantContextSnapshot tenantSnapshot;
         public volatile boolean cancelled;
         public Message assistantMessage;
@@ -170,10 +169,10 @@ public final class QaSupport {
     }
 
     // ==================================================================
-    // helpers.go 纯函数族
+    // 纯函数辅助族
     // ==================================================================
 
-    /** 对照 extractImageURLsAndOCRText（helpers.go L34-56）。 */
+    /** 抽取图片 URL 与 caption 文本。 */
     public static ImageExtraction extractImageUrlsAndOcrText(List<QaRequestsImage> images) {
         ImageExtraction out = new ImageExtraction();
         if (images == null) {
@@ -197,7 +196,7 @@ public final class QaSupport {
         return out;
     }
 
-    /** 对照 convertMentionedItems（helpers.go L58-76）。 */
+    /** 请求里的提及项 → 实体列表。 */
     public static List<MentionedItem> convertMentionedItems(List<MentionedItemRequest> items) {
         List<MentionedItem> out = new ArrayList<>();
         if (items == null) {
@@ -218,7 +217,7 @@ public final class QaSupport {
         return out;
     }
 
-    /** 对照 tagScopesFromMentionedItems（helpers.go L78-101）。 */
+    /** 提及的标签项 → 按 KB 分组的 tag 范围。 */
     public static List<TagScope> tagScopesFromMentionedItems(List<MentionedItemRequest> items) {
         Map<String, TagScope> scopesByKb = new LinkedHashMap<>();
         if (items == null) {
@@ -240,7 +239,7 @@ public final class QaSupport {
         return new ArrayList<>(scopesByKb.values());
     }
 
-    /** 对照 orphanTagIDsForScope（helpers.go L103-121）。 */
+    /** 找出不在任何范围内（孤儿）的 tag id。 */
     public static List<String> orphanTagIdsForScope(List<String> tagIds, List<TagScope> scopes) {
         Set<String> scoped = new LinkedHashSet<>();
         if (scopes != null) {
@@ -259,7 +258,7 @@ public final class QaSupport {
         return orphans;
     }
 
-    /** 对照 validateUnscopedTagIDs（helpers.go L123-134）。 */
+    /** 校验孤儿 tag id 集合为空；返回首个错误文案。 */
     public static String validateUnscopedTagIds(List<String> orphan, List<String> kbIds) {
         if (orphan.isEmpty()) {
             return null;
@@ -270,7 +269,7 @@ public final class QaSupport {
         return null;
     }
 
-    /** 对照 mergeTagScopesFromRequestIDs（helpers.go L136-153）。 */
+    /** 合并范围、散 tag id 与 KB 集合。 */
     public static List<TagScope> mergeTagScopesFromRequestIds(
             List<TagScope> scopes, List<String> tagIds, List<String> kbIds) {
         List<TagScope> merged = new ArrayList<>();
@@ -306,7 +305,7 @@ public final class QaSupport {
         return merged;
     }
 
-    /** 对照 mentionedIDsByType（helpers.go L155-166）。 */
+    /** 按提及类型抽 id 列表。 */
     public static List<String> mentionedIdsByType(List<MentionedItemRequest> items, String itemType) {
         List<String> out = new ArrayList<>();
         if (items == null) {
@@ -320,7 +319,7 @@ public final class QaSupport {
         return out;
     }
 
-    /** 对照 dedupRequestStrings（helpers.go L168-180）。 */
+    /** 请求字符串列表去重去空。 */
     public static List<String> dedupRequestStrings(List<String> values) {
         List<String> out = new ArrayList<>();
         if (values == null) {
@@ -336,7 +335,7 @@ public final class QaSupport {
         return out;
     }
 
-    /** 对照 mergeKnowledgeTargets（qa.go L602-640）。 */
+    /** 合并 KB ids、知识 ids 与提及项成检索目标。 */
     public static KnowledgeTargets mergeKnowledgeTargets(
             List<String> requestKbIds, List<String> requestKnowledgeIds, List<MentionedItemRequest> mentionedItems) {
         Set<String> kbIdSet = new LinkedHashSet<>();
@@ -381,7 +380,7 @@ public final class QaSupport {
     /** mergeKnowledgeTargets 的二元返回。 */
     public record KnowledgeTargets(List<String> kbIds, List<String> knowledgeIds) {}
 
-    /** 对照 normalizeTemporaryAttachmentIDs（qa.go L1561-1581）。 */
+    /** 预上传附件 id 规范化：trim + 去重 + 截断。 */
     public static List<String> normalizeTemporaryAttachmentIds(List<String> ids, int max) {
         List<String> out = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
@@ -397,7 +396,7 @@ public final class QaSupport {
     }
 
     // ==================================================================
-    // steer.go 引擎侧共用的纯函数（波 1 G4 已翻 HTTP 面；这里补引擎半边）
+    // steer 引擎侧共用的纯函数与常量
     // ==================================================================
 
     public static final String STEER_DELIVERY_INJECT = "inject";
@@ -408,7 +407,7 @@ public final class QaSupport {
     public static final int MAX_STEER_QUERY_LENGTH = 10000;
     public static final int STEER_DRAIN_BATCH_LIMIT = 20;
 
-    /** 对照 parseSteerDelivery（steer.go L371-384）。null = 非法。 */
+    /** 解析 delivery；null = 非法。 */
     public static String parseSteerDelivery(String s) {
         String v = s == null ? "" : s.trim().toLowerCase();
         if (v.isEmpty() || STEER_DELIVERY_AFTER.equals(v)) {
@@ -420,19 +419,19 @@ public final class QaSupport {
         return null;
     }
 
-    /** 对照 steerDeliveryOfEvent（steer.go L386-391）。 */
+    /** 读事件的 delivery：非 after 一律按 inject。 */
     public static String steerDeliveryOfEvent(StreamEvent evt) {
         return evt.getData() != null && STEER_DELIVERY_AFTER.equals(evt.getData().get("delivery"))
                 ? STEER_DELIVERY_AFTER
                 : STEER_DELIVERY_INJECT;
     }
 
-    /** 对照 steerEventConsumed（steer.go L393-398）。 */
+    /** 事件是否已消费。 */
     public static boolean steerEventConsumed(StreamEvent evt) {
         return evt.getData() != null && Boolean.TRUE.equals(evt.getData().get(STEER_DATA_CONSUMED));
     }
 
-    /** 对照 selectSteerBacklog（steer.go L406-418）。 */
+    /** 选未消费的 backlog 事件（可排除已注入 id）。 */
     public static List<StreamEvent> selectSteerBacklog(List<StreamEvent> events, Set<String> injectedIds) {
         List<StreamEvent> out = new ArrayList<>();
         for (StreamEvent evt : events) {
@@ -447,7 +446,7 @@ public final class QaSupport {
         return out;
     }
 
-    /** 对照 steerEvent（steer.go L356-369）。 */
+    /** 构造 steer 事件。 */
     public static StreamEvent steerEvent(String id, String query, List<MentionedItem> mentionedItems, String channel) {
         StreamEvent evt = new StreamEvent();
         evt.setId(id);
@@ -463,7 +462,7 @@ public final class QaSupport {
         return evt;
     }
 
-    /** 对照 mentionedItemsToRaw（types/message.go L75-90）。 */
+    /** 提及项 → 事件 data 的原始 map 形态。 */
     public static List<Object> mentionedItemsToRaw(List<MentionedItem> items) {
         List<Object> out = new ArrayList<>();
         if (items != null) {
@@ -483,7 +482,7 @@ public final class QaSupport {
         return out;
     }
 
-    /** 对照 getString（helpers.go L448-453）。 */
+    /** map 取 string：类型不符或缺席一律给 ""。 */
     public static String getString(Map<String, Object> m, String key) {
         if (m == null) {
             return "";
@@ -501,7 +500,7 @@ public final class QaSupport {
     }
 
     // ==================================================================
-    // QARequest（对照 types.QARequest，service 面入参）
+    // QARequest（service 面入参）
     // ==================================================================
     public static final class QaRequest {
         public Session session;
@@ -524,7 +523,7 @@ public final class QaSupport {
         public List<com.ragagent.session.domain.MessageAttachment> attachments = new ArrayList<>();
         public SteerSink steerSink;
         /**
-         * 用户停止（stop）的取消探针（对照 Go 的 ctx 取消贯穿）：null=存活；
+         * 用户停止（stop）的取消探针（贯穿 think/act/审批等待）：null=存活；
          * 非 null 时返回 null=未取消、非 null=取消错误原文——与引擎
          * {@code setCancellationSource(Supplier)} 的契约一致。
          */

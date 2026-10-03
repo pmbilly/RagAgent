@@ -19,11 +19,9 @@ import com.ragagent.wiki.domain.TaskDeadLetter;
 import com.ragagent.wiki.mapper.TaskDeadLetterRepository;
 
 /**
- * asynq → 进程内虚拟线程队列的语义测试（对照 Go 的 asynq 客户端行为，
- * 见 wiki_ingest.go 的 {@code Enqueue} 调用点 L561-665 / L804-839 / L1019-1079）。
+ * 进程内虚拟线程任务队列的语义测试。
  *
- * <p>Go 侧这些语义由 asynq 库提供、由 router/task.go 的配置决定，没有单测；
- * Java 换成自研实现之后，<b>它们就成了需要自己钉住的行为</b>——
+ * <p>队列语义没有现成库兜底，<b>需要自己钉住</b>——
  * 尤其是 TaskID 合并（finalize 防抖与防惊群全靠它）。</p>
  */
 class InProcessWikiIngestTaskQueueTest {
@@ -297,7 +295,7 @@ class InProcessWikiIngestTaskQueueTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 重试延迟策略（对照 Go router/task.go 的 asynqRetryDelayFunc）
+    // 重试延迟策略
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -314,7 +312,7 @@ class InProcessWikiIngestTaskQueueTest {
         long d2 = InProcessWikiIngestTaskQueue.retryDelaySeconds(2, new RuntimeException("x"));
         assertThat(d1).isBetween(16L, 74L);
         assertThat(d2).isBetween(31L, 118L);
-        // 关键性质：默认退避明显长于锁冲突的固定 15 秒（Go 的注释解释了这个差异的理由）
+        // 关键性质：默认退避明显长于锁冲突的固定 15 秒（该差异是有意的）
         assertThat(d1).isGreaterThan(15L);
     }
 
@@ -368,7 +366,7 @@ class InProcessWikiIngestTaskQueueTest {
         assertThat(handler.ingestCalls).isEmpty();
     }
 
-    /** in-flight 上限与队列的关系：队列不做限流，限流在 WikiIngestService（对照 Go 的分层）。 */
+    /** in-flight 上限与队列的关系：队列不做限流，限流在 WikiIngestService。 */
     @Test
     @DisplayName("队列本身不限流（在途上限由 WikiInflightLimiter 承担）")
     void queueDoesNotRateLimit() throws Exception {

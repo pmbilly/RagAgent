@@ -25,8 +25,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 数据源的凭据子资源（对照 Go {@code internal/handler/datasource_credentials.go} 全文，
- * 路由 {@code PUT /datasource/:id/credentials} 与
+ * 数据源的凭据子资源（{@code PUT /datasource/:id/credentials} 与
  * {@code DELETE /datasource/:id/credentials/:field}）。
  *
  * <h2>为什么只有一个逻辑字段</h2>
@@ -36,13 +35,12 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code "credentials"}：PUT 整张替换、DELETE 整张清空。</p>
  *
  * <h2>⚠️ 错误形态与 {@link DataSourceController} <b>不同</b></h2>
- * <p>这个文件全走 {@code c.Error(errors.NewXxxError(...))} —— 也就是全局 ErrorHandler 的
- * <b>AppError 信封</b>：
+ * <p>本类全走全局 ErrorHandler 的<b>AppError 信封</b>：
  * {@code {"error":{"code":N,"details":null,"message":"..."},"success":false}}。
- * 而 {@code datasource.go} 那批全是纯字符串 {@code {"error":"..."}}。两种形态并存是
- * Go 源码的事实，别统一。</p>
+ * 而 {@code DataSourceController} 那批全是纯字符串 {@code {"error":"..."}}。
+ * 两种形态并存是有意为之，别统一。</p>
  *
- * <h2>与 datasource.go 复制的那份判定有两处刻意的差异（照抄 Go）</h2>
+ * <h2>与 {@code DataSourceController} 那份归属判定的两处刻意差异</h2>
  * <ol>
  *   <li>租户缺失时这里是 <b>400</b> {@code Workspace ID cannot be empty}，
  *       那边是 <b>401</b> {@code unauthorized}；</li>
@@ -58,7 +56,7 @@ public class DataSourceCredentialsController {
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    /** 对照 Go 的 {@code dataSourceCredentialsPutRequest}（validator 的 Key 前缀）。 */
+    /** 校验失败文案里的请求体类型名（保持线上原文）。 */
     private static final String REQUEST_TYPE_NAME = "dataSourceCredentialsPutRequest";
 
     private final DataSourceService service;
@@ -70,18 +68,18 @@ public class DataSourceCredentialsController {
     }
 
     /**
-     * 对照 Go {@code Put}（L62-95）：整体替换凭据并立刻做一次真实连接校验
+     * 整体替换凭据并立刻做一次真实连接校验
      * ——用户当场就知道新 token 对不对，不必等下一次定时同步。
      *
      * <p>成功体是<b>裸对象</b> {@code {"fields":{"credentials":{"configured":bool}}}}
-     * （§2.1：不再包 data/success 信封，§14.9q D1）。</p>
+     * （不包 data/success 信封）。</p>
      */
     @PutMapping("/api/v1/datasource/{id}/credentials")
     public ResponseEntity<?> put(@PathVariable("id") String id,
                                  @RequestBody(required = false) String rawBody) {
         DataSource ds = ownDataSource(id);
         PutRequest req = parsePutBody(rawBody);
-        // 对照 binding:"required"（map 判 nil）+ 紧随其后的非空校验
+        // 字段校验（map 判 null）+ 紧随其后的非空校验
         if (req == null || req.credentials() == null) {
             throw new BizException(AppError.badRequest(requiredFieldMessage()));
         }
@@ -105,13 +103,13 @@ public class DataSourceCredentialsController {
                 configured = parsed.hasConfiguredCredentials(updated.getType());
             }
         } catch (RuntimeException ignored) {
-            // 对照 Go 的 `if parsed, err := ...; err == nil && parsed != nil`
+            // 解析失败或结果为 null 都按"未配置"处理
         }
         return ResponseEntity.ok(CredentialsResponse.credentials(configured));
     }
 
     /**
-     * 对照 Go {@code DeleteField}（L97-115）：只认 {@code "credentials"} 这一个字段名。
+     * 只认 {@code "credentials"} 这一个字段名。
      *
      * <p>清空成功是 <b>204</b>；service 报错落 500（不是 400）——与 PUT 的映射刻意不同。</p>
      */
@@ -135,8 +133,8 @@ public class DataSourceCredentialsController {
     // ══════════════════════════ 归属判定 ══════════════════════════
 
     /**
-     * 对照 Go {@code ownDataSource}（L37-56）：与 {@code datasource.go} 那份是
-     * <b>复制关系</b>，但错误映射不同（见类注释）。
+     * 归属判定：与 {@code DataSourceController} 那份是<b>同型</b>，
+     * 但错误映射不同（见类注释）。
      */
     private DataSource ownDataSource(String id) {
         Long tenantId = TenantContext.currentTenantId();
@@ -156,12 +154,11 @@ public class DataSourceCredentialsController {
         try {
             kb = kbBridge.findKnowledgeBase(ds.getKnowledgeBaseId());
         } catch (RuntimeException ignored) {
-            // 对照 Go 的 `kb, err := h.kbService.GetKnowledgeBaseByID(...)`
+            // 查询失败按"库不存在"处理
         }
         // ⚠️ 必须用 Objects.equals：两边都是包装类型 Long，`!=` 比的是**引用**——
         // 租户 id 10002 超出 Long 缓存区间（-128..127），装箱后的两个实例恒不相等，
-        // 于是每个请求都落 404。这是 Java 侧最容易无声踩到的一条
-        //（Go 的 `kb.TenantID != tenantID` 是 uint64 的值比较）。
+        // 于是每个请求都落 404。这是最容易无声踩到的一条。
         if (kb == null || !java.util.Objects.equals(kb.getTenantId(), tenantId)) {
             throw new BizException(AppError.notFound("data source not found"));
         }
@@ -173,9 +170,8 @@ public class DataSourceCredentialsController {
     /**
      * 解析 PUT 的请求体。
      *
-     * <p>两态与 Go 一致：空 body → {@code "EOF"}（Go 的 json 层错误）；JSON 语法错误 →
-     * {@code err.Error()}（Go 是 encoding/json 原文、Java 是 Jackson 的，措辞不同
-     * ——已知差异族）；JSON 合法但字段缺失 → {@code null}，由调用方换成 validator 文案。</p>
+     * <p>三态：空 body → {@code "EOF"}；JSON 语法错误 → 回解析器原文；
+     * JSON 合法但字段缺失 → {@code null}，由调用方换成校验文案。</p>
      */
     private static PutRequest parsePutBody(String rawBody) {
         if (rawBody == null || rawBody.isBlank()) {
@@ -189,20 +185,16 @@ public class DataSourceCredentialsController {
     }
 
     /**
-     * 对照 go-playground/validator v10 对
-     * {@code dataSourceCredentialsPutRequest.Credentials} 的 required 失败文案。
+     * 请求体缺 {@code credentials} 字段时的校验失败文案（保持线上原文）。
      *
-     * <p>它是 gin 的 {@code ShouldBindJSON} 在"JSON 合法但字段缺失"时的
-     * {@code err.Error()}，Go 直接把它当 message 输出
-     * （{@code NewBadRequestError(err.Error())}）。复刻它的理由是它<b>会出现在线上</b>
-     * ——契约测试逐字节比对时不能整条掩码掉。</p>
+     * <p>它<b>会出现在线上</b>——契约测试逐字节比对时不能整条掩码掉。</p>
      */
     static String requiredFieldMessage() {
         return "Key: '" + REQUEST_TYPE_NAME + ".Credentials' Error:Field validation for "
                 + "'Credentials' failed on the 'required' tag";
     }
 
-    /** 对照 Go 的 {@code dataSourceCredentialsPutRequest}。 */
+    /** PUT 请求体。 */
     record PutRequest(Map<String, Object> credentials) {
     }
 }

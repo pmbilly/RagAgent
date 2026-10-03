@@ -29,11 +29,10 @@ import com.ragagent.datasource.mapper.DataSourceRepository;
 import com.ragagent.datasource.mapper.SyncLogRepository;
 
 /**
- * 基于 cron 的数据源周期同步调度器（对照 Go {@code datasource.Scheduler}，
- * internal/datasource/scheduler.go 全文）。
+ * 基于 cron 的数据源周期同步调度器。
  *
- * <h2>两层去重（Go 的注释逐条照抄）</h2>
- * <p>robfig/cron 按<b>绝对墙钟</b>触发（例如 {@code "0 0 * * * *"} 永远是每小时整点，
+ * <h2>两层去重</h2>
+ * <p>cron 按<b>绝对墙钟</b>触发（例如 {@code "0 0 * * * *"} 永远是每小时整点，
  * 与进程何时启动无关），所以多实例会在同一瞬间一起触发。去重靠两层：</p>
  * <ol>
  *   <li>{@code hasRunningSync} —— 上一次同步还在跑就跳过（防重叠）；</li>
@@ -42,23 +41,21 @@ import com.ragagent.datasource.mapper.SyncLogRepository;
  *       其余拿到 {@link DataSourceSyncTaskQueue.Outcome#TASK_ID_CONFLICT}。</li>
  * </ol>
  *
- * <h2>cron 引擎映射（robfig/cron → Spring）</h2>
- * <p>Go 用 {@code cron.New(cron.WithSeconds(), cron.WithChain(cron.Recover(...)))}：
- * <b>6 字段</b>（秒 分 时 日 月 周）解析，任务 panic 不终止调度器（Recover）。
- * Java 用 Spring 的 {@link CronExpression}（同样 6 字段、同样字段顺序）+ 虚拟线程池
- * 执行（任务异常由执行器吞掉并记日志，等价于 {@code cron.Recover}）。</p>
+ * <h2>cron 引擎</h2>
+ * <p>用 Spring 的 {@link CronExpression}：
+ * <b>6 字段</b>（秒 分 时 日 月 周）解析，任务异常由执行器吞掉并记日志、
+ * 不终止调度器。</p>
  *
- * <p><b>已知差异</b>：robfig/cron 额外支持 {@code @every 5m} / {@code @daily} 之类的描述符，
- * Spring 的 {@code CronExpression} 只支持 {@code @hourly} / {@code @daily} / {@code @weekly} /
- * {@code @monthly} / {@code @yearly} 五个宏、<b>不认识 {@code @every}</b>。
+ * <p><b>限制</b>：Spring 的 {@code CronExpression} 只支持 {@code @hourly} / {@code @daily} /
+ * {@code @weekly} / {@code @monthly} / {@code @yearly} 五个宏、<b>不认识 {@code @every}</b>。
  * 前端 {@code DataSourceEditorDialog.vue} 给出的全是 6 字段表达式
  * （默认 {@code "0 0 * * * *"}、以及 {@code "0 0 *&#47;6 * * *"}——这里用
  * {@code &#47;} 是因为 Javadoc 注释里不能出现字面的"星号斜杠"，那会提前结束注释），
  * 所以线上不受影响；
- * 若有人手写 {@code @every} 会与 Go 分叉（Java 报「invalid cron expression」）。
- * 另：robfig 的 {@code DOM/DOW} 用 {@code ?} 与 Spring 一致。</p>
+ * 若有人手写 {@code @every} 会在解析时报「invalid cron expression」。
+ * 另：{@code DOM/DOW} 的 {@code ?} 写法 Spring 同样支持。</p>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>持久化语义</h2>
  * <ol>
  *   <li><b>钩子</b>：无（本类不落表）。</li>
  *   <li><b>关联预加载</b>：无——{@code findActive} 是仓储里的一条查询。</li>
@@ -66,7 +63,7 @@ import com.ragagent.datasource.mapper.SyncLogRepository;
  *   <li><b>默认排序</b>：无（{@code findActive} 的排序由仓储决定）。</li>
  *   <li><b>唯一索引/外键</b>：无。</li>
  *   <li><b>自动时间戳</b>：{@code SyncLogRepository.create} 已负责
- *       {@code created_at}/{@code updated_at}；本类照 Go 显式设
+ *       {@code created_at}/{@code updated_at}；本类显式设
  *       {@code status=running} + {@code started_at=now(UTC)}。</li>
  * </ol>
  */
@@ -74,13 +71,13 @@ public class Scheduler {
 
     private static final Logger log = LoggerFactory.getLogger(Scheduler.class);
 
-    /** 对照 Go {@code asynq.MaxRetry(5)}。 */
+    /** 任务失败后的最大重试次数。 */
     public static final int MAX_RETRY = 5;
 
-    /** 对照 Go {@code asynq.Timeout(2 * time.Hour)}。 */
+    /** 单次任务执行的超时。 */
     public static final Duration TASK_TIMEOUT = Duration.ofHours(2);
 
-    /** 对照 Go {@code time.Now().UTC().Truncate(time.Minute).Format("200601021504")}。 */
+    /** TaskID 的分钟粒度时间戳（UTC，格式 {@code yyyyMMddHHmm}）。 */
     private static final DateTimeFormatter TASK_ID_MINUTE =
             DateTimeFormatter.ofPattern("yyyyMMddHHmm").withZone(ZoneOffset.UTC);
 
@@ -92,7 +89,7 @@ public class Scheduler {
     private final boolean ownsCron;
 
     private final ReentrantLock mu = new ReentrantLock();
-    /** dataSourceID → 已注册的 cron 任务（对照 Go 的 {@code entries map[string]cron.EntryID}）。 */
+    /** dataSourceID → 已注册的 cron 任务。 */
     private final Map<String, ScheduledFuture<?>> entries = new LinkedHashMap<>();
 
     public Scheduler(DataSourceRepository dsRepo, SyncLogRepository syncLogRepo,
@@ -131,8 +128,8 @@ public class Scheduler {
     /**
      * 从数据库加载全部 active 数据源并注册它们的 cron 表达式，然后启动调度器。
      *
-     * <p>对照 Go：单个数据源注册失败只记 warn 并继续（
-     * {@code failed to register cron for ds=%s schedule=%q}），只有
+     * <p>单个数据源注册失败只记 warn 并继续
+     * （日志文案 {@code failed to register cron for ds=... schedule=...}），只有
      * {@code FindActive} 本身失败才会整体失败。</p>
      */
     public void start() {
@@ -161,10 +158,9 @@ public class Scheduler {
     /**
      * 优雅停止：取消全部已注册的 cron 任务。
      *
-     * <p>Go 的 {@code cron.Stop()} 会等正在跑的任务结束（{@code <-ctx.Done()}）。
-     * Java 侧 {@code ScheduledFuture.cancel(false)} <b>不打断</b>正在执行的任务
-     * ——与 Go 的"等它跑完"一致；正在跑的任务由线程池在 shutdown 时等完。
-     * 差异是 Go 的 Stop 会阻塞到任务结束，Java 的 stop 只保证"不再触发新的"，
+     * <p>{@code ScheduledFuture.cancel(false)} <b>不打断</b>正在执行的任务；
+     * 正在跑的任务由线程池在 shutdown 时等完。
+     * 本方法只保证"不再触发新的"，
      * 调用方若需要"等到跑完"应自行等待线程池（Spring 关闭时天然如此）。</p>
      */
     public void stop() {
@@ -222,7 +218,7 @@ public class Scheduler {
         }
     }
 
-    /** 当前已注册的 cron 任务数（对照 Go {@code EntryCount}，供测试/监控用）。 */
+    /** 当前已注册的 cron 任务数（供测试/监控用）。 */
     public int entryCount() {
         mu.lock();
         try {
@@ -245,12 +241,12 @@ public class Scheduler {
         }
     }
 
-    /** 与 Go 的 {@code addEntryLocked} 一样：调用方必须已持锁。 */
+    /** 调用方必须已持锁。 */
     private void addEntryLocked(DataSource ds) {
         String dsId = ds.getId();
         long tenantId = ds.getTenantId() == null ? 0L : ds.getTenantId();
 
-        // 先自己 parse 一次，只为拿到与 Go 逐字一致的错误文本；
+        // 先自己 parse 一次，为的是拿到统一的错误文本（含原始表达式）；
         // 真正的触发器仍用原始表达式构造（CronTrigger 内部会再解析一次）。
         parseCron(ds.getSyncSchedule());
         ScheduledFuture<?> future = cron.schedule(() -> triggerSync(dsId, tenantId),
@@ -260,8 +256,7 @@ public class Scheduler {
     }
 
     /**
-     * 对照 Go 的 {@code s.cron.AddFunc} 错误文本：
-     * {@code invalid cron expression %q: <解析器原文>}。
+     * 解析失败统一抛 {@code invalid cron expression "<表达式>": <解析器原文>}。
      */
     private static CronExpression parseCron(String schedule) {
         try {
@@ -281,7 +276,7 @@ public class Scheduler {
      * 因为 robfig/cron 按绝对墙钟触发，所有实例在同一分钟触发；第一个入队者获胜，
      * 其余拿到冲突。</p>
      */
-    // 包可见：测试可直接触发一次（对照 Go 测试里通过 cron 表达式走真实触发）
+    // 包可见：测试可直接触发一次
     void triggerSync(String dataSourceId, long tenantId) {
         DataSource ds;
         try {
@@ -300,7 +295,7 @@ public class Scheduler {
         try {
             running = syncLogRepo.hasRunningSync(dataSourceId);
         } catch (RuntimeException e) {
-            running = false; // 对照 Go 的 `if running, _ := ...; running`
+            running = false; // 查询失败时不视为"有同步在跑"
         }
         if (running) {
             log.info("[Scheduler] skipping sync for ds={} (previous sync still running)", dataSourceId);
@@ -337,7 +332,7 @@ public class Scheduler {
             try {
                 syncLogRepo.update(syncLog);
             } catch (RuntimeException ignored) {
-                // 对照 Go 的 `_ = s.syncLogRepo.Update(...)`：写日志失败不改变主流程
+                // 写日志失败不改变主流程
             }
             return;
         }

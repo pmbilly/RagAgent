@@ -45,7 +45,7 @@ final class TemporaryDocumentProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(TemporaryDocumentProcessor.class);
 
-    /** 对照 Go temporaryTextExtensions（L92-94，带点）。 */
+    /** 文本扩展名白名单（带点）。 */
     private static final Set<String> TEXT_EXTENSIONS = Set.of(
             ".md", ".markdown", ".txt", ".csv", ".json", ".xml", ".yaml", ".yml", ".log");
 
@@ -72,7 +72,7 @@ final class TemporaryDocumentProcessor {
 
     private static final int CHUNK_SIZE = 1600;
     private static final int CHUNK_OVERLAP = 160;
-    /** 对照 Go {@code image_resolver.go} 的图标过滤阈值（minImageDimension / minImageBytes）。 */
+    /** 图标过滤阈值（最小边长 / 最小字节数）。 */
     static final int MIN_IMAGE_DIMENSION = 64;
     static final int MIN_IMAGE_BYTES = 512;
     /** 解析任务的单线程 executor（对照 asynq worker 的串行消费语义）。 */
@@ -81,7 +81,7 @@ final class TemporaryDocumentProcessor {
         t.setDaemon(true);
         return t;
     });
-    /** 对照 Go {@code docparser.audioFormats}（builtin_converter.go L27-30；无点，不含 aac）。 */
+    /** 音频扩展名（无点，不含 aac）。 */
     private static final Set<String> AUDIO_FORMAT_EXTENSIONS =
             Set.of("mp3", "wav", "m4a", "flac", "ogg");
     /** 对照 asynq.Enqueue：进程内 executor 投递，失败直接 MarkFailed。 */
@@ -149,7 +149,7 @@ final class TemporaryDocumentProcessor {
                 // Go 传给 docreader 的 fileType 去掉点（ReadRequest.FileType）
                 DocReaderClient.ParseResult parsed = docReader.read(data, document.getFileName(),
                         extNoDot, document.getFileName(), "auto".equals(engine) ? "" : engine);
-                // 对照 Go parse 里的 imageResolver.ResolveAndStore（L443-457）：docreader
+                // docreader
                 // 直出的 inline ImageRef 落盘并把 markdown 引用改写成可服务 URL；列表写进
                 // image_refs jsonb，供 ResolveForPrompt 提炼给 vision 模型。
                 StoredImages stored = storeDocumentImages(tenantId, document, parsed.imageRefs(),
@@ -195,7 +195,7 @@ final class TemporaryDocumentProcessor {
             return CreateOptions.empty();
         }
     }
-    /** 对照 Go parse：未显式指定 engine 时用资源租户的 chat 解析规则兜底。 */
+    /** 未显式指定 engine 时用资源租户的 chat 解析规则兜底。 */
     private String tenantParserEngine(long resourceTenantId, String ext) {
         try {
             var tenant = tenantService.getTenantById(resourceTenantId);
@@ -209,7 +209,7 @@ final class TemporaryDocumentProcessor {
             return "";
         }
     }
-    /** 对照 Go parse 的音频分支：GetASRModel → Transcribe；错误文案逐字（含前缀）。 */
+    /** 音频分支：取 ASR 模型 → 转写；错误文案带固定前缀。 */
     private String transcribeAudio(long resourceTenantId, String asrModelId, byte[] data,
             String fileName) {
         if (asrModelId.isEmpty()) {
@@ -235,8 +235,7 @@ final class TemporaryDocumentProcessor {
         });
     }
     /**
-     * 临时把线程租户切到资源租户（对照 Go 的
-     * {@code ctx = WithValue(TenantIDContextKey, resourceTenantID)}）：ASR 模型的
+     * 临时把线程租户切到资源租户：ASR 模型的
      * 可见性按共享来源空间解析，调用后恢复原值。
      */
     private <T> T withResourceTenant(long resourceTenantId, java.util.function.Supplier<T> body) {
@@ -265,8 +264,7 @@ final class TemporaryDocumentProcessor {
     record StoredImages(String markdown, String imageRefsJson) {
     }
     /**
-     * 对照 Go {@code ImageResolver.ResolveAndStore}（image_resolver.go L80-151）对
-     * docreader 直出 {@code ImageRefs} 的处理 + {@code saveReferencedImage}（L156-218）。
+     * 处理 docreader 直出 {@code ImageRefs}：落盘 + 改写 markdown 引用。
      *
      * <p><b>本批收敛</b>：只处理带内联字节的 ImageRef——这是聊天附件的唯一来源
      * （docreader 的 ImageParser 对图片产 {@code ![](images/x.png)} + inline bytes，
@@ -274,10 +272,8 @@ final class TemporaryDocumentProcessor {
      * data URI / HTML data URI / bare base64 / 相对路径 HTML 四路（KB 文档解析场景的
      * 边角）备案不实现。</p>
      *
-     * <p><b>图标过滤</b>照抄 {@code isIconImage}（两轴均 &lt; 64，或解不开且 &lt; 512 字节）；
-     * 图片型附件不过滤——Go 的 SimpleFormatReader 走 {@code imageToResult} 设
-     * {@code IsOriginal=true} 跳过判定，Java 从 gRPC 拿不到该字段，以"来源文件本身是
-     * 图片格式"（{@code docparser.IsImageFormat}）等价对齐。</p>
+     * <p><b>图标过滤</b>（两轴均 &lt; 64，或解不开且 &lt; 512 字节）只作用于非图片附件——
+     * gRPC 侧拿不到上游"原图"标记，以"来源文件本身是图片格式"等价判定。</p>
      */
     StoredImages storeDocumentImages(long tenantId, TemporaryDocument document,
             List<DocReaderClient.ImageRef> refs, String markdown) {
@@ -294,7 +290,7 @@ final class TemporaryDocumentProcessor {
         Map<String, String> savedByFilename = new java.util.HashMap<>();
         List<String> jsonItems = new ArrayList<>();
 
-        // 对照 Go：按 markdown 里出现的图片目标逐个处理（scanMarkdownImageTargets），
+        // 按 markdown 里出现的图片目标逐个处理，
         // 命中 refMap 才落盘并改写引用；未被引用的 ref 不落盘。
         java.util.regex.Pattern target = java.util.regex.Pattern.compile(
                 "(!\\[[^\\]]*\\]\\()\\s*(<[^>]*>|[^)]*?)\\s*(?:\"[^\"]*\"\\s*)?\\)");
@@ -306,11 +302,11 @@ final class TemporaryDocumentProcessor {
                     ? rawPath.substring(1, rawPath.length() - 1) : rawPath;
             DocReaderClient.ImageRef ref = refMap.get(path);
             if (ref == null || ref.imageData() == null || ref.imageData().length == 0) {
-                continue; // 对照 saveReferencedImage：无内联字节 → 原样保留
+                continue; // 无内联字节 → 原样保留
             }
             byte[] bytes = ref.imageData();
             if (!isOriginalDocument && isIconImage(bytes)) {
-                continue; // 对照 isIconImage：非原图的图标/装饰元素过滤
+                continue; // 图标/装饰元素过滤
             }
             String servingUrl = savedByFilename.get(ref.filename());
             if (servingUrl == null) {
@@ -326,7 +322,7 @@ final class TemporaryDocumentProcessor {
                             java.util.UUID.randomUUID() + ext);
                 } catch (RuntimeException e) {
                     log.warn("failed to save image {}: {}", path, e.getMessage());
-                    continue; // 对照 Go：写失败只 WARN 继续
+                    continue; // 写失败只 WARN 继续
                 }
                 if (ref.filename() != null && !ref.filename().isEmpty()) {
                     savedByFilename.put(ref.filename(), servingUrl);
@@ -344,7 +340,7 @@ final class TemporaryDocumentProcessor {
         String updated = jsonItems.isEmpty() ? markdown : out.toString();
         return new StoredImages(updated, "[" + String.join(",", jsonItems) + "]");
     }
-    /** 对照 Go isIconImage：解码尺寸两轴均 &lt; 64 视为图标；解码失败回退字节数 &lt; 512。 */
+    /** 解码尺寸两轴均 &lt; 64 视为图标；解码失败回退字节数 &lt; 512。 */
     static boolean isIconImage(byte[] data) {
         try {
             java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(
@@ -357,7 +353,7 @@ final class TemporaryDocumentProcessor {
             return data.length < MIN_IMAGE_BYTES;
         }
     }
-    /** 对照 Go extFromMime（image_resolver.go L220-239）。 */
+    /** MIME 类型 → 图片扩展名。 */
     static String extFromMime(String mime) {
         if (mime == null) {
             return "";
@@ -372,7 +368,7 @@ final class TemporaryDocumentProcessor {
             default -> "";
         };
     }
-    /** 对照 Go common.CleanInvalidUTF8：替换非法 UTF-8 序列（REPLACE 语义）。 */
+    /** 替换非法 UTF-8 序列（REPLACE 语义）。 */
     static String cleanInvalidUtf8(String value) {
         try {
             return StandardCharsets.UTF_8.newDecoder()

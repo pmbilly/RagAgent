@@ -69,24 +69,24 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对照 Go internal/handler/auth.go + auth_register_by_invite.go 的 AuthHandler。
+ * 认证端点（登录 / 注册 / 会话 / OIDC）。
  *
- * 已落地端点（阶段 1 + 波 2 扫尾批 1/2）：
- * - POST /login             阶段 1
- * - POST /register          对照 auth.go L170：invite_only 门 → binding → 消毒 →
+ * 端点清单：
+ * - POST /login             登录
+ * - POST /register          invite_only 门 → binding → 消毒 →
  *                           空值 → 密码策略 → Register（建四表）→ 201
- * - POST /auto-setup        对照 L895：非 lite 恒 403（lite 路径亦已翻译）
- * - POST /register-by-invite /invitations/lookup   对照 auth_register_by_invite.go
- * - GET  /config            对照 L821：注册模式 + 复杂密码开关（无鉴权，供前端）
- * - GET  /validate          对照 L984（其 400 分支在部署态被 AuthFilter 短路，仍按 Go 翻）
- * - GET  /me                对照 L613：嵌套 gin.H 每层字母序
- * - PUT  /me/preferences    对照 L700：PATCH 语义合并
- * - POST /change-password   对照 L746：错误分派到三种 details 令牌
- * - GET  /oidc/{config,url,start,callback}   对照 L311-472（波 2 扫尾批 2）：
- *   302 复刻 gin Redirect 的字节行为（body=`<a href="<html 转义 Location>">Found</a>.\n\n`，
- *   Content-Type: text/html; charset=utf-8）；enabled 后的网络步整体推迟（§9 deferral）
+ * - POST /auto-setup        非 lite 部署恒 403
+ * - POST /register-by-invite /invitations/lookup
+ * - GET  /config            注册模式 + 复杂密码开关（无鉴权，供前端）
+ * - GET  /validate          其 400 分支在部署态被 AuthFilter 短路
+ * - GET  /me                嵌套 map 每层字母序
+ * - PUT  /me/preferences    PATCH 语义合并
+ * - POST /change-password   错误分派到三种 details 令牌
+ * - GET  /oidc/{config,url,start,callback}：
+ *   302 的字节行为（body=`<a href="<html 转义 Location>">Found</a>.\n\n`，
+ *   Content-Type: text/html; charset=utf-8）；enabled 后的网络步整体推迟
  *
- * map 响应（gin.H 对照）：Go 按 encoding/json 字母序输出 → LinkedHashMap 按字母序构造。
+ * map 响应：键一律按字母序输出 → LinkedHashMap 按字母序构造。
  */
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -95,8 +95,8 @@ public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     /**
-     * go-playground/validator v10 的 email 正则（validator 包 regexes.go emailRegexString），
-     * 逐字符移植以保证 gin binding:"email" 的判定一致。
+     * 登录/注册通用的 email 正则（与常见 validator 的 email 判定一致），
+     * 保证 binding 错误判定口径统一。
      */
     static final Pattern GIN_EMAIL = Pattern.compile(
             "^(?:[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*"
@@ -111,8 +111,6 @@ public class AuthController {
 
     static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Go types.Membership 的角色常量（register-by-invite/auto-setup 的 memberships 组装用）。 */
-
     final UserService userService;
     final TenantService tenantService;
     private final TenantInvitationService invitationService;
@@ -126,11 +124,11 @@ public class AuthController {
     final AuthSessionOps sessionOps;
     final AuthBindingSupport bindingSupport;
 
-    /** 对照 handler.Edition（构建期注入，默认 "standard"）。 */
+    /** 部署形态常量（构建期注入，默认 "standard"）。 */
     @Value("${weknora.system.edition:standard}")
     private String edition;
 
-    /** 对照 cfg.Auth.RegistrationMode（Go config.yaml auth.registration_mode；缺省 self_serve）。 */
+    /** 注册模式配置（缺省 self_serve）。 */
     @Value("${weknora.auth.registration-mode:}")
     private String configuredRegistrationMode;
 
@@ -182,7 +180,7 @@ public class AuthController {
         return ResponseEntity.ok(toResponse(result));
     }
 
-    // ── POST /register（对照 auth.go L170-243） ────────────────────────────
+    // ── POST /register ─────────────────────────────────────────────────────
 
     @PostMapping("/register")
     public ResponseEntity<User> register(
@@ -227,7 +225,7 @@ public class AuthController {
         return ResponseEntity.status(201).body(user);
     }
 
-    // ── POST /auto-setup（对照 auth.go L895-962） ──────────────────────────
+    // ── POST /auto-setup ───────────────────────────────────────────────────
 
     @PostMapping("/auto-setup")
     public ResponseEntity<AuthLoginResponse> autoSetup() {
@@ -264,7 +262,7 @@ public class AuthController {
     }
 
     // ── POST /register-by-invite + /invitations/lookup ─────────────────────
-    // （对照 auth_register_by_invite.go；均不受 invite_only 门控——token 即授权）
+    // （均不受 invite_only 门控——token 即授权）
 
     @PostMapping("/invitations/lookup")
     public ResponseEntity<InvitationLookupResponse> lookupInvitation(
@@ -337,14 +335,14 @@ public class AuthController {
 
         // 受邀空间成为初始/主空间
         user.setTenantId(inv.getTenantId());
-        user.setUpdatedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC)); // Go Save 自动刷 updated_at
+        user.setUpdatedAt(java.time.OffsetDateTime.now(ZoneOffset.UTC)); // 显式刷 updated_at（写回不会自动刷新该列）
         try {
             userService.updateUser(user);
         } catch (RuntimeException e) {
             try {
                 userService.deleteUser(user.getId());
             } catch (RuntimeException ignored) {
-                // 尽力清理半建账号（对照 Go `_ =`）
+                // 尽力清理半建账号（错误忽略）
             }
             throw new BizException(AppError.internal("failed to finalise invited account")
                     .withDetails(e.getMessage()));
@@ -376,7 +374,7 @@ public class AuthController {
         try {
             tenant = tenantService.getTenantById(inv.getTenantId());
         } catch (RuntimeException ignored) {
-            // tenantNameOrEmpty 容忍 null（对照 Go `tenant, _ :=`）
+            // tenantNameOrEmpty 容忍 null，取不到也不让请求失败
         }
         List<Membership> memberships = List.of(
                 new Membership(inv.getTenantId(), tenantNameOrEmpty(tenant), inv.getRole()));
@@ -384,7 +382,7 @@ public class AuthController {
                 buildAuthLoginResponse(user, tenant, memberships, tokens[0], tokens[1]));
     }
 
-    // ── GET /config（对照 auth.go L821-836，无鉴权公共读） ─────────────────
+    // ── GET /config（无鉴权公共读） ─────────────────────────────────────────
 
     @GetMapping("/config")
     public ResponseEntity<AuthConfigResponse> getAuthConfig() {
@@ -392,9 +390,9 @@ public class AuthController {
                 userService.complexPasswordEnabled(), resolveRegistrationMode(), edition));
     }
 
-    // ── GET /validate（对照 auth.go L984-1024） ────────────────────────────
+    // ── GET /validate ──────────────────────────────────────────────────────
     // 注意：部署态下无/坏 Authorization 头都先被 AuthFilter 以 401 纯文本拒绝，
-    // 这里的 400/401 分支是对 Go handler 的忠实翻译（过滤器之后不可达）。
+    // 这里的 400/401 分支在过滤器之后不可达，仅为协议完整性保留。
 
     @GetMapping("/validate")
     public ResponseEntity<UserInfo> validateToken(
@@ -402,7 +400,7 @@ public class AuthController {
         if (authHeader == null || authHeader.isEmpty()) {
             throw new BizException(AppError.validation("Authorization header is required"));
         }
-        String[] tokenParts = authHeader.split(" ", -1); // 对照 strings.Split（全部空格都切）
+        String[] tokenParts = authHeader.split(" ", -1); // 全部空格都切
         if (tokenParts.length != 2 || !"Bearer".equals(tokenParts[0])) {
             throw new BizException(AppError.validation("Invalid Authorization header format"));
         }
@@ -416,7 +414,7 @@ public class AuthController {
         return ResponseEntity.ok(UserInfo.from(vt.user(), vt.user().isCanAccessAllTenants()));
     }
 
-    // ── GET /me（对照 auth.go L613-669） ───────────────────────────────────
+    // ── GET /me ────────────────────────────────────────────────────────────
 
     @GetMapping("/me")
     public ResponseEntity<CurrentUserResponse> getCurrentUser() {
@@ -432,7 +430,7 @@ public class AuthController {
             try {
                 tenant = tenantService.getTenantById(activeTenantId);
             } catch (RuntimeException e) {
-                // 对照 Go：租户信息取不到不让请求失败
+                // 租户信息取不到不让请求失败
                 log.warn("Failed to get tenant info for user {}, tenant ID {}: {}",
                         user.getEmail(), activeTenantId, e.toString());
             }
@@ -455,7 +453,7 @@ public class AuthController {
                 userInfo));
     }
 
-    // ── PUT /me/preferences（对照 auth.go L700-733） ───────────────────────
+    // ── PUT /me/preferences ────────────────────────────────────────────────
 
     @PutMapping("/me/preferences")
     public ResponseEntity<UserPreferences> updateMyPreferences(
@@ -474,7 +472,7 @@ public class AuthController {
         return ResponseEntity.ok(prefs);
     }
 
-    // ── POST /change-password（对照 auth.go L746-806） ─────────────────────
+    // ── POST /change-password ──────────────────────────────────────────────
 
     @PostMapping("/change-password")
     public ResponseEntity<Void> changePassword(
@@ -528,9 +526,9 @@ public class AuthController {
         return oidcOps.oidcRedirectCallback(providerError, errorDescription, state, code, request, response);
     }
 
-    // ── 策略解析（对照 auth.go L85-157 + tenant_policy.go） ────────────────
+    // ── 策略解析 ──────────────────────────────────────────────────────────
 
-    /** 对照 resolveRegistrationMode：DB system_settings > cfg > self_serve */
+    /** 注册模式解析：DB system_settings > cfg > self_serve */
     private String resolveRegistrationMode() {
         String def = configuredRegistrationMode == null || configuredRegistrationMode.isBlank()
                 ? SystemSettingRegistry.AUTH_REGISTRATION_MODE_DEFAULT
@@ -538,7 +536,7 @@ public class AuthController {
         return settingService.getString("auth.registration_mode", "", def);
     }
 
-    /** 对照 resolveDefaultTenantMode：DB > ENV > cfg（cfg 兜底 create_personal） */
+    /** 默认租户模式解析：DB > ENV > cfg（cfg 兜底 create_personal） */
     String resolveDefaultTenantMode() {
         String mode = settingService.getString("auth.default_tenant_mode",
                 "WEKNORA_AUTH_DEFAULT_TENANT_MODE", "create_personal");
@@ -546,7 +544,7 @@ public class AuthController {
                 ? UserService.PROVISIONING_TENANTLESS : UserService.PROVISIONING_CREATE_PERSONAL;
     }
 
-    /** 对照 resolveTenantSelfServiceCreationEnabled（tenant_policy.go）：DB > ENV > cfg(默认 true) */
+    /** 自助建租户开关：DB > ENV > cfg(默认 true) */
     private boolean resolveTenantSelfServiceCreationEnabled() {
         return settingService.getBool("tenant.self_service_creation_enabled",
                 "WEKNORA_TENANT_SELF_SERVICE_CREATION_ENABLED",
@@ -582,37 +580,36 @@ public class AuthController {
         }
     }
 
-    /** 对照 tenantNameOrEmpty（auth.go L964-972） */
+    /** 租户名取不到时回落空串。 */
     private static String tenantNameOrEmpty(Tenant t) {
         return t == null || t.getName() == null ? "" : t.getName();
     }
 
-    /** 对照 NewTenantResponse(ctx, tenant)：includeSecrets 由请求上下文的角色决定 */
+    /** 当前上下文角色是否有 Admin 权限（决定秘密字段是否输出）。 */
     private boolean contextRoleHasAdmin() {
         String role = TenantContext.currentRole();
         return TenantRole.fromString(role == null ? "" : role).hasPermission(TenantRole.ADMIN);
     }
 
-    /** 对照 dto.NewAuthLoginResponse：active_tenant 按 membership 角色决定秘密字段是否输出 */
+    /** 登录响应组装规则：active_tenant 按 membership 角色决定秘密字段是否输出 */
     /**
      * POST /auth/logout。AuthFilter 已把它列入 tenant-optional（tenantless 也可登出）。
      * 成功无响应体。
      */
     /**
-     * POST /auth/refresh（对照 RefreshToken，L569-611）。noAuthAPI 白名单路径
+     * POST /auth/refresh。noAuthAPI 白名单路径
      * （无鉴权）；绑定失败 400 "Invalid refresh token request"+details，
      * service 失败 401 "Token refresh failed"+details。成功体见 AuthLoginResponse。
      */
     /**
-     * SwitchTenant 匿名 struct 的 Go reflect.Type 字符串（顶层非对象时的
-     * UnmarshalTypeError 文案要用；Golden 录制钉住）。
+     * 顶层非对象时绑定错误文案用的类型串字面量（golden 录制钉住，勿改动）。
      */
     static final String SWITCH_ANON_STRUCT_TYPE =
             "struct { TenantID uint64 \"json:\\\"tenantId\\\" binding:\\\"required\\\"\"; "
                     + "RefreshToken string \"json:\\\"refresh_token\\\"\" }";
 
     /**
-     * POST /auth/switch-tenant（对照 SwitchTenant，L856-893）。tenant-optional
+     * POST /auth/switch-tenant。tenant-optional
      * （tenantless 主体可调用，切换成功即有空间）。绑定失败 400
      * "Invalid workspace switch request"+details；未认证 401 "not authenticated"；
      * service 失败 403 "workspace switch failed"+details；成功 = 登录响应同形
@@ -635,13 +632,13 @@ public class AuthController {
             @RequestBody(required = false) String rawBody) {
         return sessionOps.switchTenant(rawBody);
     }
-    /** 对照 dto.NewAuthLoginResponse（login 用） */
+    /** login 用的响应组装。 */
     private AuthLoginResponse toResponse(LoginResult r) {
         return buildAuthLoginResponse(r.user(), r.activeTenant(),
                 r.memberships(), r.token(), r.refreshToken());
     }
 
-    /** 对照 dto.membershipRoleForTenant */
+    /** 取用户在指定空间的成员角色；无成员或角色无效返回空串。 */
     static String membershipRoleForTenant(List<Membership> memberships, long tenantId) {
         if (memberships == null) {
             return "";

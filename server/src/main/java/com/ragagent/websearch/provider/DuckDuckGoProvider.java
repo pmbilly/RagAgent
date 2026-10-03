@@ -14,14 +14,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 
 /**
- * DuckDuckGo 搜索 provider（对照 Go {@code web_search/duckduckgo.go} 全文）。
+ * DuckDuckGo 搜索 provider。
  *
  * <p>HTML 端点优先（{@code html.duckduckgo.com/html/?q=&kl=cn-zh} + 桌面 UA），
  * 失败或空结果回落 Instant Answer API（{@code api.duckduckgo.com/?q=&format=json&
  * no_html=1&skip_disambig=1} + UA WeKnora/1.0）。<b>HTML 解析是有界实现</b>：
- * Go 用 goquery 按选择器取 {@code .web-result} 块里的 {@code .result__a}（标题+
- * href）与 {@code .result__snippet}；Java 用正则切同名 class 块，正常页面的
- * 抽取结果一致，病态嵌套可能与 goquery 有差（报告已列明）。</p>
+ * 用正则切 {@code .web-result} 块里的 {@code .result__a}（标题+
+ * href）与 {@code .result__snippet}，正常页面的
+ * 抽取结果一致，病态嵌套可能有差。</p>
  */
 public final class DuckDuckGoProvider implements WebSearchProvider {
 
@@ -78,7 +78,7 @@ public final class DuckDuckGoProvider implements WebSearchProvider {
     }
 
     private List<WebSearchResult> searchHtml(String query, int maxResults) {
-        // Go 的 url.Values.Encode() 按键字母序（kl 先于 q）
+        // 手拼查询串按键字母序（kl 先于 q）
         String url = htmlUrl + "?kl=cn-zh&q="
                 + URLEncoder.encode(query, StandardCharsets.UTF_8);
         var req = SearchHttp.request(url, TIMEOUT)
@@ -207,7 +207,7 @@ public final class DuckDuckGoProvider implements WebSearchProvider {
         return results;
     }
 
-    /** 对照 cleanDDGURL：剥 //duckduckgo.com/l/?uddg= 与 https://duckduckgo.com/l/?uddg= 包装。 */
+    /** 剥 //duckduckgo.com/l/?uddg= 与 https://duckduckgo.com/l/?uddg= 包装。 */
     static String cleanDdgUrl(String urlStr) {
         if (urlStr == null) {
             return "";
@@ -243,7 +243,7 @@ public final class DuckDuckGoProvider implements WebSearchProvider {
         return urlStr;
     }
 
-    /** 对照 extractTitle：首行 trim，超 100 字节截断加 "..."。 */
+    /** 首行 trim，超 100 字节截断加 "..."。 */
     static String extractTitle(String text) {
         String[] lines = text.split("\n", -1);
         String title = SearchDecode.goTrimSpace(lines[0]);

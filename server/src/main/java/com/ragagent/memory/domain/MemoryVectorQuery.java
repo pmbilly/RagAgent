@@ -3,8 +3,7 @@ package com.ragagent.memory.domain;
 import java.util.List;
 
 /**
- * 一次针对某主体已存向量的语义查找
- * （对照 Go {@code interfaces.MemoryVectorQuery}，internal/types/interfaces/memory.go L24-36）。
+ * 一次针对某主体已存向量的语义查找。
  *
  * @param modelId 钉死向量空间。别的模型产生的向量会被**跳过**而不是拿来打分，
  *                因为两者之间的距离没有意义。
@@ -28,7 +27,7 @@ public record MemoryVectorQuery(String modelId, float[] vector, List<String> kin
     }
 
     /**
-     * 对照 Go 的前置判断 {@code query.ModelID == "" || len(query.Vector) == 0}。
+     * 前置判断：{@code modelId} 为空 **或** {@code vector} 为 null/长度 0。
      *
      * <p>名字不带 {@code is}/{@code get} 前缀，Jackson 不会误认（本类型也不出响应）。</p>
      */
@@ -36,7 +35,7 @@ public record MemoryVectorQuery(String modelId, float[] vector, List<String> kin
         return modelId.isEmpty() || vector == null || vector.length == 0;
     }
 
-    /** 对照 Go 的 {@code if limit <= 0 { limit = 20 }}。 */
+    /** {@code limit <= 0} 时回默认值 20。 */
     public int effectiveLimit() {
         return limit <= 0 ? DEFAULT_LIMIT : limit;
     }

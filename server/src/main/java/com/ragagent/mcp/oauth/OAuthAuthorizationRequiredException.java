@@ -3,21 +3,17 @@ package com.ragagent.mcp.oauth;
 import com.ragagent.mcp.protocol.McpAuthorizationRequiredException;
 
 /**
- * OAuth 传输层"需要授权"信号，并<b>携带引发它的 handler</b>（对照 mcp-go
- * {@code transport.OAuthAuthorizationRequiredError}，streamable_http.go:473-486）。
+ * OAuth 传输层"需要授权"信号，并<b>携带引发它的 handler</b>。
  *
  * <p>与 protocol 包既有的 {@link McpAuthorizationRequiredException} 的关系刻意做成继承：
- * Go 里 {@code OAuthAuthorizationRequiredError} <b>内嵌</b> {@code AuthorizationRequiredError}，
- * 所以 {@code errors.As(err, &AuthorizationRequiredError)} 同样命中——
- * 这正是 {@code isOAuthAuthorizationFailure} 能一次覆盖两种 401 的原因。
- * Java 用继承复刻同一条判定路径。</p>
+ * 异常链上按父类判定也能命中本类——
+ * 这正是 {@code isOAuthAuthorizationFailure} 能一次覆盖两种 401 的原因。</p>
  *
  * <p>{@code resourceMetadataUrl} 恒为空串：本异常表示"OAuth 已装配但当前 principal 没 token"，
  * 不是"服务端广告了 metadata 而本服务没配 OAuth"。故
  * {@code McpAuthHeaders.asOAuthRequired} 不会把它误升级成"请改用 OAuth"。</p>
  *
- * <p>消息沿用父类的哨兵文案 {@code "authorization required"}；Go 用的是
- * {@code "no valid token available, authorization required"}，两者都只进日志。</p>
+ * <p>消息沿用父类的哨兵文案 {@code "authorization required"}，只进日志。</p>
  */
 public class OAuthAuthorizationRequiredException extends McpAuthorizationRequiredException {
 
@@ -30,8 +26,7 @@ public class OAuthAuthorizationRequiredException extends McpAuthorizationRequire
         this.handler = handler;
     }
 
-    /** 引发本次 401 的 handler；{@link OAuthRuntime} 以它做强制刷新（对照 Go 的
-     * {@code client.GetOAuthHandler(err)}）。 */
+    /** 引发本次 401 的 handler；{@link OAuthRuntime} 以它做强制刷新。 */
     public OAuthHandler handler() {
         return handler;
     }

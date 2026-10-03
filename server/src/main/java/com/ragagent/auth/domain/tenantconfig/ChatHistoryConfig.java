@@ -4,9 +4,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 对照 Go {@code types.ChatHistoryConfig}（internal/types/chat_history_config.go L17-26）。
- * 三个字段都无 omitempty，恒输出。knowledge_base_id 由后端自动管理（隐藏 KB），
- * 客户端 PUT 携带的值会被丢弃（handler 重建对象）。
+ * 聊天历史配置段。
+ * 三个字段都恒输出。knowledge_base_id 由后端自动管理（隐藏 KB），
+ * 客户端 PUT 携带的值会被丢弃（controller 重建对象）。
  */
 @JsonPropertyOrder({"enabled", "embedding_model_id", "knowledge_base_id"})
 public class ChatHistoryConfig {

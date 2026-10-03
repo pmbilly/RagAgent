@@ -8,14 +8,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * config.yaml 的 conversation 段 + prompt_templates 回填（对照 Go
- * internal/config/config.go 的 ConversationConfig/SummaryConfig 与
- * backfillConversationDefaults；值取自 config/config.yaml dev 缺省）。
+ * config.yaml 的 conversation 段 + prompt_templates 回填（缺省值取自 dev 配置）。
  *
- * <p>Go 从 yaml 起服；Java 侧经 {@code @ConfigurationProperties(prefix="conversation")}
- * 绑定 application.yml 的 {@code conversation.*}（2026-09-28 评审补注解——此前注解
- * 缺失、bean 由 QaWiring 手工 new，yml 的 9 个键全是死键），vendor 模板从
- * classpath agent/management/prompt_templates/ 装载（文件与 Go 仓同源同字节）。
+ * <p>经 {@code @ConfigurationProperties(prefix="conversation")}
+ * 绑定 application.yml 的 {@code conversation.*}；vendor 模板从
+ * classpath agent/management/prompt_templates/ 装载。
  * FindTemplateByID 语义：按 11 个模板文件的注册顺序首个 id 命中即返回 content。</p>
  */
 @org.springframework.boot.context.properties.ConfigurationProperties(prefix = "conversation")
@@ -23,7 +20,7 @@ public class ConversationProperties {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 Go PromptTemplates 的 yaml 文件清单（FindTemplateByID 的查找序）。 */
+    /** 模板 yaml 文件清单（FindTemplateByID 的查找序）。 */
     private static final String[] TEMPLATE_FILES = {
             "agent_system_prompt.yaml", "system_prompt.yaml", "context_template.yaml",
             "fallback.yaml", "generate_summary.yaml", "generate_session_title.yaml",

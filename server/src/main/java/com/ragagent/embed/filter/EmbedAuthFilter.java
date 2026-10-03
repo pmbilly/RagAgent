@@ -21,9 +21,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * 对照 Go internal/middleware/embed_auth.go 的 EmbedAuth（publish token 门）。
+ * embed 公开面的认证过滤器（publish token 门）。
  *
- * <p>判定顺序与 Go 严格一致（golden 逐条钉过）：</p>
+ * <p>判定顺序（golden 逐条钉过）：</p>
  * <ol>
  *   <li>路径 channel_id 缺失 → 400 "channel_id is required"；</li>
  *   <li>token 只认 {@code Authorization: Embed <token>}（query/Bearer 一律不算）→
@@ -38,12 +38,12 @@ import jakarta.servlet.http.HttpServletResponse;
  * </ol>
  *
  * <p>通过后写入 TenantContext：tenant=渠道租户、principal=embed_channel:tenant:channel、
- * role=viewer、userId=embed-<channelID>（对照 applyAuthSession 的合成 user），
+ * role=viewer、userId=embed-<channelID>（合成 user），
  * 并把渠道实体挂到 request attribute {@link #CHANNEL_ATTRIBUTE} 供控制器取用。</p>
  */
 public class EmbedAuthFilter extends OncePerRequestFilter {
 
-    /** 渠道实体在请求上的键（对照 types.EmbedChannelContextKey）。 */
+    /** 渠道实体在请求上的键。 */
     public static final String CHANNEL_ATTRIBUTE = "embed.channel";
 
     private final EmbedChannelService embedService;
@@ -59,7 +59,7 @@ public class EmbedAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        // Go 只在 /api/v1/embed/:channel_id 组挂这个中间件
+        // 只拦截 /api/v1/embed/ 前缀
         return !request.getRequestURI().startsWith("/api/v1/embed/");
     }
 
@@ -141,7 +141,7 @@ public class EmbedAuthFilter extends OncePerRequestFilter {
         try {
             chain.doFilter(request, response);
         } finally {
-            // 嵌入访客上下文只属于本请求（对照 Go 的 per-request ctx 值语义）。
+            // 嵌入访客上下文只属于本请求，请求结束必须清空。
             // StorageUrlContext 的 forced-handle 同样在此收口——它的 javadoc 明确
             // "生命周期由设置方负责"，漏清会把 handle 钉死泄漏到线程的下个请求。
             TenantContext.clear();
@@ -150,7 +150,7 @@ public class EmbedAuthFilter extends OncePerRequestFilter {
     }
 
     /**
-     * 对照 gin 的 {@code c.Param("channel_id")}：路径第二段。
+     * 渠道 id 取自路径第二段。
      * （embed 公开路由的第一层路径段固定是渠道 id。）
      */
     static String channelIdFromPath(String uri) {
@@ -164,7 +164,7 @@ public class EmbedAuthFilter extends OncePerRequestFilter {
         return id.trim();
     }
 
-    /** 对照 extractEmbedToken：只认 "Embed " 前缀。 */
+    /** 提取令牌：只认 "Embed " 前缀。 */
     static String extractEmbedToken(HttpServletRequest request) {
         String auth = request.getHeader("Authorization");
         if (auth != null && auth.startsWith("Embed ")) {
@@ -173,7 +173,7 @@ public class EmbedAuthFilter extends OncePerRequestFilter {
         return "";
     }
 
-    /** 对照 requestOrigin：Origin 头优先，回落 Referer 的 scheme://host。 */
+    /** 请求来源：Origin 头优先，回落 Referer 的 scheme://host。 */
     static String requestOrigin(HttpServletRequest request) {
         String o = trim(request.getHeader("Origin"));
         if (!o.isEmpty()) {
@@ -199,7 +199,7 @@ public class EmbedAuthFilter extends OncePerRequestFilter {
         return u.getScheme() + "://" + u.getHost() + ":" + port;
     }
 
-    /** 对照 originAllowed（空清单全拒；"*" 全放；"*." 后缀匹配；大小写不敏感精确匹配）。 */
+    /** 来源白名单（空清单全拒；"*" 全放；"*." 后缀匹配；大小写不敏感精确匹配）。 */
     static boolean originAllowed(String origin, List<String> allowed) {
         if (allowed.isEmpty()) {
             return false;

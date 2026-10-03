@@ -4,12 +4,11 @@ import com.ragagent.datasource.domain.FetchedItem;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * 流式抓取过程中接收条目与进度检查点的回调（对照 Go {@code datasource.StreamHandler}，
- * internal/datasource/connector.go L54-75）。
+ * 流式抓取过程中接收条目与进度检查点的回调。
  *
  * <p>service 层实现它，从而「每到一个条目就立刻灌入」（内存被限制在单个条目而不是
  * 整个 wiki），并在<b>页边界</b>持久化连接器 cursor——这样一次超时中断的同步
- * 能从最后一个检查点续跑，而不是从头再来（Tencent/WeKnora#2136）。</p>
+ * 能从最后一个检查点续跑，而不是从头再来。</p>
  */
 public interface StreamHandler {
 
@@ -17,9 +16,8 @@ public interface StreamHandler {
      * 灌入单个已抓取的条目。返回 / 抛异常即中止整条流：连接器会停止抓取并向上传播，
      * 因为"灌入失败"意味着这次同步正在失败，继续调用外部 API 只是浪费配额。
      *
-     * <p>Go 的签名是 {@code Emit(...) error}，所以调用方用<b>返回值</b>表达失败；
-     * Java 用<b>抛异常</b>。连接器侧一律照抄 Go 的 {@code if eerr := h.Emit(...); eerr != nil { return nil, eerr }}
-     * 形状：捕获实现抛出的任何 {@code RuntimeException} 并作为终止信号向外传。</p>
+     * <p>失败用<b>抛异常</b>表达。连接器侧一律捕获实现抛出的任何
+     * {@code RuntimeException} 并作为终止信号向外传。</p>
      */
     void emit(FetchedItem item);
 

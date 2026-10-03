@@ -1,12 +1,10 @@
 package com.ragagent.memory.mapper;
 
 /**
- * 排名查询返回的一对 {@code (item_id, score)}
- * （对照 Go {@code internal/application/repository/memory_vector.go} 的私有类型
- * {@code vectorHitRow}，L58-61）。
+ * 排名查询返回的一对 {@code (item_id, score)}。
  *
  * <p>不是实体，也不出响应——MyBatis 需要一个带无参构造与 setter 的普通类来映射裸查询结果，
- * 所以它在这里是 public（Go 的同一个类型是包私有的，Java 没有包私有可见性的等价物）。</p>
+ * 所以它在这里是 public。</p>
  */
 public class VectorHitRow {
 

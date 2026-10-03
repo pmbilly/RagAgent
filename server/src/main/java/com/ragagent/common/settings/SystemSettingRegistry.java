@@ -9,19 +9,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
 /**
- * system_settings 的 in-code 注册表（对照 Go internal/application/service/system_setting.go
- * 的 {@code registry map[string]settingSpec}，17 条）。
+ * system_settings 的 in-code 注册表（17 条）。
  *
  * <p>它是"哪些 key 合法 + 类型 + ENV 回退名 + 内置默认值"的唯一权威：
  * Update 拒绝任何不在表内的 key；List/Get 对没有 DB 行的 key 产出
  * <b>虚拟行</b>（值 = ENV → cfg → default 三层回退的生效值）。</p>
  *
- * <p>Description 文案逐字对照 Go 源（golden adm-settings-list.json 钉住）——
- * 这些字符串是响应体的一部分，不是注释。</p>
+ * <p>Description 文案是响应体的一部分，不是注释，不要顺手改写。</p>
  */
 public final class SystemSettingRegistry {
 
-    /** 对照 Go settingSpec（Default 字段按类型解释；Enum 只对 string 有意义）。 */
+    /** 单条注册项（defaultValue 按类型解释；enumOptions 只对 string 有意义）。 */
     public record Spec(String type, String envName, Object defaultValue,
                        List<String> enumOptions, String category,
                        String description, boolean requiresRestart) {
@@ -109,7 +107,7 @@ public final class SystemSettingRegistry {
                 false, List.of(), Boolean.TRUE);
     }
 
-    /** 已注册（合法）key 的有序视图——Go 的 map + sort.Strings == 字典序。 */
+    /** 已注册（合法）key 的有序视图（字典序）。 */
     public static List<String> keys() {
         return List.copyOf(REGISTRY.keySet());
     }
@@ -129,7 +127,7 @@ public final class SystemSettingRegistry {
     public static final String GENERAL_CATEGORY = "general";
 
     /**
-     * 对照 Go encodeDefault：内置默认值的 JSONB 编码（类型必须与 Type 一致）。
+     * 内置默认值的 JSONB 编码（类型必须与声明 type 一致）。
      * string_list 的 nil → []。
      */
     public static JsonNode encodeDefault(Spec spec) {
@@ -152,7 +150,7 @@ public final class SystemSettingRegistry {
     }
 
     /**
-     * 对照 Go encodeForType：把任意 JSON 解码值规范化成声明类型的 JSON 编码。
+     * 把任意 JSON 解码值规范化成声明类型的 JSON 编码。
      * 错误消息逐字对照（handler 把它原文当 400 响应）。
      */
     public static JsonNode encodeForType(String declared, JsonNode rawValue) {

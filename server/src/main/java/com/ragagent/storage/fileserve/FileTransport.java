@@ -14,34 +14,31 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * 已授权文件的流式响应（收尾批 W5c）。
+ * 已授权文件的流式响应。
  *
- * <p>对照 Go {@code internal/filetransport/response.go Serve}——本类不做任何资源
- * 查找或权限推断，边界归调用方。分派到两支：</p>
+ * <p>本类不做任何资源查找或权限推断，边界归调用方。分派到两支：</p>
  * <ul>
- *   <li><b>可 seek</b>（本地盘，Go 的 {@code *os.File}）→ {@code http.ServeContent}
- *       的 Java 移植：Accept-Ranges: bytes、Content-Length、Range→206/416、
- *       If-Match/If-None-Match 预判（零 modtime、无 ETag 形态）。</li>
- *   <li><b>仅流式</b>（Go 的 SDK reader / {@code OpenedFile.ofStream}）→ Accept-Ranges: none，
- *       Content-Length 只认调用方的 {@code Options.size}（照 Go），不缓冲整个对象来支持
- *       seek（RFC 9110 §14.2，Go 注释原文）。W5γ5.1 起云 provider 走这一支
+ *   <li><b>可 seek</b>（本地盘路径）→ Accept-Ranges: bytes、Content-Length、
+ *       Range→206/416、If-Match/If-None-Match 预判（零 modtime、无 ETag 形态）。</li>
+ *   <li><b>仅流式</b>（{@link OpenedFile#ofStream} 的顺序读流 / 云对象）→
+ *       Accept-Ranges: none，Content-Length 只认调用方的 {@code Options.size}，
+ *       不缓冲整个对象来支持 seek（RFC 9110 §14.2）。云 provider 走这一支
  *       （{@link ProviderFileContentService}），本地盘仍走 seek 支路。</li>
  * </ul>
  *
- * <p><b>多段 Range（multipart/byteranges）的边界是随机的</b>——Go 侧也随机，
- * A/B 无法逐字节比对，该分支按 RFC 结构实现、整体缓冲、不作字节锚。</p>
+ * <p><b>多段 Range（multipart/byteranges）的边界是随机的</b>：该分支按 RFC 结构
+ * 实现、整体缓冲、不作字节锚。</p>
  *
- * <p><b>304/416 的头部形态</b>：Go 在写头之后才跑 ServeContent 的预判，304 时
- * <b>删</b> Content-Type/Content-Length（其余头保留）、416 时把 Content-Type
- * <b>改写</b>成 text/plain。Java 侧等价实现为"先判条件，再按分支设置头部集合"，
- * 字节形态相同。</p>
+ * <p><b>304/416 的头部形态</b>：304 时<b>删</b> Content-Type/Content-Length
+ * （其余头保留）、416 时把 Content-Type <b>改写</b>成 text/plain；实现为
+ * "先判条件，再按分支设置头部集合"。</p>
  */
 public final class FileTransport {
 
     private FileTransport() {
     }
 
-    /** 对照 Go {@code filetransport.Options}。 */
+    /** 流式响应的输出选项。 */
     public record Options(String filename, boolean download, String contentType,
             String disposition, String cacheControl, long size) {
 
@@ -51,11 +48,11 @@ public final class FileTransport {
     }
 
     /**
-     * 已打开的存储对象，三形态（对照 Go 的 {@code io.ReadCloser} 家族）：
+     * 已打开的存储对象，三形态：
      * <ul>
-     *   <li>{@code seekable}：本地盘路径（Go 的 {@code *os.File}，可 seek）→ ServeContent 支路；</li>
-     *   <li>{@code stream}：只能顺序读的流（Go 的 SDK body，云对象）→ 流式支路，**不缓冲整个对象**；</li>
-     *   <li>{@code bytes}：已在内存的字节（Go 侧手工写响应的路由/知识 byte[] 出口）→ 流式支路。</li>
+     *   <li>{@code seekable}：本地盘路径，可 seek → 随机读（Range）支路；</li>
+     *   <li>{@code stream}：只能顺序读的流（云对象）→ 流式支路，**不缓冲整个对象**；</li>
+     *   <li>{@code bytes}：已在内存的字节 → 流式支路。</li>
      * </ul>
      */
     public record OpenedFile(SeekableSource seekable, byte[] bytes, InputStream stream, long size) {
@@ -76,7 +73,7 @@ public final class FileTransport {
             return new OpenedFile(null, data, null, data.length);
         }
 
-        /** 只能顺序读的流（Go 的 SDK body）；{@code size} 未知时传 0（照 Go 的 reader 无长度）。 */
+        /** 只能顺序读的流（云对象 body）；{@code size} 未知时传 0。 */
         public static OpenedFile ofStream(InputStream stream, long size) {
             return new OpenedFile(null, null, stream, size);
         }
@@ -100,7 +97,7 @@ public final class FileTransport {
         }
     }
 
-    /** 本地盘的可随机读源（Go 的 {@code *os.File}）：{@code open(offset)} 用 skipNBytes 定位。 */
+    /** 本地盘的可随机读源：{@code open(offset)} 用 skipNBytes 定位。 */
     private record PathSeekableSource(Path path) implements SeekableSource {
 
         @Override
@@ -121,7 +118,7 @@ public final class FileTransport {
         }
     }
 
-    /** 对照 Go Serve：关闭 reader、派生 Content-Type/inline、写头、写体（HEAD 跳过）。 */
+    /** 关闭 reader、派生 Content-Type/inline、写头、写体（HEAD 跳过）。 */
     public static void serve(HttpServletResponse response, HttpServletRequest request,
             OpenedFile reader, Options options) throws IOException {
         try {
@@ -152,7 +149,7 @@ public final class FileTransport {
                         reader.size());
                 return;
             }
-            // ── 流式支路（对照 Go 的非 seekable 分支）──
+            // ── 流式支路 ──
             response.setHeader("Content-Type", contentType);
             response.setHeader("X-Content-Type-Options", "nosniff");
             response.setHeader("Content-Disposition", dispositionValue);
@@ -168,7 +165,7 @@ public final class FileTransport {
                 return;
             }
             if (reader.stream() != null) {
-                // 流形态：provider 的 InputStream 直转响应（Go 的 io.Copy），不缓冲整个对象
+                // 流形态：provider 的 InputStream 直转响应，不缓冲整个对象
                 reader.stream().transferTo(response.getOutputStream());
                 return;
             }
@@ -181,27 +178,26 @@ public final class FileTransport {
     }
 
     private static void closeReader(OpenedFile reader) {
-        // 对照 Go 的 defer reader.Close()：流形态必须在响应写完后关闭；
+        // 流形态必须在响应写完后关闭；
         // Path/bytes 形态没有句柄可关（seek 支路的 FileChannel 由 try-with-resources 管）。
         if (reader.stream() != null) {
             try {
                 reader.stream().close();
             } catch (IOException ignored) {
-                // 照 Go 的 _ = reader.Close()：关流失败不影响已写出的响应
+                // 关流失败不影响已写出的响应
             }
         }
     }
 
-    // ── http.ServeContent 的移植（零 modtime / 无 ETag 形态）────────────────
+    // ── 随机读支路（零 modtime / 无 ETag 形态）──────────────────────────────
 
     private static void serveContent(HttpServletResponse response, HttpServletRequest request,
             Options options, String contentType, String dispositionValue, SeekableSource content,
             long size) throws IOException {
-        // checkPreconditions（零 modtime、无 ETag）——本服务从不产出 ETag，所以：
-        // If-Match 携带 → 永不匹配 → 412（checkIfMatch condFalse）；
-        // If-None-Match 携带 → etagWeakMatch(请求 etag, "") 恒 false →
-        //   checkIfNoneMatch 返回 condTrue（"未命中 If-None-Match"）→ **照常 200**
-        //   （go1.26 实录：If-None-Match: "x" → 200 全量；304 只在 etag 命中时发生）。
+        // 预判（零 modtime、无 ETag）——本服务从不产出 ETag，所以：
+        // If-Match 携带 → 永不匹配 → 412；
+        // If-None-Match 携带 → 与空 ETag 弱比较恒不命中 → **照常 200 全量**；
+        // 304 只在 ETag 命中时发生，本服务不会出现。
         if (request.getHeader("If-Match") != null) {
             response.setHeader("X-Content-Type-Options", "nosniff");
             response.setHeader("Content-Disposition", dispositionValue);
@@ -299,19 +295,19 @@ public final class FileTransport {
         }
     }
 
-    /** 对照 Go http.Error（416/解析失败分支）：改写 Content-Type 为 text/plain 并带尾换行体。 */
+    /** 416/解析失败分支：改写 Content-Type 为 text/plain 并带尾换行体。 */
     private static void httpErrorOverride(HttpServletResponse response, HttpServletRequest request,
             String error) throws IOException {
         response.setHeader("Content-Type", "text/plain; charset=utf-8");
         response.setStatus(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
         if ("HEAD".equals(request.getMethod())) {
-            // Go 的 HEAD 会丢体但保留头（net/http 服务器行为）
+            // HEAD：保留头、无体
             return;
         }
         response.getWriter().write(error + "\n");
     }
 
-    // ── Go parseRange 的移植（错误文案逐字）────────────────────────────────
+    // ── Range 解析（错误文案为固定线格式，勿改动）──────────────────────────
 
     record ParseRange(List<HttpRange> ranges, String error, boolean noOverlap) {
     }
@@ -404,7 +400,7 @@ public final class FileTransport {
 
     record HttpRange(long start, long length) {
 
-        /** 对照 Go httpRange.contentRange。 */
+        /** Content-Range 头值：{@code bytes start-end/size}。 */
         String contentRange(long size) {
             return "bytes " + start + "-" + (start + length - 1) + "/" + size;
         }
@@ -419,7 +415,7 @@ public final class FileTransport {
     }
 
     /**
-     * 多段 Range → multipart/byteranges 整体缓冲。边界随机（Go 侧也随机，无字节锚）。
+     * 多段 Range → multipart/byteranges 整体缓冲。边界随机，无字节锚。
      */
     private static byte[] buildMultipartBody(String boundary, String contentType, List<HttpRange> ranges,
             long size, SeekableSource content) throws IOException {
@@ -444,7 +440,7 @@ public final class FileTransport {
         return out.toByteArray();
     }
 
-    /** 对照 Go ra.mimeHeader（Content-Range + Content-Type 两行）+ 开边框。 */
+    /** 单段头部：开边框 + Content-Type + Content-Range 两行。 */
     private static byte[] partHeader(String boundary, String contentType, HttpRange ra, long size) {
         StringBuilder sb = new StringBuilder();
         sb.append("\r\n--").append(boundary).append("\r\n");
@@ -455,17 +451,16 @@ public final class FileTransport {
         return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    /** 随机边界（对照 Go mime/multipart randomBoundary：60-bit hex）。 */
+    /** 随机边界（60-bit hex）。 */
     private static String randomBoundary() {
         return Long.toHexString(new java.security.SecureRandom().nextLong() & 0x0FFFFFFFFFFFFFFFL);
     }
 
-    // ── Go mime.FormatMediaType 的移植（disposition 派生用）─────────────────
+    // ── media type 格式化（disposition 派生用）──────────────────────────────
 
     private static final String UPPERHEX = "0123456789ABCDEF";
 
     /**
-     * 对照 Go {@code mime.FormatMediaType(t, map[string]string{"filename": base})}：
      * token 安全 → 裸值；全 ASCII → 引号包裹（转义 " 与 \）；含非 ASCII →
      * RFC 2231 扩展形式 {@code filename*=utf-8''<percent-encoded>}（大写 hex）。
      */
@@ -496,9 +491,8 @@ public final class FileTransport {
         }
         b.append('=');
         if (needEnc) {
-            // ⚠️ Go 按 UTF-8 **字节**迭代（ch := value[index]），非 ASCII 字符按
-            // 字节逐个百分号化（数 → %E6%95%B0）。Java 按 char 迭代会把 BMP 字符
-            // 的 16 位值直接切 hex——必须先转字节。
+            // ⚠️ 必须按 UTF-8 **字节**逐个百分号化（数 → %E6%95%B0）；按 char 迭代
+            // 会把 BMP 字符的 16 位值直接切 hex。
             b.append("utf-8''");
             byte[] raw = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             for (byte item : raw) {
@@ -533,7 +527,7 @@ public final class FileTransport {
         return b.toString();
     }
 
-    /** 对照 Go mime isTSpecial：{@code ()<>@,;:\"/[]?=}。 */
+    /** tspecials 字符集：{@code ()<>@,;:\"/[]?=}。 */
     private static boolean isTSpecial(char c) {
         return switch (c) {
             case '(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']', '?', '=' -> true;
@@ -541,7 +535,7 @@ public final class FileTransport {
         };
     }
 
-    /** 对照 Go mime isTokenChar：US-ASCII 且非控制字符且非 tspecials。 */
+    /** token 字符：US-ASCII 且非控制字符且非 tspecials。 */
     private static boolean isTokenChar(char c) {
         return c > 0x20 && c < 0x7F && !isTSpecial(c);
     }
@@ -558,7 +552,7 @@ public final class FileTransport {
         return true;
     }
 
-    /** 对照 Go mime needsEncoding（encodedword.go L42-49）：\t 被豁免。 */
+    /** 含控制/非 ASCII 字符则需要编码（\t 被豁免）。 */
     private static boolean needsEncoding(String s) {
         for (int i = 0; i < s.length(); i++) {
             char b = s.charAt(i);

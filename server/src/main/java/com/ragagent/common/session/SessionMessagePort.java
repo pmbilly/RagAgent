@@ -17,11 +17,11 @@ public interface SessionMessagePort {
     }
 
     /**
-     * 按游标取会话消息（对照 Go {@code ListMessagesBySessionAfterCursor}）。
+     * 按游标取会话消息。
      * 游标为零值时表示从头开始。
      */
     List<SessionMessageView> listAfterCursor(String sessionId, OffsetDateTime afterCreatedAt, String afterId, int limit);
 
-    /** 取 {@code beforeTime} 之前最旧的 limit 条（对照 Go {@code GetMessagesBySessionBeforeTime}）。 */
+    /** 取 {@code beforeTime} 之前最旧的 limit 条。 */
     List<SessionMessageView> listBeforeTime(String sessionId, OffsetDateTime beforeTime, int limit);
 }

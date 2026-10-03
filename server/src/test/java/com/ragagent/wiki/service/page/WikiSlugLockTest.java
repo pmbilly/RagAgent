@@ -10,21 +10,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link WikiSlugLock}（对照 Go internal/application/service/wiki_ingest.go
- * 的 {@code withSlugLock} L911-938）的行为钉桩。
+ * {@link WikiSlugLock} 的行为钉桩。
  *
- * <p>Go 侧只有 ingest 的 Redis 路径会用到它，且没有独立测试；这里针对
- * 默认的 {@link InProcessWikiSlugLock} 覆盖：键拼装、同 slug 互斥、
+ * <p>针对默认的 {@link InProcessWikiSlugLock} 覆盖：键拼装、同 slug 互斥、
  * 不同 slug 不互斥、超时返回 false、以及异常路径仍会释放锁。</p>
  */
 class WikiSlugLockTest {
 
-    /** 对照 Go {@code wikiSlugLockPrefix + kbID + ":" + slug} */
+    /** 键拼装：前缀 + kbID + ":" + slug */
     @Test
     void lockKeyFormat() {
         assertThat(WikiSlugLock.lockKey("kb-1", "entity/a")).isEqualTo("wiki:slug:kb-1:entity/a");
         assertThat(WikiSlugLock.KEY_PREFIX).isEqualTo("wiki:slug:");
-        // 常量与 Go 对齐
+        // 常量钉桩
         assertThat(WikiSlugLock.TTL_SECONDS).isEqualTo(300);
         assertThat(WikiSlugLock.WAIT_SECONDS).isEqualTo(120);
         assertThat(WikiSlugLock.POLL_MILLIS).isEqualTo(50);
@@ -61,10 +59,8 @@ class WikiSlugLockTest {
      * 不同 slug / 不同 KB 使用不同的锁对象，互不阻塞。
      *
      * <p>「同 slug 已被占用」这一条必须在<b>另一个线程</b>上断言：进程内实现用的是
-     * {@link java.util.concurrent.locks.ReentrantLock}，同线程重入必然成功——
-     * 而 Go 的 Redis SetNX 对同键第二次 SetNX 会失败。这是已知的、刻意的差异
-     * （任务书明确建议用 ReentrantLock；Go 的调用方不存在同 slug 嵌套加锁，
-     * 单实例下两者等价）。</p>
+     * {@link java.util.concurrent.locks.ReentrantLock}，同线程重入必然成功。
+     * 这是已知、刻意的差异：单实例下语义等价，且调用方不存在同 slug 嵌套加锁。</p>
      */
     @Test
     void differentSlugsDoNotBlockEachOther() throws Exception {
@@ -92,7 +88,7 @@ class WikiSlugLockTest {
         lock.unlock("kb-1", "entity/a");
     }
 
-    /** 对照 Go {@code return false, nil}：等不到锁时 fn 不执行 */
+    /** 等不到锁时 fn 不执行（整体返回 false） */
     @Test
     void withSlugLockTimesOutWithoutRunningBody() {
         WikiSlugLock lock = new InProcessWikiSlugLock() {
@@ -107,7 +103,7 @@ class WikiSlugLockTest {
         assertThat(runs.get()).as("超时后正文不得执行").isZero();
     }
 
-    /** fn 抛异常也必须释放锁（对照 Go 的 {@code defer Del}） */
+    /** fn 抛异常也必须释放锁 */
     @Test
     void lockIsReleasedOnFailure() {
         WikiSlugLock lock = new InProcessWikiSlugLock();
@@ -123,7 +119,7 @@ class WikiSlugLockTest {
         lock.unlock("kb-1", "entity/a");
     }
 
-    /** 未持有时 unlock 是安全的 no-op（对照 Go 的 defer Del 语义） */
+    /** 未持有时 unlock 是安全的 no-op */
     @Test
     void unlockWithoutHoldingIsSafe() {
         WikiSlugLock lock = new InProcessWikiSlugLock();

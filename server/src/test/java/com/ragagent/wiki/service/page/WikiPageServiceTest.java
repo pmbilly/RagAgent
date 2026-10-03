@@ -33,18 +33,16 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 对照 Go internal/application/service/wiki_page_test.go（708 行，基于 SQLite 内存库）。
+ * Wiki 页面服务的测试。
  *
  * <p>覆盖：纯函数（parseOutLinks / normalizeSlug / stripWikiInlineChunkCitations /
  * normalizeWikiHierarchy / normalizeWikiIndexEntryHierarchy / containsString /
  * removeString）+ 需要真库的用例（PruneEmptyFolderChains / UpdatePage 的别名持久化 /
  * RepairContentLinks / FindPagesByNormalizedTitle / MovePage）。</p>
  *
- * <p>Go 用每个测试独立的 SQLite {@code file::memory:?cache=shared}；Java 用共享的
- * H2 内存库 + {@link TestSchema}（DDL 统一收敛在 TestSchema，禁止在测试类里私建表）。</p>
+ * <p>用共享的 H2 内存库 + {@link TestSchema}（DDL 统一收敛在 TestSchema，禁止在测试类里私建表）。</p>
  *
- * <p>图谱部分（Go {@code TestComputeGraphSubset_*}）单独在
- * {@link WikiGraphCalculatorTest} 里逐分支对照。</p>
+ * <p>图谱部分单独在 {@link WikiGraphCalculatorTest} 里逐分支覆盖。</p>
  */
 @SpringBootTest
 class WikiPageServiceTest {
@@ -68,10 +66,9 @@ class WikiPageServiceTest {
     // ──────────────────────────── parseOutLinks ────────────────────────────
 
     /**
-     * 对照 Go {@code TestParseOutLinks} 的表用例。
+     * parseOutLinks 的表用例。
      *
-     * <p>Go 里 {@code svc := &wikiPageService{}} 是个零值 receiver；Java 侧
-     * {@code parseOutLinks} 不用实例状态，故为 static。分隔符用 {@code ;}
+     * <p>{@code parseOutLinks} 不用实例状态，故为 static。分隔符用 {@code ;}
      * 是因为正文里含 {@code [[a|b]]} 的竖线。</p>
      */
     @ParameterizedTest(name = "{0}")
@@ -111,7 +108,7 @@ class WikiPageServiceTest {
         assertThat(WikiPageLinkOps.parseOutLinks("")).isEmpty();
     }
 
-    /** 对照 Go 用例 "nested brackets ignored"：{@code [not [a] link]} 不含 {@code [[} */
+    /** 嵌套方括号不是链接：{@code [not [a] link]} 不含 {@code [[} */
     @Test
     void parseOutLinksNestedBracketsIgnored() {
         assertThat(WikiPageLinkOps.parseOutLinks("Not a link: [not [a] link]")).isEmpty();
@@ -119,7 +116,7 @@ class WikiPageServiceTest {
 
     // ──────────────────────────── normalizeSlug ────────────────────────────
 
-    /** 对照 Go {@code TestNormalizeSlug} */
+    /** slug 归一化：小写、空白转连字符 */
     @ParameterizedTest
     @CsvSource({
             "Entity/Acme Corp,entity/acme-corp",
@@ -140,7 +137,7 @@ class WikiPageServiceTest {
         assertThat(WikiPageLinkOps.normalizeSlug("")).isEmpty();
     }
 
-    /** 对照 Go {@code slugNamespace}（L1059-1064） */
+    /** 取 slug 的命名空间前缀（首个 / 之前） */
     @Test
     void slugNamespace() {
         assertThat(WikiPageLinkOps.slugNamespace("summary/abc")).isEqualTo("summary");
@@ -150,7 +147,7 @@ class WikiPageServiceTest {
 
     // ──────────────────── stripWikiInlineChunkCitations ────────────────────
 
-    /** 对照 Go {@code TestStripWikiInlineChunkCitations} */
+    /** 剥离内联 chunk 引用 */
     @Test
     void stripWikiInlineChunkCitations() {
         String input = "[**橡皮障夹**](#)**钳**\n\n夹钳是用于夹持橡皮障夹的专用器械[c003]。"
@@ -160,7 +157,7 @@ class WikiPageServiceTest {
         assertThat(WikiPageLinkOps.stripWikiInlineChunkCitations(input)).isEqualTo(want);
     }
 
-    /** 对照 Go {@code TestStripWikiInlineChunkCitationsPreservesOrdinaryMarkdown} */
+    /** 普通 markdown 与页面链接不被误伤 */
     @Test
     void stripWikiInlineChunkCitationsPreservesOrdinaryMarkdown() {
         String input = "保留 [citation]、[C003]、[c12] 和 [[concept/c003|页面链接]]。";
@@ -169,7 +166,7 @@ class WikiPageServiceTest {
 
     // ──────────────────────── normalizeWikiHierarchy ────────────────────────
 
-    /** 对照 Go {@code TestNormalizeWikiHierarchyCleansModelCategoryNoise} */
+    /** 层级清洗：丢掉模型分类噪声 */
     @Test
     void normalizeWikiHierarchyCleansModelCategoryNoise() {
         WikiPage page = new WikiPage();
@@ -186,7 +183,7 @@ class WikiPageServiceTest {
         assertThat(page.getWikiPath()).isEqualTo("concept/爱护花草/标牌/生态/AI时代的知识困境");
     }
 
-    /** 对照 Go {@code TestNormalizeWikiHierarchyKeepsFolderBackedPathVerbatim} */
+    /** 文件夹支撑的路径保持原样 */
     @Test
     void normalizeWikiHierarchyKeepsFolderBackedPathVerbatim() {
         WikiPage page = new WikiPage();
@@ -203,7 +200,7 @@ class WikiPageServiceTest {
         assertThat(page.getWikiPath()).isEqualTo("concept/概念/概念/Concepts/将计就计");
     }
 
-    /** 对照 Go {@code TestNormalizeWikiIndexEntryHierarchyCleansModelCategoryNoise} */
+    /** 索引条目的层级清洗 */
     @Test
     void normalizeWikiIndexEntryHierarchyCleansModelCategoryNoise() {
         WikiIndexEntry entry = new WikiIndexEntry();
@@ -219,7 +216,7 @@ class WikiPageServiceTest {
 
     // ──────────────────────── containsString / removeString ────────────────────────
 
-    /** 对照 Go {@code TestContainsString} */
+    /** 包含判定（null 安全） */
     @Test
     void containsString() {
         List<String> slice = List.of("a", "b", "c");
@@ -228,7 +225,7 @@ class WikiPageServiceTest {
         assertThat(WikiPageServiceImpl.containsString(null, "a")).isFalse();
     }
 
-    /** 对照 Go {@code TestRemoveString}：移除<b>所有</b>匹配项 */
+    /** 移除<b>所有</b>匹配项 */
     @Test
     void removeString() {
         List<String> slice = List.of("a", "b", "c", "b");
@@ -239,8 +236,6 @@ class WikiPageServiceTest {
     // ──────────────────────── PruneEmptyFolderChains ────────────────────────
 
     /**
-     * 对照 Go {@code TestPruneEmptyFolderChainsDeletesOnlyEmptyCandidateAncestors}。
-     *
      * <p>只删候选链上确实空掉的祖先：有别的占用子节点的祖先保留，
      * 受影响链之外的空文件夹也保留。</p>
      */
@@ -271,7 +266,7 @@ class WikiPageServiceTest {
                 .as("empty folders outside the affected chains must remain").isNotNull();
     }
 
-    /** 空入参 → 返回 null（对照 Go {@code return nil, nil}） */
+    /** 空入参 → 返回 null */
     @Test
     void pruneEmptyFolderChainsEmptyInput() {
         assertThat(svc.pruneEmptyFolderChains("kb-prune", List.of())).isNull();
@@ -280,7 +275,7 @@ class WikiPageServiceTest {
 
     // ──────────────────── UpdatePage 的别名持久化 ────────────────────
 
-    /** 对照 Go {@code TestUpdateWikiPagePersistsAndClearsAliases} */
+    /** 别名的持久化与清空 */
     @Test
     void updateWikiPagePersistsAndClearsAliases() {
         final String kbId = "kb-alias";
@@ -303,7 +298,7 @@ class WikiPageServiceTest {
 
     // ──────────────────────────── RepairContentLinks ────────────────────────────
 
-    /** 对照 Go {@code TestRepairContentLinks}（3 个子用例合一，避免重复建库） */
+    /** 内容链接修复（3 个子用例合一，避免重复建库） */
     @Test
     void repairContentLinks() {
         final String kbId = "kb-repair";
@@ -348,7 +343,7 @@ class WikiPageServiceTest {
         assertThat(svc.repairContentLinks("kb-repair", "x", "no links here").changed()).isFalse();
     }
 
-    /** 指向自身的链接不被重写（对照 Go {@code if norm == selfSlug} 分支） */
+    /** 指向自身的链接不被重写 */
     @Test
     void repairContentLinksSkipsSelfSlug() {
         final String kbId = "kb-repair-self";
@@ -362,7 +357,7 @@ class WikiPageServiceTest {
 
     // ──────────────────── FindPagesByNormalizedTitle ────────────────────
 
-    /** 对照 Go {@code TestFindPagesByNormalizedTitleMatchesWhitespace} */
+    /** 归一化标题匹配容忍空白差异 */
     @Test
     void findPagesByNormalizedTitleMatchesWhitespace() {
         final String kbId = "kb-id";
@@ -393,7 +388,6 @@ class WikiPageServiceTest {
     // ──────────────────── MovePage + ListPages ────────────────────
 
     /**
-     * 对照 Go {@code TestMovePageIntoTypeLabelNamedFolderKeepsHierarchy}：
      * 移动到「概念」这种类型标签同名文件夹后，层级必须保留，且经 ListPages
      * 读回时也不能被清洗掉（目录树正是靠这些字段定位页面）。
      */
@@ -531,7 +525,7 @@ class WikiPageServiceTest {
                 .isEqualTo(r.folderId());
     }
 
-    /** FindOrCreateFolderPath：空路径解析到根（""），路径为 null（对照 Go nil slice） */
+    /** FindOrCreateFolderPath：空路径解析到根（""），路径为 null */
     @Test
     void findOrCreateFolderPathEmptyIsRoot() {
         WikiPageService.FindOrCreateResult r = svc.findOrCreateFolderPath("kb-f5", 1L, List.of());
@@ -600,7 +594,7 @@ class WikiPageServiceTest {
         assertThat(svc.getIndex("kb-idx").getId()).isEqualTo(index.getId());
     }
 
-    /** GetIndex：KB 不存在 → 报错（对照 Go {@code get knowledge base: ...}） */
+    /** GetIndex：KB 不存在 → 报错（{@code get knowledge base: ...}） */
     @Test
     void getIndexFailsForUnknownKb() {
         assertThatThrownBy(() -> svc.getIndex("no-such-kb"))
@@ -735,7 +729,7 @@ class WikiPageServiceTest {
                 .containsExactly("synthesis/s1");
     }
 
-    /** GetStats：计数口径（排除归档）+ 总链接数；端口缺席时照 Go 的 nil 分支 */
+    /** GetStats：计数口径（排除归档）+ 总链接数 */
     @Test
     void getStatsAggregatesCounts() {
         final String kbId = "kb-stats";
@@ -753,8 +747,8 @@ class WikiPageServiceTest {
         assertThat(stats.getTotalPages()).as("归档页不计入").isEqualTo(2);
         assertThat(stats.getTotalLinks()).isEqualTo(1);
         assertThat(stats.getPagesByType()).containsEntry(WikiConstants.PAGE_TYPE_ENTITY, 1L);
-        // ⚠️ recentUpdates 走的是 List（repository L352-427）——该查询只在请求显式给了
-        // status 时才过滤，GetStats 的请求不带 status，因此归档页也会出现（对照 Go）
+        // ⚠️ recentUpdates 走的是 List 查询——该查询只在请求显式给了
+        // status 时才过滤，GetStats 的请求不带 status，因此归档页也会出现
         assertThat(stats.getRecentUpdates()).hasSize(3);
         assertThat(stats.getPendingTasks()).isZero();
         assertThat(stats.isActive()).isFalse();
@@ -773,7 +767,7 @@ class WikiPageServiceTest {
         assertThat(svc.listAllPages(kbId)).hasSize(1);
         assertThat(svc.listAllSlugs(kbId)).containsExactly("entity/t1");
         assertThat(svc.countByType(kbId)).containsEntry(WikiConstants.PAGE_TYPE_ENTITY, 1L);
-        // ⚠️ ListByType 在 Go 里<b>不带</b> archived 过滤（repository L430-439 只按
+        // ⚠️ listByType<b>不带</b> archived 过滤（只按
         // kb + page_type 过滤），所以归档页也在结果里
         assertThat(svc.listByType(kbId, WikiConstants.PAGE_TYPE_ENTITY)).hasSize(2);
         assertThat(svc.listBySlugs(kbId, List.of("entity/t1", "entity/t2")))
@@ -786,7 +780,7 @@ class WikiPageServiceTest {
         assertThat(svc.listDistinctCategoryPaths(kbId, 10)).isEmpty();
         assertThat(svc.findPagesByNormalizedTitle(kbId, WikiConstants.PAGE_TYPE_ENTITY, "alpha"))
                 .hasSize(1);
-        // RebuildIndexPage 在 Go 里故意是 no-op，Java 照抄
+        // rebuildIndexPage 故意是 no-op
         svc.rebuildIndexPage(kbId);
     }
 

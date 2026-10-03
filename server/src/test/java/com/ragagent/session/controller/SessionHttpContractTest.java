@@ -33,13 +33,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 会话 HTTP 层的契约测试（波 1 G1：CRUD + 置顶 8 条端点，对照 Go
- * {@code internal/handler/session/handler.go} 的 CreateSession / GetSession /
- * GetSessionsByTenant / UpdateSession / DeleteSession / BatchDeleteSessions /
- * PinSession / UnpinSession）。
+ * 会话 HTTP 层的契约测试（CRUD + 置顶 8 条端点）。
  *
- * <h2>期望值来源：Go 实录</h2>
- * <p>golden 是对运行中的 Go dev server（:8080，db=localhost:15432）打真实请求录的，
+ * <h2>期望值来源：录制 golden</h2>
+ * <p>golden 是对运行中的 dev server（:8080，db=localhost:15432）打真实请求录的，
  * 脚本 {@code scripts/record-session-golden.sh}，文件
  * {@code server/src/test/resources/contracts/session-*.json}。录制时 dev 库的
  * 测试租户里恰好遗留了一条空标题会话，所以列表类 golden 有 <b>4</b> 个条目——
@@ -53,11 +50,11 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * <h2>本轮 golden 实测抓到的关键契约（都钉在下面的用例里）</h2>
  * <ul>
  *   <li>渠道来源筛选（source=api 等）对非管理员**不是 403**，而是
- *       500 + {@code "error code: 1002, error message: …"}（Go 的 AppError.Error()
- *       被 handler 包进 InternalServerError）；</li>
- *   <li>{@code page=0} 被 omitempty 跳过（200，归一化成 page=1），
+ *       500 + {@code "error code: 1002, error message: …"}（应用错误被 handler
+ *       包进 InternalServerError）；</li>
+ *   <li>{@code page=0} 按未提供处理（200，归一化成 page=1），
  *       负数才触发 min tag；</li>
- *   <li>非法 JSON 的 400 message 是 Go {@code encoding/json} 的措辞
+ *   <li>非法 JSON 的 400 message 沿用历史 JSON 解析措辞
  *       （{@code invalid character 'o' in literal null (expecting 'u')}）；</li>
  *   <li>批量删除里空白 id {@code "  "} 过 SanitizeForLog 保留 → 逐个判定不可见 →
  *       全部不可见回 404。</li>
@@ -178,7 +175,7 @@ class SessionHttpContractTest {
         assertEquals(golden("session-create-no-body.json"), raw(r));
     }
 
-    /** Go 的 {@code encoding/json} 措辞，由 {@link com.ragagent.common.web.GoJsonBindError} 仿真。 */
+    /** 历史 JSON 解析措辞，由 {@link com.ragagent.common.web.GoJsonBindError} 仿真。 */
     @Test
     void createWithInvalidJsonMatchesGoMessage() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions"), "not-json")
@@ -317,7 +314,7 @@ class SessionHttpContractTest {
         assertEquals(golden("session-list-source-unknown.json"), raw(r));
     }
 
-    /** ⚠️ 非管理员 + 渠道 source：Go 是 **500**（AppError.Error() 被 handler 包 Internal）。 */
+    /** ⚠️ 非管理员 + 渠道 source：是 **500**（应用错误被 handler 包成 Internal）。 */
     @Test
     void viewerListWithChannelSourceIs500WithGoMessage() throws Exception {
         MvcResult r = perform(get("/api/v1/sessions?source=api")
@@ -546,7 +543,7 @@ class SessionHttpContractTest {
         assertEquals(golden("session-batch-unknown.json"), raw(r));
     }
 
-    /** 未知 id 静默跳过，可见的那条被删（Go 的 visibleIDs 语义）。 */
+    /** 未知 id 静默跳过，可见的那条被删（只对可见 id 生效）。 */
     @Test
     void batchWithMixedIdsDeletesVisibleOnesOnly() throws Exception {
         seedListState();
@@ -606,8 +603,7 @@ class SessionHttpContractTest {
 
     /**
      * 8 条路由在 API-Key 策略表里的登记形态：整组都是
-     * {@code chat(fullAccess())}（对照 Go 的
-     * {@code g.apiKeyGroup(r.Group("/sessions", g.Viewer()), apiKeyChat(apiKeyFullAccess()))}）。
+     * {@code chat(fullAccess())}。
      */
     @Test
     void allSessionRoutesAreRegisteredWithChatPolicy() {
@@ -664,7 +660,7 @@ class SessionHttpContractTest {
         return builder.contentType("application/json").content(body);
     }
 
-    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake，§9）。 */
+    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake）。 */
     private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
 

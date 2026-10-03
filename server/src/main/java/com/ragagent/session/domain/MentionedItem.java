@@ -3,15 +3,14 @@ package com.ragagent.session.domain;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * 被 @ 提及的知识库 / 文件 / 标签 / MCP 工具 / skill（对照 Go
- * {@code types.MentionedItem}，internal/types/message.go L27-36）。
+ * 被 @ 提及的知识库 / 文件 / 标签 / MCP 工具 / skill。
  *
- * <p><b>八个键全部恒输出</b>：Go 的 string 零值是 {@code ""}，所以未使用的字段
- * 也要输出成空串，不能省略（§1.6 禁止条件键）。§14.9l S1 换锚后键名＝Java 字段名
+ * <p><b>八个键全部恒输出</b>：未使用的字段
+ * 也要输出成空串，不能省略（§1.6 禁止条件键）。键名＝Java 字段名
  * （{@code kbType}/{@code kbId}/{@code kbName}/{@code serviceId}/{@code skillName}）。</p>
  *
  * <p>⚠️ 它**落两处 jsonb**（{@code messages.mentioned_items} 与
- * {@code sessions.agent_config.mentioned_items}），换键名必须配存量迁移（HANDOFF §14.9l S1）。</p>
+ * {@code sessions.agent_config.mentioned_items}），换键名必须配存量迁移。</p>
  *
  * <p>与 {@code MapString} / {@code MentionedItemsFromRaw} 的关系：Go 把那两个函数用于
  * 从 steer 事件里 JSON 安全的 map 形态重建本结构（只认 string 类型的值，其余当空串）。
@@ -65,14 +64,13 @@ public class MentionedItem {
     }
 
     /**
-     * 从 JSON 解码后的 map 重建（对照 Go {@code MentionedItem} 的逐字段读取 +
-     * {@code MapString}）。
+     * 从 JSON 解码后的 map 重建（逐字段读取）。
      *
      * <p>键名是**冻结载荷**（steer 事件 data / Redis 事件）的下划线形状——与实体字段名
      * （camelCase）刻意不同，别"顺手统一"。</p>
      *
      * <p>{@code MapString} 只接受 string 类型的值，其余（数字、对象、null）一律当空串——
-     * 照抄这个宽容行为，别改成 toString。</p>
+     * 保留这个宽容行为，别改成 toString。</p>
      */
     public static MentionedItem fromRawMap(java.util.Map<String, Object> m) {
         MentionedItem item = new MentionedItem();
@@ -90,7 +88,7 @@ public class MentionedItem {
         return item;
     }
 
-    /** 对照 Go {@code types.MapString}：非 string 值当空串。 */
+    /** 非 string 值当空串。 */
     public static String mapString(java.util.Map<String, Object> m, String key) {
         Object v = m.get(key);
         return v instanceof String s ? s : "";

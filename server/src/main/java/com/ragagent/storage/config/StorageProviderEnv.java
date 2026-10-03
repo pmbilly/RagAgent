@@ -4,26 +4,25 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 存储后端默认装配读取的 provider 环境变量族（对照 Go
- * {@code storagebackend.go StorageBackendFromEnvironment} 的进程级 env 快照）。
+ * 存储后端默认装配读取的 provider 环境变量族（进程级 env 快照）。
  *
  * <p><b>环境变量名保持原样</b>：env → 属性名走 Spring 松散绑定
  * （{@code MINIO_ACCESS_KEY_ID} → {@code minio.access-key-id}），部署侧 .env 不需要改，
  * 本类只把「裸 System.getenv + 手写 JSON」换成类型化绑定。</p>
  *
- * <p>字段一律 {@code String}（不用 {@code Boolean}/数字）：保留 Go 的宽容语义——未设置、
+ * <p>字段一律 {@code String}（不用 {@code Boolean}/数字）：保留宽容语义——未设置、
  * 大小写不符、写错的布尔字面量都不该让绑定失败（{@code S3_USE_SSL} 只在恰为 "false" 时
  * 为假、{@code MINIO_USE_SSL} 只在恰为 "true" 时为真，其余值一律按「未设置」处理）。</p>
  *
- * <p><b>输出词汇＝落库面（camel）</b>（B14 合并）：键名与 {@code dto/StorageConfig} 同族
+ * <p><b>输出词汇＝落库面（camel）</b>：键名与 {@code dto/StorageConfig} 同族
  * （{@code accessKeyId}/{@code bucketName}/{@code pathPrefix}…），因为本投影的唯一消费者是
  * 「落一行 {@code storage_backends}」，而行的读写两侧认的就是这套 camel
  * （读侧 {@code StorageBackendService.configOf/serializeConfig} 忽略未知键——
- * 此前输出 snake 会被<b>静默丢弃</b>，见 §15.1.1 B14）。引擎面（snake，各 provider 段命名
+ * 此前输出 snake 会被<b>静默丢弃</b>）。引擎面（snake，各 provider 段命名
  * 还不统一）由 {@code StorageFileResolver.renameConfigKeys} 单点派生，本类不再管。</p>
  *
- * <p>省略规则：空串整键省略（对照 Go omitempty），假值整键省略；键序＝下列
- * {@code writeConfig} 调用序，与 Go struct 字段声明序一致。</p>
+ * <p>省略规则：空串整键省略，假值整键省略；键序＝下列
+ * {@code writeConfig} 调用序。</p>
  */
 public final class StorageProviderEnv {
 
@@ -41,14 +40,14 @@ public final class StorageProviderEnv {
         void writeConfig(ObjectNode config);
     }
 
-    /** 写非空字符串（对照 Go omitempty：空串/未设置整键省略）。 */
+    /** 写非空字符串（空串/未设置整键省略）。 */
     private static void putNonEmpty(ObjectNode config, String key, String value) {
         if (value != null && !value.isEmpty()) {
             config.put(key, value);
         }
     }
 
-    /** 写真值（对照 Go omitempty：false 整键省略）。 */
+    /** 写真值（false 整键省略）。 */
     private static void putTrue(ObjectNode config, String key, boolean value) {
         if (value) {
             config.put(key, true);

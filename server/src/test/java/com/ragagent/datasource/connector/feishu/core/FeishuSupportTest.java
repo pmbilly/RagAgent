@@ -21,13 +21,13 @@ import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.domain.DataSourceConfig;
 
 /**
- * 对照 Go {@code core/region_test.go} + {@code wiki/connector_test.go} 的纯函数段
- * （{@code IsSupportedDocType} / {@code SanitizeFileName} / {@code ParseFeishuTimestamp} /
- * {@code ParseFeishuConfig} / {@code ObjTypeToExportMappings} / {@code SupportedImageExt} /
+ * {@code FeishuSupport} / {@code FeishuConfig} 纯函数段的语义测试
+ * （{@code isSupportedDocType} / {@code sanitizeFileName} / {@code parseFeishuTimestamp} /
+ * {@code parseFeishuConfig} / 导出类型映射 / {@code supportedImageExt} /
  * {@code resolveLocation}）。
  *
- * <p>所有"期望值"都是 Go 实录：把 Go 源码逐字抄进 {@code /tmp/gochk-feishu} 独立程序，
- * 用真 Go 运行时跑出来（任务书约束第 4 条）。凡是实录值都会在用例注释里写明来源。</p>
+ * <p>所有"期望值"都是<b>逐字节钉死</b>的既有输出（含边界与防御分支），
+ * 改任何一处格式都会被抓住。</p>
  */
 class FeishuSupportTest {
 
@@ -42,7 +42,7 @@ class FeishuSupportTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Region（对照 region_test.go）
+    // Region
     // ──────────────────────────────────────────────────────────────────
 
     @Nested
@@ -210,7 +210,7 @@ class FeishuSupportTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // SanitizeFileName（Go 实录）
+    // SanitizeFileName
     // ──────────────────────────────────────────────────────────────────
 
     @Nested
@@ -294,7 +294,7 @@ class FeishuSupportTest {
             String name = "a" + "." + "b".repeat(250);
             String got = FeishuSupport.sanitizeFileName(name);
             assertThat(FeishuSupport.utf8Length(got)).isLessThanOrEqualTo(200);
-            // Go 实录：ext（251 字节）超预算被丢掉，再对整串裁到 200 字节
+            // ext（251 字节）超预算被丢掉，再对整串裁到 200 字节
             assertThat(got).isEqualTo("a." + "b".repeat(198));
             assertThat(FeishuSupport.utf8Length(got)).isEqualTo(200);
         }
@@ -332,7 +332,7 @@ class FeishuSupportTest {
         assertThat(FeishuSupport.parseFeishuTimestamp("")).isNull();
         assertThat(FeishuSupport.parseFeishuTimestamp("invalid")).isNull();
         assertThat(FeishuSupport.parseFeishuTimestamp(null)).isNull();
-        // Go 的 "0" 是合法的 epoch，不是零值
+        // "0" 是合法的 epoch，不是零值
         assertThat(FeishuSupport.parseFeishuTimestamp("0")).isNotNull();
         assertThat(FeishuSupport.parseFeishuTimestamp("0").toEpochSecond()).isZero();
         assertThat(FeishuSupport.parseFeishuTimestamp("-5").toEpochSecond()).isEqualTo(-5L);
@@ -402,7 +402,7 @@ class FeishuSupportTest {
     @Test
     @DisplayName("SupportedImageExt：png/jpg/gif 通过；webp/文本/空 不通过但仍返回探测到的 content type")
     void supportedImageExt() {
-        // 期望值 = Go 实录（http.DetectContentType）
+        // 期望值按既有 MIME 嗅探行为逐字钉死
         byte[] png = concat(new byte[]{(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'},
                 "rest".getBytes(StandardCharsets.UTF_8));
         assertThat(FeishuSupport.supportedImageExt(png).ext()).isEqualTo(".png");
@@ -422,7 +422,7 @@ class FeishuSupportTest {
         byte[] gif87 = new byte[]{'G', 'I', 'F', '8', '7', 'a', 0x01, 0x00, 0x01, 0x00};
         assertThat(FeishuSupport.supportedImageExt(gif87).ext()).isEqualTo(".gif");
 
-        // Go 的签名是通配模式 "RIFF????WEBPVP"（中间 4 字节被掩掉）
+        // WEBP 签名按通配模式 "RIFF????WEBPVP" 匹配（中间 4 字节被掩掉）
         byte[] webp = concat(
                 new byte[]{'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P', 'V', 'P', '8', ' '},
                 new byte[8]);
@@ -449,7 +449,7 @@ class FeishuSupportTest {
         assertThat(FeishuSupport.queryEscape("tok-1_2.3~4")).isEqualTo("tok-1_2.3~4");
         assertThat(FeishuSupport.pathEscape("a b")).isEqualTo("a%20b");
         assertThat(FeishuSupport.pathEscape("a/b")).isEqualTo("a%2Fb");
-        // Go 的 encodePathSegment 不转义这几个子分隔符
+        // path 段转义不处理这几个子分隔符
         assertThat(FeishuSupport.pathEscape("a+b:c=d@e&f$g")).isEqualTo("a+b:c=d@e&f$g");
         assertThat(FeishuSupport.queryEscape("测")).isEqualTo("%E6%B5%8B");
     }
@@ -470,7 +470,7 @@ class FeishuSupportTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // fetchTally（对照 tally_test.go + Go 实录的 summary 串）
+    // fetchTally（summary 串逐字钉死）
     // ──────────────────────────────────────────────────────────────────
 
     @Test

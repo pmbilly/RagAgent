@@ -7,9 +7,9 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * tenant_members 表实体（对照 Go types/tenant_member.go TenantMember）。
+ * tenant_members 表实体。
  *
- * GORM 隐式行为清单：
+ * 落库行为清单：
  * - 软删除 → 显式 isNull("deleted_at") 条件；部分唯一索引
  *   uniq_user_tenant ON (user_id, tenant_id) WHERE deleted_at IS NULL（迁移 000043）
  * - id 自增主键 → @TableId(type = AUTO)

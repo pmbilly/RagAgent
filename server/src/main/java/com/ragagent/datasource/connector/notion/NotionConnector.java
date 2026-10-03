@@ -24,7 +24,7 @@ import com.ragagent.datasource.domain.Resource;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * Notion 数据源连接器（对照 Go {@code notion.Connector}，connector.go 全文）。
+ * Notion 数据源连接器。
  *
  * <h2>它同步什么</h2>
  * <ul>
@@ -65,17 +65,12 @@ import com.ragagent.datasource.domain.SyncCursor;
  *
  * <h2>已知差异（逐条都在测试里钉住）</h2>
  * <ol>
- *   <li><b>遍历顺序确定</b>：Go 在 {@code fetchIncremental} 的变更循环、
- *       删除循环、{@code discoverAllResources} 的收集循环里都 range **map**
- *       （顺序随机）→ 产出的 {@code changedItems} 顺序每次不同。Java 用
+ *   <li><b>遍历顺序确定</b>：变更循环、删除循环、发现循环都用
  *       {@code LinkedHashSet}/{@code LinkedHashMap} 保持"发现顺序"，
- *       结果稳定。信息量相同、且对增量同步是改进（Go 侧本来就无法逐字节复现）。</li>
- *   <li><b>{@code %w} 的类型与文本不可兼得</b>：Go 的
- *       {@code fmt.Errorf("search notion pages: %w", err)} 既拼文本又保留哨兵类型
- *       （{@code errors.Is} 仍能找出 {@code ErrInvalidCredentials}）。
- *       Java 的 {@link ConnectorException} 没有"带前缀的同一子类"构造器，
- *       故外层是裸 {@code ConnectorException}、类型信息落在 {@code cause} 链上。
- *       <b>消息逐字一致</b>（如 {@code "search notion pages: invalid credentials: …"}），
+ *       结果稳定，对增量同步是改进。</li>
+ *   <li><b>前缀与异常类型不可兼得</b>：外层是裸 {@link ConnectorException}、
+ *       类型信息落在 {@code cause} 链上。
+ *       <b>消息逐字保留前缀</b>（如 {@code "search notion pages: invalid credentials: …"}），
  *       但调用方要判类型必须走 cause 链。</li>
  * </ol>
  */
@@ -94,7 +89,7 @@ public final class NotionConnector implements Connector {
     /** 抓取协作者（构造期装配）。 */
     final NotionFetchOps fetchOps;
 
-    /** 对照 Go {@code NewConnector}。 */
+    /** 构造（默认客户端工厂）。 */
     public NotionConnector() {
         this(NotionClient::create);
     }
@@ -109,7 +104,7 @@ public final class NotionConnector implements Connector {
         return DataSourceConstants.CONNECTOR_TYPE_NOTION;
     }
 
-    /** 对照 Go {@code Validate}：解析配置 → 建客户端 → {@code Ping}。 */
+    /** 解析配置 → 建客户端 → 验活。 */
     @Override
     public void validate(DataSourceConfig config) {
         NotionConfig notionConfig = NotionConfig.parse(config);
@@ -118,7 +113,7 @@ public final class NotionConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code ResolveResourceAncestors}：Notion 什么都不用做——
+     * Notion 什么都不用做——
      * {@code ListResources} 一次就返回带 parent 链接的整棵树，
      * 任何已存在的选择本来就在树里。
      */
@@ -128,7 +123,7 @@ public final class NotionConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code ListResources}：一次 Search 返回全部页面/数据源，
+     * 一次 Search 返回全部页面/数据源，
      * 前端据此渲染树。非空 {@code parentId} 的惰性加载请求**没有**额外内容可回。
      */
     @Override
@@ -188,7 +183,7 @@ public final class NotionConnector implements Connector {
         return resources;
     }
 
-    /** 对照 Go {@code FetchAll}。 */
+    /** 全量同步。 */
     @Override
     public List<FetchedItem> fetchAll(DataSourceConfig config, List<String> resourceIds) {
         NotionConfig notionConfig = NotionConfig.parse(config);
@@ -223,8 +218,8 @@ public final class NotionConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code FetchIncremental}。首次同步（cursor 为空）直接走
-     * {@code FetchAll}——不需要发现阶段，省一次 Search。
+     * 增量同步。首次同步（cursor 为空）直接走
+     * 全量路径——不需要发现阶段，省一次 Search。
      */
     @Override
     public FetchIncrementalResult fetchIncremental(DataSourceConfig config, SyncCursor cursor) {
@@ -237,8 +232,8 @@ public final class NotionConnector implements Connector {
 
         NotionClient client = clientFactory.create(notionConfig.apiKey, extractBaseUrl(config));
 
-        // 解析上一次的游标（对应 Go 的 json.Marshal → json.Unmarshal 往返；
-        // 失败时 Go 留下零值 → 视作首次同步）
+        // 解析上一次的游标（Jackson 往返；
+        // 失败时视作首次同步）
         NotionCursor prevCursor = new NotionCursor();
         if (cursor != null && cursor.getConnectorCursor() != null) {
             try {
@@ -296,9 +291,8 @@ public final class NotionConnector implements Connector {
         List<FetchedItem> changedItems = new ArrayList<>();
         int changedCount = 0;
 
-        // ⚠️ Go 在这里 range 一个 map **并同时往它里面写**（合并记录级编辑时间）
-        // ——Go 允许这么干（新键是否被本轮遍历到未定义），Java 会抛
-        // ConcurrentModificationException，所以先取一份条目快照。
+        // ⚠️ 这里**遍历的同时往 map 里写**（合并记录级编辑时间），
+        // 会抛 ConcurrentModificationException，所以先取一份条目快照。
         // 净效果相同：新并入的都是"记录"的 ID，而 pageById 里没有它们，
         // 命中了也只会走 `page == null → continue`。
         for (Map.Entry<String, OffsetDateTime> entry : new ArrayList<>(newEditTimes.entrySet())) {
@@ -351,11 +345,10 @@ public final class NotionConnector implements Connector {
         return new FetchIncrementalResult(changedItems, buildCursor(newEditTimes));
     }
 
-    /** 对照 Go {@code buildCursor}。 */
+    /** 构造 SyncCursor。 */
     static SyncCursor buildCursor(Map<String, OffsetDateTime> editTimes) {
         Map<String, Object> pageEditTimes = new LinkedHashMap<>();
-        // Go 的 json.Marshal 对 map 恒按**字节序**排键；这里显式排序，让
-        // cursor 的 jsonb 形状与 Go 逐字节一致（probe 的 cursor.json 已钉住）。
+        // 显式排序键，让 cursor 的 jsonb 形状逐字节可复现（测试已钉住）。
         List<String> keys = new ArrayList<>(editTimes.keySet());
         Collections.sort(keys);
         for (String key : keys) {
@@ -372,7 +365,7 @@ public final class NotionConnector implements Connector {
         return syncCursor;
     }
 
-    /** Go 的 {@code time.Time.Equal}：比瞬时，不比字面量/时区。 */
+    /** 比瞬时，不比字面量/时区。 */
     static boolean equalInstants(OffsetDateTime a, OffsetDateTime b) {
         if (a == null || b == null) {
             return a == b;
@@ -384,7 +377,7 @@ public final class NotionConnector implements Connector {
     // 内部：发现与排除集
     // ──────────────────────────────────────────────────────────────────────
 
-    /** 对照 Go 的 {@code (included, excluded)} 双返回值。 */
+    /** 发现结果：选中子树内的页面 + 排除集。 */
     private static final class DiscoverResult {
         final List<NotionPage> included;
         final Map<String, Boolean> excluded;
@@ -396,7 +389,7 @@ public final class NotionConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code discoverAllResources}：Search 全量 → 按父子链从选中的根 BFS，
+     * Search 全量 → 按父子链从选中的根 BFS，
      * 返回"选中子树内的页面"与"可见但不在任何选中根之下的页面（排除集）"。
      */
     private DiscoverResult discoverAllResources(NotionClient client, List<String> resourceIds) {
@@ -460,17 +453,15 @@ public final class NotionConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code computeExcludedSet}：用户**显式取消勾选**的 ID 集合
+     * 用户**显式取消勾选**的 ID 集合
      * ——在 picker 里可见、但既没被选中、也不是某个选中节点的后代。
      * 用来给 {@code visited} 播种，让递归的 child_page/child_database 跳过它们。
      *
      * <p>"用户从没见过的页面"（上次保存配置之后新建的）<b>不算</b>排除，
      * 所以选中的父页面仍然会自动带上它们。</p>
      *
-     * <p><b>与 Go 的一处防御性差异</b>：Go 的循环
-     * {@code for cur := id; cur != ""; cur = parentOf[cur]} 在 parent 关系成环
-     * （且环上没有被选中节点）时会<b>死循环</b>。Java 侧加了 seen 集合，
-     * 成环时终止。真实数据里父子关系不可能成环，这只防脏数据把同步线程挂死。</p>
+     * <p><b>防御性细节</b>：沿父链上溯时用 seen 集合，
+     * parent 关系成环时终止——真实数据里不可能成环，这只防脏数据把同步线程挂死。</p>
      */
     static Map<String, Boolean> computeExcludedSet(List<String> visibleIds,
                                                    Map<String, String> parentOf,
@@ -503,7 +494,7 @@ public final class NotionConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code excludedSetFromListResources}：走 {@code ListResources}
+     * 走 {@code ListResources}
      * 拿 picker 层级再算排除集（{@code FetchAll} 走这条路，因为那条路径上
      * 没有别的地方已经拿页面列表了）。
      */
@@ -530,7 +521,7 @@ public final class NotionConnector implements Connector {
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code resolveFileUploads}：走一遍块树，把 {@code file_upload}
+     * 走一遍块树，把 {@code file_upload}
      * 型的文件重新取一次块、换成带**临时下载地址**的形态
      * （Notion 的 S3 签名地址，1 小时过期）。<b>就地改写</b>
      * {@code blocks[i].RawContent}。
@@ -565,16 +556,16 @@ public final class NotionConnector implements Connector {
     // ──────────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code resolveParentID}：判断对象在工作区层级里的位置。
+     * 判断对象在工作区层级里的位置。
      *
      * <p>两个分支都是"父 ID 必须在 {@code allIDs} 里才算数"——Search 没返回的
      * 祖先（例如集成没权限的页面）会让对象**变成根**，而不是挂在一个不存在的
      * 父亲下面。</p>
      *
      * <p>data_source 走 {@code database_parent}：它指向承载这个数据库的**页面**；
-     * 而 data_source 的常规 {@code parent} 指向数据库容器本身，是错的来源。
-     * （probe：同一个对象用 parent 会得到 {@code "db"}，用 database_parent 得到
-     * {@code "p1"}。）</p>
+     * 而 data_source 的常规 {@code parent} 指向数据库容器本身，是错的来源
+     * （同一个对象用 parent 会得到 {@code "db"}，用 database_parent 得到
+     * {@code "p1"}）。</p>
      */
     static String resolveParentId(NotionPage page, Set<String> allIds) {
         if (page.isDatabase() && page.databaseParent != null) {
@@ -595,7 +586,7 @@ public final class NotionConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code getDatabaseOrDataSourceInfo}：先试
+     * 取库/数据源元数据：先试
      * {@code GET /v1/data_sources/{id}}（Search 返回的是 data_source ID），
      * 失败再回落 {@code GET /v1/databases/{id}}（child_database 块给的是
      * database ID）。
@@ -610,7 +601,7 @@ public final class NotionConnector implements Connector {
     }
 
     /**
-     * 对照 Go {@code extractBaseURL}：{@code settings.base_url} 是非空字符串就用它，
+     * {@code settings.base_url} 是非空字符串就用它，
      * 否则回 {@code DefaultBaseURL}。
      */
     static String extractBaseUrl(DataSourceConfig config) {

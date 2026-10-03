@@ -4,18 +4,18 @@ import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
 
 /**
- * 目录快照语义错误（对照 Go types/mcp_metadata.go:11-24 的 5 个哨兵 error）。
+ * 目录快照语义错误。
  *
- * <p>Go 用 {@code errors.Is} 做身份判定，Java 用 {@link Kind} 枚举。
+ * <p>用 {@link Kind} 枚举做身份判定。
  * handler 层据此把错误映射成 HTTP 响应——<b>注意 refresh 与否会改变默认分支的文案，
  * 这个上下文只有 handler 知道</b>，所以这里把 Kind 暴露出去而不是把文案写死。</p>
  *
- * <p>默认（refresh=false 分支）的文案已经按 Go handler 的映射填好，
+ * <p>默认（refresh=false 分支）的文案已按既有契约填好，
  * 直接抛出即可得到一致的响应；需要 refresh 专属文案时按 Kind 重映射。</p>
  */
 public class McpMetadataException extends BizException {
 
-    /** 对照 Go 的哨兵 error 身份 */
+    /** 错误类别 */
     public enum Kind {
         /** ErrMCPServiceNotFound："MCP service not found" */
         SERVICE_NOT_FOUND,
@@ -61,7 +61,7 @@ public class McpMetadataException extends BizException {
     public static final String MSG_INVALID_TOOLS =
             "MCP directory contains empty or duplicate tool names";
 
-    // ── 工厂：文案逐字对照 Go handler mcpMetadataAppError（internal/handler/mcp_metadata.go:105） ──
+    // ── 工厂：固定文案（与 HTTP 响应契约一致） ─────────────────────────
 
     /** 对照 errors.NewNotFoundError("MCP service not found") */
     public static McpMetadataException serviceNotFound() {

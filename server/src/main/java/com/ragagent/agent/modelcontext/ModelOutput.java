@@ -12,8 +12,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.ragagent.common.llm.ToolResult;
 
 /**
- * 给 LLM 的紧凑、以 source 为中心的工具结果渲染（对照 Go internal/modelcontext
- * model_output.go，全文移植）。规范的 ToolResult.Output 保持不动，供 UI/日志/存储。
+ * 给 LLM 的紧凑、以 source 为中心的工具结果渲染。规范的 ToolResult.Output 保持不动，供 UI/日志/存储。
  */
 final class ModelOutput {
 
@@ -25,7 +24,7 @@ final class ModelOutput {
     private ModelOutput() {
     }
 
-    /** 工具结果的模型面渲染入口（对照 ModelOutput）。 */
+    /** 工具结果的模型面渲染入口。 */
     static String modelOutput(SourceRegistry r, ToolResult result) {
         if (result == null) {
             return "";
@@ -77,7 +76,7 @@ final class ModelOutput {
         return copy;
     }
 
-    /** 从 JSON 工具结果里显式标记的键下登记持久 ID（对照 registerStructuredReferences）。 */
+    /** 从 JSON 工具结果里显式标记的键下登记持久 ID。 */
     static void registerStructuredReferences(SourceRegistry r, String raw) {
         JsonNode value = GoJsonValues.parse(raw);
         if (value == null) {
@@ -179,7 +178,7 @@ final class ModelOutput {
         return b.toString();
     }
 
-    /** 一个待渲染 chunk 的中间态（Go modelChunk）。 */
+    /** 一个待渲染 chunk 的中间态。 */
     private static final class ModelChunk {
         String handle;
         String docHandle;
@@ -287,7 +286,7 @@ final class ModelOutput {
     }
 
     private static String renderKnowledgeChunks(String mode, List<ModelChunk> chunks) {
-        // 可变 doc 分组（Go 的局部 docGroup struct）
+        // 可变 doc 分组的局部值对象
         final class DocGroup {
             final String handle;
             final String kbHandle;
@@ -596,7 +595,7 @@ final class ModelOutput {
     }
 
     /**
-     * 失败工具调用的模型面文本（对照 failedToolModelText）。脚本/shell 失败的有用
+     * 失败工具调用的模型面文本。脚本/shell 失败的有用
      * 诊断在 Output（stdout/stderr），Error 常常只是 "exited with code 1" 加重试提示。
      */
     static String failedToolModelText(String output, String errMsg) {
@@ -614,7 +613,7 @@ final class ModelOutput {
         return output + "\n\nError: " + errMsg;
     }
 
-    // ---- map 取值助手（Go mapsValue/stringValue/intValue/boolValue/stringSliceValue）----
+    // ---- map 取值助手（mapsValue/stringValue/intValue/boolValue/stringSliceValue）----
 
     private static JsonNode toNode(Object value) {
         if (value == null) {
@@ -627,8 +626,8 @@ final class ModelOutput {
     }
 
     /**
-     * Go mapsValue：marshal → unmarshal 进 []map[string]interface{}；非数组或元素
-     * 非对象 → nil。行用可变 LinkedHashMap（knowledge_chunks_list 会就地补键）。
+     * mapsValue：值规整为行列表，每行一个 string→JsonNode 映射；非数组或元素
+     * 非对象 → null。行用可变 LinkedHashMap（knowledge_chunks_list 会就地补键）。
      */
     static List<Map<String, JsonNode>> mapsValue(Object value) {
         JsonNode tree = toNode(value);
@@ -693,7 +692,7 @@ final class ModelOutput {
         return false;
     }
 
-    /** Go stringSliceValue：marshal → unmarshal 进 []string；失败 → nil（Java 空列表 = 零次循环）。 */
+    /** stringSliceValue：值规整为字符串列表；失败 → 空列表（空列表 = 零次循环）。 */
     static List<String> stringSliceValue(JsonNode value) {
         if (value == null || value.isNull() || !value.isArray()) {
             return List.of();
@@ -708,7 +707,7 @@ final class ModelOutput {
         return values;
     }
 
-    /** Go：u, err := url.Parse(rawURL) 后取 Hostname（本包只用于 domain 行）。 */
+    /** 取 URL 的 host（本包只用于 domain 行）。 */
     static String urlHostname(String rawURL) {
         String rest = rawURL;
         int schemeEnd = rest.indexOf("://");

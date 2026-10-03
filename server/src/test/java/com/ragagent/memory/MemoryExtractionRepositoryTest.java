@@ -23,7 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 抽取进度的租约语义（对照 Go internal/application/repository/memory_extraction.go 全 230 行）。
+ * 抽取进度的租约语义。
  *
  * <p>这一块**全靠 {@code withSubject} 的行锁 + 租约判定**撑起来：</p>
  * <ul>
@@ -68,7 +68,7 @@ class MemoryExtractionRepositoryTest {
      *
      * <p>⚠️ 用 {@code OffsetDateTime.now()} 会让"后构造的 id"带上**更晚**的时间，
      * 于是 {@code after} 判定被时间而不是 id 决定——测"游标只前进"时必须固定时刻。
-     * （Go 的 {@code After} 也是"先比时间、同刻再比 id"。）</p>
+     * （{@code after} 的判定就是"先比时间、同刻再比 id"。）</p>
      */
     private MemoryMessageCursor cursor(String id) {
         return new MemoryMessageCursor(BASE, id);

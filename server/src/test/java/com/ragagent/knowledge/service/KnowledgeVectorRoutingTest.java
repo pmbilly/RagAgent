@@ -20,9 +20,9 @@ import com.ragagent.knowledge.mapper.KnowledgeBaseMapper;
 import com.ragagent.knowledge.mapper.KnowledgeMapper;
 
 /**
- * 写链改道（W5γ4.6 follow-up）的 H2 钉子：move 的 reuse_vectors 模式把 embeddings 行
- * 的 knowledge_base_id 原地改写并清 tag_id（move.go 的 UPDATE 语义）；KB clone 经
- * CopyIndices 复制向量行（三态 SourceID 改写：本块 → 目标 chunkID、生成问题保留 qid）。
+ * 写链改道的 H2 钉子：move 的 reuse_vectors 模式把 embeddings 行
+ * 的 knowledge_base_id 原地改写并清 tag_id（move 的 UPDATE 语义）；KB clone 经
+ * {@code copyIndices} 复制向量行（三态 SourceID 改写：本块 → 目标 chunkID、生成问题保留 qid）。
  * 未绑定 KB 走 postgres 语义直连（不经引擎注册表）——两种绑定状态下行为一致。
  */
 @SpringBootTest
@@ -143,7 +143,7 @@ class KnowledgeVectorRoutingTest {
                 "SELECT source_id, chunk_id, knowledge_id, knowledge_base_id, tag_id "
                         + "FROM embeddings WHERE knowledge_base_id = ?", dstKb);
         // 目标行：knowledge_id 改写为克隆出的新知识 id；source_id/chunk_id 改写为目标
-        // chunkID；tag_id 不复制（照 GORM 列集）；is_enabled 省略（H2 列无默认值为 NULL）
+        // chunkID；tag_id 不复制（不在克隆列集内）；is_enabled 省略（H2 列无默认值为 NULL）
         List<String> dstKnowledgeIds = jdbc.queryForList(
                 "SELECT id FROM knowledges WHERE knowledge_base_id = ?", String.class, dstKb);
         System.out.printf("[diag] embeddings row=%s dstKnowledgeIds=%s sourceKbId=%s dstKbId=%s%n",

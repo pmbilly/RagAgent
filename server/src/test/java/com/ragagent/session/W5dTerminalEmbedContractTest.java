@@ -29,8 +29,8 @@ import com.ragagent.TestSchema;
 import com.ragagent.knowledge.storage.LocalStorageService;
 
 /**
- * 收尾批 W5d 契约测试：embed QA 委托 / 文件代理（w5d-emb-*）。golden 来源：Go
- * dev server 实录（scripts/record-w5d-golden.sh）。沙箱终端族（w5d-term-*）
+ * embed QA 委托 / 文件代理（w5d-emb-*）的契约测试。golden 来源：dev server
+ * 录制（scripts/record-w5d-golden.sh）。沙箱终端族（w5d-term-*）
  * 随沙箱裁剪退役。
  */
 @SpringBootTest
@@ -201,7 +201,7 @@ class W5dTerminalEmbedContractTest {
         compareJson("w5d-emb-chat-scalar.json", 400,
                 callJson("/api/v1/embed/" + CID8 + "/knowledge-chat/" + ESID8, "123",
                         embedSessionHeaders()));
-        // 委托后确定性错误：patch 成功 → KnowledgeQA/AgentQA 的 validator 文案（Go 字段名）
+        // 委托后确定性错误：patch 成功 → KnowledgeQA/AgentQA 的 validator 文案（历史措辞，字段名沿用旧拼写）
         compareJson("w5d-emb-chat-kb-empty.json", 400,
                 callJson("/api/v1/embed/" + CID8 + "/knowledge-chat/" + ESID8, "{}",
                         embedSessionHeaders()));

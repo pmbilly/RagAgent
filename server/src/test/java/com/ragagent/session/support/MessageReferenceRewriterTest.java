@@ -102,7 +102,7 @@ class MessageReferenceRewriterTest {
                 .isEqualTo("chunk ![c](resource://xifDo7NTSL300Lp1goVutw)");
         assertThat(out.get(0).getKnowledgeReferences().get(0).getContent())
                 .isEqualTo("chunk ![c](https://cdn.example.com/x.png)");
-        // agent steps 也必须解耦——那正是 Go 的 cloneMessages 注释点名的理由
+        // agent steps 也必须解耦：改写不得污染缓存的原始消息
         assertThat(original.getAgentSteps().get(0).getThought())
                 .isEqualTo("looking at ![t](resource://xifDo7NTSL300Lp1goVutw)");
     }

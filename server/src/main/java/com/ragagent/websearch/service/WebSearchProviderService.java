@@ -12,12 +12,11 @@ import com.ragagent.websearch.mapper.WebSearchProviderRepository;
 import org.springframework.stereotype.Service;
 
 /**
- * 对照 Go {@code service.webSearchProviderService}
- * （internal/application/service/web_search_provider.go）。
+ * web 搜索 provider 管理服务。
  *
- * <p>所有校验失败抛 Go 同文案的 {@link IllegalStateException}/{@link IllegalArgumentException}，
+ * <p>所有校验失败抛固定文案的 {@link IllegalStateException}/{@link IllegalArgumentException}，
  * 由控制器决定 HTTP 形态（create/update 一律 500 信封 code 1007；test 端点 200 纯字符串）。
- * SSRF 白名单为进程级静态 {@link SsrfGuard}（§9：与 Go 包级变量同语义）。</p>
+ * SSRF 白名单为进程级静态 {@link SsrfGuard}。</p>
  */
 @Service
 public class WebSearchProviderService {
@@ -47,7 +46,7 @@ public class WebSearchProviderService {
         return repo.list(tenantId);
     }
 
-    /** Go CreateProvider：校验（失败=普通 error）→ 清默认（失败仅告警）→ 落库 */
+    /** 创建 provider：校验（失败=普通 error）→ 清默认（失败仅告警）→ 落库 */
     public void create(WebSearchProvider provider) {
         if (provider.getTenantId() == null || provider.getTenantId() == 0) {
             throw failed("tenant ID is required");
@@ -60,18 +59,18 @@ public class WebSearchProviderService {
             try {
                 repo.clearDefault(provider.getTenantId(), "");
             } catch (RuntimeException e) {
-                // Go：ClearDefault 失败仅 Warnf 后继续
+                // 默认清除失败仅记 warn 后继续
             }
         }
         OffsetDateTime now = OffsetDateTime.now();
         repo.create(provider, now);
-        // GORM 的 AutoCreateTime 会把 now 回写内存对象（create 响应直接序列化实体，
-        // 不回写就输出 year-1——datasource 波 §9 的同款教训）
+        // create 响应直接序列化实体：时间列必须回写内存对象，
+        // 不回写就输出零值时间
         provider.setCreatedAt(now);
         provider.setUpdatedAt(now);
     }
 
-    /** Go UpdateProvider：注意 is_default 无条件覆盖（false 也会清除其它默认语义见 ClearDefault 排除自身） */
+    /** 更新：注意 is_default 无条件覆盖（false 也会清除其它默认语义见 clearDefault 排除自身） */
     public void update(WebSearchProvider provider) {
         if (provider.getTenantId() == null || provider.getTenantId() == 0) {
             throw failed("tenant ID is required");
@@ -93,7 +92,7 @@ public class WebSearchProviderService {
         repo.update(provider, OffsetDateTime.now());
     }
 
-    /** Go UpdateProviderCredentials：key 缺失/为空/与现值相同 → 不写库，直接返回现有行 */
+    /** 更新凭据：key 缺失/为空/与现值相同 → 不写库，直接返回现有行 */
     public WebSearchProvider updateCredentials(long tenantId, String id, String apiKey) {
         WebSearchProvider existing = repo.getByID(tenantId, id);
         if (existing == null) {
@@ -108,7 +107,7 @@ public class WebSearchProviderService {
         return existing;
     }
 
-    /** Go ClearProviderCredential：幂等（本就为空 → no-op） */
+    /** 清除凭据：幂等（本就为空 → no-op） */
     public void clearCredential(long tenantId, String id, String field) {
         if (!"apiKey".equals(field)) {
             throw failed("unknown credential field: " + field);
@@ -134,7 +133,7 @@ public class WebSearchProviderService {
         return provider != null && VALID_PROVIDER_TYPES.contains(provider);
     }
 
-    /** 对照 validateProviderParameters：每个 provider 的必填/取值校验，文案逐字对照 */
+    /** 每个 provider 的必填/取值校验，错误文案逐字固定 */
     public void validateProviderParameters(String provider, WebSearchProviderParams params) {
         WebSearchProviderParams p = params == null ? new WebSearchProviderParams() : params;
         switch (provider == null ? "" : provider) {
@@ -162,7 +161,7 @@ public class WebSearchProviderService {
             }
             case "searxng" -> validateSearxngBaseUrl(p.getBaseUrl());
             default -> {
-                // Go switch 无 default 分支 → 直接落到 proxy 校验
+                // 未知类型不做类型专属校验，直接落到 proxy 校验
             }
         }
         // validateOptionalProxyURL（所有 provider 通用）
@@ -175,7 +174,7 @@ public class WebSearchProviderService {
         }
     }
 
-    /** 对照 ValidateZhipuParameters（extra_config 键：search_engine / content_size） */
+    /** extra_config 键：search_engine / content_size */
     private void validateZhipu(WebSearchProviderParams p) {
         if (p.getApiKey().trim().isEmpty()) {
             throw failed("API key is required for Zhipu provider");
@@ -191,7 +190,7 @@ public class WebSearchProviderService {
         }
     }
 
-    /** 对照 ValidateMetasoParameters */
+    /** scope 白名单校验（缺省 webpage） */
     private void validateMetaso(WebSearchProviderParams p) {
         if (p.getApiKey().trim().isEmpty()) {
             throw failed("API key is required for Metaso provider");
@@ -202,14 +201,14 @@ public class WebSearchProviderService {
         }
     }
 
-    /** 对照 ValidateBochaParameters */
+    /** Bocha 参数校验 */
     private void validateBocha(WebSearchProviderParams p) {
         if (p.getApiKey().trim().isEmpty()) {
             throw failed("API key is required for Bocha provider");
         }
         String freshness = option(p.getExtraConfig(), "freshness", "noLimit");
         if (!BOCHA_FRESHNESS.contains(freshness)) {
-            // Go: params.ExtraConfig["freshness"]——nil map / 缺键都是零值 ""
+            // extra_config 的 freshness：缺 map / 缺键都取空串
             String raw = p.getExtraConfig() == null
                     ? ""
                     : p.getExtraConfig().getOrDefault("freshness", "");
@@ -217,7 +216,7 @@ public class WebSearchProviderService {
         }
     }
 
-    /** 对照 ValidateSearxngBaseURL（四段拒绝文案 + SSRF） */
+    /** base_url 校验（四段拒绝文案 + SSRF） */
     public void validateSearxngBaseUrl(String rawUrl) {
         String base = rawUrl == null ? "" : rawUrl.trim();
         if (base.isEmpty()) {
@@ -248,7 +247,7 @@ public class WebSearchProviderService {
         }
     }
 
-    /** 对照 ValidateProxyURL：trim 后非空才校验（仅 http/https 通过） */
+    /** trim 后非空才校验（仅 http/https 通过） */
     public void validateProxyUrl(String proxyUrl) {
         String trimmed = proxyUrl == null ? "" : proxyUrl.trim();
         if (trimmed.isEmpty()) {
@@ -262,11 +261,10 @@ public class WebSearchProviderService {
     }
 
     /**
-     * 对照 {@code registry.CreateProvider} 的**构造期**校验——每个 provider 工厂
-     * （internal/infrastructure/web_search/*.go 的 New*Provider）按各自顺序检查：
+     * provider 构造期校验——每种类型按各自顺序检查：
      * brave/bing/google/tavily/ollama/baidu/exa = key（google 另查 engine_id）→ 代理；
      * zhipu/metaso/bocha = 全量参数校验 → 代理；searxng = base_url → 代理；
-     * duckduckgo/keenable = 仅代理。错误文案逐字对照（test 端点的确定性分支）。
+     * duckduckgo/keenable = 仅代理。错误文案固定（test 端点的确定性分支）。
      */
     public void constructProvider(String providerType, WebSearchProviderParams params) {
         WebSearchProviderParams p = params == null ? new WebSearchProviderParams() : params;
@@ -335,7 +333,7 @@ public class WebSearchProviderService {
         return v == null || v.trim().isEmpty() ? def : v.trim();
     }
 
-    /** 普通 error（Go fmt.Errorf）——控制器把它包成 500 信封 / 200 纯字符串 */
+    /** 普通 error（非业务码）——控制器把它包成 500 信封 / 200 纯字符串 */
     public static IllegalArgumentException failed(String message) {
         return new IllegalArgumentException(message);
     }

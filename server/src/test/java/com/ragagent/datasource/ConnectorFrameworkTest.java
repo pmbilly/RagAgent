@@ -17,20 +17,14 @@ import org.junit.jupiter.api.Test;
  * 连接器框架层（{@code ConnectorException} / {@code ConnectorRegistry} /
  * {@code ConnectorCatalog}）的语义测试。
  *
- * <p>对照 Go：{@code internal/datasource/connector.go} 的
- * {@code ConnectorRegistry} + {@code ConnectorMetadataRegistry} +
- * {@code ListAvailableConnectors}，{@code internal/datasource/errors.go} 的哨兵。</p>
- *
  * <h2>期望值来源</h2>
- * <p>{@link ConnectorException} 的 message 断言是<b>Go 源码里 {@code errors.New(...)} 的原文</b>；
- * {@link ConnectorCatalog} 的 17 条元数据是 <b>Go 实录</b>——把
- * {@code ConnectorMetadataRegistry} 的字面量原样抄进一个独立 Go 程序跑
- * {@code json.Marshal} 得到的键序与字节。见
- * {@code ConnectorCatalogTest} 的常量表。</p>
+ * <p>{@link ConnectorException} 的 message 断言钉住<b>逐字的错误文案</b>；
+ * {@link ConnectorCatalog} 的 17 条元数据钉住<b>序列化后的键序与字节</b>。
+ * 见 {@code ConnectorCatalogTest} 的常量表。</p>
  */
 class ConnectorFrameworkTest {
 
-    // ── ConnectorException：message 与 Go 哨兵逐字一致 ─────────────────────
+    // ── ConnectorException：message 与哨兵文案逐字一致 ─────────────────────
 
     @Test
     void exceptionMessagesMatchGoSentinels() {
@@ -55,9 +49,9 @@ class ConnectorFrameworkTest {
     }
 
     /**
-     * 对照 Go {@code (*PartialFetchError).Error()} 的两种形态：
-     * 空/nil 细节 → {@code "partial fetch: some resources failed"}；
-     * 有细节 → {@code "partial fetch: " + strings.Join(details, "; ")}。
+     * {@code PartialFetch} 的 message 有两种形态：
+     * 空细节（含 null）→ {@code "partial fetch: some resources failed"}；
+     * 有细节 → {@code "partial fetch: " + 各条细节以 "; " 连接}。
      */
     @Test
     void partialFetchErrorMessageMatchesGo() {
@@ -72,7 +66,7 @@ class ConnectorFrameworkTest {
     }
 
     /**
-     * 类型判定必须穿透 cause 链（对照 Go 的 {@code errors.Is} 会 unwrap {@code %w}）。
+     * 类型判定必须穿透 cause 链（对整条 cause 链逐层检查）。
      *
      * <p>这是 <b>service 层下一步的判型入口</b>：连接器会把
      * {@code InvalidCredentials} 包在若干层 {@code ConnectorException("...", cause)} 里，
@@ -98,7 +92,7 @@ class ConnectorFrameworkTest {
         assertThat(ConnectorException.is(null, ConnectorException.InvalidCredentials.class)).isFalse();
     }
 
-    /** 对照 Go 的 {@code errors.As(err, &partial)}：连 items/cursor 一起捞出来。 */
+    /** 从 cause 链里定位 {@code PartialFetch} 载体：连 items/cursor 一起捞出来。 */
     @Test
     void findPartialFetchReturnsTheCarrierWithItsResults() {
         ConnectorException.PartialFetch partial =
@@ -169,7 +163,7 @@ class ConnectorFrameworkTest {
         ConnectorRegistry registry = new ConnectorRegistry();
         assertThatThrownBy(() -> registry.get("confluence"))
                 .isInstanceOf(ConnectorException.NotFound.class)
-                // Go 的 Get 不拼请求的 type，照抄
+                // 未命中文案不含请求的 type
                 .hasMessage("connector type not found in registry");
     }
 
@@ -185,7 +179,7 @@ class ConnectorFrameworkTest {
         assertThat(registry.get("notion")).isSameAs(second);
         assertThat(registry.list()).containsExactly("notion", "feishu");
 
-        // 重复注册 = 覆盖（Go 的 map 赋值语义），不报错
+        // 重复注册 = 覆盖，不报错
         Connector replacement = stubConnector("feishu");
         registry.register(replacement);
         assertThat(registry.get("feishu")).isSameAs(replacement);
@@ -194,7 +188,7 @@ class ConnectorFrameworkTest {
 
     // ── ConnectorCatalog ──────────────────────────────────────────────────
 
-    /** Go {@code ConnectorMetadataRegistry} 的 17 个键。 */
+    /** 连接器目录里全部 17 个类型的键。 */
     private static final List<String> GO_REGISTRY_KEYS = List.of(
             "feishu", "lark", "feishu_drive", "lark_drive", "notion", "confluence", "yuque",
             "ima", "github", "google_drive", "onedrive", "dingtalk", "web_crawler", "slack",
@@ -207,11 +201,10 @@ class ConnectorFrameworkTest {
     }
 
     /**
-     * 排序 = Go 的"收集全部 → 按 Priority 稳定排序"。
+     * 排序 = 先收集全部，再按 Priority 稳定排序。
      *
-     * <p>⚠️ Go 的初始顺序来自 map 迭代（随机），所以同优先级之间的顺序<b>每次调用都不同</b>。
-     * Java 固定为声明序（见 {@code ConnectorCatalog} 的类注释）。本断言钉住的正是
-     * Java 的确定性顺序，而不是 Go 的随机顺序。</p>
+     * <p>同优先级之间固定为声明序（见 {@code ConnectorCatalog} 的类注释）。
+     * 本断言钉住的正是这份确定性顺序。</p>
      */
     @Test
     void listAvailableConnectorsIsSortedByPriorityStably() {
@@ -273,14 +266,14 @@ class ConnectorFrameworkTest {
         assertThat(rss.priority()).isEqualTo(12);
         assertThat(rss.authType()).isEqualTo("custom");
 
-        // 未注册的类型回 null（对照 Go 的 map 取值）
+        // 未注册的类型回 null
         assertThat(ConnectorCatalog.metadata("nope")).isNull();
     }
 
     /**
      * {@code capabilities} 的两种"空"形态是**不同**的线上字节：
-     * WebCrawler / IMAP 在 Go 里显式给了 {@code []string{}} → {@code []}；
-     * 其余都没有 nil 的情形。Java 侧不能把空列表归一成 null（见
+     * WebCrawler / IMAP 的是显式空列表 → {@code []}；
+     * 其余没有 null 的情形。Java 侧不能把空列表归一成 null（见
      * {@code ConnectorMetadata} 紧凑构造器的注释）。
      */
     @Test
@@ -370,7 +363,7 @@ class ConnectorFrameworkTest {
         assertThat(ConnectorCatalog.registeredTypes()).hasSize(17);
     }
 
-    /** 便于人工核对的键序表（与 Go 的 map 书写顺序一致，仅作文档）。 */
+    /** 便于人工核对的键序表（声明序，仅作文档）。 */
     static final Map<String, Integer> DECLARATION_ORDER = Map.ofEntries(
             Map.entry("feishu", 0), Map.entry("lark", 1), Map.entry("feishu_drive", 2),
             Map.entry("lark_drive", 3), Map.entry("notion", 4), Map.entry("confluence", 5),

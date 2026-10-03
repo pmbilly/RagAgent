@@ -15,14 +15,13 @@ import com.ragagent.llm.extract.EntityExtraction;
 import com.ragagent.llm.extract.PipelineConfig;
 
 /**
- * QUERY_UNDERSTAND 附加插件（对照 Go chat_pipeline/extract_entity.go 的 PluginExtractEntity）：
+ * QUERY_UNDERSTAND 附加插件：
  * 图谱抽取（NEO4J_ENABLE=true 才生效）——按 ExtractConfig 命中的知识库跑实体抽取，
  * 抽出的实体名挂到 chatManage.Entity（ENTITY_SEARCH 阶段消费）。
  *
- * <p>Go 侧的 map 迭代（kbIDSet/entityKnowledge）是无序的；Java 侧 LinkedHashMap
- * 保出现序（EntityKBIDs/EntityKnowledge 的顺序确定性备案，消费端 search_entity
- * 不依赖顺序）。模板经 config.ExtractManager.ExtractEntity 传入，例子仅取
- * Description/Examples（Go 的 NewPluginExtractEntity 同样裁剪）。</p>
+ * <p>实体集合用 LinkedHashMap 保出现序（EntityKBIDs/EntityKnowledge 顺序确定，
+ * 消费端 search_entity 不依赖顺序）。模板经 PipelineConfig 传入，例子仅取
+ * Description/Examples。</p>
  */
 public final class PluginExtractEntity implements Plugin {
 
@@ -44,8 +43,7 @@ public final class PluginExtractEntity implements Plugin {
         this.knowledgeBaseRepo = knowledgeBaseRepo;
         this.knowledgeService = knowledgeService;
         this.knowledgeRepo = knowledgeRepo;
-        // Go: strings.ToLower(os.Getenv("NEO4J_ENABLE")) != "true" → skip；
-        // 环境开关在装配期解析传入（4.6d）
+        // 环境开关 NEO4J_ENABLE 在装配期解析传入
         this.neo4jEnabled = neo4jEnabled;
     }
 
@@ -135,7 +133,7 @@ public final class PluginExtractEntity implements Plugin {
         return next.next();
     }
 
-    /** 对照 kb.ExtractConfig != nil && kb.ExtractConfig.Enabled（Java 侧 jsonb 判定）。 */
+    /** extract_config jsonb 的 enabled 开关（缺省关）。 */
     private static boolean extractEnabled(KnowledgeBase kb) {
         var cfg = kb.getExtractConfig();
         return cfg != null && !cfg.isNull()

@@ -21,7 +21,7 @@ import com.ragagent.wiki.controller.WikiPageController.RawJsonError;
 
 /**
  * WikiPageController 的静态解析与绑定助手：查询参数清洗、宽松整数解析、
- * 空白裁剪、错误文案与错误信封、raw-JSON 请求体绑定（必填校验文案复刻）。
+ * 空白裁剪、错误文案与错误信封、raw-JSON 请求体绑定（必填校验文案逐字固定）。
  * 全部静态、零字段依赖；绑定三件以 ObjectMapper 首参传入
  * ——必须沿用 Spring 注入的 mapper（其 lenient 语义是行为的一部分）。
  */
@@ -97,7 +97,7 @@ final class WikiRequestSupport {
     }
 
     /**
-     * 按原实现的空白集合裁剪
+     * 按完整 Unicode 空白集合裁剪
      * （Java 的 {@code String.trim()} 只认 &lt;= U+0020，会漏掉 NBSP 等）。
      */
     static String trimSpace(String s) {
@@ -123,12 +123,12 @@ final class WikiRequestSupport {
         return s.substring(start, end);
     }
 
-    /** 空白判定（Java 两个判定取并集才覆盖原实现的空白集合）。 */
+    /** 空白判定（两个判定取并集才覆盖完整 Unicode 空白集合）。 */
     private static boolean isGoSpace(int cp) {
         return Character.isWhitespace(cp) || Character.isSpaceChar(cp);
     }
 
-    /** 异常文案（BizException 的 message 与原实现的错误文案格式逐字相同）。 */
+    /** 异常文案（BizException 的 message 即对外错误文案，逐字透传）。 */
     static String errText(RuntimeException e) {
         return e.getMessage() == null ? "" : e.getMessage();
     }
@@ -186,7 +186,7 @@ final class WikiRequestSupport {
     /**
      * 请求体解析：空 body → {@code EOF} 文案；否则解析。
      *
-     * <p>先拿到 JsonNode 而不是直接绑到 DTO，是为了能在同一处复刻
+     * <p>先拿到 JsonNode 而不是直接绑到 DTO，是为了能在同一处执行
      * 必填字段校验（Jackson 不做这类校验）。</p>
      */
     static JsonNode readJsonBody(ObjectMapper json, String rawBody) {
@@ -196,7 +196,7 @@ final class WikiRequestSupport {
         try {
             JsonNode node = json.readTree(rawBody);
             if (node == null || node.isNull()) {
-                // "null" 请求体在原实现里是 no-op，各字段保持零值。
+                // "null" 请求体按 no-op 处理，各字段保持零值。
                 // 用 null 节点继续走 required 校验会 NPE，这里换成一个空对象。
                 return json.createObjectNode();
             }
@@ -229,7 +229,7 @@ final class WikiRequestSupport {
     }
 
     /**
-     * 复刻原实现的必填字段校验。
+     * 必填字段校验。
      *
      * <p>报错文案是
      * {@code Key: '<Struct>.<Field>' Error:Field validation for '<Field>' failed on the 'required' tag}

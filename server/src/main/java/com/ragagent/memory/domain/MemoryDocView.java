@@ -5,8 +5,7 @@ import java.time.OffsetDateTime;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 这个人反复从中取材的文档（对照 Go {@code types.MemoryDocView}，
- * internal/types/memory.go:1060-1067）。
+ * 这个人反复从中取材的文档。
  *
  * <p>六个字段都无 omitempty，恒输出。</p>
  */
@@ -45,9 +44,9 @@ public class MemoryDocView {
     }
 
     /**
-     * 对照 Go {@code MemoryDocViewFromAffinity}（internal/types/memory.go L1070-1082）。
+     * 从一条 {@link MemoryDocAffinity} 行投影出视图。
      *
-     * @return {@code row} 为 null 时回 null（对应 Go 的 {@code if row == nil { return nil }}）
+     * @return {@code row} 为 null 时回 null
      */
     public static MemoryDocView fromAffinity(MemoryDocAffinity row) {
         if (row == null) {

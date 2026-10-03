@@ -5,13 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * 繁转简转换器 + FAQ 归一化纯函数的对照测试。期望值全部是 <b>Go 实录</b>
- * （把 internal/textconv + types/faq.go 的纯函数原样抄进独立 Go 程序跑出来的
- * 输出，/tmp/faqconv/corpus.txt；SHA-256 校验过的词典 + Go 的贪心最长匹配）。
+ * 繁转简转换器 + FAQ 归一化纯函数的语料测试。期望值全部钉死在常量里
+ * （SHA-256 校验过的词典 + 贪心最长匹配）。
  *
- * <p>词典数据文件与 Go 仓 data/ 一字不差（SHA-256 见 data/README.md 记录、
- * 两个文件均已核对）——词典更新会改变 FAQ 归一化与 content_hash，
- * 更新前先更新这里的 Go 实录语料。</p>
+ * <p>词典数据文件以 SHA-256 核对（记录见 data/README.md）——词典更新会改变
+ * FAQ 归一化与 content_hash，更新前先更新这里的语料。</p>
  */
 class TextConvTest {
 
@@ -31,7 +29,7 @@ class TextConvTest {
             "面发与头发",
     };
 
-    /** NORM 语料：{输入 → NormalizeQuestion 输出}（Go 实录）。 */
+    /** NORM 语料：{输入 → normalizeQuestion 输出}。 */
     private static final String[][] NORM_CORPUS = {
             {"怎麼綁定手機？", "怎么绑定手机"},
             {"軟體怎麼下載", "软体怎么下载"},
@@ -66,7 +64,7 @@ class TextConvTest {
 
     @Test
     void contentHash_matchesGoCorpus() {
-        // Go 实录：CalculateFAQContentHash(aa0f3822...)
+        // 语料期望值：calculateContentHash（aa0f3822...）
         com.ragagent.knowledge.domain.FaqChunkMetadata meta =
                 new com.ragagent.knowledge.domain.FaqChunkMetadata();
         meta.standardQuestion = "怎么 绑定 手机？";

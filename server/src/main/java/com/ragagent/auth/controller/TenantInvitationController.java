@@ -31,17 +31,15 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对照 Go internal/handler/tenant_invitation.go（703 行）+ tenant_invite_link.go（111 行）
- * 的 9 条路由：租户侧 GET/POST /tenants/{id}/invitations、
+ * 邀请相关的 9 条路由：租户侧 GET/POST /tenants/{id}/invitations、
  * DELETE /tenants/{id}/invitations/{inv_id}、POST /tenants/{id}/invite-links；
  * 收件箱 GET /me/invitations、GET /me/invitations/pending-count、
  * POST /me/invitations/{inv_id}/accept、POST /me/invitations/{inv_id}/decline、
  * POST /me/invitations/accept-by-token。
  *
  * <p><b>角色语义</b>：租户侧读 Viewer+、写 Owner+（RbacInterceptor）；/me 收件箱
- * 五条在 Go 里<b>无角色门</b>（RegisterMyInvitationRoutes 只挂 Auth）——Java 侧同样
- * 不登记 RBAC 规则，"只有被邀请人能操作"由 service 层把守。注意 accept-by-token
- * 也是**已登录**路由（Go 源码如此；与 /auth/register-by-invite 的公开+限流不同）。</p>
+ * 五条<b>无角色门</b>（只挂 Auth），"只有被邀请人能操作"由 service 层把守。
+ * 注意 accept-by-token 也是**已登录**路由（与 /auth/register-by-invite 的公开+限流不同）。</p>
  *
  * <p><b>两层 404 刻意不同</b>：revoke 先 GetByID 再校验 inv.TenantID == URL :id——
  * 跨租户渲染成同款 "invitation not found"（不泄漏存在性）。</p>
@@ -49,7 +47,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class TenantInvitationController {
 
-    /** 对照 Go config.FrontendBaseURL / FRONTEND_BASE_URL env 的两级查找 */
+    /** 前端基础地址两级查找（config 属性 → FRONTEND_BASE_URL env）。 */
     private static final String FRONTEND_BASE_URL_PROPERTY = "FRONTEND_BASE_URL";
 
     private final TenantInvitationService invitationService;
@@ -92,9 +90,9 @@ public class TenantInvitationController {
                     ? projectInvitationWithLink(inv, usersById, null)
                     : projectInvitation(inv, usersById, null));
         }
-        // gin.H 双层 map → 字母序 invitations < page < page_size < total
+        // 响应键按字母序：invitations < page < pageSize < total
         Map<String, Object> data = new LinkedHashMap<>();
-        // gin.H 字母序：invitations < page < page_size < total
+        // 键按字母序：invitations < page < pageSize < total
         data.put("invitations", resp);
         data.put("page", pp[0]);
         data.put("pageSize", pp[1]);
@@ -146,7 +144,7 @@ public class TenantInvitationController {
                     usersById.put(inviter.getId(), inviter);
                 }
             }
-            // Go：c.JSON(http.StatusCreated, ...)——创建邀请是 201
+            // 创建邀请是 201
             return ResponseEntity.status(201)
                     .body(projectInvitation(inv, usersById, null));
         } catch (TenantRbacException e) {
@@ -238,7 +236,7 @@ public class TenantInvitationController {
         for (TenantInvitation inv : rows) {
             resp.add(projectInvitation(inv, usersById, tenantsById));
         }
-        // gin.H{invitations, total} → 字母序（**没有** page/page_size 键）
+        // 键按字母序：invitations < total（没有 page/pageSize 键）
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("invitations", resp);
         data.put("total", resp.size());
@@ -320,7 +318,7 @@ public class TenantInvitationController {
 
     // ── 共享投影 / 辅助 ─────────────────────────────────────────────────────
 
-    /** Accept/Decline 的哨兵→HTTP 映射（两处同形，Go 的 switch 逐字对应） */
+    /** Accept/Decline 的哨兵→HTTP 映射（Accept 与 Decline 两处同形）。 */
     private static BizException acceptDeclineError(TenantRbacException e, String internalMessage) {
         switch (e.kind()) {
             case INVITATION_NOT_FOUND:

@@ -16,14 +16,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * MCP 模块的 bean 接线（对照 Go internal/container/container.go 的装配段）。
+ * MCP 模块的 bean 接线。
  *
  * 这里补上两个此前只有接口、没有实例的依赖：
- * - {@link McpClientManager}：MCP 连接池（对照 Go 的 {@code *mcppkg.Manager}）
- * - {@link Gate}：工具审批门（对照 Go 的 {@code approval.NewGate(...)}）
+ * - {@link McpClientManager}：MCP 连接池
+ * - {@link Gate}：工具审批门
  *
- * 两者的消费方此前用 {@code Optional<...>} 注入，缺省时走 Go 的 nil 分支
- * （返回 500 / 业务失败）。这里提供实例后，那些分支不再触发。
+ * 两者的消费方此前用 {@code Optional<...>} 注入，缺省时走"返回 500 / 业务失败"的兜底
+ * 分支。这里提供实例后，那些分支不再触发。
  */
 @Configuration
 public class McpWiring {
@@ -37,13 +37,12 @@ public class McpWiring {
     }
 
     /**
-     * 工具审批门（对照 Go {@code approval.NewGate(cfg, &approval.Adapter{Svc: s}, rdb)}）。
+     * 工具审批门。
      *
-     * <p>Checker 由 {@link McpToolApprovalService} 适配而来：Go 的 Gate 直接断言
-     * {@code Adapter{Svc}} 是否实现 {@code enabledChecker} / 批量查询接口；Java 侧
-     * 用 {@link Adapter} 包一层，保持"目录批量查询走单次查询"的优化路径。</p>
+     * <p>Checker 由 {@link McpToolApprovalService} 适配而来：用 {@link Adapter}
+     * 包一层，保持"目录批量查询走单次查询"的优化路径。</p>
      *
-     * <p>Redis 缺失时传 null = Go 的 Lite 单实例行为（审批结果不跨实例广播）。</p>
+     * <p>Redis 缺失时传 null：单实例模式，审批结果不跨实例广播。</p>
      */
     @Bean(destroyMethod = "close")
     public Gate toolApprovalGate(McpToolApprovalService toolApprovalService,
@@ -60,7 +59,7 @@ public class McpWiring {
                 return toolApprovalService.isEnabled(tenantId, serviceId, toolName);
             }
         });
-        // timeoutSeconds<=0 → GateOptions 用默认（10 分钟，对照 Go 的 10*time.Minute）
+        // timeoutSeconds<=0 → GateOptions 用默认值（10 分钟）
         return new Gate(GateOptions.fromConfig(timeoutSeconds > 0 ? timeoutSeconds : null),
                 checker, redis.getIfAvailable());
     }

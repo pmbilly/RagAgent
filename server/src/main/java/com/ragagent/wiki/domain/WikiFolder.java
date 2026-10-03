@@ -8,8 +8,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * wiki_folders 表实体（表结构以 migrations/versioned/000037_wiki_and_indexing.up.sql
- * 第 1b 段为准）。JSON 键为 snake（§11 登记边界，前端按此解析）。
+ * wiki_folders 表实体（表结构以 migrations/versioned/V1__baseline.sql 为准）。
+ * JSON 键为 snake（前端按此解析）。
  *
  * <p>wiki 浏览器里的一等目录节点。文件夹独立于页面存在——空文件夹会保留，
  * 用户可以先把骨架搭好、之后再往里归档页面。树是邻接表（parent_id，"" = 根）；

@@ -6,8 +6,7 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * 单条消息级的**非机密**请求状态快照（对照 Go {@code types.MessageExecutionContext}，
- * internal/types/message.go L382-401）。
+ * 单条消息级的**非机密**请求状态快照。
  *
  * <p>落 {@code messages.execution_context} jsonb 列。用途是让追问建议之类的派生体验，
  * 在主流程（SSE）结束之后仍能重建出当时的作用域。</p>
@@ -15,10 +14,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * <p><b>它不是 HTTP 契约</b>：{@code Message.execution_context} 的 tag 是 {@code json:"-"}，
  * 永远不出现在响应里。因此下面两个跨模块类型（{@code QuestionSuggestionConfig}、
  * {@code TagScope}）先用 {@code Map<String,Object>} 原样透传即可——它们只影响这一列能不能
- * 往返，不影响对外契约。对应模块翻译时再收紧类型。</p>
+ * 往返，不影响对外契约；类型按需再收紧。</p>
  *
- * <p><b>键名＝Java 字段名（§14.9l S5 换锚）</b>：11 个外层键的 {@code @JsonProperty}
- * 与照抄 Go {@code omitempty} 的 {@code @JsonInclude} 已摘除。三处**刻意保留**：</p>
+ * <p><b>键名＝Java 字段名</b>：11 个外层键不带 {@code @JsonProperty} / {@code @JsonInclude}
+ * 注解。三处**刻意保留**：</p>
  * <ul>
  *   <li>{@code questionSuggestions} 的**内层**键属 agent 域配置
  *       （{@code enabled}/{@code allow_regenerate}/…，见 {@code MessageSuggestionService}），
@@ -28,15 +27,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * </ul>
  *
  * <p><b>读路径必须宽容</b>（{@code ignoreUnknown=true}）：历史行里可能有已删键，
- * 且换锚前写的是下划线键——**旧键会被静默吞成空值**，存量行必须跑迁移
- * （SQL 见 HANDOFF §14.9l S5）。</p>
+ * 且换锚前写的是下划线键——**旧键会被静默吞成空值**，存量行必须跑迁移。</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MessageExecutionContext {
 
     private String agentConfigHash;
 
-    /** 对照 Go 的 {@code *QuestionSuggestionConfig}——跨模块，先原样透传（内层键保留下划线）。 */
+    /** agent 域的追问建议配置（跨模块），原样透传（内层键保留下划线）。 */
     private Map<String, Object> questionSuggestions;
 
     private List<String> knowledgeBaseIds;
@@ -45,7 +43,7 @@ public class MessageExecutionContext {
 
     private List<String> tagIds;
 
-    /** 对照 Go 的 {@code []TagScope}——跨模块，先原样透传（内层键保留下划线）。 */
+    /** 跨模块 TagScope，原样透传（内层键保留下划线）。 */
     private List<Map<String, Object>> tagScopes;
 
     private List<String> mcpServiceIds;

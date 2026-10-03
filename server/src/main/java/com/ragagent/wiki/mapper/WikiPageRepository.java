@@ -29,16 +29,15 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * wiki 页面 / 修订 / 问题仓储——查询面按原实现逐字对齐，
- * 数据访问轴改写时一并重塑。
+ * wiki 页面 / 修订 / 问题仓储。
  *
- * <p>本类刻意做成「与原实现方法一一对应」的薄仓储：service 层可以机械对照。
- * 方法名 = 原方法名（首字母小写），参数顺序一致。</p>
+ * <p>本类是刻意保持的薄仓储：service 层的每个查询在这里都有对应方法，
+ * 命名风格一致、参数顺序稳定。</p>
  *
  * <p><b>三处方言分支的 Java 写法</b>：</p>
  * <ol>
  *   <li>方言判定 → 构造期从 DataSource 探测一次（{@link #isPostgres()}）。
- *       原实现每次调用都重新读取方言，同一进程内结果不变，故探测一次等价。</li>
+ *       方言在同一进程内不会变化，探测一次即可。</li>
  *   <li>排序的"有目录优先"表达式 → PG 的 {@code jsonb_array_length} 在 H2 由
  *       TestSchema 注册同名 ALIAS，因此同一条 SQL 两边都能跑（见
  *       {@link WikiPageMapper#categoryRankOrder}）。</li>
@@ -49,9 +48,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>另有 category_path 相等比较、source_refs 包含、全文检索、规范化标题四处
  * 用 Mapper 里的 {@code <choose>} 按方言分叉。</p>
  *
- * <p><b>自动时间戳</b>：CreatedAt/UpdatedAt 是原 ORM 的约定字段，插入时
- * 自动填、更新时自动刷新。Java 侧由 {@link #touch} 在写入前补 null，
- * 语义等价（已赋值则不覆盖，与原 ORM 只填零值一致）。</p>
+ * <p><b>自动时间戳</b>：CreatedAt/UpdatedAt 是约定的自动时间戳字段，插入时
+ * 自动填、更新时自动刷新。由 {@link #touch} 在写入前补 null
+ * （已赋值则不覆盖，只补零值）。</p>
  */
 @Repository
 public class WikiPageRepository {
@@ -113,7 +112,7 @@ public class WikiPageRepository {
 
     // ──────────────────────────── 页面写入 ────────────────────────────
 
-    /** 复刻原 ORM 的自动时间戳语义：只补 null，不覆盖已赋值 */
+    /** 自动时间戳语义：只补 null，不覆盖已赋值 */
     private static void touch(WikiPage page) {
         OffsetDateTime now = OffsetDateTime.now();
         if (page.getCreatedAt() == null) {
@@ -127,14 +126,13 @@ public class WikiPageRepository {
     /**
      * 插入新页面。
      *
-     * <p>这里额外复刻原实现的列默认值回写：status 默认 'published'、version 默认 1，
-     * 插入时会把<b>零值替换成默认值并回写内存</b>——也就是说原实现无法用该实体建出
-     * status='' / version=0 的行，创建完成后内存对象里也是 'published' / 1。
-     * Java 侧不做这步就会让创建响应里出现 {@code "version":0}，与原实现不一致。</p>
+     * <p>这里额外做列默认值回写：status 默认 'published'、version 默认 1，
+     * 插入时把<b>零值替换成默认值并回写内存</b>——也就是说用该实体建不出
+     * status='' / version=0 的行，创建完成后内存对象里就是 'published' / 1；
+     * 不做这步，创建响应里会出现 {@code "version":0}，破坏前端契约。</p>
      *
-     * <p>注意 {@code page_type}：原实现里该列<b>没有</b>默认值，插入时零值列从
-     * INSERT 里省略、由 SQL 的 {@code DEFAULT 'summary'} 兜底，而内存对象<b>仍是 ""</b>
-     * ——两边内存值一致（都是 ""），故 Java 不需要特殊处理。</p>
+     * <p>注意 {@code page_type}：该列<b>没有</b>默认值回写约定，零值时实体保持
+     * {@code ""}，需要 'summary' 语义的路径由 service 显式赋值，故这里不需要特殊处理。</p>
      */
     public void create(WikiPage page) {
         if (page.getVersion() <= 0) {
@@ -257,7 +255,7 @@ public class WikiPageRepository {
             }
         }
 
-        // ILIKE 的实参就是 "%"+Query+"%"（原实现未转义通配符，此处照抄）
+        // ILIKE 的实参就是 "%"+Query+"%"（通配符不转义，属既有契约行为）
         String queryLike = "%" + req.getQuery() + "%";
 
         long total = pages.countList(req, pageTypes, categoryPathEncoded, queryLike, postgres);
@@ -464,10 +462,10 @@ public class WikiPageRepository {
      * <p>types 为空时默认 entity+concept；limit 夹在 [1, 50]。相似度低于 0.1 的
      * 标题由服务端的 {@code %} 运算符（尊重 {@code pg_trgm.similarity_threshold}）丢弃。</p>
      *
-     * <p><b>已知差异</b>：原实现<b>没有</b>方言分支——在没有
+     * <p><b>已知限制</b>：没有方言分支——在没有
      * {@code similarity()} 与 {@code %} 运算符的库上会直接报 SQL 错误。
-     * Java 为了不在测试库上炸，非 PG 方言下返回空列表（调用方看到"没有候选"，
-     * 与 pg_trgm 未命中时的表现一致）。生产走 PG，行为一致。</p>
+     * 为了不在测试库上炸，非 PG 方言下返回空列表（调用方看到"没有候选"，
+     * 与 pg_trgm 未命中时的表现一致）。生产走 PG。</p>
      */
     public List<WikiPageLite> findSimilarPages(String kbId, String query, List<String> pageTypes,
                                                int limit) {
@@ -524,8 +522,8 @@ public class WikiPageRepository {
      * 方言化的"去空白"表达式。
      *
      * <p>PG 用 POSIX 字符类 {@code [[:space:]]}；H2（Java 正则）用 {@code \s}——
-     * H2 的 REGEXP_REPLACE 走 JVM 正则，不认 POSIX 括号类。原实现的 SQLite 分支
-     * （逐个 replace 掉常见分隔符）没有可对应的方言，故不保留。</p>
+     * H2 的 REGEXP_REPLACE 走 JVM 正则，不认 POSIX 括号类。
+     * 逐个 replace 常见分隔符的简化实现没有可对应的方言，故不保留。</p>
      */
     private String normalizedTitleExpr() {
         if (postgres) {
@@ -673,7 +671,7 @@ public class WikiPageRepository {
 
     /**
      * 硬删整页历史。
-     * pageID 为空是 no-op（否则会变成全表删除——原实现同款护栏 + 测试钉住）。
+     * pageID 为空是 no-op（否则会变成全表删除——护栏 + 测试钉住）。
      */
     public void deleteRevisionsByPage(String pageID) {
         if (pageID == null || pageID.isEmpty()) {

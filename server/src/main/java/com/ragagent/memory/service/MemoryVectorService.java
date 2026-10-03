@@ -32,17 +32,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 向量侧的全部动作（对照 Go
- * {@code internal/application/service/memory/vector.go} 全文）。
+ * 向量侧的全部动作。
  *
  * <h2>为什么从 {@code MemoryService} 里分出来</h2>
- * <p>Go 的方法挂在同一个 {@code Service} 上。Java 侧拆成独立 bean 是因为调用方向是
+ * <p>拆成独立 bean 是因为调用方向是
  * <b>单向</b>的：召回、抽取、归并都只需要"嵌入式 + 语义查找"这两件事，
  * 而它们自身不需要被向量侧反向调用。拆开之后依赖图没有环，
  * 也让"召回里没有任何模型调用"这条性质一眼看得见——只有
  * {@code embedText} 一个出口。</p>
  *
- * <h2>三个超时口径（照抄）</h2>
+ * <h2>三个超时口径</h2>
  * <ul>
  *   <li>{@link #EMBED_TIMEOUT} 2s：召回排在每一个回答前面，而且在这之前它一次模型调用
  *       都没有。语义匹配值一个回合的<b>零头</b>，不值得为一个卡住的 embedding 端点
@@ -57,23 +56,23 @@ public class MemoryVectorService {
 
     private static final Logger log = LoggerFactory.getLogger(MemoryVectorService.class);
 
-    /** 对照 Go {@code embedTimeout}。 */
+    /** 读取路径嵌入超时。 */
     static final Duration EMBED_TIMEOUT = Duration.ofSeconds(2);
-    /** 对照 Go {@code embedWriteTimeout}。 */
+    /** 写路径嵌入超时。 */
     static final Duration EMBED_WRITE_TIMEOUT = Duration.ofSeconds(10);
-    /** 对照 Go {@code rrfK}。 */
+    /** 倒排秩融合常数。 */
     static final double RRF_K = 60.0;
     /**
-     * 对照 Go {@code minCosine}：低于它就不算命中。
+     * 低于它就不算命中。
      *
      * <p>没有这条下限，每一条有向量的记忆都会进入排序（包括得分为 0 的），
      * 融合再把它们拉进提示词——这个功能会从"找不到改写过的那条记忆"
      * 直接变成"什么都召回"。</p>
      */
     static final double MIN_COSINE = 0.5;
-    /** 对照 Go {@code backfillPerRun}：一次维护补多少条缺失向量。 */
+    /** 一次维护补多少条缺失向量。 */
     static final int BACKFILL_PER_RUN = 200;
-    /** 对照 Go {@code vectorSyncPerRun}：一次维护把多少行搬进数据库的 vector 列。 */
+    /** 一次维护把多少行搬进数据库的 vector 列。 */
     public static final int VECTOR_SYNC_PER_RUN = 2000;
 
     private static final ExecutorService EMBEDS = Executors.newVirtualThreadPerTaskExecutor();
@@ -89,7 +88,7 @@ public class MemoryVectorService {
     // ── 嵌入式解析 ─────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code embedder}：解析工作区钉死的 embedding 模型。
+     * 解析工作区钉死的 embedding 模型。
      *
      * <p>记忆是<b>一个工作区一个向量空间</b>。知识库各自绑定自己的 embedding 模型，
      * 所以没有"工作区的 embedding 模型"可以回落——随手抓列表里的第一个，
@@ -108,13 +107,13 @@ public class MemoryVectorService {
     }
 
     /**
-     * 对照 Go {@code embedText}：产出一个向量，有界且非致命。
+     * 产出一个向量，有界且非致命。
      *
      * <p>任何一步失败都回 {@code null}——调用方一律按"没有向量"继续，
      * 而不是把它当错误上抛。这就是"记忆是增强而非硬依赖"的落地方式。</p>
      *
-     * <p><b>超时实现</b>：Go 用 {@code context.WithTimeout} 取消 Embed；
-     * Java 把阻塞调用放虚拟线程上 {@code get(timeout)}，超时即放弃（返回 null）。
+     * <p><b>超时实现</b>：把阻塞调用放虚拟线程上 {@code get(timeout)}，
+     * 超时即放弃（返回 null）。
      * 与 {@code MemoryRunBudget.chat} 同一处置。</p>
      */
     public float[] embedText(String modelId, String text, Duration timeout) {
@@ -141,7 +140,7 @@ public class MemoryVectorService {
     // ── 写向量 ─────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code storeItemEmbedding}：记下一条记忆的向量。尽力而为——
+     * 记下一条记忆的向量。尽力而为——
      * 没有向量的记忆仍然是一条记忆，只是对语义召回不可见，直到补扫捡起它。
      */
     public void storeItemEmbedding(MemoryScope scope, MemoryConfig cfg, MemoryItem item) {
@@ -164,7 +163,7 @@ public class MemoryVectorService {
         }
     }
 
-    /** 对照 Go 里那段重复两次的 {@code MemoryItemEmbedding{...}} 构造。 */
+    /** 构造一条向量行（源内容/主题做输入快照）。 */
     private static MemoryItemEmbedding newEmbedding(MemoryItem item, String modelId, float[] vector) {
         MemoryItemEmbedding embedding = new MemoryItemEmbedding();
         embedding.setItemId(item.getId());
@@ -177,7 +176,7 @@ public class MemoryVectorService {
     }
 
     /**
-     * 对照 Go {@code embeddableText}：一条记忆嵌什么。
+     * 一条记忆嵌什么。
      *
      * <p>主题与内容合在一起，因为主题承载"这句话是关于什么的"，而陈述本身常常太简略
      * 而无法定位——"PostgreSQL 17"离开"生产数据库"几乎不意味着什么。</p>
@@ -214,7 +213,7 @@ public class MemoryVectorService {
     }
 
     /**
-     * 对照 Go {@code embedAliases}：这个人给某个兴趣的主题用过的其它说法。
+     * 这个人给某个兴趣的主题用过的其它说法。
      *
      * <p>只有兴趣：其它类型自己就带着一个句子，它的主题是一个**标题**，
      * 而不是话题追踪器在跟的主体。尽力而为——查不到只是向量窄一点。</p>
@@ -241,12 +240,12 @@ public class MemoryVectorService {
 
     // ── 语义查找 ───────────────────────────────────────────────────────────
 
-    /** {@link #vectorSearch} 的结果：命中 + 跳过原因（对照 Go 的双返回值）。 */
+    /** {@link #vectorSearch} 的结果：命中 + 跳过原因。 */
     public record VectorSearchOutcome(List<MemoryVectorHit> hits, String skipReason) {
     }
 
     /**
-     * 对照 Go {@code vectorSearch}：向存储要"离查询最近的记忆"。
+     * 向存储要"离查询最近的记忆"。
      *
      * <p>查找跑在这个主体拥有的**每一个**向量上。以前它跑在一个已经选好的候选集上，
      * 于是语义召回只能重排"按重要度挑出来"的那些——一条恰好回答了问题、
@@ -280,7 +279,7 @@ public class MemoryVectorService {
     }
 
     /**
-     * 对照 Go {@code fuseRankings}：用倒排秩融合把两个 id 排序合成一个。
+     * 用倒排秩融合把两个 id 排序合成一个。
      *
      * <p>用 RRF 而不是加权求和，是因为两个信号不在同一个量纲上：余弦有界且已标定，
      * 而字面得分是一个 n-gram 袋的重合计数，绝对值毫无意义。融合**秩**直接绕开这个问题，
@@ -290,7 +289,7 @@ public class MemoryVectorService {
         Map<Integer, Double> scores = new HashMap<>();
         List<Integer> order = new ArrayList<>();
         Set<Integer> seen = new LinkedHashSet<>();
-        // ⚠️ 用 Arrays.asList 而不是 List.of：Go 的 [][]int{lexical, vector} 允许 nil 切片，
+        // ⚠️ 用 Arrays.asList 而不是 List.of：两个输入列表都可能是 null，
         // 而 List.of(...) 遇到 null 直接抛 NPE（本测试抓到过一次）。
         for (List<Integer> list : Arrays.asList(lexical, vector)) {
             if (list == null) {
@@ -310,7 +309,7 @@ public class MemoryVectorService {
     }
 
     /**
-     * 对照 Go {@code storedVectors}：读这些记忆**已经有的**向量。
+     * 读这些记忆**已经有的**向量。
      *
      * <p>它从不嵌任何东西：一次回顾要走遍整个仓库，每遍都重新嵌入的开销远超合并本身的价值。
      * 没有向量的记忆在回顾结束的补扫追上它之前，只按措辞匹配。</p>
@@ -335,7 +334,7 @@ public class MemoryVectorService {
     }
 
     /**
-     * 对照 Go {@code backfillEmbeddings}：给"写的时候还没有 embedding 模型"的记忆补向量。
+     * 给"写的时候还没有 embedding 模型"的记忆补向量。
      * 每次运行有上限；每日维护会调它，所以积压是<b>几天内</b>排干而不是一次爆发。
      */
     public int backfillEmbeddings(MemoryScope scope, MemoryConfig cfg) {

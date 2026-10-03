@@ -21,7 +21,7 @@ import java.util.concurrent.CountDownLatch;
 
 /**
  * DocReader gRPC 客户端。
- * 契约（proto 实录）：
+ * 契约要点（依 proto 线格式）：
  * - 首选 ReadStream（首帧必须 meta，随后每帧一张图）；UNIMPLEMENTED 回退 unary Read
  * - 业务错误走响应 error 字段而非 gRPC status
  * - ReadConfig 3 号字段 reserved
@@ -43,7 +43,7 @@ public class DocReaderClient {
     private final Object reconnectLock = new Object();
 
     /**
-     * B6 批 5：地址/传输走 {@link DocReaderProperties} 绑定（env 名与语义未变）。
+     * 地址/传输走 {@link DocReaderProperties} 绑定（env 名与语义未变）。
      */
     public DocReaderClient(DocReaderProperties properties) {
         String addr = properties.addrOrDefault();

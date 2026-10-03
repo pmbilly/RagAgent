@@ -6,10 +6,9 @@ import java.util.List;
 import com.ragagent.auth.apikey.domain.APIKeyCapability;
 
 /**
- * 单条路由的 API-Key 策略（对照 Go {@code middleware.APIKeyRoutePolicy}，
- * internal/middleware/api_key_gate.go L23-54）。
+ * 单条路由的 API-Key 策略。
  *
- * <p><b>设计要点（Go 注释原文的要点）</b>：API-Key 授权是一套**独立的权威**，
+ * <p><b>设计要点</b>：API-Key 授权是一套**独立的权威**，
  * 与 JWT 的角色/所有权守卫**并列**。所有权（"创建者 OR Admin+"）是人类概念，
  * 对机器主体永不适用；取而代之的是每条可被 API Key 访问的路由在这里声明一条策略，
  * 由门禁（{@link APIKeyRouteAuthorizer}）作为**唯一**执行点。
@@ -27,18 +26,18 @@ import com.ragagent.auth.apikey.domain.APIKeyCapability;
  */
 public record APIKeyRoutePolicy(boolean platformOnly, boolean requireFullAccess, List<String> capabilities) {
 
-    /** 对照 {@code apiKeyAny()}：任何有效 API Key 都能过。 */
+    /** 任何有效 API Key 都能过。 */
     public static APIKeyRoutePolicy any() {
         return new APIKeyRoutePolicy(false, false, List.of());
     }
 
-    /** 对照 {@code apiKeyFullAccess()}。 */
+    /** 只放行 full-access 的 Key。 */
     public static APIKeyRoutePolicy fullAccess() {
         return new APIKeyRoutePolicy(false, true, List.of());
     }
 
     /**
-     * 对照 {@code apiKeyPlatform(capabilities...)}：平台专用 + any-of 能力。
+     * 平台专用 + any-of 能力。
      *
      * <p>注意 {@code RequireFullAccess} 保持 false——平台 Key 的
      * {@code full_access} 列被 CHECK 约束钉死为 FALSE，判定完全靠能力清单。</p>
@@ -52,11 +51,10 @@ public record APIKeyRoutePolicy(boolean platformOnly, boolean requireFullAccess,
     }
 
     /**
-     * 对照 {@code (APIKeyRoutePolicy).WithCapability}（L42-54）：
      * 追加一条能力，**多次调用累积（any-of 语义），重复项忽略**。
      *
-     * <p>Go 显式拷贝切片，保证返回的策略不会与接收者共享底层数组——
-     * Java 的 record + 不可变 {@code List.copyOf} 天然满足。</p>
+     * <p>返回新实例，不修改接收者；record + 不可变 {@code List.copyOf} 保证
+     * 返回的策略不与调用方共享底层数据。</p>
      */
     public APIKeyRoutePolicy withCapability(String capability) {
         if (capability == null) {
@@ -70,79 +68,79 @@ public record APIKeyRoutePolicy(boolean platformOnly, boolean requireFullAccess,
         return new APIKeyRoutePolicy(platformOnly, requireFullAccess, List.copyOf(next));
     }
 
-    /** 策略是否声明了任何能力（对照 {@code len(policy.Capabilities) == 0}）。 */
+    /** 策略是否未声明任何能力（capabilities 为空）。 */
     public boolean hasNoCapabilities() {
         return capabilities.isEmpty();
     }
 
-    /** 是否携带某条能力（对照 Go 测试里的 {@code policyHasCapability}）。 */
+    /** 是否携带某条能力。 */
     public boolean hasCapability(String capability) {
         return capability != null && capabilities.contains(capability);
     }
 
-    // ── 对照 router/rbac.go 的策略构造器（L226-333），方便策略表按 Go 原文抄 ──
+    // ── 组合式策略构造器（供策略表与测试复用） ──
 
-    /** 对照 {@code apiKeyRetrieve(base)}。 */
+    /** 在 base 上叠加 retrieve 能力。 */
     public static APIKeyRoutePolicy retrieve(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.RETRIEVE);
     }
 
-    /** 对照 {@code apiKeyChat(base)}。 */
+    /** 在 base 上叠加 chat 能力。 */
     public static APIKeyRoutePolicy chat(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.CHAT);
     }
 
-    /** 对照 {@code apiKeyReadAgents(base)}。 */
+    /** 在 base 上叠加 read_agents 能力。 */
     public static APIKeyRoutePolicy readAgents(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.READ_AGENTS);
     }
 
-    /** 对照 {@code apiKeyIngest(base)}。 */
+    /** 在 base 上叠加 ingest 能力。 */
     public static APIKeyRoutePolicy ingest(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.INGEST);
     }
 
-    /** 对照 {@code apiKeyManageKnowledgeBases(base)}。 */
+    /** 在 base 上叠加 manage_kbs 能力。 */
     public static APIKeyRoutePolicy manageKnowledgeBases(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.MANAGE_KBS);
     }
 
-    /** 对照 {@code apiKeyManageAgents(base)}。 */
+    /** 在 base 上叠加 manage_agents 能力。 */
     public static APIKeyRoutePolicy manageAgents(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.MANAGE_AGENTS);
     }
 
-    /** 对照 {@code apiKeyMessageHistory(base)}。 */
+    /** 在 base 上叠加 message_history 能力。 */
     public static APIKeyRoutePolicy messageHistory(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.MESSAGE_HISTORY);
     }
 
-    /** 对照 {@code apiKeyManageModels(base)}。 */
+    /** 在 base 上叠加 manage_models 能力。 */
     public static APIKeyRoutePolicy manageModels(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.MANAGE_MODELS);
     }
 
-    /** 对照 {@code apiKeyManageMCPServices(base)}。 */
+    /** 在 base 上叠加 manage_mcp_services 能力。 */
     public static APIKeyRoutePolicy manageMcpServices(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.MANAGE_MCP_SERVICES);
     }
 
-    /** 对照 {@code apiKeyManageDataSources(base)}。 */
+    /** 在 base 上叠加 manage_data_sources 能力。 */
     public static APIKeyRoutePolicy manageDataSources(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.MANAGE_DATASOURCES);
     }
 
-    /** 对照 {@code apiKeyManageChannels(base)}。 */
+    /** 在 base 上叠加 manage_channels 能力。 */
     public static APIKeyRoutePolicy manageChannels(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.MANAGE_CHANNELS);
     }
 
-    /** 对照 {@code apiKeyManageVectorStores(base)}。 */
+    /** 在 base 上叠加 manage_vector_stores 能力。 */
     public static APIKeyRoutePolicy manageVectorStores(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.MANAGE_VECTOR_STORES);
     }
 
-    /** 对照 {@code apiKeyManageStorageBackends(base)}。 */
+    /** 在 base 上叠加 manage_storage_backends 能力。 */
     public static APIKeyRoutePolicy manageStorageBackends(APIKeyRoutePolicy base) {
         return base.withCapability(APIKeyCapability.MANAGE_STORAGE_BACKENDS);
     }

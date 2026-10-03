@@ -11,12 +11,11 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.pipeline.ChunkTypes;
 
 /**
- * CHUNK_RERANK 附加插件（对照 Go chat_pipeline/wiki_boost.go）：rerank 链之后的
+ * CHUNK_RERANK 附加插件：rerank 链之后的
  * wiki_page 分数加成（×1.3），确认至少一个检索目标确实是 wiki KB 才生效。
  */
 public final class PluginWikiBoost implements Plugin {
 
-    /** 对照 wikiBoostFactor。 */
     private static final double WIKI_BOOST_FACTOR = 1.3;
 
     private final PipelinePorts.KnowledgeBaseService kbService;

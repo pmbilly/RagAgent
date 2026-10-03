@@ -361,7 +361,7 @@ final class WikiIngestReducePhase {
                         ? Map.of() : batchCtx.slugTitleMany(new ArrayList<>(page.getOutLinks()));
 
                 // slugHandles 把高熵 slug 藏到短引用句柄（ref-1、ref-2…）后面给编辑 LLM 用，
-                // 生成之后再翻译回真实 slug（见下面的 decodeContent）。
+                // 生成之后再映射回真实 slug（见下面的 decodeContent）。
                 WikiSlugHandles slugHandles = new WikiSlugHandles();
 
                 // 把每条出链 slug 藏到请求局部句柄后面，编辑模型因此永远不用重打真实 slug

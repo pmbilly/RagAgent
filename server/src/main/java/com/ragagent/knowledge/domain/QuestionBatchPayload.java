@@ -10,7 +10,7 @@ import com.ragagent.common.web.JsonMappers;
  * 问题生成**批**任务的载荷。
  * <p>只带 chunk id（普通键 + 边界邻块 id），<b>不带 chunk 内容</b>——worker 运行时读新内容，
  * 与 {@link ExtractChunkPayload} 同法；批大小固定 {@link QuestionBatchPlanner#BATCH_SIZE}=20
- * <p><b>追踪载体</b>：与 {@link ExtractChunkPayload} 同形（B5 起为嵌套键 {@code tracing}），
+ * <p><b>追踪载体</b>：与 {@link ExtractChunkPayload} 同形（嵌套键 {@code tracing}），
  * worker 侧续接同一棵树。</p>
  */
 public record QuestionBatchPayload(
@@ -27,7 +27,7 @@ public record QuestionBatchPayload(
         /** 批窗口后一个文本分块（同 prev）。 */
         String nextChunkId,
         /**
-         * 观测载体（B5：嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
+         * 观测载体（嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
          *
          * <p>知识域约定：字段一律<b>显式输出</b>、键名即 Java 字段名（禁 {@code @JsonInclude}/
          * {@code @JsonProperty}）——故此处不加注解，空载体输出 {@code "tracing":{}}；

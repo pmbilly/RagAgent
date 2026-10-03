@@ -30,9 +30,9 @@ import com.ragagent.session.mapper.MessageSuggestionRepository;
 import com.ragagent.common.wiki.WikiLanguageSupport;
 
 /**
- * 追问建议服务（对照 Go {@code internal/application/service/message_suggestion.go}）。
+ * 追问建议服务。
  *
- * <h2>波 1 G3 落地的部分</h2>
+ * <h2>覆盖面</h2>
  * <ul>
  *   <li>{@code EnsureFollowUps}：消息校验 → AcquireGeneration 抢占 → 四条 suppress
  *       分支（disabled / fallback_answer / empty_answer / answer_asks_question）→
@@ -42,37 +42,32 @@ import com.ragagent.common.wiki.WikiLanguageSupport;
  *       suggestionErrorCode / normalizeSuggestionText。</li>
  * </ul>
  *
- * <h2>已知差异（对照 Go）</h2>
+ * <h2>已知差异</h2>
  * <ol>
- *   <li><b>langfuse span 未接线</b>：generate 原文的 AttachTraceparent/StartSpan
+ *   <li><b>langfuse span 未接线</b>：generate 的 AttachTraceparent/StartSpan
  *       属 langfuse 追踪（Java 侧 no-op，等价未启用部署）。</li>
- *   <li><b>语言解析</b>：Go 的 ResolveLanguage 会读请求的 Language 上下文
- *       （Language 中间件），Java 侧该中间件未翻译——message 带locale 时一致，
- *       否则两侧都落 DefaultLanguage（WEKNORA_LANGUAGE env，缺省 zh-CN）。</li>
+ *   <li><b>语言解析</b>：message 带 locale 时用之，
+ *       否则落 DefaultLanguage（WEKNORA_LANGUAGE env，缺省 zh-CN）。</li>
  * </ol>
  *
- * <p>2026-09-23 走查批：generate 全量接线（generateWithModel 经 ModelRuntimeFactory
- * + generateFromKnowledge 经 CustomAgentService.getKnowledgeSuggestedQuestions，
- * 对照 Go generate/generateWithModel/generateFromKnowledge/buildGenerationContext
- * 全族 L257-778）。原「LLM 生成步降级为 failed」的备案降级随之清除。</p>
+ * <p>generate 全量覆盖（generateWithModel 经 ModelRuntimeFactory
+ * + generateFromKnowledge 经 CustomAgentService.getKnowledgeSuggestedQuestions）。</p>
  */
 @Service
 public class MessageSuggestionService {
 
     private static final Logger log = LoggerFactory.getLogger(MessageSuggestionService.class);
 
-    /** 对照 Go {@code suggestionThinkBlock}：<think>...</think> 剥离。 */
-    /** 同上的预编译 Pattern（generate 家族复用）。 */
-    /** 对照 Go {@code trailingCitationTags}：结尾的 <kb>/<web> 引用块。 */
+    /** <think>...</think> 剥离与结尾 <kb>/<web> 引用块剥离。 */
 
     public static final String EVENT_IMPRESSION = "impression";
     public static final String EVENT_CLICK = "click";
     public static final String EVENT_DISMISS = "dismiss";
 
-    // ── 生成参数常量（对照 message_suggestion.go L28-32） ────────────────────
+    // ── 生成参数常量 ────────────────────
     private static final int SUGGESTION_KNOWLEDGE_CANDIDATE_MAX = 30;
 
-    /** 对照 types.SuggestionMode*。 */
+    /** 建议模式词表。 */
     private static final String MODE_KNOWLEDGE = "knowledge";
     private static final String MODE_GENERATED = "generated";
     static final String MODE_HYBRID = "hybrid";
@@ -93,7 +88,7 @@ public class MessageSuggestionService {
         this.customAgentService = customAgentService;
     }
 
-    // ── Ensure（对照 Go EnsureFollowUps，L69-167） ──────────────────────────
+    // ── Ensure ──────────────────────────
 
     public MessageSuggestionSet ensureFollowUps(String sessionId, String assistantMessageId,
             boolean regenerate) {
@@ -105,8 +100,7 @@ public class MessageSuggestionService {
         }
 
         var spanEc = message.getExecutionContext();
-        // 对照 Go message_suggestion.go L266-279：派生请求（晚于 HTTP 根 span 的那次）先按
-        // ExecutionContext 里存的 traceparent 续接**原对话**的 trace，再开
+        // 派生请求先按 ExecutionContext 里存的 traceparent 续接**原对话**的 trace，再开
         // follow_up.suggestions span——否则下游 generation 会自动开一个孤儿根
         com.ragagent.tracing.langfuse.LangfuseTracing.attachTraceparent(
                 spanEc == null ? null : spanEc.getLangfuseTraceparent());
@@ -130,7 +124,7 @@ public class MessageSuggestionService {
             followUpSpan.finish(null, null, e.toString());
             throw e;
         }
-        // 对照 Go 的 defer：output = {question_count}；失败态带 error_code 收尾
+        // span 收尾：output = {question_count}；失败态带 error_code
         followUpSpan.finish(Map.of("question_count",
                         result.getQuestions() == null ? 0 : result.getQuestions().size()),
                 null,
@@ -139,7 +133,7 @@ public class MessageSuggestionService {
         return result;
     }
 
-    /** 建议生成主体（对照 Go {@code GenerateSuggestions} 的装配/生成/落库段）。 */
+    /** 建议生成主体（装配/生成/落库）。 */
     private MessageSuggestionSet ensureFollowUpsInner(Message message, String sessionId,
             String assistantMessageId, boolean regenerate) {
         long tenantId = requireTenantId();
@@ -165,7 +159,7 @@ public class MessageSuggestionService {
         candidate.setSessionId(sessionId);
         candidate.setAssistantMessageId(assistantMessageId);
         candidate.setAgentId(message.getAgentId() == null ? "" : message.getAgentId());
-        candidate.setAgentTenantId(0); // Go 的 message.AgentTenantID（json:"-"，共享 agent 随波 5）
+        candidate.setAgentTenantId(0); // 不进 JSON；共享 agent 场景恒 0
         candidate.setPlacement(MessageSuggestionSet.PLACEMENT_AFTER_ANSWER);
         candidate.setConfigHash(configHash);
         candidate.setLocale(locale);
@@ -235,7 +229,7 @@ public class MessageSuggestionService {
         return set;
     }
 
-    /** 对照 Go {@code suppress}（L762-777）。 */
+    /** 四条 suppress 分支：不满足前置条件时落 suppressed。 */
     private MessageSuggestionSet suppress(MessageSuggestionSet set, String reason) {
         set.setStatus(MessageSuggestionSet.STATUS_SUPPRESSED);
         set.setSuppressionReason(reason);
@@ -246,7 +240,7 @@ public class MessageSuggestionService {
         return set;
     }
 
-    // ── Get（对照 Go GetFollowUps，L169-192） ───────────────────────────────
+    // ── Get ───────────────────────────────
 
     public MessageSuggestionSet getFollowUps(String sessionId, String assistantMessageId) {
         Message message = messageService.getMessage(sessionId, assistantMessageId);
@@ -260,7 +254,7 @@ public class MessageSuggestionService {
                 MessageSuggestionSet.PLACEMENT_AFTER_ANSWER, configHash, locale);
     }
 
-    // ── RecordEvent（对照 Go RecordEvent，L194-218） ────────────────────────
+    // ── RecordEvent ────────────────────────
 
     public void recordEvent(String sessionId, String setId, String questionId, String eventType) {
         if (!EVENT_IMPRESSION.equals(eventType) && !EVENT_CLICK.equals(eventType)
@@ -279,7 +273,7 @@ public class MessageSuggestionService {
         createEvent(set, questionId == null ? "" : questionId, eventType);
     }
 
-    /** 对照 Go {@code createEvent}（L779-797）：actor 取主体派生 id。 */
+    /** 事件落库：actor 取主体派生 id。 */
     private void createEvent(MessageSuggestionSet set, String questionId, String eventType) {
         MessageSuggestionEvent event = new MessageSuggestionEvent();
         event.setTenantId(set.getTenantId());
@@ -291,18 +285,14 @@ public class MessageSuggestionService {
         suggestionRepository.createEvent(event);
     }
 
-    // ── 生成（对照 Go generate，L257-329；2026-09-23 走查批全量接线——
-    //    此前的备案降级「LLM 生成步恒 failed」随 ModelRuntimeFactory/customAgentService
-    //    就位而清除） ─────────────────────────────────────────────────────────
+    // ── 生成 ─────────────────────────────────────────────────────────
 
-    /** 对照 suggestionGenerationContext。 */
+    /** 生成输入的上下文。 */
     record GenerationContext(String history, String currentQuery, String evidence,
             List<String> actualKnowledgeIds) {
     }
 
-    /** 对照 suggestionConversationTurn。 */
-
-    /** 对照 Go generatedSuggestionEnvelope + TokenUsage 返回（record 承载）。 */
+    /** LLM 生成结果（items + token 用量，record 承载）。 */
     private record Generated(List<SuggestionItem> items, int promptTokens, int completionTokens) {
     }
 
@@ -363,7 +353,7 @@ public class MessageSuggestionService {
         return generated;
     }
 
-    /** ensure 消费 token 用量的窄通道（对照 Go 的 usage 返回值）。 */
+    /** ensure 消费 token 用量的窄通道。 */
     int lastPromptTokens;
     int lastCompletionTokens;
 
@@ -415,7 +405,7 @@ public class MessageSuggestionService {
     }
 
     /**
-     * 对照 Go 的 ctx 租户切换（AgentTenantID 覆盖 TenantIDContextKey）。
+     * 模型调用期的租户切换（按 agent 的租户覆盖当前租户）。
      *
      * <p>与 KnowledgeQaController#runWithTenant 同款纪律 #1：保存-恢复而非 clear
      * （clear 后读 currentPrincipal() 等恒为 null，会把调用线程身份抹掉——
@@ -534,8 +524,8 @@ public class MessageSuggestionService {
     /**
      * ec.tagScopes（jsonb map 形态）→ AgentSuggestedQuestions.TagScope。
      *
-     * <p>内层键**双拼写读**：Go 行与历史行是 {@code knowledge_base_id}/{@code tag_ids}
-     * （跨模块 TagScope 的透传面，§14.9l S5 刻意不改），而 Java 侧若有人用
+     * <p>内层键**双拼写读**：存量行是 {@code knowledge_base_id}/{@code tag_ids}
+     * （跨模块 TagScope 的透传面），而 Java 侧若有人用
      * {@code QaSupport.TagScope} 的字段名写（camelCase）也读得出来——两种形状都不至于静默丢作用域。</p>
      */
     private static List<AgentSuggestedQuestions.TagScope> tagScopes(MessageExecutionContext ec) {

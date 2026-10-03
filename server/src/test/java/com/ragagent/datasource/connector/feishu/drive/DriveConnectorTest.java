@@ -33,9 +33,8 @@ import com.ragagent.datasource.domain.Resource;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * 对照 Go {@code feishu/drive/connector.go} 的对等测试（Go 侧的
- * {@code drive_blocks_test.go} / {@code cursor_test.go} 全文 +
- * {@code listDriveFilesForResource} 的 {@code 1061002} 回落语义）。
+ * 云盘连接器的对等测试（含 {@code listDriveFilesForResource} 的 {@code 1061002}
+ * 回落语义、游标往返）。
  *
  * <p>云盘与 wiki 共用引擎，所以这里只测<b>云盘特有</b>的部分：资源 ID 编码、
  * 根文件夹解析、祖先 BFS、列举回落、快捷方式展开、渠道标签。</p>
@@ -291,11 +290,10 @@ class DriveConnectorTest {
         folders.put("fsubA", List.of(fileJson("fdoc1", "Doc", "docx", "fsubA", "3")));
         folders.put("fsubB", List.of(fileJson("fdoc2", "Doc2", "docx", "fsubB", "4")));
 
-        // ⚠️ Go 实录（把这段逻辑抄进 /tmp/gochk-drive 跑出来的真值）：
+        // ⚠️ 刻意钉住的怪癖（无害，不做"顺手修好"）：
         // 根文件夹自己的 resourceID 被编成 "root:root"，于是根的直接子文件夹的
-        // parentChain 值是 "folder1:folder1" 而不是 "folder1"。
-        // 这是 Go 侧既有的（无害）怪癖——祖先列表里会多一个无人认领的 ID——
-        // Java 侧逐字照抄，不做"顺手修好"。
+        // parentChain 值是 "folder1:folder1" 而不是 "folder1"
+        // ——祖先列表里会多一个无人认领的 ID。
         List<String> ancestors = connector().resolveResourceAncestors(
                 config(List.of("folder1")), List.of("folder1:fdoc1"));
         assertThat(ancestors).containsExactly("folder1", "folder1:folder1");

@@ -11,7 +11,7 @@ import org.slf4j.MDC;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * 对照 Go middleware.RequestID()：生成/透传 X-Request-ID，写入 MDC 与 TenantContext。
+ * 生成/透传 X-Request-ID，写入 MDC 与 TenantContext。
  */
 public class RequestIdFilter extends OncePerRequestFilter {
 

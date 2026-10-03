@@ -14,7 +14,7 @@ import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
 
 /**
- * Baidu AI 搜索 provider（对照 Go {@code web_search/baidu.go} 全文）。
+ * Baidu AI 搜索 provider。
  *
  * <p>POST 千帆 {@code /v2/ai_search/web_search}；messages 载荷 +
  * {@code resource_type_filter:[{type:"web",top_k}]}。query 按「CJK/全角算 2」的
@@ -69,7 +69,7 @@ public final class BaiduProvider implements WebSearchProvider {
         var filter = body.putArray("resource_type_filter").addObject();
         filter.put("type", "web");
         filter.put("top_k", maxResults);
-        // search_recency_filter omitempty：无值省略
+        // search_recency_filter：无值省略该键
         byte[] json = GoJson.marshal(body);
 
         var req = SearchHttp.request(baseUrl, TIMEOUT)
@@ -113,15 +113,15 @@ public final class BaiduProvider implements WebSearchProvider {
     }
 
     /**
-     * 对照 parseBaiduDate：正则抓 y-m-d[ h:m[:s]]，补位成 "YYYY-MM-DD HH:MM:SS"
-     * 一次性解析（UTC 墙钟，对照 Go 的 time.Parse 语义）。
+     * 正则抓 y-m-d[ h:m[:s]]，补位成 "YYYY-MM-DD HH:MM:SS"
+     * 一次性解析（UTC 墙钟）。
      */
     static OffsetDateTime parseBaiduDate(String dateStr) {
         Matcher m = BAIDU_DATE_RE.matcher(dateStr == null ? "" : dateStr);
         if (!m.find()) {
             return null;
         }
-        // Go 的 %02s 对字符串也补前导零（"4"→"04"，实测确认）——补到宽 2 再拼。
+        // 月/日/时分秒补前导零到宽 2（"4"→"04"）再拼。
         String normalized = String.format("%s-%s-%s %s:%s:%s",
                 m.group(1), pad2(defaultStr(m.group(2), "00")), pad2(defaultStr(m.group(3), "00")),
                 pad2(defaultStr(m.group(4), "00")), pad2(defaultStr(m.group(5), "00")),
@@ -142,7 +142,7 @@ public final class BaiduProvider implements WebSearchProvider {
         return s == null || s.isEmpty() ? fallback : s;
     }
 
-    /** 对照 normalizeBaiduQuery：CJK/全角按 2 单位计的截断。 */
+    /** CJK/全角按 2 单位计的截断。 */
     static String normalizeBaiduQuery(String query) {
         String q = query == null ? "" : query.trim();
         if (q.isEmpty()) {

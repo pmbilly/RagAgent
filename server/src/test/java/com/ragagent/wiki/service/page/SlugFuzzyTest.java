@@ -10,12 +10,9 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link SlugFuzzy} 的纯函数测试（对照 Go
- * internal/application/service/slug_fuzzy.go 与 wiki_page.go 的
- * {@code rewriteDeadWikiLinks}）。
+ * {@link SlugFuzzy} 的纯函数测试（服务于死链改写 {@code rewriteDeadWikiLinks}）。
  *
- * <p>Go 侧没有 slug_fuzzy_test.go；这里的用例按 Go 注释里的三个杠杆
- * （display 反查 / 归一化相等 / bigram Jaccard）逐条设计。</p>
+ * <p>用例围绕三个相似度杠杆设计：display 反查 / 归一化相等 / bigram Jaccard。</p>
  */
 class SlugFuzzyTest {
 
@@ -35,7 +32,7 @@ class SlugFuzzyTest {
 
     // ──────────────────── slugCharBigrams / jaccard ────────────────────
 
-    /** 单字符退化成 1-gram（对照 Go {@code slugCharBigrams}） */
+    /** 单字符退化成 1-gram */
     @Test
     void slugCharBigramsDegradesToUnigram() {
         assertThat(SlugFuzzy.slugCharBigrams("a")).containsExactly("a");
@@ -53,7 +50,7 @@ class SlugFuzzyTest {
         assertThat(SlugFuzzy.slugCharBigrams(emoji)).containsExactly(emoji);
     }
 
-    /** 对照 Go {@code searchutil.Jaccard}：两边都空返回 0（不是 1） */
+    /** 两边都空返回 0（不是 1） */
     @Test
     void jaccard() {
         assertThat(SlugFuzzy.jaccard(Set.of(), Set.of())).isZero();
@@ -69,7 +66,7 @@ class SlugFuzzyTest {
 
     // ──────────────────── resolveDeadSlug ────────────────────
 
-    /** 本来就是活跃 slug → 原样返回（Go L100-103 的 no-op 成功） */
+    /** 本来就是活跃 slug → 原样返回（no-op 成功） */
     @Test
     void resolveDeadSlugAcceptsLiveSlug() {
         assertThat(SlugFuzzy.resolveDeadSlug("entity/a", "", Set.of("entity/a"), Map.of()))
@@ -129,7 +126,7 @@ class SlugFuzzyTest {
         assertThat(SlugFuzzy.resolveDeadSlug("", "", Set.of("a"), Map.of())).isNull();
         assertThat(SlugFuzzy.resolveDeadSlug(null, "", Set.of("a"), Map.of())).isNull();
         // 全是连字符 → 归一化后为空 → 直接放弃（注意此时该 slug 必须<b>不是</b>活跃的，
-        // 否则 Go L100-103 的「本来就活跃」快路径会先返回它）
+        // 否则「本来就活跃」快路径会先返回它）
         assertThat(SlugFuzzy.resolveDeadSlug("---", "", Set.of("entity/a"), Map.of())).isNull();
         assertThat(SlugFuzzy.resolveDeadSlug("---", "", Set.of("---"), Map.of()))
                 .isEqualTo("---");

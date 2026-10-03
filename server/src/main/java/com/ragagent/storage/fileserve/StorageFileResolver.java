@@ -21,30 +21,27 @@ import com.ragagent.storage.mapper.StorageBackendRepository;
 import com.ragagent.storage.service.ResourceCatalogService;
 
 /**
- * 运行时存储解析器（收尾批 W5c）——对照三段 Go 源的合并移植：
+ * 运行时存储解析器，三个职责：
  *
  * <ul>
- *   <li>{@code service/storagebackend.go} 的 {@code ResolveBackend} /
- *       {@code ResolveFileService} / {@code hydrateTenantStorage}（backendID 优先、
- *       provider 是 legacy 回落）；</li>
- *   <li>{@code service/file/factory.go} 的 {@code NewFileServiceFromStorageConfig}
- *       （provider 完备性检查——错误文案会出现在 presigned-preview 的 400 body 里，
- *       逐字照抄）；</li>
- *   <li>{@code service/file/resolve_tenant.go} 的
- *       {@code ResolveTenantFileServiceWithFallback}（租户解析失败且 provider 等于
+ *   <li>{@code resolveBackend / resolveFileService / hydrateTenantStorage}
+ *       （backendID 优先、provider 是 legacy 回落）；</li>
+ *   <li>{@code newFileServiceFromStorageConfig}（provider 完备性检查——错误文案会
+ *       出现在 presigned-preview 的 400 body 里，是固定线格式）；</li>
+ *   <li>{@code resolveTenantFileServiceWithFallback}（租户解析失败且 provider 等于
  *       全局 STORAGE_TYPE 时回落进程级服务）。</li>
  * </ul>
  *
- * <h2>云 provider 的 SDK 客户端（2026-09-24 A3-3 接线）</h2>
+ * <h2>云 provider 的 SDK 客户端</h2>
  * <p>配置完备的 minio/cos/tos/s3/oss/obs/ks3 经 {@code FileServiceFactory}
- * （A3 的八个 provider 实现：local + S3 协议族 + 三家厂商原生 SDK）造真实客户端，
+ * （八个 provider 实现：local + S3 协议族 + 三家厂商原生 SDK）造真实客户端，
  * 再由 {@link ProviderFileContentService} 适配回本包的 {@link FileContentService}。
- * 配置<b>不完备</b>时的错误文案仍由工厂逐字产出
+ * 配置<b>不完备</b>时的错误文案由工厂产出
  * （"missing minio config" / "incomplete cos config" / {@code unsupported provider "%s"}）。
- * local 一支仍走 W5c 的 {@link LocalFileContentService}（本地语义完全一致，二者都照
- * Go local.go；收敛为单一实现属清理项，不在本批）。</p>
+ * local 一支走 {@link LocalFileContentService}（与 provider 工厂的 local 语义一致；
+ * 收敛为单一实现属清理项）。</p>
  *
- * <p>同时承载 Go {@code resourceCatalogFileService} 装饰器的可见行为：
+ * <p>同时承载 resource catalog 装饰器的可见行为：
  * 打开 {@code resource://} 手柄先换物理路径；{@code GetFileURL} 对手柄在
  * APP_EXTERNAL_URL 在位时派生 /r/ 能力令牌。</p>
  */
@@ -94,7 +91,6 @@ public class StorageFileResolver {
     // ── storagebackend.ResolveFileService / ResolveBackend ──────────────────
 
     /**
-     * 对照 Go {@code ResolveFileService(ctx, tenant, backendID, provider, localBaseDir)}。
      * 返回的 Resolution.error 非 null 时 HTTP 面按各自的映射处理。
      */
     public Resolution resolveFileService(Tenant tenant, String backendId, String provider,
@@ -116,7 +112,7 @@ public class StorageFileResolver {
             if (inner.error() != null) {
                 return new Resolution(null, inner.provider(), inner.error());
             }
-            // 对照 Go：backend 在位 → 包 BackendScoped（GetFileURL 的
+            // backend 在位 → 包 BackendScoped（GetFileURL 的
             // storage://<id>/ 包装与 GetFile 的 mismatch 守卫都来自它），
             // 再包 resource catalog 装饰器。
             return new Resolution(
@@ -144,7 +140,7 @@ public class StorageFileResolver {
     private record BackendResolution(StorageBackend backend, String error) {
     }
 
-    /** 对照 Go {@code ResolveBackend}（含 legacy alias 与默认后端两级回落）。 */
+    /** backend 解析：legacy alias 与默认后端两级回落。 */
     private BackendResolution resolveBackend(Tenant tenant, String backendId, String provider) {
         String id = backendId == null ? "" : backendId.trim();
         String p = provider == null ? "" : provider.trim().toLowerCase(java.util.Locale.ROOT);
@@ -170,7 +166,7 @@ public class StorageFileResolver {
         return new BackendResolution(null, null);
     }
 
-    /** 对照 Go {@code hydrateTenantStorage}：stub Tenant 从库行补 DefaultStorageBackendID/配置。 */
+    /** stub Tenant 从库行补 DefaultStorageBackendId/配置。 */
     private Tenant hydrateTenantStorage(Tenant tenant) {
         if (tenant.getId() == 0 || backendRepo == null) {
             // 仓储缺位（纯单元测试构造）时跳过补全：本方法只是"从库行补 stub 字段"的优化，
@@ -202,14 +198,14 @@ public class StorageFileResolver {
         return dp.asText().trim().toLowerCase(java.util.Locale.ROOT);
     }
 
-    // ── factory.go NewFileServiceFromStorageConfig ──────────────────────────
+    // ── 配置 → FileService 工厂 ─────────────────────────────────────────────
 
     public record FactoryResult(FileContentService service, String provider, String error) {
     }
 
     /**
-     * 对照 Go {@code NewFileServiceFromStorageConfig}：provider 可空 → 租户
-     * default_provider；完备性检查的错误文案逐字（presigned-preview 400 可见）。
+     * provider 可空 → 租户
+     * default_provider；完备性检查的错误文案为固定线格式（presigned-preview 400 可见）。
      */
     public FactoryResult newFileServiceFromStorageConfig(String provider, JsonNode sec, String localBaseDir) {
         String p = provider == null ? "" : provider.trim().toLowerCase(java.util.Locale.ROOT);
@@ -256,7 +252,7 @@ public class StorageFileResolver {
                 if (endpoint.isEmpty() || accessKey.isEmpty() || secretKey.isEmpty() || bucket.isEmpty()) {
                     return new FactoryResult(null, p, "incomplete minio config");
                 }
-                // 与 Go 同形：完备性检查通过后由工厂构造 MinIO（S3 协议族）客户端
+                // 完备性检查通过后由工厂构造 MinIO（S3 协议族）客户端
                 return providerBacked(p, sec, baseDir);
             }
             case "cos": {
@@ -335,13 +331,12 @@ public class StorageFileResolver {
     }
 
     /**
-     * 配置完备的云 provider → 经 A3 的 {@code FileServiceFactory} 造真实 SDK 客户端
-     * （2026-09-24 A3-3 接线；此前恒返回 {@code cloudUnavailable} 错误）。
+     * 配置完备的云 provider → 经 {@code FileServiceFactory} 造真实 SDK 客户端。
      *
-     * <p>完备性校验的文案由工厂产出（与上面各分支的字符串一致，逐字照 Go），因此
+     * <p>完备性校验的文案由工厂产出（与上面各分支的字符串一致），因此
      * 这里不需要重复校验；{@code IllegalArgumentException} 就是"配置不完整"的通道。
      * 构造期的凭据/网络失败（真连桶）折成同一 error 通道——调用方按各自映射处理
-     * （presigned-preview 折 400），与 Go 的 {@code NewFileService*} 返回 err 同形。</p>
+     * （presigned-preview 折 400）。</p>
      */
     private static FactoryResult providerBacked(String p, JsonNode sec, String baseDir) {
         ProviderResolution pr = buildProviderRaw(p, sec, baseDir);
@@ -362,7 +357,7 @@ public class StorageFileResolver {
     }
 
     /**
-     * 对照 Go {@code ResolveTenantFileServiceWithFallback} 的写面：按
+     * 写面解析：按
      * backend 优先 → 环境回归 → 租户 default_provider 的顺序解析出**原始** provider
      * 服务（知识上传的 {@code SaveFile} / 读取的 {@code GetFile} 直连它，不经过
      * resource catalog 装饰——装饰层是给 HTTP 流式面用的）。
@@ -446,7 +441,7 @@ public class StorageFileResolver {
 
     /**
      * provider 家族键读取（{@code MINIO_*} / {@code OBS_*} / {@code APP_EXTERNAL_URL} …）——
-     * 走存储域统一查找面（B6 批 8）；未配置 → 空串。
+     * 走存储域统一查找面；未配置 → 空串。
      */
     private static String env(String key) {
         String v = com.ragagent.storage.config.StorageEnvLookup.get(key);
@@ -455,19 +450,19 @@ public class StorageFileResolver {
 
     // ── StorageBackend.ToStorageEngineConfig / FromEnvironment ─────────────
 
-    /** 对照 Go {@code StorageBackend.ToStorageEngineConfig}：实例模型 → 单例配置投影。 */
+    /** 实例模型 → 单例配置投影。 */
     static JsonNode toStorageEngineConfig(StorageBackend b) {
         return toStorageEngineConfig(b, CRYPTO);
     }
 
     /**
-     * 实例行 → provider 段（W5γ5.2 修正：**凭据必须解密**）。
+     * 实例行 → provider 段（**凭据必须解密**）。
      *
      * <p>jsonb 里的私钥是**存储密文**（{@code enc:v1:…}，见
-     * {@code StorageBackendService.serializeConfig} / {@code configOf}）。此前这里原样回挂，
-     * 云读一律 403（S3: {@code The Access Key Id you provided does not exist in our records}）
-     * ——探测实录见 {@code docs/storage-a3-plan.md} §7。现在按存储层的同一语义
-     * （{@code decryptStoredSecret}：带前缀才解密、无前缀原样）就地解密两族命名。</p>
+     * {@code StorageBackendService.serializeConfig} / {@code configOf}）。按存储层的
+     * 同一语义（{@code decryptStoredSecret}：带前缀才解密、无前缀原样）就地解密
+     * 两族命名，否则云读一律 403（S3: {@code The Access Key Id you provided does not
+     * exist in our records}）。</p>
      *
      * <p>测试可注入 crypto：{@code getAESKey()} 读 32 字节 env，单测用子类固定密钥。</p>
      */
@@ -482,9 +477,9 @@ public class StorageFileResolver {
                 local.put("path_prefix", textValue(c, "pathPrefix"));
             }
             default -> {
-                // 云 provider 的投影随 SDK 层回补；local 之外 W5c 只需 default_provider
+                // local 之外只需 default_provider
                 // 与 provider 段（完备性检查读 sec.<provider>.*）。实例行配置是 camelCase
-                //（StorageConfig 键名=字段名），这里翻译成引擎面既定的 snake 键；凭据先解密。
+                //（StorageConfig 键名=字段名），这里改写成引擎面既定的 snake 键；凭据先解密。
                 if (c != null) {
                     var copy = c.deepCopy();
                     renameConfigKeys(copy, b.getProvider());
@@ -499,7 +494,7 @@ public class StorageFileResolver {
     /**
      * 行配置（camelCase）→ 引擎面键（snake，冻结面）。自由键原样保留。
      *
-     * <p><b>凭据两键按 provider 分族</b>（B14 修正）：引擎面各段的 {@code @JsonProperty} 并不统一——
+     * <p><b>凭据两键按 provider 分族</b>：引擎面各段的 {@code @JsonProperty} 并不统一——
      * {@code MinioEngineConfig} 认 {@code access_key_id}/{@code secret_access_key}、
      * {@code CosEngineConfig} 认 {@code secret_id}/{@code secret_key}、
      * 其余（s3/tos/oss/ks3/obs）认 {@code access_key}/{@code secret_key}。</p>
@@ -561,13 +556,13 @@ public class StorageFileResolver {
     }
 
     /**
-     * 对照 Go {@code StorageBackendFromEnvironment}：env 快照的 System 只读行。
+     * env 快照的 System 只读行。
      *
-     * <p><b>B14 合并</b>：配置不再由本类手写 switch 拼装，而是复用**同一个投影**
+     * <p>配置不由本类手写 switch 拼装，而是复用**同一个投影**
      * （{@code StorageProviderEnv.*.writeConfig}，落库面 camel 词汇，与
      * {@code DefaultStorageBackendProvisioner} 同源）——本行随后照常经
-     * {@code toStorageEngineConfig} 的改名器派生出引擎面。至此同一份环境变量<b>只有一条
-     * 投影路径</b>，两处键名漂移（正是 B14 两个静默 bug 的根因）不再可能。</p>
+     * {@code toStorageEngineConfig} 的改名器派生出引擎面。同一份环境变量<b>只有一条
+     * 投影路径</b>，键名漂移不再可能。</p>
      */
     StorageBackend storageBackendFromEnvironment(long tenantId) {
         String provider = StorageRuntimeEnv.storageType()
@@ -593,10 +588,10 @@ public class StorageFileResolver {
         return b;
     }
 
-    // ── resolve_tenant.go ResolveTenantFileServiceWithFallback ──────────────
+    // ── 租户级解析失败回落 ──────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code ResolveTenantFileServiceWithFallback}：租户级解析失败且
+     * 租户级解析失败且
      * provider == 全局 STORAGE_TYPE 时回落进程级服务；否则 ok=false（调用方 400）。
      */
     public Resolution resolveTenantFileServiceWithFallback(String logTag, Tenant tenant,
@@ -621,7 +616,7 @@ public class StorageFileResolver {
     // ── resourceCatalogFileService 装饰器 ───────────────────────────────────
 
     /**
-     * 对照 Go {@code resourceCatalogFileService}：GetFile 先把手柄换成物理路径；
+     * GetFile 先把手柄换成物理路径；
      * GetFileURL 对手柄在外部 URL 在位时派生 /r/ 令牌。
      */
     private record DecoratedFileService(FileContentService inner, ResourceCatalogService catalog)
@@ -656,7 +651,7 @@ public class StorageFileResolver {
         }
 
         /**
-         * 对照 Go {@code resourceCatalogFileService.SaveBytes}：物理落盘 →
+         * 物理落盘 →
          * SHA-256 内容哈希 → 资源注册（失败回删物理文件）→ 返回 resource:// 手柄。
          */
         @Override
@@ -679,14 +674,14 @@ public class StorageFileResolver {
                     try {
                         w.deleteFile(physical);
                     } catch (IOException ignored) {
-                        // 对照 Go：register 失败尽力回删物理文件
+                        // register 失败尽力回删物理文件
                     }
                 }
                 throw new IOException("register stored resource: " + e.getMessage(), e);
             }
         }
 
-        /** 对照 Go {@code resourceCatalogFileService.DeleteFile}：物理删除 + 资源软删。 */
+        /** 物理删除 + 资源软删。 */
         @Override
         public void deleteFile(String filePath) throws IOException {
             ResourceCatalogService.ResolvedPath resolved = catalog.resolvePath(filePath);
@@ -719,7 +714,7 @@ public class StorageFileResolver {
             }
         }
 
-        /** 对照 Go resourceKind：mime 前缀 → image/audio/video，否则 file。 */
+        /** mime 前缀 → image/audio/video，否则 file。 */
         private static String resourceKind(String name) {
             String mimeType = probeMimeType(name);
             if (mimeType.startsWith("image/")) {
@@ -776,7 +771,7 @@ public class StorageFileResolver {
     }
 
     /**
-     * 生产装配的进程级默认服务（对照 Go container 的 globalFileService，恒 local 基座）。
+     * 生产装配的进程级默认服务（恒 local 基座）。
      * baseDir 经 Spring 属性注入（env 缺省，测试期可注入——见 FileProxyService）。
      */
     public WritableFileContentService globalFileService(String localBaseDir) {

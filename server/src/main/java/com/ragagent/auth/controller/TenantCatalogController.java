@@ -23,17 +23,16 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对照 Go handler/tenant.go 的跨空间租户目录 + KV 配置分发器（波 2 扫尾批 3，
- * routes_auth_tenant.go L53-76 五条路由）：
+ * 跨空间租户目录 + KV 配置分发器（五条路由）：
  *
  * <ul>
- *   <li>GET  /tenants/all     —— ListAllTenants（L1192-1216），viewer 形态裁剪</li>
- *   <li>GET  /tenants/search  —— SearchTenants（L1218-1280），分页 + keyword/tenant_id</li>
- *   <li>POST /tenants         —— CreateTenant（L226-513）：自助/超管双路径、配额、
+ *   <li>GET  /tenants/all     —— 全量租户列表，viewer 形态裁剪</li>
+ *   <li>GET  /tenants/search  —— 分页搜索 + keyword/tenant_id</li>
+ *   <li>POST /tenants         —— 创建：自助/超管双路径、配额、
  *       owner 引导、tenantless 回填、auto_create_api_key 兼容</li>
- *   <li>GET/PUT /tenants/kv/{key} —— KV 分发器（L1304-1395），6 个 DB-backed key
- *       + GET prompt-templates（走查补翻：PromptTemplateCatalog 装载 vendored
- *       yaml + LocalizeTemplates 本地化；PUT 分发器 Go 本来就没有它 → 400）</li>
+ *   <li>GET/PUT /tenants/kv/{key} —— KV 分发器，6 个 DB-backed key
+ *       + GET prompt-templates（PromptTemplateCatalog 装载 vendored
+ *       yaml + 本地化；PUT 分发器不支持该 key → 400）</li>
  * </ul>
  *
  * <p>跨空间守卫（all/search）在 {@code RbacInterceptor.addCrossTenantRule}；
@@ -52,16 +51,16 @@ public class TenantCatalogController {
     final SsrfGuard ssrfGuard;
     final StorageAllowList storageAllowList;
     /** Spring 全局 mapper（带 JacksonConfig 的 OffsetDateTime→本地时区序列化），
-     *  仅供 tenantWithApiKey 把实体转成与 Go 字节同形态的时间串 */
+     *  仅供 tenantWithApiKey 把实体转成既定形态的时间串 */
     final ObjectMapper springMapper;
 
-    /** 创建租户协作者（对照 Go CreateTenant 段）。 */
+    /** 创建租户协作者。 */
     final TenantCreateOps createOps;
 
-    /** tenants CRUD 协作者（对照 Go W5a 段）。 */
+    /** tenants CRUD 协作者。 */
     final TenantCrudOps crudOps;
 
-    /** KV 配置分发协作者（对照 Go GetTenantKV/UpdateTenantKV 段）。 */
+    /** KV 配置分发协作者。 */
     final TenantConfigOps configOps;
 
     public TenantCatalogController(TenantService tenantService,

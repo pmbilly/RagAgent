@@ -5,26 +5,23 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 事件包络（对照 Go {@code event.Event}，internal/event/event.go:95-102）。
+ * 事件包络。
  *
- * <p>字段与 Go 一致：ID / Type / SessionID / Data / Metadata / RequestID。
- * Go 是结构体<b>值</b>语义，Java 是引用语义——两处刻意补偿：</p>
+ * <p>字段：ID / Type / SessionID / Data / Metadata / RequestID。
+ * 发射路径按引用传递，两处约定用于隔离调用方对象：</p>
  * <ul>
- *   <li>{@link #shallowCopy()}：Go 把 Event 按值传进 Emit，Emit 内补的 UUID 不会写回
- *       调用方的结构体（/tmp 实录：{@code callerStillEmpty=true}）。
- *       {@link EventBus} 发射前先 {@code shallowCopy()} 复刻这一点。</li>
- *   <li>{@code metadata} 是<b>共享引用</b>：Go 拷贝结构体时 map 字段仍是同一个 map，
- *       所以 WithTiming 中间件写 {@code duration_ms} 后调用方能看到
- *       （/tmp 实录：{@code timingSharedMetadata => callerSees=5}）。浅拷贝保留同一引用。</li>
+ *   <li>{@link #shallowCopy()}：{@link EventBus} 发射前先做浅拷贝，发射中补出的 UUID
+ *       只写在拷贝上，调用方的 Event 对象不被写回。</li>
+ *   <li>{@code metadata} 是<b>共享引用</b>：浅拷贝不复制 map，中间件写
+ *       {@code duration_ms} 后调用方原对象也能看到。</li>
  * </ul>
  *
- * <p>便捷构造对照 Go 侧同型函数：{@link #newEvent(String, Object)} ↔ {@code NewEvent}
- * （metadata 建空 map）；{@link #withSessionID}/{@link #withRequestID}/{@link #withMetadata}
- * ↔ 同名 With* 方法（返回新 Event，metadata map 共享 + withMetadata 就地写入——Go 值接收者
- * 的行为）。</p>
+ * <p>便捷构造：{@link #newEvent(String, Object)}（metadata 建空 map）；
+ * {@link #withSessionId}/{@link #withRequestId}/{@link #withMetadata}
+ * 返回新 Event，metadata map 共享，withMetadata 就地写入。</p>
  *
- * <p>注意：Go 的 {@code Event} 结构体<b>没有 json tag</b>，它本身不是线上 JSON 契约
- * （线上契约是 data 里装的 payload 结构体与 StreamEvent）。本类不参与序列化。</p>
+ * <p>注意：本类本身不是线上 JSON 契约（线上契约是 data 里装的 payload 与 StreamEvent），
+ * 不参与序列化。</p>
  */
 public class Event {
 
@@ -37,10 +34,10 @@ public class Event {
     /** 会话 ID */
     private String sessionId = "";
 
-    /** 事件数据（payload 结构体，见 event_data.go 的 Java 对应类） */
+    /** 事件数据（payload 对象，见 payload 子包） */
     private Object data;
 
-    /** 事件元数据（Go map 语义：可空、可共享） */
+    /** 事件元数据（可空、浅拷贝间共享） */
     private Map<String, Object> metadata;
 
     /** 请求 ID */
@@ -59,7 +56,7 @@ public class Event {
         this.requestId = requestId == null ? "" : requestId;
     }
 
-    /** 对照 Go {@code NewEvent(eventType, data)}：metadata 建空 map。 */
+    /** 构造事件：metadata 建空 map。 */
     public static Event newEvent(String eventType, Object data) {
         Event e = new Event();
         e.type = eventType;
@@ -68,19 +65,19 @@ public class Event {
         return e;
     }
 
-    /** 对照 Go 结构体值拷贝：字段逐个复制，metadata map 保持<b>同一引用</b>。 */
+    /** 浅拷贝：字段逐个复制，metadata map 保持<b>同一引用</b>。 */
     public Event shallowCopy() {
         return new Event(id, type, sessionId, data, metadata, requestId);
     }
 
-    /** 对照 Go {@code WithSessionID}：返回新 Event（metadata 共享）。 */
+    /** 返回设置了会话 ID 的新 Event（metadata 共享）。 */
     public Event withSessionId(String sessionId) {
         Event c = shallowCopy();
         c.sessionId = sessionId == null ? "" : sessionId;
         return c;
     }
 
-    /** 对照 Go {@code WithRequestID}：返回新 Event（metadata 共享）。 */
+    /** 返回设置了请求 ID 的新 Event（metadata 共享）。 */
     public Event withRequestId(String requestId) {
         Event c = shallowCopy();
         c.requestId = requestId == null ? "" : requestId;
@@ -88,8 +85,8 @@ public class Event {
     }
 
     /**
-     * 对照 Go {@code WithMetadata}：metadata 为 null 时先建 map，再<b>就地</b>写入键值，
-     * 返回新 Event。因为 map 是共享引用，原 Event 也能看到这次写入（Go 同）。
+     * metadata 为 null 时先建 map，再<b>就地</b>写入键值，返回新 Event。
+     * 因为 map 是共享引用，原 Event 也能看到这次写入。
      */
     public Event withMetadata(String key, Object value) {
         if (metadata == null) {
@@ -148,7 +145,7 @@ public class Event {
     }
 
     /**
-     * 对照 Go Emit 里的 ID 自动生成：{@code uuid.New().String()}（v4，36 字符小写）。
+     * 生成标准 UUID（v4，36 字符小写）。
      * 注意与 {@link EventIds#generateEventID} 不同——那个带类型后缀且只取前 8 位。
      */
     static String newUuid() {

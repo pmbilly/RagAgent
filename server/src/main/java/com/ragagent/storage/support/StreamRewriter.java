@@ -7,8 +7,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 在内容增量流里重写存储引用，并把"可能被切断的引用尾巴"先扣住
- * （对照 Go {@code internal/storageurl/stream.go}）。
+ * 在内容增量流里重写存储引用，并把"可能被切断的引用尾巴"先扣住。
  *
  * <h2>为什么需要扣留</h2>
  * <p>内容按分片送到客户端（SSE 的 answer 增量，或 IM 渠道 300ms 一批的 flush）。
@@ -21,27 +20,26 @@ import java.util.regex.Pattern;
  *
  * <p>可并发使用。</p>
  *
- * <h2>⚠️ 与 Go 的一处正则差异（Java 的 {@code $} 不是 Go 的 {@code $}）</h2>
- * <p>两个"尾部锚定"的正则，Go 里写 {@code $}、Java 里必须写 <b>{@code \z}</b>：
- * RE2 在没有 {@code (?m)} 时 {@code $} 只匹配**文本末尾**，而 Java 的 {@code $} 还匹配
- * **末尾换行符之前**。用 {@code $} 的话，{@code "text local://abc\n"} 这种以换行结尾的分片
- * 会被 Java 判成"尾部有不完整引用"而整段扣住，Go 则照常发出。
- * 注意 Go 的 {@code \b} 与 Java 默认的 {@code \b} 都是 ASCII 词边界，这一处无需改写。</p>
+ * <h2>⚠️ 尾部锚定必须用 {@code \z} 而不是 {@code $}</h2>
+ * <p>Java 的 {@code $} 除文本末尾外还匹配**末尾换行符之前**。用 {@code $} 的话，
+ * {@code "text local://abc\n"} 这种以换行结尾的分片会被判成"尾部有不完整引用"
+ * 而整段扣住，本应照常发出。
+ * 注意默认的 {@code \b} 就是 ASCII 词边界，这一处无需特别处理。</p>
  */
 public class StreamRewriter {
 
     // ── 不完整引用检测 ──
 
     /**
-     * 匹配**一直延伸到字符串末尾**的存储引用——它可能在下个分片里继续
-     * （对照 Go {@code incompleteRefSuffixRe}）。{@code \z} 见类注释。
+     * 匹配**一直延伸到字符串末尾**的存储引用——它可能在下个分片里继续。
+     * {@code \z} 见类注释。
      */
     private static final Pattern INCOMPLETE_REF_SUFFIX = Pattern.compile(
             "\\b(?:resource|storage|local|minio|s3|cos|tos|oss|obs|ks3)://[^\\s)\\]>\"]*\\z");
 
     /**
-     * 匹配目标 URL（括号里那部分）**还没闭合**的 Markdown 图片（对照 Go
-     * {@code incompleteMarkdownImageSuffixRe}）——例如 {@code ![alt](minio://part} 或 {@code ![alt](}。
+     * 匹配目标 URL（括号里那部分）**还没闭合**的 Markdown 图片——
+     * 例如 {@code ![alt](minio://part} 或 {@code ![alt](}。
      *
      * <p>只从 {@code minio://} 起扣留是不够的：那样 {@code ![alt](} 会先被发出去，
      * 等 URL 在下个分片到达时这张图已经坏了。</p>
@@ -55,23 +53,21 @@ public class StreamRewriter {
             "!\\[[^\\]]*\\]\\([^)\\s]*\\z");
 
     /**
-     * 尾部文本最多被当成"没写完的 Markdown 图片"的**字节数**（对照 Go
-     * {@code maxIncompleteImageBytes}）。超过它就不像是个链接了，直接发出去而不是缓冲。
+     * 尾部文本最多被当成"没写完的 Markdown 图片"的**字节数**。超过它就不像是个链接了，直接发出去而不是缓冲。
      */
     static final int MAX_INCOMPLETE_IMAGE_BYTES = 2048;
 
     /**
-     * 单 key 扣留缓冲的**字节数**上限（对照 Go {@code maxHeldBytes}）。
+     * 单 key 扣留缓冲的**字节数**上限。
      * 一条存储引用加上它的 Markdown alt 文本远短于此；这个封顶只用来阻止一条病态流
      * （例如永远不闭合的 {@code ![}）把整篇回答缓冲下来。
      */
     static final int MAX_HELD_BYTES = 4096;
 
     /**
-     * 返回 {@code s} 尾部"可能被截断的存储引用"的偏移，没有则返回 -1
-     * （对照 Go {@code FindIncompleteRef}）。
+     * 返回 {@code s} 尾部"可能被截断的存储引用"的偏移，没有则返回 -1。
      *
-     * <p>返回值是 <b>Java 字符下标</b>（Go 里是字节偏移）——Java 的 String 是 UTF-16，
+     * <p>返回值是 <b>Java 字符下标</b>——Java 的 String 是 UTF-16，
      * 用字符下标才是自洽的；这个偏移不对外泄漏，只用于本类的内部切分。</p>
      */
     public static int findIncompleteRef(String s) {
@@ -80,8 +76,7 @@ public class StreamRewriter {
     }
 
     /**
-     * 返回 {@code s} 尾部未闭合的 {@code ![alt](url} 的偏移，没有则返回 -1
-     * （对照 Go {@code FindIncompleteMarkdownImage}）。
+     * 返回 {@code s} 尾部未闭合的 {@code ![alt](url} 的偏移，没有则返回 -1。
      */
     public static int findIncompleteMarkdownImage(String s) {
         // 优先把尾部的引用碎片与它前面最近的 `![…](` 配对，这样 alt 文本本身
@@ -105,8 +100,7 @@ public class StreamRewriter {
     }
 
     /**
-     * 返回"该分片从哪个偏移起就不再安全"的位置；整段可发时返回 {@code s.length()}
-     * （对照 Go {@code HoldbackCutoff}）。
+     * 返回"该分片从哪个偏移起就不再安全"的位置；整段可发时返回 {@code s.length()}。
      */
     public static int holdbackCutoff(String s) {
         int cutoff = s.length();
@@ -135,18 +129,18 @@ public class StreamRewriter {
     private final Object mu = new Object();
     private final Map<String, HeldContent> held = new HashMap<>();
 
-    /** 对照 Go {@code NewStreamRewriter}：用按流的扣留状态包住 {@code rewriter}。 */
+    /** 用按流的扣留状态包住 {@code rewriter}。 */
     public StreamRewriter(Rewriter rewriter) {
         this.rewriter = rewriter;
     }
 
-    /** 对照 Go {@code StreamRewriter.Enabled}。 */
+    /** 底层重写器是否启用。 */
     public boolean enabled() {
         return rewriter != null && rewriter.enabled();
     }
 
     /**
-     * 对照 Go {@code StreamRewriter.Rewriter}：暴露底层 Rewriter，给那些**整块到达、
+     * 暴露底层 Rewriter，给那些**整块到达、
      * 不需要扣留**的流字段用（references、metadata）。
      */
     public Rewriter rewriter() {
@@ -154,8 +148,7 @@ public class StreamRewriter {
     }
 
     /**
-     * 喂入 {@code key} 这条流的下一个分片，返回已可发出的重写结果
-     * （对照 Go {@code StreamRewriter.Push}）。
+     * 喂入 {@code key} 这条流的下一个分片，返回已可发出的重写结果。
      *
      * <p>{@code flush} 在流的**终止分片**上置位，用来释放扣住的尾巴。
      * {@code meta} 不透明地与尾巴一起保留，并由 {@link #flushAll()} 原样交回，
@@ -187,14 +180,13 @@ public class StreamRewriter {
                 held.put(key, new HeldContent(remainder, meta));
             }
         }
-        // 重写在锁外做（对照 Go 在 Unlock 之后才调 rewriter.String）——
+        // 重写在锁外做——
         // Rewriter 有自己的锁，两把锁不该套在一起。
         return rewriter.rewrite(emit);
     }
 
     /**
-     * 释放所有被扣住的尾巴（重写后），按流 key 返回（对照 Go
-     * {@code StreamRewriter.FlushAll}）。
+     * 释放所有被扣住的尾巴（重写后），按流 key 返回。
      *
      * <p>调用方在"流结束了却没有终止分片"时（例如客户端断开）用它，
      * 免得缓冲下来的内容被悄悄丢掉。</p>
@@ -224,9 +216,8 @@ public class StreamRewriter {
     /**
      * 字符串的 UTF-8 字节长度。
      *
-     * <p>Go 的两个上限（{@code maxHeldBytes} / {@code maxIncompleteImageBytes}）都是**字节**数，
-     * Java 的 {@code String} 却按 UTF-16 计长。用字符数当字节数会让中文尾巴的上限放宽 3 倍，
-     * 扣留行为与 Go 分叉——所以要真的数字节。</p>
+     * <p>本类的两个上限都是**字节**数，而 {@code String} 按 UTF-16 计长。
+     * 用字符数当字节数会让中文尾巴的上限放宽 3 倍——所以要真的数字节。</p>
      */
     static int utf8Length(String s) {
         int bytes = 0;
@@ -253,11 +244,10 @@ public class StreamRewriter {
 
     /**
      * 找出最大的字符下标 {@code i}，使得 {@code s[0:i]} 的 UTF-8 字节数 ≤ {@code byteOffset}
-     * （对照 Go {@code runeStart}）。
+     * （即向前取整到字符边界）。
      *
-     * <p>Go 的做法是"从字节偏移往回退到最近的 rune 起始字节"，等价于"向前取整到字符边界"。
-     * 一个 4 字节的增补字符占 2 个 Java 字符，若字节偏移落在它内部，
-     * 这里会落到它的**高位代理**下标上——正好是那个 rune 的起点，与 Go 一致。</p>
+     * <p>一个 4 字节的增补字符占 2 个 Java 字符，若字节偏移落在它内部，
+     * 这里会落到它的**高位代理**下标上——正好是那个增补字符的起点。</p>
      */
     static int charIndexAtByteOffset(String s, int byteOffset) {
         if (byteOffset <= 0) {

@@ -16,14 +16,13 @@ import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.llm.domain.ToolCall;
 
 /**
- * chat 客户端的 langfuse 装饰器（对照 Go internal/models/chat/langfuse_wrapper.go 全文）：
+ * chat 客户端的 langfuse 装饰器：
  * 每次 Chat/ChatStream 发一条 generation 观测（消息输入、模型参数、输出、用量）。
- * 由 {@code ModelRuntimeFactory.getChatModel} 在管理器启用时装配（对照 NewChat 后的
- * {@code wrapChatLangfuse}）。未启用时 {@link #wrap} 原样返回，零成本。
+ * 由 {@code ModelRuntimeFactory.getChatModel} 在管理器启用时装配。
+ * 未启用时 {@link #wrap} 原样返回，零成本。
  *
- * <p><b>已知差异（备案）</b>：Go 经 ctx 取 {@code LLMCallMetadataFromContext} 的
- * call_purpose / prompt_prefix_fingerprint；Java 调用点未携带该元数据载体，
- * 两键恒为空串（与 Go 缺省同形，真实取值不产出）。</p>
+ * <p><b>已知差异（备案）</b>：调用点未携带 call_purpose / prompt_prefix_fingerprint
+ * 的元数据载体，两键恒为空串（真实取值不产出）。</p>
  */
 public final class LangfuseChatClient implements LlmChatClient {
 
@@ -36,7 +35,7 @@ public final class LangfuseChatClient implements LlmChatClient {
         this.inner = inner;
     }
 
-    /** 对照 wrapChatLangfuse：未启用/空客户端原样返回。 */
+    /** 未启用/空客户端原样返回。 */
     public static LlmChatClient wrap(LlmChatClient client) {
         if (client == null || !LangfuseManager.get().enabled()) {
             return client;
@@ -98,8 +97,8 @@ public final class LangfuseChatClient implements LlmChatClient {
             return null;
         }
 
-        // 转发线程（对照 Go 的 wrapped channel + goroutine）：累积 content/reasoning/usage/
-        // tool_calls/finish_reason，首 token 到达时 MarkCompletionStart，流结束收 generation。
+        // 转发线程：累积 content/reasoning/usage/
+        // tool_calls/finish_reason，首 token 到达时调 markCompletionStart，流结束收 generation。
         BlockingQueue<StreamResponse> wrapped = new LinkedBlockingQueue<>();
         Thread.ofVirtual().name("langfuse-chat-stream").start(() -> {
             StringBuilder content = new StringBuilder();
@@ -135,7 +134,7 @@ public final class LangfuseChatClient implements LlmChatClient {
                         usage = resp.getUsage();
                     }
                     if (resp.getToolCalls() != null && !resp.getToolCalls().isEmpty()) {
-                        // 快照：下游可能就地改写 parameters（对照 Go 的 snapshotLangfuseToolCalls）
+                        // 快照：下游可能就地改写 parameters
                         toolCalls = List.copyOf(resp.getToolCalls());
                     }
                     if (resp.getFinishReason() != null && !resp.getFinishReason().isEmpty()) {
@@ -169,9 +168,9 @@ public final class LangfuseChatClient implements LlmChatClient {
         return inner.getModelId();
     }
 
-    // ── 载荷构造（逐条对照 Go 的 buildLangfuse* 辅助） ──
+    // ── 载荷构造 ──
 
-    /** 对照 buildLangfuseMessages。 */
+    /** 构造 messages 载荷。 */
     static List<Map<String, Object>> buildMessages(List<ChatMessage> messages) {
         List<Map<String, Object>> out = new ArrayList<>(messages.size());
         for (ChatMessage m : messages) {
@@ -200,7 +199,7 @@ public final class LangfuseChatClient implements LlmChatClient {
         return out;
     }
 
-    /** 对照 buildLangfuseChatMetadata（含 MCP 目录截断）。 */
+    /** chat 观测的 metadata 载荷（含 MCP 目录截断）。 */
     static Map<String, Object> buildChatMetadata(String modelId, boolean streaming,
                                                  ChatOptions options) {
         Map<String, Object> meta = new LinkedHashMap<>();
@@ -228,7 +227,7 @@ public final class LangfuseChatClient implements LlmChatClient {
         return meta;
     }
 
-    /** 对照 buildLangfuseGenerationOutput（tool_calls 恒在，可能 null）。 */
+    /** generation 观测的 output 载荷（tool_calls 键恒在，值可能 null）。 */
     static Map<String, Object> buildGenerationOutput(String content, String reasoningContent,
                                                      String finishReason, List<ToolCall> toolCalls) {
         Map<String, Object> output = new LinkedHashMap<>();
@@ -241,7 +240,7 @@ public final class LangfuseChatClient implements LlmChatClient {
         return output;
     }
 
-    /** 对照 buildLangfuseModelParams：只带非零参数；空 → null（属性省略）。 */
+    /** 模型参数载荷：只带非零参数；空 → null（属性省略）。 */
     static Map<String, Object> buildModelParams(ChatOptions options) {
         if (options == null) {
             return null;

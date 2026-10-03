@@ -11,16 +11,14 @@ import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.GoMapSerializer;
 
 /**
- * 检索结果条目（对照 Go {@code types.SearchResult}，internal/types/search.go:151-206）。
+ * 检索结果条目。
  *
- * <p>检索模块本体属阶段 7，本类**现在**落地是因为它已经是共享契约：
- * {@link com.ragagent.llm.domain.StreamResponse#getKnowledgeReferences()} 与
- * {@code Message.knowledge_references} 都是 {@code References = []*SearchResult}，
+ * <p>本类是共享契约：{@link com.ragagent.llm.domain.StreamResponse#getKnowledgeReferences()} 与
+ * {@code Message.knowledge_references} 的载荷都是它，
  * SSE 的 {@code references} 事件要按它的字段序逐字节输出。</p>
  *
- * <h2>字段序 = Go struct 声明序</h2>
- * <p>struct 响应按声明序输出（约定 §9），{@link JsonPropertyOrder} 必须与下方字段声明、
- * 以及 Go 的结构体顺序三者一致。</p>
+ * <h2>字段序</h2>
+ * <p>响应按 {@link JsonPropertyOrder} 声明序输出，必须与下方字段声明一致。</p>
  *
  * <h2>零值语义（逐字段对照 json tag）</h2>
  * <ul>
@@ -35,20 +33,15 @@ import com.ragagent.common.web.GoMapSerializer;
  *
  * <h2>两个 {@code json:"-"} 字段</h2>
  * <p>{@code ContentRevision} / {@code ContentRewritten} 是合并管线内部字段：
- * <b>不出响应</b>（{@code @JsonIgnore}），但 {@code content_revision} 有 gorm 列，
+ * <b>不出响应</b>（{@code @JsonIgnore}），但 {@code content_revision} 有对应的数据库列，
  * 直查行时要能落进对象。故用 {@code @JsonIgnore} 而非删字段。</p>
  *
  * <h2>{@code score} 的浮点输出</h2>
- * <p>Go 的 {@code float64} 走 encoding/json 的专用格式化（'f' 最短表示，
- * 绝对值 &lt; 1e-6 或 ≥ 1e21 时转 'e'）——与 Jackson 默认的
+ * <p>输出为最短 'f' 表示，绝对值 &lt; 1e-6 或 ≥ 1e21 时转 'e'——与 Jackson 默认的
  * {@code Double.toString} 不同（{@code 1} vs {@code 1.0}，{@code 1e+21} vs {@code 1.0E21}）。
- * 由 {@link GoDoubleSerializer} 复刻，见该类注释。</p>
+ * 由 {@link GoDoubleSerializer} 处理，见该类注释。</p>
  */
 public class SearchResult {
-
-    // 原在 retrieval.domain；它是 SSE 契约字段 knowledge_references 的载荷，且零域依赖
-    // （只 java/Jackson/common.web 序列化器），被 43 文件引用 → 按共享契约类型搬 common。
-
 
     private String id = "";
 
@@ -80,9 +73,9 @@ public class SearchResult {
     private List<String> subChunkId;
 
     /**
-     * 元数据。**无 omitempty**：nil 输出 {@code null}。
-     * Go 的 {@code map[string]string} 经 {@code json.Marshal} **恒按 key 字母序**输出，
-     * 故 setter 归一化为 {@link TreeMap}——无论产出方给的是什么 Map 实现，输出字节都一致。
+     * 元数据。**无 omitempty**：null 输出 {@code null}。
+     * 输出**恒按 key 字母序**：setter 归一化为 {@link TreeMap}——
+     * 无论产出方给的是什么 Map 实现，输出字节都一致。
      */
     private Map<String, String> metadata;
 
@@ -99,12 +92,12 @@ public class SearchResult {
     private String knowledgeChannel = "";
 
     /**
-     * chunk 级元数据（如生成的问题）。Go 是 {@code JSON = json.RawMessage} + omitempty：
-     * 原样内联，nil/空 时省略。
+     * chunk 级元数据（如生成的问题）。原样内联的 JSON 载荷 + omitempty：
+     * null/空 时省略。
      *
-     * <p>已知边界：Go 的 omitempty 判据是 {@code len(bytes)==0}，所以一个字面量
-     * {@code {}} 是**会**输出的；Jackson 的 NON_NULL 只看 null。产出方若真写入空对象，
-     * 两侧会有差异——实际语义里该字段要么是结构化 JSON 要么不设，暂不复刻这个角落里。</p>
+     * <p>已知边界：{@code @JsonInclude(NON_NULL)} 只看 null，产出方若真写入空对象
+     * {@code {}}，它仍会输出——实际语义里该字段要么是结构化 JSON 要么不设，
+     * 这个角落不作特判。</p>
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private JsonNode chunkMetadata;
@@ -125,11 +118,11 @@ public class SearchResult {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private String knowledgeBaseId;
 
-    /** 检索时 chunk 的编辑版本号。**仅内部**（Go 是 {@code json:"-"}），有 gorm 列。 */
+    /** 检索时 chunk 的编辑版本号。**仅内部**（不出响应），有对应的数据库列。 */
     @JsonIgnore
     private int contentRevision;
 
-    /** 合并管线是否改写过 {@code content}。**仅内部**（Go 是 {@code json:"-"}）。 */
+    /** 合并管线是否改写过 {@code content}。**仅内部**（不出响应）。 */
     @JsonIgnore
     private boolean contentRewritten;
 
@@ -168,7 +161,7 @@ public class SearchResult {
 
     public Map<String, String> getMetadata() { return metadata; }
 
-    /** 归一化为按 Go 键序（UTF-8 字节序）排好的 {@link TreeMap}，见字段注释。 */
+    /** 归一化为按 UTF-8 字节序排好的 {@link TreeMap}，见字段注释。 */
     public void setMetadata(Map<String, String> v) {
         if (v == null) {
             metadata = null;
@@ -213,7 +206,7 @@ public class SearchResult {
     public void setKnowledgeBaseId(String v) { knowledgeBaseId = v == null ? "" : v; }
 
     /**
-     * 浅拷贝（对照 Go 的 {@code rewritten := *ref}）。
+     * 浅拷贝。
      *
      * <p>{@code Rewriter.CopyReferences} 用它来"复制后再就地改写"，因为 SSE 的 references
      * 载荷与流的重放缓冲、以及正在落库的助手消息**共享同一批 {@code *SearchResult} 指针**——

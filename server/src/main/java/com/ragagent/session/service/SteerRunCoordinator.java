@@ -14,9 +14,8 @@ import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;
 
 /**
- * steer 运行协调（对照 Go internal/handler/session/steer.go 的引擎侧：
- * discardSteerBacklog / kickNextRunFromSteerBacklog / claimNextSteerFollowUp，
- * 波 1 G4 已翻 HTTP 面，这里补 executeQA 收尾路径的 back half）。
+ * steer 运行协调（引擎侧收尾：discardSteerBacklog / kickNextRunFromSteerBacklog /
+ * claimNextSteerFollowUp）。HTTP 面在 SteerController，这里补 executeQA 收尾路径的半边。
  */
 @Service
 public class SteerRunCoordinator {
@@ -36,7 +35,7 @@ public class SteerRunCoordinator {
         void launch(QaSupport.QaRequestContext followUp);
     }
 
-    /** 对照 discardSteerBacklog（steer.go L818-841）：停止路径，全部标 consumed。 */
+    /** 停止路径：把未消费的 steer backlog 全部标 consumed。 */
     public void discardSteerBacklog(String sessionId, String assistantMessageId, Set<String> injected) {
         List<StreamEvent> all;
         try {
@@ -64,7 +63,7 @@ public class SteerRunCoordinator {
     }
 
     /**
-     * 对照 kickNextRunFromSteerBacklog（steer.go L857-879）：drain 未注入的 steer
+     * drain 未注入的 steer
      * 消息，把第一条作为 query 启动 follow-up run（follow-up 在返回前已 ClaimLiveRun）。
      */
     public boolean kickNextRunFromSteerBacklog(QaSupport.QaRequestContext prevReqCtx,
@@ -77,7 +76,7 @@ public class SteerRunCoordinator {
         return true;
     }
 
-    /** 对照 claimNextSteerFollowUp（steer.go L884-986）。 */
+    /** 从 backlog 取下一条未注入的 steer 消息，组装成 follow-up 上下文。 */
     private QaSupport.QaRequestContext claimNextSteerFollowUp(QaSupport.QaRequestContext prevReqCtx,
             QaSupport.SseStreamContext prevStreamCtx) {
         String prevMessageId = prevStreamCtx.assistantMessage.getId();
@@ -217,7 +216,7 @@ public class SteerRunCoordinator {
         }
     }
 
-    /** 对照 Go 的 followUp := *prevReqCtx（结构体值拷贝）。 */
+    /** 请求上下文的拷贝：标量字段直抄，集合字段换成新列表避免与源共享。 */
     private static QaSupport.QaRequestContext shallowCopy(QaSupport.QaRequestContext src) {
         QaSupport.QaRequestContext copy = new QaSupport.QaRequestContext();
         copy.sessionId = src.sessionId;

@@ -12,21 +12,19 @@ import com.ragagent.im.domain.ImChannelEntity;
 import com.ragagent.im.mapper.ImChannelMapper;
 
 /**
- * IM 渠道 service（对照 Go internal/im/service.go 的 CRUD 段 L3117-3267 +
- * internal/im/types.go 的 BeforeCreate/BeforeSave/computeBotIdentity）。
+ * IM 渠道 service（CRUD + 渠道行钩子：兜底、session_mode 校验、bot_identity 计算）。
  *
- * <p><b>接缝（本批不实现，javadoc 声明）</b>：{@code StartChannel / StopChannel /
+ * <p><b>接缝（不实现，javadoc 声明）</b>：{@code StartChannel / StopChannel /
  * publishChannelConfigChange} —— 渠道运行时（adapter 长连接、Redis 配置变更广播）
- * 属执行体 service.go 其余 3000+ 行，golden 的 CRUD 面不经过它们。Java 侧为 no-op
- * （对照 Go 在"渠道无法启动只 Warnf 不影响 HTTP 响应"的语义）。</p>
+ * 不在本 service。Java 侧为 no-op（渠道无法启动只记警告，不影响 HTTP 响应）。</p>
  *
- * <p>错误族（对照 handler 的分派）：duplicate_bot 前缀 → 409 + 去前缀原文；
- * BeforeCreate/BeforeSave 校验失败（session_mode）等 → 500 "failed to create/update channel"。</p>
+ * <p>错误族：duplicate_bot 前缀 → 409 + 去前缀原文；
+ * 创建/保存钩子校验失败（session_mode）等 → 500 "failed to create/update channel"。</p>
  */
 @Service
 public class ImChannelService {
 
-    /** 对照 validIMPlatforms（错误文案按 map 键排序后拼接）。 */
+    /** 错误文案按平台名排序后拼接。 */
     public static final String INVALID_PLATFORM_ERROR =
             "platform must be one of: 'dingtalk', 'feishu', 'lark', 'mattermost', 'qqbot', "
                     + "'slack', 'telegram', 'wechat', 'wecom', 'yunzhijia'";
@@ -45,9 +43,9 @@ public class ImChannelService {
         this.registry = registry;
     }
 
-    // ═══════════════════ 钩子（对照 types.go 的 BeforeCreate / BeforeSave） ═══════════════════
+    // ═══════════════════ 钩子 ═══════════════════
 
-    /** 对照 BeforeCreate（L94-116）：兜底 + session_mode 校验 + bot_identity。 */
+    /** 创建钩子：兜底 + session_mode 校验 + bot_identity。 */
     public void beforeCreate(ImChannelEntity ch) {
         if (ch.getId() == null || ch.getId().isEmpty()) {
             ch.setId(java.util.UUID.randomUUID().toString());
@@ -66,7 +64,7 @@ public class ImChannelService {
         ch.setBotIdentity(computeBotIdentity(ch));
     }
 
-    /** 对照 BeforeSave（L120-129）。 */
+    /** 保存钩子。 */
     public void beforeSave(ImChannelEntity ch) {
         if (ch.getSessionMode() == null || ch.getSessionMode().isEmpty()) {
             ch.setSessionMode("user");
@@ -81,30 +79,30 @@ public class ImChannelService {
         }
     }
 
-    /** 对照 validateSessionMode 的错误（Create/Update 都翻成 500 固定文案，原文仅日志）。 */
+    /** 会话模式非法（Create/Update 都翻成 500 固定文案，原文仅日志）。 */
     public static final class InvalidSessionModeException extends RuntimeException {
         public InvalidSessionModeException(String mode) {
             super("invalid session_mode: " + mode);
         }
     }
 
-    /** 对照 DuplicateBotException（handler 按前缀去重后的原文回 409）。 */
+    /** bot 身份重复；handler 按消息前缀映射为 409，返回原文。 */
     public static final class DuplicateBotException extends RuntimeException {
         public DuplicateBotException(String message) {
             super(message);
         }
     }
 
-    /** 对照 ChannelNotFound（Delete 的 RowsAffected=0 路径；handler 落 500）。 */
+    /** 删除未命中任何行时抛出；handler 落 500。 */
     public static final class ChannelNotFoundException extends RuntimeException {
         public ChannelNotFoundException() {
             super("channel not found");
         }
     }
 
-    // ═══════════════════ bot_identity（对照 computeBotIdentity L143-217） ═══════════════════
+    // ═══════════════════ bot_identity ═══════════════════
 
-    /** 凭据 JSON 的键序无关读取；解析失败 → ""（对照 json.Unmarshal 失败分支）。 */
+    /** 凭据 JSON 的键序无关读取；解析失败 → ""。 */
     public String computeBotIdentity(ImChannelEntity ch) {
         JsonNode creds;
         try {
@@ -178,14 +176,13 @@ public class ImChannelService {
         }
     }
 
-    /** 对照 str(key)：字符串原样、数字 %.0f、缺失 ""。 */
+    /** 字符串原样；数字按 %.0f 形态（无小数位）输出；缺失 ""。 */
     private static String text(JsonNode creds, String key) {
         JsonNode v = creds.get(key);
         if (v == null || v.isNull()) {
             return "";
         }
         if (v.isNumber()) {
-            // 对照 fmt.Sprintf("%.0f")
             return String.format(java.util.Locale.ROOT, "%.0f", v.asDouble());
         }
         return v.isTextual() ? v.asText() : "";
@@ -205,10 +202,10 @@ public class ImChannelService {
         }
     }
 
-    // ═══════════════════ CRUD（对照 service.go L3117-3267） ═══════════════════
+    // ═══════════════════ CRUD ═══════════════════
 
     /**
-     * 对照 CreateChannel：重复 bot 检查在前（409），落库触发 BeforeCreate（session_mode
+     * 创建：重复 bot 检查在前（409），落库前过创建钩子（session_mode
      * 校验失败 → 500），启动/广播为 no-op 接缝。
      */
     public void createChannel(ImChannelEntity channel) {
@@ -220,7 +217,7 @@ public class ImChannelService {
         // StartChannel / publishChannelConfigChange：运行时接缝，no-op
     }
 
-    /** 对照 UpdateChannel：重复 bot 检查（排除自身）→ Save（BeforeSave）→ 重启接缝 no-op。 */
+    /** 更新：重复 bot 检查（排除自身）→ 全量保存（过保存钩子）→ 重启接缝 no-op。 */
     public void updateChannel(ImChannelEntity channel) {
         checkDuplicateBot(channel, channel.getId());
         beforeSave(channel);
@@ -228,13 +225,13 @@ public class ImChannelService {
         mapper.saveChannel(channel);
     }
 
-    /** 对照 SetChannelAgentID（update 换绑 agent 的校验段）。 */
+    /** update 换绑 agent 的校验段。 */
     public void setChannelAgentId(ImChannelEntity channel, String agentId) {
         String trimmed = agentId == null ? "" : agentId.trim();
         if (trimmed.isEmpty()) {
             throw new IllegalArgumentException("agent_id is required");
         }
-        // 对照 Go：GetAgentByID 失败或 tenant 不匹配 → "agent not found"
+        // agent 不存在或 tenant 不匹配 → "agent not found"
         com.ragagent.agent.management.domain.CustomAgentEntity agent;
         try {
             agent = agentMapper.getByIDAndTenant(trimmed, channel.getTenantId() == null
@@ -256,7 +253,7 @@ public class ImChannelService {
         }
     }
 
-    /** 对照 DeleteChannel：0 行受影响 → ChannelNotFound（handler 落 500）。 */
+    /** 删除：0 行受影响 → ChannelNotFound（handler 落 500）。 */
     public void deleteChannel(String channelId, long tenantId) {
         int rows = mapper.softDelete(channelId, tenantId, OffsetDateTime.now());
         if (rows == 0) {
@@ -265,7 +262,7 @@ public class ImChannelService {
         // StopChannel / publishChannelConfigChange：no-op 接缝
     }
 
-    /** 对照 ToggleChannel：First（无行 → handler 500）→ 取反 → Save。 */
+    /** 切换启用：取一行（无行 → handler 500）→ 取反 → 保存。 */
     public ImChannelEntity toggleChannel(String channelId, long tenantId) {
         ImChannelEntity ch = mapper.getByIdAndTenant(channelId, tenantId);
         if (ch == null) {
@@ -287,9 +284,9 @@ public class ImChannelService {
                 registry.orderedIds());
     }
 
-    // ── W5a：IM 回调面（对照 EnsureChannelAdapter，service.go L1567-1593） ──
+    // ── IM 回调面 ──
 
-    /** 回调通道的三态失败（HTTP 形态由 controller 逐个映射，照抄 Go handler）。 */
+    /** 回调通道的三态失败（HTTP 形态由 controller 逐个映射）。 */
     public static final class CallbackChannelNotFoundException extends RuntimeException {
         public CallbackChannelNotFoundException() { super("channel not found"); }
     }
@@ -303,30 +300,26 @@ public class ImChannelService {
     }
 
     /**
-     * 对照 EnsureChannelAdapter 的**确定性前缀**：渠道行缺失（404）→ disabled
-     * （503）。第三段（适配器工厂 + 平台验签/解析）属于波 5 im 执行体——
-     * Java 侧还没有任何 adapter factory，StartChannel 等价分支恒走
-     * "channel adapter is not active" → 503 "channel not available"
-     * （与 Go 对未知 platform 的行为一致；对**已知** platform 是已备案的
-     * A/B 差异——Go 会进入平台验签（403 verification failed 等），见约定 §9）。
+     * 确定性前缀：渠道行缺失（404）→ disabled（503）。适配器工厂 +
+     * 平台验签/解析由 {@code ImService.adapterFor} 在控制器层判定。
      *
      * @return 渠道行（仅 enabled 且 404/503 检查已过的调用点使用）
      */
     public ImChannelEntity ensureChannelForCallback(String channelId) {
         ImChannelEntity fresh = mapper.getById(channelId);
         if (fresh == null) {
-            // 对照 gorm.ErrRecordNotFound → 404 "channel not found"（+ StopChannel 清缓存）
+            // 记录不存在 → 404 "channel not found"
             throw new CallbackChannelNotFoundException();
         }
         if (!fresh.isEnabled()) {
             throw new CallbackChannelDisabledException();
         }
-        // γ2 起适配器可用性由 ImService.adapterFor 判定（工厂注册 + 运行态）；
-        // 未注册平台的渠道由控制器回 503 "channel not available"（W5a golden 形态）。
+        // 适配器可用性由 ImService.adapterFor 判定（工厂注册 + 运行态）；
+        // 未注册平台的渠道由控制器回 503 "channel not available"。
         return fresh;
     }
 
-    /** 对照 checkDuplicateBot（L3234-3260）。 */
+    /** bot 查重。 */
     public void checkDuplicateBot(ImChannelEntity channel, String excludeId) {
         String botKey = computeBotIdentity(channel);
         if (botKey == null || botKey.isEmpty()) {
@@ -341,7 +334,7 @@ public class ImChannelService {
                 + "each bot can only be connected to one channel");
     }
 
-    /** 对照 fmt.Sprintf("%q")：非字母数字安全字符转义；种子全是可打印 ASCII，直包引号即可。 */
+    /** 引号内转义：控制字符与引号/反斜杠转义；种子全是可打印 ASCII，直包引号即可。 */
     private static String quote(String s) {
         if (s == null) {
             return "\"\"";
@@ -369,7 +362,6 @@ public class ImChannelService {
         return sb.toString();
     }
 
-    /** GetChannelByIDAndTenant（对照 L1636）。 */
     public ImChannelEntity getChannelByIdAndTenant(String channelId, long tenantId) {
         return mapper.getByIdAndTenant(channelId, tenantId);
     }

@@ -18,7 +18,7 @@ import com.ragagent.common.web.GoDoubleSerializer;
  *   required parameter '%s' is missing
  *   parameter '%s' should be type '%s'
  *   parameter '%s' must be one of [%s]
- *   parameter '%s' must be >= %v        // %v 走最短浮点格式（实录 ">= 1"）
+ *   parameter '%s' must be >= %v        // 值走最短浮点格式（如 ">= 1"）
  *   parameter '%s' must be <= %v
  *   parameter '%s' must have at least %d characters
  *   parameter '%s' must have at most %d characters

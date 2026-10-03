@@ -3,7 +3,7 @@ package com.ragagent.retrieval.config;
 import java.util.function.Function;
 
 /**
- * 检索域环境变量的查找面（B6 批 9）。
+ * 检索域环境变量的查找面。
  *
  * <p>本域有一批「按常量键名读环境」的回落点：各引擎仓的集合/表/索引名、
  * Doris 兼容模式、SQLite 路径、多店检索超时、VLM HTTP 超时——键名是常量但读点在

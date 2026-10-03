@@ -7,12 +7,12 @@ import java.util.Set;
 import com.ragagent.storage.fileserve.StoragePaths;
 
 /**
- * 产物版本澄清（对照 Go {@code types/artifact_versions.go} 全文）。
+ * 产物版本澄清。
  *
  * <p>不静默重定向旧 handle：用户可能在对比版本。当答案引用的是重新生成前的旧版本
  * 产物时，附加显式的「历史版本 / 本轮生成」对照；原文与其余链接保持原样。</p>
  *
- * <h2>匹配规则（逐条对照 Go）</h2>
+ * <h2>匹配规则</h2>
  * <ul>
  *   <li>旧产物无 sourcePath，或两者 sourcePath 不同 → 跳过（不是同一文件的版本对）；</li>
  *   <li>新旧 URL 相同 → 跳过（同一文件，无需澄清）；</li>
@@ -64,8 +64,7 @@ public final class ArtifactVersions {
     }
 
     /**
-     * 对照 Go {@code strings.NewReplacer("\\", "\\\\", "[", "\\[", "]", "\\]",
-     * "(", "\\(", ")", "\\)", "\n", " ", "\r", " ")}：单遍替换语义——Java 链式
+     * 单遍替换语义——Java 链式
      * replace 的后续模式均不会匹配前序替换引入的反斜杠/空格，逐输入等价。
      */
     private static String escapeMarkdownImageText(String name) {

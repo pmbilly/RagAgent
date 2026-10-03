@@ -10,8 +10,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * wiki_page_revisions 表实体（表结构以 migrations/versioned/000075_wiki_page_revisions.up.sql
- * 为准）。JSON 键为 snake（§11 登记边界，前端按此解析）。
+ * wiki_page_revisions 表实体（表结构以 migrations/versioned/V1__baseline.sql 为准）。
+ * JSON 键为 snake（前端按此解析）。
  *
  * <p>被取代的页面版本的一份不可变快照。当前版本只存在于 wiki_pages；当一次编辑替换
  * 版本 V 时，编辑前的状态在<b>同一事务</b>里以 (page_id, V) 插入本表，于是每个历史版本

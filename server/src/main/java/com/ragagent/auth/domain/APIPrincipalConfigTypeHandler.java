@@ -13,19 +13,17 @@ import org.apache.ibatis.type.JdbcType;
 import org.apache.ibatis.type.MappedTypes;
 
 /**
- * {@code tenants.api_principal_config}（jsonb）的 TypeHandler
- * （对照 Go {@code APIPrincipalConfig.Value()/Scan()} driver 钩子）。
+ * {@code tenants.api_principal_config}（jsonb）的 TypeHandler。
  *
  * <ul>
- *   <li><b>写</b>：拷贝 → hmac_secret AES-256-GCM 加密（key 缺失时明文落库，
- *       与 Go GetAESKey()==nil 行为一致）→ Jackson 序列化 →
+ *   <li><b>写</b>：拷贝 → hmac_secret AES-256-GCM 加密（key 缺失时明文落库）→
+ *       Jackson 序列化 →
  *       {@code setObject(i, json, Types.OTHER)}。⚠️ PG jsonb 必须 setObject(OTHER)，
- *       setString 会被服务端拒绝（§9 波 2 基础设施三组第 1 条）。</li>
+ *       setString 会被服务端拒绝。</li>
  *   <li><b>读</b>：反序列化（未知键容忍在 {@link APIPrincipalConfig} 上）→
  *       hmac_secret 宽容解密——解密失败置空并视为未配置，行照常加载
- *       （对照 Go Scan 的 DecryptStoredSecretLenient 分支 + "[crypto] tenant
- *       api_principal_config.hmac_secret" 日志）。</li>
- *   <li><b>NULL 列</b>：读回 null（Go 的 *APIPrincipalConfig 为 nil 的语义）。</li>
+ *       （日志 "[crypto] tenant api_principal_config.hmac_secret"）。</li>
+ *   <li><b>NULL 列</b>：读回 null。</li>
  * </ul>
  */
 @MappedTypes(APIPrincipalConfig.class)

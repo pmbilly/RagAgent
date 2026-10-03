@@ -3,8 +3,7 @@ package com.ragagent.mcp.domain;
 import java.time.OffsetDateTime;
 
 /**
- * 快照的**列表卡片视图**：只带计数，不带工具 payload（对照 Go types.MCPMetadataSummary，
- * internal/types/mcp_metadata.go:42-50）。
+ * 快照的**列表卡片视图**：只带计数，不带工具 payload。
  *
  * 这是只读投影，不对应任何表；由 {@code McpMetadataMapper} 的汇总查询直接填充，
  * tool_count 由 SQL 侧的 jsonb_array_length 计算（**不把 tools 本体取出**）。

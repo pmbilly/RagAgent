@@ -42,7 +42,7 @@ import com.ragagent.common.graph.GraphNode;
 import com.ragagent.common.graph.NameSpace;
 
 /**
- * 分块图抽取服务测试（对照 Go {@code ChunkExtractService.Handle} 的四条出口：
+ * 分块图抽取服务测试（{@code ChunkExtractService.handle} 的四条出口：
  * supersede 跳过 / 知识中止跳过 / 配置闸门跳过 / 正常抽取写图）——依赖用假件，
  * LLM 用返回空图 JSON 的假客户端（编排验证不需要真模型）。
  */

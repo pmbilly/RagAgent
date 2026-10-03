@@ -15,10 +15,9 @@ import com.ragagent.auth.domain.Tenant;
 import com.ragagent.common.retrieval.SearchResult;
 
 /**
- * 把内部存储引用替换成客户端可直接加载的 HTTP URL
- * （对照 Go {@code internal/storageurl/storageurl.go}）。
+ * 把内部存储引用替换成客户端可直接加载的 HTTP URL。
  *
- * <h2>它在翻译什么</h2>
+ * <h2>它处理什么</h2>
  * <p>WeKnora 用两种内部引用形态持久化文件：稳定的 {@code resource://<handle>} 应用身份，
  * 以及历史/规范化的 provider 路径（{@code local://…}、{@code minio://…}、
  * {@code storage://<backend-id>/cos://…}）。两者浏览器与第三方应用都取不到，
@@ -46,23 +45,21 @@ public class Rewriter {
     private static final Logger log = LoggerFactory.getLogger(Rewriter.class);
 
     /**
-     * 匹配**所有**内部存储引用形态（对照 Go {@code types.StorageReferencePattern}，
-     * internal/types/file_reference.go:11-14）：{@code resource://} 手柄、
+     * 匹配**所有**内部存储引用形态：{@code resource://} 手柄、
      * 历史 {@code provider://} 路径、以及规范的 {@code storage://<backend-id>/provider://} 路径。
      *
      * <p>字符类在 Markdown/HTML 分隔符处停下，于是 {@code ![alt](…)} 或 {@code src="…"}
      * 里的引用能被匹配到而**不带**这些分隔符。匹配整段 token 也防止了路径/手柄前缀被误授权。</p>
      *
-     * <p>与 Go 的一处已知细微差异：Go 的 RE2 里 {@code \s} 是 {@code [\t\n\f\r ]}，
-     * Java 默认的 {@code \s} 还含 {@code \x0B}（垂直制表）。即一处引用里若真出现 {@code \x0B}
-     * 这种不可能出现在 URL 中的字节，两边会切在不同位置。未复刻。</p>
+     * <p>已知边界：Java 默认的 {@code \s} 含 {@code \x0B}（垂直制表）。引用里若真出现
+     * 这种不可能出现在 URL 中的字节，切分位置会偏——实际影响不存在，不为此收窄写法。</p>
      */
     public static final Pattern PATTERN = Pattern.compile(
             "\\b(?:resource://[0-9A-Za-z_-]+|(?:storage://[0-9A-Za-z_-]+/)?"
                     + "(?:local|minio|s3|cos|tos|oss|obs|ks3)://[^\\s)\\]>\"]+)");
 
     /**
-     * 对照 Go {@code IsHTTPURL}：只有 http(s) 是外部客户端能取的形态，
+     * 只有 http(s) 是外部客户端能取的形态，
      * 任何 provider scheme（{@code oss://}、{@code local://}…）都不是。
      * <b>scheme 大小写不敏感</b>（RFC 3986 §3.1）——后端可能输出运维配置的
      * 大写 scheme 主机（如 {@code OBS_PROXY_DOMAIN}）。
@@ -82,7 +79,7 @@ public class Rewriter {
     private final Map<String, String> memo = new HashMap<>();
 
     /**
-     * 对照 Go {@code NewRewriter(r, logPrefix)}。{@code logPrefix} 给日志行打上调用面标记
+     * {@code logPrefix} 给日志行打上调用面标记
      * （例如 {@code "IM"} / {@code "API"}）。{@code resolver} 为 {@code null} 时得到的是
      * <b>不改变内容</b>的 Rewriter（{@code Enabled()} 为 false）。
      */
@@ -91,13 +88,13 @@ public class Rewriter {
         this.logPrefix = logPrefix;
     }
 
-    /** 对照 Go {@code Rewriter.Enabled}。 */
+    /** resolver 为 null 即禁用。 */
     public boolean enabled() {
         return resolver != null;
     }
 
     /**
-     * 对照 Go {@code Rewriter.String}：把 content 里的每个存储引用换成 HTTP URL。
+     * 把 content 里的每个存储引用换成 HTTP URL。
      *
      * <p>已经是 HTTP 的、没有后端认领的、或解析结果不是 HTTP 的引用<b>原样保留</b>——
      * 调用方因此降级到认证过的文件代理，而不是发出一个取不到的 URL。</p>
@@ -116,7 +113,7 @@ public class Rewriter {
     }
 
     /**
-     * 对照 Go {@code Rewriter.Ref}：重写**本身就是一条存储引用**的值
+     * 重写**本身就是一条存储引用**的值
      * （而不是"含引用的散文"）——例如 {@code MessageImage.URL}。
      */
     public String rewriteRef(String ref) {
@@ -130,7 +127,7 @@ public class Rewriter {
     }
 
     /**
-     * 对照 Go {@code Rewriter.ref}：解析单条引用。
+     * 解析单条引用。
      *
      * <p>锁<b>横跨整个 resolve</b>——因为 Resolver 实现（尤其 {@link FileServiceResolver}）
      * 带着一份未同步的按 provider 缓存，而且这样能把并发重复请求合并成一次签名而不是两次。</p>
@@ -174,10 +171,10 @@ public class Rewriter {
         return httpUrl;
     }
 
-    // ── 建一个"按请求"的 Rewriter（对照 request.go 的 NewRequestRewriter） ──────
+    // ── 建一个"按请求"的 Rewriter ────────────────────────────────────────────
 
     /**
-     * 为一次 API 请求或一条响应流构造 Rewriter（对照 Go {@code NewRequestRewriter}）。
+     * 为一次 API 请求或一条响应流构造 Rewriter。
      *
      * <p>{@link Mode#HANDLE} 得到的是**禁用**的 Rewriter——默认路径因此不解析任何东西、
      * 也不写任何 access-grant 行。租户从请求上下文取，因为一条引用可能位于
@@ -196,11 +193,10 @@ public class Rewriter {
         return new Rewriter(new FileServiceResolver(tenant, defaultSvc, storageResolver), "API");
     }
 
-    // ── 整块到达、不需要扣留的流字段（对照 request.go 的 Copy*） ──────────────
+    // ── 整块到达、不需要扣留的流字段 ────────────────────────────────────────
 
     /**
-     * 返回检索结果的**重写副本**，覆盖 chunk 正文与结构化的 image_info
-     * （对照 Go {@code Rewriter.CopyReferences}）。
+     * 返回检索结果的**重写副本**，覆盖 chunk 正文与结构化的 image_info。
      *
      * <p>复制而不是就地改：SSE 的 references 载荷与流的重放缓冲、以及正在落库的助手消息
      * **共享同一批 {@code SearchResult} 指针**，就地改会把那两处一起弄坏。</p>
@@ -225,8 +221,7 @@ public class Rewriter {
     }
 
     /**
-     * 返回 SSE 元数据 map 的重写副本；其中没有存储引用时原样返回 {@code data}
-     * （对照 Go {@code Rewriter.CopyData}）。
+     * 返回 SSE 元数据 map 的重写副本；其中没有存储引用时原样返回 {@code data}。
      *
      * <p>agent 工具结果会把可渲染的 Markdown 放进这个 map，而它的形状由工具定义，
      * 所以**每个字符串叶子都要重写**。</p>
@@ -244,32 +239,28 @@ public class Rewriter {
         return out;
     }
 
-    /** 对照 Go {@code copyValue} 的 {@code (interface{}, bool)} 返回——值 + "改过没有"。 */
+    /** 递归返回：值 + "改过没有"。 */
     private record Converted(Object value, boolean changed) {
     }
 
     /**
-     * 递归进工具定义的元数据时的深度上限（对照 Go {@code maxDataDepth}）。
+     * 递归进工具定义的元数据时的深度上限。
      * 可渲染内容就在两三层之内；这个封顶只防病态嵌套的载荷。
      */
     private static final int MAX_DATA_DEPTH = 8;
 
     /**
-     * 对照 Go {@code Rewriter.copyValue}。
+     * 递归重写值。
      *
-     * <p><b>两个 Go 类型分支在 Java 里合并了</b>：Go 对 {@code types.References} 与
-     * {@code []*SearchResult} 分别有一支，返回时都强制 {@code changed = true}。
-     * Java 只有 {@code List<SearchResult>} 一种形态，靠元素类型判断。
-     * 元素不是 {@code SearchResult} 时走通用列表路径——对 {@code []string} /
-     * {@code []interface{}} 而言两者结果相同（都是逐个重写）。</p>
+     * <p><b>检索结果列表是一支特判</b>：{@code List<SearchResult>} 整体走
+     * {@link #copyReferences}，恒返回 {@code changed = true}（副本总归是新建的）；
+     * 其余列表/映射走通用路径，逐个重写。</p>
      *
-     * <p><b>⚠️ {@code changed} 必须按值判，不能按引用判</b>：Go 的
-     * {@code return out, out != typed} 对 {@code string} 是**值**比较，
-     * 而 Java 的 {@code rewrite()} 每次都会 {@code toString()} 出一个新对象——
+     * <p><b>⚠️ {@code changed} 必须按值判，不能按引用判</b>：
+     * Java 的 {@code rewrite()} 每次都会 {@code toString()} 出一个新对象——
      * 用 {@code converted != item} 会让每个没改动的字符串都算"改过"，
-     * 于是 {@code copyData} 永远返回副本，{@code TestCopyDataReturnsInputWhenNothingChanges}
-     * 那条"无变化就原样返回"的优化直接失效。故此处照抄 Go 的
-     * {@code (值, changed)} 二元返回：字符串按 {@code equals} 判，
+     * 于是 {@code copyData} 永远返回副本，"无变化就原样返回"的优化直接失效。
+     * 故用 {@code (值, changed)} 二元返回：字符串按 {@code equals} 判，
      * 容器用**子层递归出来的 changed**，不做深比较。</p>
      */
     private Converted copyValue(Object value, int depth) {
@@ -314,7 +305,7 @@ public class Rewriter {
     }
 
     /**
-     * Go 的类型开关里 {@code []*SearchResult} 是一支独立分支，Java 的泛型擦除后只能看元素。
+     * 泛型擦除后只能看元素类型判断。
      * 空列表按"不是检索结果"处理——两种走法在这个列表上产出的 JSON 完全一样（都是 {@code []}），
      * 区别只在 returned-reference 身份，不影响契约。
      */

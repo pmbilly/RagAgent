@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.knowledge.domain.Knowledge;
 
 /**
- * {@code SessionQaResolution} 的**mention/tag 收敛簇**（§14.9c 刀 10）：把请求里 @ 提及的知识库/知识范围与
+ * {@code SessionQaResolution} 的**mention/tag 收敛簇**：把请求里 @ 提及的知识库/知识范围与
  * tag 范围收敛到 agent 允许的范围内（不满足即裁剪/丢弃）。
  *
  * <p>公共类型 {@code SessionQaResolution.MentionScope} 留在门面（类型不能委托），簇内按类名引用；
@@ -35,8 +35,8 @@ final class QaMentionTagScope {
         if (hasExplicitMention) {
             log.info("Using request-specified targets: kbs={}, docs={}", kbIds, knowledgeIds);
             // 共享 agent（agent 属于另一租户）：@mention 必须收敛到 agent 的允许范围，
-            // 防止调用方注入范围外的 KB/知识 id（对照 Go L38-43）。
-            // ⚠️ Long 一律 equals（约定 §5 第 6 条：装箱比较，租户 10002 超出缓存区间恒不等）
+            // 防止调用方注入范围外的 KB/知识 id。
+            // ⚠️ Long 一律 equals（装箱比较：超出缓存区间的 id 用 == 恒不等）
             if (req.agentRow != null && req.session != null
                     && !java.util.Objects.equals(req.agentRow.getTenantId(),
                             req.session.getTenantId())) {
@@ -57,8 +57,7 @@ final class QaMentionTagScope {
             kbIds = kbScope.resolveKnowledgeBasesFromAgent(req.agentRow, req.agentConfig,
                     req.session.getTenantId());
         }
-        // API-Key KB 白名单（Go AuthorizeTenantAPIKeyKnowledgeTargets + Filter*）。
-        // 拒绝形态是 BizException（波 1 通道）。
+        // API-Key KB 白名单校验 + 过滤；拒绝形态是 BizException。
         com.ragagent.auth.apikey.domain.TenantAPIKeyScope.authorizeKnowledgeTargets(requestedKbIds, req.knowledgeIds);
         kbIds = com.ragagent.auth.apikey.domain.TenantAPIKeyScope.filterKnowledgeBases(requestedKbIds, kbIds);
         return new SessionKnowledgeQaService.KnowledgeResolution(kbIds, knowledgeIds);

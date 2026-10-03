@@ -17,15 +17,15 @@ import com.ragagent.retrieval.obs.RetrievalObs;
 import com.ragagent.common.prompt.MessageAttachmentsPrompt;
 
 /**
- * INTO_CHAT_MESSAGE 阶段插件（对照 Go chat_pipeline/into_chat_message.go）：
+ * INTO_CHAT_MESSAGE 阶段插件：
  * 检索结果 → 用户消息上下文。
  *
- * <h2>编排（实录组 into_chat ×7 钉住）</h2>
+ * <h2>编排</h2>
  * <ul>
  *   <li>FAQ 优先：faq 与文档分组；高分 FAQ（≥ FAQDirectAnswerThreshold）打
  *       {@code match="exact"} 标记；文档头 {@code <documents>} 列出每份知识
- *       （title/description/metadata 走 Go html.EscapeString 五字符转义）。</li>
- *   <li>查询经 utils.ValidateInput（InputSanitizer.validateInput）校验，非法 →
+ *       （title/description/metadata 做 HTML 五字符转义）。</li>
+ *   <li>查询经 InputSanitizer.validateInput 校验，非法 →
  *       TEMPLATE_EXECUTE + "user query contains invalid content"；非法改写回落原查询。</li>
  *   <li>无检索意图：模板渲染只注入 query/language（contexts 空）；图片描述仅在
  *       模型不支持视觉时以 "[用户上传图片内容]" 前缀追加；引用上下文与附件提示词随后。</li>
@@ -221,7 +221,7 @@ public final class PluginIntoChatMessage implements Plugin {
         return next.next();
     }
 
-    /** 对照 persistRenderedContent：UserContent ≠ Query 时异步回写用户消息。 */
+    /** UserContent ≠ Query 时异步回写用户消息。 */
     private void persistRenderedContent(ChatManage chatManage) {
         if (chatManage.getUserMessageId().isEmpty() || chatManage.getUserContent().isEmpty()) {
             Map<String, Object> f = new LinkedHashMap<>();
@@ -255,7 +255,7 @@ public final class PluginIntoChatMessage implements Plugin {
         });
     }
 
-    /** 对照 buildDocumentHeader：&lt;documents&gt; 元数据头（title/desc/metadata 转义）。 */
+    /** &lt;documents&gt; 元数据头（title/desc/metadata 转义）。 */
     public static String buildDocumentHeader(List<SearchResult> results) {
         record DocMeta(String title, String description, String metadata) {}
 
@@ -304,7 +304,7 @@ public final class PluginIntoChatMessage implements Plugin {
         return b.toString();
     }
 
-    /** Go html.EscapeString（五字符）。 */
+    /** HTML 五字符转义。 */
     private static String escapeHtml(String s) {
         return MessageAttachmentsPrompt.escapeHtml(s);
     }

@@ -27,26 +27,25 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 对照 Go TenantMemberService（internal/application/service/tenant_member.go）。
+ * 成员域的 service。
  *
- * <p>登录链消费的四个方法（阶段 1 起就有）：</p>
+ * <p>登录链消费的四个方法：</p>
  * <ul>
  *   <li>{@link #getMembership}：单条 active 成员查询（软删除过滤）</li>
  *   <li>{@link #listByUser}：按 joined_at 稳定排序</li>
  *   <li>{@link #hasAnyActiveMembers}：孤儿空间自愈判定</li>
- *   <li>{@link #addMember}：孤儿空间自愈写入（= Go EnsureOwner 的"不存在则建 Owner 行"分支）</li>
+ *   <li>{@link #addMember}：孤儿空间自愈写入（"不存在则建 Owner 行"分支）</li>
  * </ul>
  *
- * <p>HTTP 面新增（波 2 第六批，与 Go 的端点级方法一一对应）：
- * {@link #listMembersPage}（ListMembersPage）、{@link #addMemberChecked}（AddMember，
- * 含 API-Key 禁授 Owner 与审计）、{@link #updateRole}（UpdateRole + ErrLastOwner）、
- * {@link #removeMember}（RemoveMember + ErrLastOwner + 成员移除后的清理）。
+ * <p>HTTP 面方法（与端点一一对应）：
+ * {@link #listMembersPage}、{@link #addMemberChecked}
+ * （含 API-Key 禁授 Owner 与审计）、{@link #updateRole}（+ 最后 Owner 保护）、
+ * {@link #removeMember}（+ 最后 Owner 保护 + 成员移除后的清理）。
  * 哨兵错误以 {@link TenantRbacException} 承载，HTTP 形态由 controller 逐端点映射。</p>
  *
- * <p><b>已知简化</b>：Go 对"最后一位 Owner"的判定走 SELECT ... FOR UPDATE 的
- * 行级锁事务（DemoteOwnerAtomically/RemoveOwnerAtomically）以消除并发降级竞态；
- * Java 单实例语义下用"先数其他 active Owner 再写"的等价判定，无锁。
- * 并发双降级的极端窗口 Java 仍可能放过第二笔（Go 不会）——多实例部署需数据库层约束兜底。</p>
+ * <p><b>已知简化</b>：对"最后一位 Owner"的判定，
+ * 本实现用"先数其他 active Owner 再写"的等价判定（无行级锁）。
+ * 并发双降级的极端窗口仍可能放过第二笔——多实例部署需数据库层约束兜底。</p>
  */
 @Service
 public class TenantMemberService {
@@ -73,9 +72,9 @@ public class TenantMemberService {
         this.auditService = auditService;
     }
 
-    // ── 登录链（阶段 1 起既有） ───────────────────────────────────────────
+    // ── 登录链 ────────────────────────────────────────────────────────────
 
-    /** 对照 GetMembership：找不到返回 null（Go err != nil 语义由调用方统一处理） */
+    /** 单条成员查询：找不到返回 null */
     public TenantMember getMembership(String userId, long tenantId) {
         return memberMapper.selectOne(new LambdaQueryWrapper<TenantMember>()
                 .eq(TenantMember::getUserId, userId)
@@ -85,7 +84,7 @@ public class TenantMemberService {
                 .last("LIMIT 1"));
     }
 
-    /** 对照 ListByUser：按 joined_at, id 升序（稳定序） */
+    /** 用户的成员行列表：按 joined_at, id 升序（稳定序） */
     public List<TenantMember> listByUser(String userId) {
         return memberMapper.selectList(new LambdaQueryWrapper<TenantMember>()
                 .eq(TenantMember::getUserId, userId)
@@ -95,9 +94,9 @@ public class TenantMemberService {
     }
 
     /**
-     * 对照 EnsureOwner（service/tenant_member.go L211-249）：幂等——已有成员行
+     * 幂等建 Owner：已有成员行
      * 原样返回；否则插 owner/active 行。并发下唯一索引拒绝时重读胜出行
-     * （对照 isDuplicateMembership 分支：DuplicateKeyException → 重读）。
+     * （DuplicateKeyException → 重读）。
      * POST /tenants 的 owner 引导走这里。
      */
     public TenantMember ensureOwner(String userId, long tenantId) {
@@ -116,7 +115,7 @@ public class TenantMemberService {
         }
     }
 
-    /** 对照 HasAnyMembers：目标空间是否存在 active 成员（不含软删除行） */
+    /** 目标空间是否存在 active 成员（不含软删除行） */
     public boolean hasAnyActiveMembers(long tenantId) {
         Long count = memberMapper.selectCount(new LambdaQueryWrapper<TenantMember>()
                 .eq(TenantMember::getTenantId, tenantId)
@@ -126,8 +125,8 @@ public class TenantMemberService {
     }
 
     /**
-     * 对照 EnsureOwner（孤儿空间自愈走的正是它）：已存在则原样返回；
-     * 否则建 Owner 行。joined_at 语义为"成为成员的时间"。
+     * 插入成员行（孤儿空间自愈等内部路径用）：已存在则由唯一索引拒绝；
+     * joined_at 语义为"成为成员的时间"。
      */
     public TenantMember addMember(String userId, long tenantId, String role, String invitedBy) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -144,17 +143,17 @@ public class TenantMemberService {
         return m;
     }
 
-    // ── HTTP 面（波 2 第六批） ─────────────────────────────────────────────
+    // ── HTTP 面 ────────────────────────────────────────────────────────────
 
-    /** 分页结果（Go 的 (members, total, err) 三元） */
+    /** 分页结果（成员行 + 总数） */
     public record MemberPage(List<TenantMember> members, long total) {
     }
 
     /**
-     * 对照 ListMembersPage：trim query、page&lt;1→1、size&lt;1→20、size&gt;100→100，
-     * joined_at ASC, id ASC。q 非空时 INNER JOIN users（LOWER(email/username) LIKE）——
-     * Java 等价为"先查命中的用户 id，再按 user_id IN 过滤"；users 行缺失（悬挂成员）
-     * 在 q 非空时被排除（Go 的 INNER JOIN 语义），q 为空时全部计入。
+     * 成员分页：trim query、page&lt;1→1、size&lt;1→20、size&gt;100→100，
+     * joined_at ASC, id ASC。q 非空时按 LOWER(email/username) LIKE 命中的用户 id
+     * 做 user_id IN 过滤；users 行缺失（悬挂成员）
+     * 在 q 非空时被排除（join 语义），q 为空时全部计入。
      */
     public MemberPage listMembersPage(long tenantId, String query, int page, int pageSize) {
         String q = query == null ? "" : query.trim();
@@ -207,8 +206,8 @@ public class TenantMemberService {
     }
 
     /**
-     * 对照 AddMember（HTTP 路径）：role 校验、API-Key 禁授 Owner、
-     * 已存在冲突（ErrMembershipAlreadyExists）与审计（rbac.member_added）。
+     * 直加成员（HTTP 路径）：role 校验、API-Key 禁授 Owner、
+     * 已存在冲突与审计（rbac.member_added）。
      */
     public TenantMember addMemberChecked(String userId, long tenantId, TenantRole role, String invitedBy) {
         if (!role.isValid()) {
@@ -225,7 +224,7 @@ public class TenantMemberService {
     }
 
     /**
-     * 对照 rejectAPIKeyOwnerAssignment：manage_members 刻意不含所有权转移——
+     * API-Key 禁授 Owner：manage_members 刻意不含所有权转移——
      * 机器主体可管低角色，但绝不能铸造一个持久的 Owner。
      * 包内可见：邀请创建路径（Create/CreateShareLink）共用同一条边界。
      */
@@ -243,7 +242,7 @@ public class TenantMemberService {
     }
 
     /**
-     * 对照 UpdateRole：同角色 no-op（不审计）；Owner 降级走 ErrLastOwner 判定。
+     * 改角色：同角色 no-op（不审计）；Owner 降级走最后 Owner 判定。
      */
     public void updateRole(String userId, long tenantId, TenantRole newRole) {
         if (!newRole.isValid()) {
@@ -273,7 +272,7 @@ public class TenantMemberService {
     }
 
     /**
-     * 对照 RemoveMember：软删除 + ErrLastOwner + 移除后清理
+     * 移除成员：软删除 + 最后 Owner 保护 + 移除后清理
      * （清悬挂 home/偏好指针 + 吊销 token——都是尽力而为，绝不使移除失败）。
      */
     public void removeMember(String userId, long tenantId) {
@@ -290,7 +289,7 @@ public class TenantMemberService {
                 .isNull("deleted_at")
                 .set("deleted_at", OffsetDateTime.now(ZoneOffset.UTC)));
 
-        // 审计区分"自愿 leave"（caller == target）与"被移除"（对照 emitRemovalAudit）
+        // 审计区分"自愿 leave"（caller == target）与"被移除"
         String actor = TenantContext.currentUserId() == null ? "" : TenantContext.currentUserId();
         String action = !actor.isEmpty() && actor.equals(userId)
                 ? AuditAction.MEMBER_LEFT
@@ -299,7 +298,7 @@ public class TenantMemberService {
         cleanupRemovedMemberState(userId, tenantId);
     }
 
-    /** 对照 DemoteOwner/RemoveOwnerAtomically 的 ErrLastOwner 判定：是否存在**其他** active Owner */
+    /** 最后 Owner 判定：是否存在**其他** active Owner */
     private boolean hasOtherActiveOwner(String userId, long tenantId) {
         Long count = memberMapper.selectCount(new LambdaQueryWrapper<TenantMember>()
                 .eq(TenantMember::getTenantId, tenantId)
@@ -311,10 +310,9 @@ public class TenantMemberService {
     }
 
     /**
-     * 对照 cleanupRemovedMemberState：清 users.tenant_id / preferences.last_active_tenant_id
+     * 成员移除后的状态清理：清 users.tenant_id / preferences.last_active_tenant_id
      * 的悬挂指针并吊销该用户的全部 token。全部尽力而为——失败只记日志。
-     * <p><b>tenant_id 清空写 SQL NULL</b>（对照 Go UpdateUser 对 TenantID==0 的特判：
-     * Omit(tenant_id).Save + UpdateColumn(tenant_id, NULL)）——PG 的 fk_users_tenant
+     * <p><b>tenant_id 清空写 SQL NULL</b>——PG 的 fk_users_tenant
      * 不认 0，写 0 会静默失败成"只记 warn"的空转。</p>
      */
     private void cleanupRemovedMemberState(String userId, long tenantId) {
@@ -340,7 +338,7 @@ public class TenantMemberService {
                     userMapper.updateById(user);
                 }
                 if (tenantPointerChanged) {
-                    // 对照 Go UpdateColumn("tenant_id", NULL)：显式写 NULL，别写 0（FK 拒绝）
+                    // 显式写 NULL，别写 0（FK 拒绝）
                     userMapper.update(null, new UpdateWrapper<User>()
                             .eq("id", userId)
                             .set("tenant_id", null));
@@ -360,7 +358,7 @@ public class TenantMemberService {
         }
     }
 
-    /** 对照 emitAudit：best-effort（审计失败绝不拖垮业务操作） */
+    /** best-effort 审计（审计失败绝不拖垮业务操作） */
     private void emitAudit(long tenantId, String action, String targetUserId, ObjectNode details) {
         AuditLog entry = new AuditLog();
         entry.setTenantId(tenantId);
@@ -374,7 +372,7 @@ public class TenantMemberService {
         auditService.logBestEffort(entry);
     }
 
-    /** 对照 emitRoleChangeAudit：old_role/new_role 进 Details 供审计 UI 渲染 */
+    /** 角色变更审计：old_role/new_role 进 Details 供审计 UI 渲染 */
     private void emitRoleChangeAudit(long tenantId, String targetUserId, String oldRole, String newRole) {
         ObjectNode details = MAPPER.createObjectNode();
         details.put("old_role", oldRole);

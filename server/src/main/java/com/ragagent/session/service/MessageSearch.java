@@ -31,7 +31,7 @@ import com.ragagent.session.mapper.MessageRepository;
 
 
 /**
- * {@code MessageService} 的**聊天历史检索切片**（§14 步骤 2）：messages 表的关键词 / KB 向量 /
+ * {@code MessageService} 的**聊天历史检索切片**：messages 表的关键词 / KB 向量 /
  * 混合检索 + RRF 融合 + 会话归属过滤 + 补对 + 按 request_id 分组。
  *
  * <p>对外入口仍是门面的 {@code searchMessages} 两个重载（薄委托都指向这里），返回类型与
@@ -50,9 +50,9 @@ final class MessageSearch {
 
     private final MessageRepository messageRepository;
     private final TenantService tenantService;
-    /** 聊天历史 KB 的向量检索执行面（对照 Go kbService.HybridSearch 的 HybridSearch 段）。 */
+    /** 聊天历史 KB 的向量检索执行面。 */
     private final HybridSearchService hybridSearchService;
-    /** 对照 Go modelService.GetRerankModel（rerankResults 的重排模型工厂）。 */
+    /** rerankResults 的重排模型工厂。 */
     private final ModelRuntimeFactory modelRuntimeFactory;
 
     MessageSearch(MessageRepository messageRepository,
@@ -66,8 +66,8 @@ final class MessageSearch {
     }
 
     /**
-     * 搜索管线的**消息级**中间项（对照 Go {@code types.MessageSearchResultItem}）。
-     * Go 是 struct 嵌入；Java 用组合携带消息本体——role / request_id / created_at
+     * 搜索管线的**消息级**中间项。
+     * 用组合携带消息本体——role / request_id / created_at
      * 在补对与分组两步都要用，GroupItem 装不下这些。
      */
     private record SearchItem(MessageWithSession mws, double score, String matchType) {
@@ -91,16 +91,13 @@ final class MessageSearch {
     // ── 搜索 ────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code SearchMessages}（L531-617）。
-     *
-     * <p>搜索范围与列表同构：**按人裁剪**（owner scope），防止搜索框读到同事的私聊
-     * （Go 的注释原文，session.go 同款语义）。</p>
+     * <p>搜索范围与列表同构：**按人裁剪**（owner scope），防止搜索框读到同事的私聊。</p>
      *
      * <p>向量路径经聊天历史 KB 的 HybridSearch（见 {@link #vectorSearchViaKb}）：
-     * 未配置聊天历史 KB 时两侧一致恒跳过；mode=vector 时 KB 检索失败上抛（500），
+     * 未配置聊天历史 KB 时恒跳过；mode=vector 时 KB 检索失败上抛（500），
      * hybrid 时降级 keyword-only。</p>
      *
-     * @param query      已由 controller 做 SanitizeForLog（Go 在 handler 里做）
+     * @param query      已由 controller 做日志消毒
      * @param mode       keyword / vector / hybrid（空 → hybrid）
      * @param limit      ≤0 → 20
      * @param sessionIds 可选过滤
@@ -111,7 +108,7 @@ final class MessageSearch {
     }
 
     /**
-     * 显式 owner 的搜索变体（对照 Go {@code MessageSearchParams.OwnerID}——
+     * 显式 owner 的搜索变体（
      * search_conversations 工具在引擎装配期捕获 owner 后按入参传入，不读线程上下文）。
      */
     MessageSearchResult searchMessages(String query, String mode, int limit,
@@ -128,14 +125,14 @@ final class MessageSearch {
             limit = 20;
         }
 
-        // Step 1：关键词搜索（PG ILIKE；limit*3 照抄 Go）
+        // Step 1：关键词搜索（PG ILIKE；limit*3 扩样）
         List<MessageWithSession> keywordRows = List.of();
         if (MessageService.MODE_KEYWORD.equals(mode) || MessageService.MODE_HYBRID.equals(mode)) {
             keywordRows = messageRepository.searchMessagesByKeyword(
                     tenantId, ownerId, query, sessionIds, limit * 3);
         }
 
-        // Step 2：向量搜索（经聊天历史 KB；未配置 → 空，Go 的 nil, nil 分支）
+        // Step 2：向量搜索（经聊天历史 KB；未配置 → 空）
         List<SearchItem> vectorResults = List.of();
         if (MessageService.MODE_VECTOR.equals(mode) || MessageService.MODE_HYBRID.equals(mode)) {
             try {
@@ -182,14 +179,14 @@ final class MessageSearch {
         return result;
     }
 
-    // ── 搜索 · 向量路径（对照 Go vectorSearchViaKB / rerankResults / 两个配置读取） ────
+    // ── 搜索 · 向量路径 ────
 
     /**
-     * 对照 Go {@code getChatHistoryConfig}（message.go L344-356）：读租户的聊天历史
+     * 读租户的聊天历史
      * KB 配置，**三要素不全即视为未配置**（{@code IsConfigured} = Enabled +
-     * EmbeddingModelID + KnowledgeBaseID 逐字段对照）→ 返回 null，向量搜索恒空。
+     * EmbeddingModelID + KnowledgeBaseID 逐字段判定）→ 返回 null，向量搜索恒空。
      *
-     * <p>Go 从请求上下文取租户对象；Java 的 TenantContext 只带 id，按本类既有模式
+     * <p>TenantContext 只带 id，按本类既有模式
      * （{@link MessageService#getChatHistoryKbStats}）经 TenantService 重查同一行。</p>
      */
     ChatHistoryConfig getChatHistoryConfig() {
@@ -209,7 +206,7 @@ final class MessageSearch {
         cfg.setEnabled(node.path("enabled").asBoolean(false));
         cfg.setEmbeddingModelId(node.path("embedding_model_id").asText(""));
         cfg.setKnowledgeBaseId(node.path("knowledge_base_id").asText(""));
-        // 对照 Go ChatHistoryConfig.IsConfigured（chat_history_config.go L45-47）
+        // 三要素判定：enabled + embedding_model_id + knowledge_base_id
         if (cfg.isEnabled() && !cfg.getEmbeddingModelId().isEmpty()
                 && !cfg.getKnowledgeBaseId().isEmpty()) {
             return cfg;
@@ -218,7 +215,7 @@ final class MessageSearch {
     }
 
     /**
-     * 对照 Go {@code getRetrievalConfig}（message.go L358-368）：未配置 → 空配置
+     * 读租户的检索参数配置：未配置 → 空配置
      * （各有效值走 GetEffective* 的缺省）。
      */
     private RetrievalConfig getRetrievalConfig() {
@@ -241,20 +238,19 @@ final class MessageSearch {
     }
 
     /**
-     * 对照 Go {@code vectorSearchViaKB}（message.go L651-724）：聊天历史 KB 的
+     * 聊天历史 KB 的
      * **vector-only** 检索（关键词在 messages 表上单独做）→ 按 {@code knowledge_id}
-     * 映射回消息 → 按分排序。失败一律抛 RuntimeException（message 对照 Go 的
-     * {@code fmt.Errorf} 原文），由调用方按模式决定上抛还是降级。
+     * 映射回消息 → 按分排序。失败一律抛 RuntimeException，由调用方按模式决定上抛还是降级。
      */
     private List<SearchItem> vectorSearchViaKb(String query, List<String> sessionIds) {
         ChatHistoryConfig cfg = getChatHistoryConfig();
         if (cfg == null) {
-            return List.of(); // 聊天历史 KB 未配置，跳过向量搜索（Go: return nil, nil）
+            return List.of(); // 聊天历史 KB 未配置，跳过向量搜索
         }
 
         RetrievalConfig rc = getRetrievalConfig();
 
-        // vector-only 语义（Go 逐字段）：QueryText + MatchCount(=有效 EmbeddingTopK)
+        // vector-only 语义：QueryText + MatchCount(=有效 EmbeddingTopK)
         // + VectorThreshold + DisableKeywordsMatch=true
         SearchParams searchParams = new SearchParams();
         searchParams.setQueryText(query);
@@ -294,7 +290,7 @@ final class MessageSearch {
                     "failed to get messages by knowledge IDs: " + e.getMessage(), e);
         }
 
-        // SessionIDs 过滤（Go 的 sessionFilter map）
+        // SessionIDs 过滤
         Set<String> sessionFilter = sessionIds == null ? Set.of() : new HashSet<>(sessionIds);
 
         List<SearchItem> results = new ArrayList<>();
@@ -307,17 +303,16 @@ final class MessageSearch {
             results.add(new SearchItem(msg, score, "vector"));
         }
 
-        // 按分降序。Go 的 sort.Slice 不稳定；Java 用稳定排序（同分消息的相对顺序
-        // Go 自身也不确定，已知差异见类注释第 2 条）
+        // 按分降序。用稳定排序（同分消息的相对顺序保留 SQL 顺序）
         results.sort((a, b) -> Double.compare(b.score(), a.score()));
         return results;
     }
 
     /**
-     * 对照 Go {@code rerankResults}（message.go L728-773）：配置了 rerank 模型才重排；
-     * 取不到模型 / 调用失败都**原样返回**（Go 的 Warnf + return results）。
-     * 命中按 threshold 过滤、topK 截断，score 换成重排分——Go 是 struct 值拷贝，
-     * Java 用 {@link SearchResult#copy()}，同样不改原结果对象。
+     * 配置了 rerank 模型才重排；
+     * 取不到模型 / 调用失败都**原样返回**（warn + return results）。
+     * 命中按 threshold 过滤、topK 截断，score 换成重排分——
+     * 用 {@link SearchResult#copy()}，不改原结果对象。
      */
     private List<SearchResult> rerankResults(RetrievalConfig rc, String query,
             List<SearchResult> results) {
@@ -371,7 +366,7 @@ final class MessageSearch {
         return reranked;
     }
 
-    /** 对照 Go {@code GetEffectiveEmbeddingTopK}（≤0 → DefaultRetrievalTopK=50）。 */
+    /** 有效 EmbeddingTopK（≤0 → 缺省 50）。 */
     private static int effectiveEmbeddingTopK(RetrievalConfig rc) {
         if (rc == null || rc.getEmbeddingTopK() <= 0) {
             return 50;
@@ -379,7 +374,7 @@ final class MessageSearch {
         return rc.getEmbeddingTopK();
     }
 
-    /** 对照 Go {@code GetEffectiveVectorThreshold}（≤0 → 0.15）。 */
+    /** 有效 VectorThreshold（≤0 → 0.15）。 */
     private static double effectiveVectorThreshold(RetrievalConfig rc) {
         if (rc == null || rc.getVectorThreshold() <= 0) {
             return 0.15;
@@ -387,7 +382,7 @@ final class MessageSearch {
         return rc.getVectorThreshold();
     }
 
-    /** 对照 Go {@code GetEffectiveRerankTopK}（≤0 → 10）。 */
+    /** 有效 RerankTopK（≤0 → 10）。 */
     private static int effectiveRerankTopK(RetrievalConfig rc) {
         if (rc == null || rc.getRerankTopK() <= 0) {
             return 10;
@@ -396,8 +391,8 @@ final class MessageSearch {
     }
 
     /**
-     * 对照 Go {@code GetEffectiveRerankThreshold}：**只有 rc==nil 才回 0.2**——
-     * 显式配置 0 是合法值（不设 {@code <= 0} 缺省，别顺手"修好"）。
+     * 有效 RerankThreshold：**只有 rc==null 才回 0.2**——
+     * 显式配置 0 是合法值（不走 {@code <= 0} 缺省，别顺手"修好"）。
      */
     private static double effectiveRerankThreshold(RetrievalConfig rc) {
         if (rc == null) {
@@ -414,7 +409,7 @@ final class MessageSearch {
         return items;
     }
 
-    /** 对照 Go {@code convertKeywordResults}（L776-786）：分值 = (n-i)/n，matchType=keyword。 */
+    /** 关键词路径的线性分值：分值 = (n-i)/n，matchType=keyword。 */
     private static List<SearchItem> convertKeywordResults(List<MessageWithSession> results) {
         List<SearchItem> items = new ArrayList<>(results.size());
         int n = results.size();
@@ -425,10 +420,10 @@ final class MessageSearch {
     }
 
     /**
-     * 对照 Go {@code rrfMerge}（L789-843）：Reciprocal Rank Fusion。
+     * Reciprocal Rank Fusion。
      * 同一条消息两路都命中 → 分数累加、matchType 升级为 hybrid；
      * 排序按融合分降序。keyword 侧的初始 matchType 是 "keyword"、
-     * 向量侧是 "vector"（Go 同款，见 {@code accumulate} 的 singleMatchType）。
+     * 向量侧是 "vector"（见 {@code accumulate} 的 singleMatchType）。
      */
     private static List<SearchItem> rrfMerge(List<SearchItem> keywordResults,
             List<SearchItem> vectorResults) {
@@ -468,7 +463,7 @@ final class MessageSearch {
         }
     }
 
-    /** 对照 Go {@code restrictToOwnedSessions}（L620-649）。 */
+    /** 按会话归属过滤（owner 范围内的会话才保留）。 */
     private List<SearchItem> restrictToOwnedSessions(long tenantId, String ownerId,
             List<SearchItem> items) {
         if (ownerId == null || ownerId.isEmpty() || items.isEmpty()) {
@@ -496,7 +491,7 @@ final class MessageSearch {
     }
 
     /**
-     * 对照 Go {@code fetchPartnerMessages}（L848-906）：对每个 request_id 检查
+     * 对每个 request_id 检查
      * 是否已同时有 user 与 assistant 两侧，缺侧的从库里补另一条（score=0、
      * matchType 空串——"非直接命中"）。
      */
@@ -545,8 +540,8 @@ final class MessageSearch {
     }
 
     /**
-     * 对照 Go {@code groupByRequestID}（L910-978）：按 request_id 合并成 Q&amp;A 对；
-     * 无 request_id 的消息按**消息 id** 独立成组（Go 的 {@code key = item.ID} 分支）；
+     * 按 request_id 合并成 Q&amp;A 对；
+     * 无 request_id 的消息按**消息 id** 独立成组；
      * 组间保持首次出现序（分数排名即展示序）。
      */
     private static List<MessageSearchGroupItem> groupByRequestID(List<SearchItem> items) {
@@ -576,8 +571,8 @@ final class MessageSearch {
             if (item.score() > g.getScore()) {
                 g.setScore(item.score());
             }
-            // ⚠️ Go 的 merge 分支不排除空串：partner 补对的 matchType 是 ""，
-            // 与已有的 "keyword" 不同 → 直接升 "hybrid"（golden 实测，search 的
+            // ⚠️ merge 分支不排除空串：partner 补对的 matchType 是 ""，
+            // 与已有的 "keyword" 不同 → 直接升 "hybrid"（search 的
             // match_type 全是 hybrid 就是这么来的）。
             if (g.getMatchType() == null || g.getMatchType().isEmpty()) {
                 g.setMatchType(item.matchType());

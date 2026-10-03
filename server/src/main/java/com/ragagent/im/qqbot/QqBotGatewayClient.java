@@ -20,9 +20,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.im.runtime.IncomingMessage;
 
 /**
- * QQ 机器人网关长连接（对照 Go {@code internal/im/qqbot/longconn.go} L18-199）。
+ * QQ 机器人网关长连接。
  *
- * <p>握手照 Go：连上收 {@code op=10 hello}（{@code heartbeat_interval} 缺省 45000ms）→
+ * <p>握手：连上收 {@code op=10 hello}（{@code heartbeat_interval} 缺省 45000ms）→
  * 发 {@code op=2 identify}（{@code token: "QQBot <token>"}、
  * {@code intents: 1<<25}、{@code shard: [0,1]}）→ 心跳线程按间隔发
  * {@code op=1}（{@code d} 为最近一次 {@code s}，无则 null）；{@code op=0 dispatch}
@@ -63,7 +63,7 @@ public class QqBotGatewayClient {
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
     }
 
-    /** 对照 {@code reconnectDelay}：attempt 秒、上限 30 秒。 */
+    /** attempt 秒、上限 30 秒。 */
     static long reconnectDelayMs(int attempt) {
         if (attempt <= 0) {
             return 1000;
@@ -71,7 +71,7 @@ public class QqBotGatewayClient {
         return Math.min(attempt * 1000L, MAX_RECONNECT_DELAY_MS);
     }
 
-    /** 对照 {@code Stop}：置关闭标记并断开。 */
+    /** 置关闭标记并断开。 */
     public void stop() {
         closed = true;
         Thread hb = heartbeatThread;
@@ -88,7 +88,7 @@ public class QqBotGatewayClient {
         }
     }
 
-    /** 阻塞重连循环（对照 {@code Start}）；由工厂放进守护线程跑。 */
+    /** 阻塞重连循环；由工厂放进守护线程跑。 */
     public void start() {
         log.info("[IM] QQBot WebSocket connecting...");
         int attempt = 0;
@@ -130,7 +130,7 @@ public class QqBotGatewayClient {
         }
     }
 
-    /** 处理一帧（对照 {@code connectAndRun} 的读循环）。 */
+    /** 处理一帧。 */
     private void handleFrame(String raw, WebSocket ws) throws Exception {
         JsonNode payload = MAPPER.readTree(raw);
         if (payload.hasNonNull("s")) {
@@ -156,11 +156,11 @@ public class QqBotGatewayClient {
                 throw new IllegalStateException("gateway requested reconnect op=" + op);
             case OP_HEARTBEAT_ACK:
             default:
-                // 心跳回执与未知 op：忽略（照 Go 的空分支）
+                // 心跳回执与未知 op：忽略
         }
     }
 
-    /** 对照 {@code handleHello}：identify + 起心跳线程。 */
+    /** identify + 起心跳线程。 */
     private void handleHello(JsonNode data, WebSocket ws) throws Exception {
         int interval = data.path("heartbeat_interval").asInt(0);
         if (interval <= 0) {
@@ -185,7 +185,7 @@ public class QqBotGatewayClient {
         thread.start();
     }
 
-    /** 对照 {@code heartbeatLoop}：按间隔发 {@code op=1}，发送失败即退出。 */
+    /** 按间隔发 {@code op=1}，发送失败即退出。 */
     private void heartbeatLoop(int intervalMs, WebSocket ws) {
         while (!closed) {
             if (!sleep(intervalMs)) {
@@ -194,10 +194,10 @@ public class QqBotGatewayClient {
             try {
                 Map<String, Object> frame = new LinkedHashMap<>();
                 frame.put("op", OP_HEARTBEAT);
-                frame.put("d", seq); // 最近一次 s；无则 null（照 Go 的 *int64）
+                frame.put("d", seq); // 最近一次 s；无则 null
                 ws.sendText(MAPPER.writeValueAsString(frame), true).join();
             } catch (Exception e) {
-                // 序列化失败或连接已断：心跳线程退出（照 Go 的 err != nil → return）
+                // 序列化失败或连接已断：心跳线程退出
                 return;
             }
         }

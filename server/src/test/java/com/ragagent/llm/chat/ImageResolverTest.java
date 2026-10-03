@@ -23,13 +23,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * 对照 Go internal/models/chat/ollama_test.go
- * （TestResolveImageForOllamaRejectsInternalURL / TestResolveImageForOllamaBlocksRedirectToInternalURL）
- * 与 image_resolve.go 的各分支。
+ * {@code ImageResolver} 各分支的测试（内部 URL 拒绝 / 重定向目标复检等）。
  *
- * <p>与 Go 测试的对应差异：Go 用 {@code t.Setenv("SSRF_WHITELIST", ...)} + 包级重置；
- * Java 侧改用等价的 {@link SsrfGuard#reloadWhitelist(String)}（对照 Go 的
- * SetSSRFWhitelistFromRaw 运行时调谐路径），并把它注入 {@link LlmTransport}。</p>
+ * <p>白名单经 {@link SsrfGuard#reloadWhitelist(String)}（运行时调谐路径）注入，
+ * 并把它注入 {@link LlmTransport}。</p>
  */
 class ImageResolverTest {
 
@@ -55,7 +52,6 @@ class ImageResolverTest {
     }
 
     /**
-     * 对照 Go TestResolveImageForOllamaRejectsInternalURL：
      * 云元数据地址在 SSRF 校验阶段就被拒，连请求都不会发出去。
      */
     @Test
@@ -68,7 +64,6 @@ class ImageResolverTest {
     }
 
     /**
-     * 对照 Go TestResolveImageForOllamaBlocksRedirectToInternalURL：
      * 起始 URL 在白名单里（放行），但重定向目标必须重新过 SSRF 校验。
      */
     @Test
@@ -114,7 +109,7 @@ class ImageResolverTest {
         }
     }
 
-    /** data: URI 与 http(s) 的行为分叉（对照 Go resolveImageURLForOllama / resolveImageURLForLLM）。 */
+    /** data: URI 与 http(s) 的行为分叉（resolveImageUrlForOllama / resolveImageUrlForLlm）。 */
     @Test
     void dataAndHttpBranches() {
         String base64 = Base64.getEncoder().encodeToString(PNG_BYTES);
@@ -146,13 +141,13 @@ class ImageResolverTest {
         assertTrue(ImageResolver.isApplicationStoredImage("storage://x"));
         assertFalse(ImageResolver.isApplicationStoredImage("https://x"));
 
-        // 解析器给不出数据 + 磁盘上没有该文件 → 原样返回（对照 Go）
+        // 解析器给不出数据 + 磁盘上没有该文件 → 原样返回
         String missing = "local://" + UUID.randomUUID() + "/missing.png";
         assertEquals(missing, ImageResolver.resolveImageUrlForLlm(missing));
         assertNull(ImageResolver.readLocalStorageBytes(missing));
     }
 
-    /** 对照 Go isMultimodalNotSupportedError 的与/或条件。 */
+    /** isMultimodalNotSupportedMessage / isMultimodalNotSupportedError 的与/或条件。 */
     @Test
     void multimodalNotSupportedDetection() {
         assertFalse(ImageResolver.isMultimodalNotSupportedMessage(null));
@@ -168,7 +163,7 @@ class ImageResolverTest {
                 new RuntimeException("model does not support vision")));
     }
 
-    /** 对照 Go stripImagesFromMessages：返回副本，原消息不受影响。 */
+    /** stripImagesFromMessages：返回副本，原消息不受影响。 */
     @Test
     void stripImagesFromMessagesCopiesAndClears() {
         ChatMessage user = ChatMessage.user("看图");
@@ -184,11 +179,11 @@ class ImageResolverTest {
         assertEquals("r", cleaned.get(0).getReasoningContent());
         assertEquals("call-1", cleaned.get(1).getToolCallId());
         assertEquals("search", cleaned.get(1).getName());
-        // 原消息仍然带着图片（Go 是结构体值拷贝）
+        // 原消息仍然带着图片（返回的是副本，入参不被改写）
         assertEquals(1, user.getImages().size());
     }
 
-    /** 对照 Go http.DetectContentType 的图片/文本/兜底分支。 */
+    /** detectContentType 的图片/文本/兜底分支。 */
     @Test
     void detectContentType() {
         assertEquals("image/png", ImageResolver.detectContentType(PNG_BYTES));
@@ -203,7 +198,7 @@ class ImageResolverTest {
         assertEquals("text/plain; charset=utf-8", ImageResolver.detectContentType("hello world".getBytes(StandardCharsets.UTF_8)));
         // 含二进制控制字符 → 不是文本 → 兜底 octet-stream
         assertEquals("application/octet-stream", ImageResolver.detectContentType(new byte[]{0x00, 0x01, 0x02, 0x03}));
-        // 空数据在 Go 里由 textSig 兜住（实测 Go 行为不是 octet-stream）
+        // 空数据由 textSig 兜住（不是 octet-stream）
         assertEquals("text/plain; charset=utf-8", ImageResolver.detectContentType(new byte[0]));
         // 最多只看前 512 字节：图片头之后的内容不影响判定
         byte[] big = new byte[1024];

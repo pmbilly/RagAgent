@@ -3,11 +3,10 @@ package com.ragagent.storage.domain;
 import java.time.OffsetDateTime;
 
 /**
- * 资源注册表行（对照 Go {@code types.StoredResource}，internal/types/resource.go）。
- * TableName 是 {@code "resources"}（§9 波 2 第五批的陷阱，别照 struct 名造影子表）。
+ * 资源注册表行，表名 {@code "resources"}（勿按类名推断成别的表名）。
  *
- * <p>本载体只服务 W5c 文件代理面的<b>读路径</b>（ResolvePath / ResolveAccessGrant /
- * 引用绑定查询）；Register/Bind 写路径随 chat/知识库写入链（波 5）回补。</p>
+ * <p>本载体服务文件代理面的<b>读路径</b>（ResolvePath / ResolveAccessGrant /
+ * 引用绑定查询）；Register/Bind 写路径见 {@code ResourceCatalogService}。</p>
  */
 public class StoredResource {
 
@@ -30,7 +29,6 @@ public class StoredResource {
     private OffsetDateTime updatedAt;
     private OffsetDateTime deletedAt;
 
-    /** 对照 Go {@code ResourceStateActive}。 */
     public static final String STATE_ACTIVE = "active";
     public static final String STATE_DELETED = "deleted";
     public static final String LIFECYCLE_PERSISTENT = "persistent";

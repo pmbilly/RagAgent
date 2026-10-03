@@ -28,7 +28,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 /**
- * S3 协议族后端（<b>s3 / minio / obs / ks3</b>）——一次实现覆盖 Go 的四条路线：
+ * S3 协议族后端（<b>s3 / minio / obs / ks3</b>），一次实现覆盖四条 provider 路线：
  *
  * <table border="1">
  *   <tr><th>provider</th><th>Go 实现</th><th>本类</th></tr>
@@ -45,7 +45,7 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
  *       细节与 minio-go 略有差别，功能等价</td></tr>
  * </table>
  *
- * <p>其余语义逐条照 {@code s3.go}：对象名
+ * <p>其余语义：对象名
  * {@code {pathPrefix}{tenantId}/{knowledgeId}/{uuid}{ext}}（SaveBytes 走
  * {@code {pathPrefix}{tenantId}/exports/{uuid}{ext}}）、路径形态
  * {@code {scheme}{bucket}/{key}}、bucket 不匹配拒绝、{@code SafeObjectKey} 校验、
@@ -55,15 +55,15 @@ public class S3CompatibleFileService implements SeekableFileService {
 
     private static final Logger log = LoggerFactory.getLogger(S3CompatibleFileService.class);
 
-    /** 预签名有效期（对照 Go：{@code WithPresignExpires(24*time.Hour)}）。 */
+    /** 预签名有效期：24h。 */
     static final Duration PRESIGN_EXPIRY = Duration.ofHours(24);
 
-    /** 构造参数（provider 名决定 scheme；其余照 Go 的各构造函数入参）。 */
+    /** 构造参数（provider 名决定 scheme）。 */
     public record Config(String provider, String endpoint, String accessKey, String secretKey,
                          String bucketName, String region, String pathPrefix,
                          boolean forcePathStyle) {
 
-        /** 校验 AK/SK 必须成对（照 Go 的 "must be provided together"）。 */
+        /** 校验 AK/SK 必须成对。 */
         public Config {
             provider = provider == null ? "" : provider.trim().toLowerCase();
             endpoint = endpoint == null ? "" : endpoint.trim();
@@ -91,7 +91,7 @@ public class S3CompatibleFileService implements SeekableFileService {
         }
         this.scheme = cfg.provider() + "://";
         this.bucketName = cfg.bucketName();
-        // 对照 Go：非空 pathPrefix 补尾斜杠
+        // 非空 pathPrefix 补尾斜杠
         this.pathPrefix = !cfg.pathPrefix().isEmpty() && !cfg.pathPrefix().endsWith("/")
                 ? cfg.pathPrefix() + "/" : cfg.pathPrefix();
         this.client = buildClient(cfg);
@@ -111,7 +111,7 @@ public class S3CompatibleFileService implements SeekableFileService {
         if (!cfg.endpoint().isEmpty()) {
             builder.endpointOverride(URI.create(cfg.endpoint()));
             if (!cfg.endpoint().contains("amazonaws.com")) {
-                // 对照 Go：S3 兼容服务常拒绝 SDK 的默认尾校验和协商
+                // S3 兼容服务常拒绝 SDK 的默认尾校验和协商
                 builder.requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
             }
         }
@@ -134,7 +134,7 @@ public class S3CompatibleFileService implements SeekableFileService {
         return builder.build();
     }
 
-    /** 对照 Go：{@code forcePathStyle || !endpoint.contains("amazonaws.com")}（无端点 → 非 path-style）。 */
+    /** path-style 判定：{@code forcePathStyle || !endpoint.contains("amazonaws.com")}；无端点 → 用配置值。 */
     static boolean resolvePathStyle(Config cfg) {
         if (cfg.endpoint().isEmpty()) {
             return cfg.forcePathStyle();
@@ -144,7 +144,7 @@ public class S3CompatibleFileService implements SeekableFileService {
 
     @Override
     public void checkConnectivity() {
-        // 对照 Go：10 秒超时；bucket 已配 → 只探测它；未配 → ListBuckets
+        // 10 秒超时；bucket 已配 → 只探测它；未配 → ListBuckets
         if (!bucketName.isEmpty()) {
             if (!bucketExists()) {
                 throw new IllegalStateException("bucket \"" + bucketName + "\" does not exist");
@@ -154,7 +154,7 @@ public class S3CompatibleFileService implements SeekableFileService {
         client.listBuckets();
     }
 
-    /** 对照 Go {@code bucketExists}：HeadBucket，NotFound → false。 */
+    /** HeadBucket 探测，NotFound → false。 */
     public boolean bucketExists() {
         try {
             client.headBucket(HeadBucketRequest.builder().bucket(bucketName).build());
@@ -169,7 +169,7 @@ public class S3CompatibleFileService implements SeekableFileService {
         }
     }
 
-    /** 对照 Go {@code createBucket}。 */
+    /** 创建桶。 */
     public void createBucket() {
         client.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
     }
@@ -179,7 +179,7 @@ public class S3CompatibleFileService implements SeekableFileService {
         String ext = StorageObjects.extensionOf(file.fileName());
         String objectName = pathPrefix + tenantId + "/" + knowledgeId + "/"
                 + UUID.randomUUID() + ext;
-        // 对照 Go：优先用上传头里的 Content-Type，缺省才按扩展名推断
+        // 优先用上传头里的 Content-Type，缺省才按扩展名推断
         String contentType = file.contentType().isEmpty()
                 ? StorageObjects.contentTypeByExt(ext) : file.contentType();
         try (InputStream in = file.opener().get()) {
@@ -239,8 +239,8 @@ public class S3CompatibleFileService implements SeekableFileService {
     }
 
     /**
-     * 可随机读的字节源：{@code size} 用 HeadObject（相当于 Go 的
-     * {@code Seek(0, io.SeekEnd)}），{@code open(offset)} 用带 Range 的 GetObject
+     * 可随机读的字节源：{@code size} 用 HeadObject 取总长，
+     * {@code open(offset)} 用带 Range 的 GetObject
      * （走 HTTP Range，**不缓冲整个对象**）。
      */
     @Override
@@ -329,7 +329,7 @@ public class S3CompatibleFileService implements SeekableFileService {
     }
 
     /**
-     * 对照 Go {@code parseS3FilePath}：必须 {@code {scheme}{bucket}/{key}}、
+     * 路径必须是 {@code {scheme}{bucket}/{key}}、
      * bucket 与本服务一致、key 过 {@code SafeObjectKey}。
      */
     String parseFilePath(String filePath) {
@@ -352,7 +352,7 @@ public class S3CompatibleFileService implements SeekableFileService {
         return key;
     }
 
-    /** 对照 Go 的 {@code utils.SafeFileName}（取 basename；见 {@link StorageObjects#safeFileName}）。 */
+    /** 取 basename 的安全文件名；见 {@link StorageObjects#safeFileName}。 */
     static String safeFileNameOrThrow(String fileName) {
         return StorageObjects.safeFileName(fileName);
     }

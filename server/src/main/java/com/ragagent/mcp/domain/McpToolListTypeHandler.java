@@ -12,16 +12,13 @@ import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
 
 /**
- * mcp_metadata.tools（jsonb）的 TypeHandler（对照 Go
- * `Tools []*MCPTool \`gorm:"serializer:json;type:jsonb;not null"\``）。
+ * mcp_metadata.tools（jsonb，NOT NULL）的 TypeHandler。
  *
  * <p>为什么不用通用 {@link com.ragagent.common.web.PgJsonTypeHandler}：
  * {@code List<McpTool>} 走泛型会退化成 {@code List<LinkedHashMap>}，元素类型丢失。</p>
  *
- * <p>⚠️ 跨语言字节契约：Go 侧字段 tag 是 {@code require_approval}（snake_case），
- * 而 {@link McpTool} 是 Java 属性名的驼峰 {@code requireApproval}。
- * 用 Jackson MixIn 覆盖属性名，**不修改既有 McpTool 类**，保证 Go 写入的行 Java 读得回、
- * 反之亦然。</p>
+ * <p>⚠️ 落库键名＝{@link McpTool} 的 Java 属性名（{@code requireApproval} 驼峰）。
+ * 存量的 {@code require_approval} 下划线行已按 SQL 迁移改写。</p>
  *
  * 刻意不加 {@code @MappedTypes(List.class)}：全局注册会污染所有 List 列。
  */
@@ -32,9 +29,6 @@ public class McpToolListTypeHandler extends BaseTypeHandler<List<McpTool>> {
                     false);
 
     private static final TypeReference<List<McpTool>> TYPE = new TypeReference<>() {};
-
-    // §14.9n M1：McpTool.requireApproval 的字段名就是落库键名，原来的
-    // require_approval 别名 mixin 已退役（存量的下划线行按 HANDOFF 的 SQL 迁移）。
 
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, List<McpTool> parameter, JdbcType jdbcType)

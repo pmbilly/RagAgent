@@ -10,9 +10,7 @@ import com.ragagent.datasource.connector.feishu.core.DocxFetcher;
 import com.ragagent.datasource.connector.feishu.core.FeishuTestServer;
 
 /**
- * wiki 连接器测试的飞书 API 桩夹具（对照 Go {@code wiki/connector_test.go} 里的
- * {@code fakeFeishu} / {@code fakeFeishuHierarchy} / {@code fakeFeishuWithBlocks} /
- * {@code fakeFeishuGolden} 四个工厂）。
+ * wiki 连接器测试的飞书 API 桩夹具（层级节点、块 JSON、导出任务等路由）。
  *
  * <p>用<b>手写 JSON</b> 而不是序列化 Java 对象：桩要"诚实地"还原飞书的线上形状
  * （含 {@code has_more} / {@code page_token} / 嵌套 data），序列化本地 DTO 会让
@@ -235,9 +233,8 @@ final class WikiFixtures {
      *
      * <p><b>关键</b>：docx 把块的文本存在<b>与类型同名</b>的字段里
      * （bullet 块 → {@code "bullet"}，code 块 → {@code "code"}），
-     * 所以这里按 block_type 选字段名——照抄 Go 测试里
-     * {@code DocxBlock{Bullet: txt(...)}} 的形状。写死 {@code "text"} 会让
-     * bullet/quote/todo 的文本被解析器忽略（{@code textBearingField} 取不到）。</p>
+     * 所以这里按 block_type 选字段名。写死 {@code "text"} 会让
+     * bullet/quote/todo 的文本被解析器忽略（{@code textFieldName} 取不到）。</p>
      */
     static String textBlockJson(String blockId, int blockType, String content) {
         String field = textFieldName(blockType);
@@ -247,7 +244,7 @@ final class WikiFixtures {
                 + FeishuTestServer.jsonString(content) + "}}]}}";
     }
 
-    /** 对照 Go {@code textBearingField} 的字段选择。 */
+    /** 块的文本承载字段名（与类型同名）。 */
     static String textFieldName(int blockType) {
         return switch (blockType) {
             case 12 -> "bullet";
@@ -343,7 +340,7 @@ final class WikiFixtures {
     }
 
     /**
-     * 切换 docx 解析模式（对照 Go 的 {@code t.Setenv("FEISHU_DOCX_PARSE_MODE", ...)}）。
+     * 切换 docx 解析模式（设 {@code FEISHU_DOCX_PARSE_MODE} 的等效开关）。
      * 调用方负责在 {@code @AfterEach} 里 {@link #resetParseMode()}。
      */
     static void useBlocksParseMode() {

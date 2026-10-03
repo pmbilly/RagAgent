@@ -31,11 +31,9 @@ import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.im.runtime.IncomingMessage;
 
 /**
- * 钉钉 Stream 模式长连接（对照 Go {@code internal/im/dingtalk/longconn.go} 及其背后的
- * {@code open-dingtalk/dingtalk-stream-sdk-go} 协议，逐字描自 SDK 源码
- * {@code client/client.go} + {@code payload/{connection,data_frame,utils}.go}）。
+ * 钉钉 Stream 模式长连接（协议对齐官方 dingtalk-stream-sdk-go）。
  *
- * <h2>协议（照 Go SDK）</h2>
+ * <h2>协议（钉钉 Stream SDK）</h2>
  * <ol>
  *   <li><b>取接入点</b>：{@code POST /v1.0/gateway/connections/open}
  *       {@code {clientId, clientSecret, subscriptions:[{type,topic}], ua, localIp, extras}}
@@ -46,20 +44,19 @@ import com.ragagent.im.runtime.IncomingMessage;
  *       {@code CALLBACK//v1.0/im/bot/messages/get}（机器人消息，{@code data} 直接是回调 JSON）；</li>
  *   <li><b>回执</b>：{@code {code, headers:{contentType:"application/json", messageId},
  *       message, data}}——普通成功 200；ping 回 {@code 200 + message "ok" + data 原样回显}；
- *       无处理器/未知 topic 404；处理器异常 500；<b>disconnect 先回执再关连接</b>（照 SDK 注释）；</li>
- *   <li><b>心跳</b>：每 120s 发 <b>WS 控制帧 ping</b>，5s 内无 pong 即关连接（照 SDK 的
- *       {@code keepAliveIdle} + {@code pingWait}）；</li>
- *   <li><b>分流</b>：SYSTEM 帧在消费线程上同步处理（照 SDK：控制帧不被慢处理器饿死），
+ *       无处理器/未知 topic 404；处理器异常 500；<b>disconnect 先回执再关连接</b>；</li>
+ *   <li><b>心跳</b>：每 120s 发 <b>WS 控制帧 ping</b>，5s 内无 pong 即关连接；</li>
+ *   <li><b>分流</b>：SYSTEM 帧在消费线程上同步处理（控制帧不被慢处理器饿死），
  *       CALLBACK 帧交工作池。</li>
  * </ol>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现差异（备案）</h2>
  * <ul>
- *   <li>Go SDK 的 {@code handlerSlots} 容量上限换成固定大小工作池（语义等价：回调并发受限、
+ *   <li>回调并发用固定大小工作池限制（语义等价：回调并发受限、
  *       控制帧优先）；</li>
- *   <li>接入点返回的 WS 地址做 wss + SSRF 校验（Go SDK 不校验；本仓长连接一贯校验，
- *       与 qqbot 网关/wеcom 长连接同规）；</li>
- *   <li>重连退避由本类承担（Go 交给 SDK 内部循环）。</li>
+ *   <li>接入点返回的 WS 地址做 wss + SSRF 校验（SDK 本身不校验；本仓长连接一贯校验，
+ *       与 qqbot 网关/wecom 长连接同规）；</li>
+ *   <li>重连退避由本类承担（SDK 内部循环不含）。</li>
  * </ul>
  */
 public class DingtalkStreamClient {
@@ -67,7 +64,7 @@ public class DingtalkStreamClient {
     private static final Logger log = LoggerFactory.getLogger(DingtalkStreamClient.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 机器人消息统一回调 topic（照 SDK）。 */
+    /** 机器人消息统一回调 topic。 */
     public static final String BOT_MESSAGE_TOPIC = "/v1.0/im/bot/messages/get";
     public static final String DEFAULT_OPEN_API_HOST = "https://api.dingtalk.com";
     public static final String ENDPOINT_PATH = "/v1.0/gateway/connections/open";
@@ -85,7 +82,7 @@ public class DingtalkStreamClient {
         void send(String json);
     }
 
-    /** 接入点（照 {@code ConnectionEndpointResponse}）。 */
+    /** 接入点响应（endpoint + ticket）。 */
     record Endpoint(String endpoint, String ticket) {
     }
 
@@ -249,12 +246,12 @@ public class DingtalkStreamClient {
 
         if (SYSTEM_TYPE.equals(type)) {
             if (TOPIC_PING.equals(topic)) {
-                // pong：200 + message "ok" + data 原样回显（照 SDK 的 NewDataFrameAckPong）
+                // pong：200 + message "ok" + data 原样回显
                 ackSink.send(buildAck(frame, 200, "ok", frame.path("data").asText("")));
                 return;
             }
             if (TOPIC_DISCONNECT.equals(topic)) {
-                // 先回执再关连接（照 SDK 注释：在 OnDisconnect 里关会让 ACK 写失败）
+                // 先回执再关连接（在断连回调里关会让 ACK 写失败）
                 ackSink.send(buildAck(frame, 200, "", ""));
                 closeOwnedConnection();
                 return;
@@ -282,7 +279,7 @@ public class DingtalkStreamClient {
         }
     }
 
-    /** 机器人回调：{@code data} 是回调 JSON；成功后回 200、失败回 500（照 SDK）。 */
+    /** 机器人回调：{@code data} 是回调 JSON；成功后回 200、失败回 500。 */
     void handleBotFrame(JsonNode frame) {
         try {
             IncomingMessage msg = streamToIncoming(frame, clientId);
@@ -295,7 +292,7 @@ public class DingtalkStreamClient {
         }
     }
 
-    /** 回执帧（照 {@code DataFrameResponse.Encode}：messageId 回填请求的）。 */
+    /** 回执帧：messageId 回填请求的。 */
     static String buildAck(JsonNode frame, int code, String message, String data) {
         ObjectNode ack = MAPPER.createObjectNode();
         ack.put("code", code);
@@ -309,7 +306,7 @@ public class DingtalkStreamClient {
     }
 
     /**
-     * Stream 帧 → 统一消息（对照 Go {@code streamToIncoming}）：与 webhook 同一解析，
+     * Stream 帧 → 统一消息：与 webhook 同一解析，
      * 但机器人码回落 clientId（Stream 载荷不带 robotCode；企业内部机器人的 clientId 即 robotCode）。
      */
     static IncomingMessage streamToIncoming(JsonNode frame, String fallbackRobotCode)
@@ -325,7 +322,7 @@ public class DingtalkStreamClient {
 
     // ── 接入点 ──────────────────────────────────────────────────────────────
 
-    /** 对照 {@code GetConnectionEndpoint}：订阅三类 + ua/localIp/extras。 */
+    /** 订阅三类 + ua/localIp/extras。 */
     String buildEndpointRequest() throws Exception {
         ObjectNode body = MAPPER.createObjectNode();
         body.put("clientId", clientId);
@@ -348,7 +345,7 @@ public class DingtalkStreamClient {
         return node;
     }
 
-    /** 对照 SDK 的 {@code utils.GetFirstLanIP}：取不到就空串（Go 同样容错）。 */
+    /** 取本机局域网 IP：取不到就回落空串。 */
     static String firstLanIp() {
         try {
             return InetAddress.getLocalHost().getHostAddress();
@@ -376,7 +373,7 @@ public class DingtalkStreamClient {
         return parseEndpointResponse(response.body());
     }
 
-    /** 解析接入点响应 + 校验（照 {@code Valid()} + 本仓的 wss/SSRF 规）。 */
+    /** 解析接入点响应 + 校验（非空 + wss/SSRF 规则）。 */
     Endpoint parseEndpointResponse(byte[] body) throws Exception {
         JsonNode node = MAPPER.readTree(body == null ? new byte[0] : body);
         String endpoint = node.path("endpoint").asText("");

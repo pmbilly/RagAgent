@@ -1,7 +1,7 @@
 package com.ragagent.mcp.protocol;
 
 /**
- * 目标 MCP 服务要求 OAuth 授权（对照 Go internal/mcp/client.go 的 {@code OAuthRequiredError}，client.go:124-136）。
+ * 目标 MCP 服务要求 OAuth 授权。
  *
  * <p>触发条件很窄：服务端在 connect/initialize 握手里回了 <b>401</b>，且
  * {@code WWW-Authenticate} 头按 RFC 9728 广告了 protected-resource metadata URL，
@@ -19,8 +19,8 @@ public class McpOAuthRequiredException extends McpException {
     private final String metadataUrl;
 
     public McpOAuthRequiredException(String metadataUrl, Throwable cause) {
-        // 对照 Go：OAuthRequiredError 的 code 沿用被包裹错误的哨兵语义（Go 的 Unwrap 让
-        // errors.Is(err, 原哨兵) 仍然成立），文案则是 "the MCP server requires OAuth authorization: %v"。
+        // code 沿用被包裹错误的哨兵类别（保留原判定语义），文案固定为
+        // "the MCP server requires OAuth authorization: <原因>"。
         super(codeOf(cause), "the MCP server requires OAuth authorization: " + describe(cause), cause);
         this.metadataUrl = metadataUrl;
     }
@@ -36,7 +36,7 @@ public class McpOAuthRequiredException extends McpException {
         return metadataUrl;
     }
 
-    /** 对照 Go {@code fmt.Sprintf("...: %v", e.Err)}——Go 用 %v 打印被包裹的 error。 */
+    /** 取被包裹异常的消息描述。 */
     private static String describe(Throwable cause) {
         return cause == null ? "null" : String.valueOf(cause.getMessage());
     }

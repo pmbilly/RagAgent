@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.JinaProvider（jina.go）：仅 Embedding/Rerank，无 Chat。
+ * 仅 Embedding/Rerank，无 Chat。
  */
 public class JinaProvider implements Provider {
 

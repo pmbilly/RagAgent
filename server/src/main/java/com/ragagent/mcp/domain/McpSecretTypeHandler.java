@@ -12,16 +12,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 文本型秘密列的加密 TypeHandler（对照 Go MCPOAuthClient/MCPOAuthToken 的
- * BeforeCreate/BeforeSave 加密 + AfterFind 宽容解密，internal/types/mcp_oauth.go）。
+ * 文本型秘密列的加密 TypeHandler（写前加密 + 读时宽容解密）。
  *
  * 作用于 mcp_oauth_clients.client_secret、mcp_oauth_tokens.access_token /
  * refresh_token 三个 TEXT 列。
  *
- * - 写：SYSTEM_AES_KEY 存在且值非空 → AES-256-GCM 加密（enc:v1: 前缀）；否则明文落库
- *   （对照 Go `if key := utils.GetAESKey(); key != nil`）。
+ * - 写：SYSTEM_AES_KEY 存在且值非空 → AES-256-GCM 加密（enc:v1: 前缀）；否则明文落库。
  * - 读：宽容解密——历史明文原样返回；密文解不开（密钥缺失/轮换）→ **置空并记日志**，
- *   绝不让密文冒充满值（Go 的 AfterFind 同样置空，不是报错）。
+ *   绝不让密文冒充满值，也不报错。
  *
  * 刻意不加 {@code @MappedTypes(String.class)}：一旦被注册为全局 String handler，
  * 会污染所有文本列——本 handler 只在 MCP 的密钥列上**按列显式声明**。

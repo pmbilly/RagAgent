@@ -15,12 +15,12 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.service.ImService;
 
 /**
- * 企业微信渠道工厂（对照 Go {@code internal/im/wecom/factory.go}）。
+ * 企业微信渠道工厂。
  *
  * <p>凭据：webhook 模式 {@code corp_id}/{@code agent_secret}/{@code token}/
  * {@code encoding_aes_key}/{@code corp_agent_id}/{@code api_base_url}；
- * websocket（智能机器人长连接，Go 的默认模式）<b>尚未落地</b>——本子批只做 webhook，
- * 走到 websocket 时明确抛错（不静默假装成功），长连接排在 W5γ3 后续子批。</p>
+ * websocket（智能机器人长连接）取 {@code bot_id}/{@code bot_secret}/
+ * {@code ws_endpoint}/{@code bot_name}。</p>
  */
 @Component
 public class WecomAdapterFactory implements ImService.AdapterFactory {
@@ -69,7 +69,7 @@ public class WecomAdapterFactory implements ImService.AdapterFactory {
                 Thread thread = new Thread(client::start, "im-wecom-ws-" + channel.getId());
                 thread.setDaemon(true);
                 thread.start();
-                // 照 Go：先 client.Stop() 再给取消信号（先关 socket 才能同步停投递）
+                // 先关 socket 再给取消信号（才能同步停投递）
                 return new ImService.AdapterRegistration(
                         new WecomWSAdapter(client, ssrfGuard), client::stop);
             }
@@ -78,7 +78,7 @@ public class WecomAdapterFactory implements ImService.AdapterFactory {
         }
     }
 
-    /** 对照 Go 的 {@code float64}/{@code int} 两形态取值。 */
+    /** 数字或数字字符串两形态取值。 */
     static int intOf(Object value) {
         if (value instanceof Number number) {
             return number.intValue();

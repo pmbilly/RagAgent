@@ -6,11 +6,11 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 对照 Go provider.ExtraFieldConfig（provider.go），逐字段对齐 json tag：
- * key / label / type / required / default / placeholder / options(omitempty)。
+ * 服务商额外字段元数据，JSON 键逐字段固定：
+ * key / label / type / required / default / placeholder / options（为空省略）。
  *
- * Go 的 Options 是匿名结构体切片 []struct{Label,Value}，Java 用嵌套 record {@link Option} 承载。
- * Go 的 json tag 是 "default"（Java 关键字无法做字段名）→ 组件名 defaultValue + @JsonProperty("default")。
+ * options 用嵌套 record {@link Option} 承载；
+ * JSON 键 "default" 与 Java 关键字冲突 → 组件名 defaultValue + @JsonProperty("default")。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ExtraFieldConfig(
@@ -22,14 +22,14 @@ public record ExtraFieldConfig(
         @JsonProperty("placeholder") String placeholder,
         @JsonProperty("options") List<Option> options) {
 
-    /** 对照 Go ExtraFieldConfig.Options 的元素匿名结构体 */
+    /** options 数组元素 */
     public record Option(
             @JsonProperty("label") String label,
             @JsonProperty("value") String value) {
     }
 
     public ExtraFieldConfig {
-        // Go 零值归一：string 零值 ""、nil 切片 → 空
+        // 缺省归一：null 字符串 → ""，null 列表 → 空列表
         key = key == null ? "" : key;
         label = label == null ? "" : label;
         type = type == null ? "" : type;
@@ -38,7 +38,7 @@ public record ExtraFieldConfig(
         options = options == null ? List.of() : List.copyOf(options);
     }
 
-    /** 便捷构造：无 options（对照 Go 里 Options 为 nil 的写法） */
+    /** 便捷构造：无 options */
     public ExtraFieldConfig(String key, String label, String type, boolean required,
                             String defaultValue, String placeholder) {
         this(key, label, type, required, defaultValue, placeholder, List.of());

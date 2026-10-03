@@ -14,10 +14,9 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
- * wiki_pages 表实体。JSON 键为 snake（§11 登记边界，前端按此解析）。
+ * wiki_pages 表实体。JSON 键为 snake（前端按此解析）。
  *
- * <p><b>表结构以迁移为准</b>（migrations/versioned/000037_wiki_and_indexing.up.sql、
- * 000061_wiki_page_hierarchy.up.sql、000075_wiki_page_revisions.up.sql）。</p>
+ * <p><b>表结构以迁移为准</b>（migrations/versioned/V1__baseline.sql）。</p>
  *
  * <p>落库行为约定：</p>
  * <ol>
@@ -27,7 +26,7 @@ import com.ragagent.common.web.PgJsonTypeHandler;
  *   <li><b>自动时间戳</b>：由 {@code WikiPageRepository} 在写入前对 null 的
  *       createdAt/updatedAt 补当前时间（<b>不覆盖</b>已赋值）；更新时刷新 updatedAt。</li>
  *   <li><b>默认值</b>：SQL 列默认 {@code status 'published'}、{@code version 1}、
- *       {@code depth 0}、{@code sort_order 0}。Java 侧<b>不复刻默认值回写</b>：
+ *       {@code depth 0}、{@code sort_order 0}。Java 侧<b>不做默认值回写</b>：
  *       字段保持调用方给的值（Java 零值见下），须要默认值的字段由 service 显式赋值。</li>
  *   <li><b>零值语义</b>：所有 String 字段零值为 {@code ""}，DB 各列
  *       NOT NULL DEFAULT ''，因此 Java 侧 getter 永不返回 null；计数器

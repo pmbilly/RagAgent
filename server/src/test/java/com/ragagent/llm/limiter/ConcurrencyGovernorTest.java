@@ -18,18 +18,17 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 /**
- * 对照 Go internal/models/limiter/governor_test.go 与 limiter_test.go 的本地信号量部分：
- * TestGateOnlyGovernsBackground / TestGateDisabledWhenNoGovernor / TestLocalLimiterCaps /
- * TestLocalLimiterIndependentKeys / TestLocalLimiterFailOpen / TestLocalLimiterReleaseIdempotent。
+ * 本地信号量限流的验收：Gate 只管后台 / 未装配时直通 / 上限生效 /
+ * per-key 独立 / 退化输入放行 / 释放幂等。
  *
- * <p>Go 的 ctx（超时/取消）在 Java 侧映射为线程中断；Go 的 goroutine 用虚拟线程。</p>
+ * <p>超时/取消在 Java 侧映射为线程中断；并发用虚拟线程承载。</p>
  *
- * <p>未翻译/未覆盖的部分见 {@link LocalLimiter} 的类注释：Go 的 redisLimiter（分布式 ZSET
- * 信号量，需真实 Redis/miniredis）不在本阶段范围。</p>
+ * <p>未覆盖的部分见 {@link LocalLimiter} 的类注释：分布式 ZSET
+ * 信号量（需真实 Redis/miniredis）不在本阶段范围。</p>
  */
 class ConcurrencyGovernorTest {
 
-    /** 对照 Go withBackground()：在后台任务标记作用域内取槽 */
+    /** 在后台任务标记作用域内取槽 */
     private static Release gateAsBackground(ConcurrencyGovernor governor, String modelId) {
         try (BackgroundTaskContext.Scope ignored = BackgroundTaskContext.mark()) {
             return governor.gate(modelId);
@@ -37,7 +36,7 @@ class ConcurrencyGovernorTest {
     }
 
     /**
-     * 对照 Go TestGateOnlyGovernsBackground：交互式调用永不节流（no-op release），
+     * 交互式调用永不节流（no-op release），
      * 只有后台调用才查已装配的限流器。
      */
     @Test
@@ -73,7 +72,7 @@ class ConcurrencyGovernorTest {
         }
     }
 
-    /** 对照 Go TestGateDisabledWhenNoGovernor：未装配 governor 时 Gate 是 passthrough */
+    /** 未装配 governor 时 Gate 是 passthrough */
     @Test
     void gateDisabledWhenNoGovernor() {
         ConcurrencyGovernor governor = new ConcurrencyGovernor();
@@ -98,7 +97,7 @@ class ConcurrencyGovernorTest {
         gated.close();
     }
 
-    /** 对照 Go TestLocalLimiterCaps：上限生效，且释放一个槽位后等待者能进来 */
+    /** 上限生效，且释放一个槽位后等待者能进来 */
     @Test
     void localLimiterCaps() throws Exception {
         LocalLimiter limiter = new LocalLimiter();
@@ -117,7 +116,7 @@ class ConcurrencyGovernorTest {
         }
     }
 
-    /** 对照 Go TestLocalLimiterIndependentKeys：per-key 预算相互独立 */
+    /** per-key 预算相互独立 */
     @Test
     void localLimiterIndependentKeys() {
         LocalLimiter limiter = new LocalLimiter();
@@ -127,7 +126,7 @@ class ConcurrencyGovernorTest {
         rb.close();
     }
 
-    /** 对照 Go TestLocalLimiterFailOpen：退化输入一律放行 */
+    /** 退化输入一律放行 */
     @Test
     void localLimiterFailOpen() {
         LocalLimiter limiter = new LocalLimiter();
@@ -137,7 +136,7 @@ class ConcurrencyGovernorTest {
         assertSame(Release.NOOP, limiter.acquire(null, 4));
     }
 
-    /** 对照 Go TestLocalLimiterReleaseIdempotent：双重释放不得多放一个槽位 */
+    /** 双重释放不得多放一个槽位 */
     @Test
     void localLimiterReleaseIdempotent() throws Exception {
         LocalLimiter limiter = new LocalLimiter();
@@ -160,7 +159,7 @@ class ConcurrencyGovernorTest {
         }
     }
 
-    /** RuntimeStats/SetModelName 观测通道（对照 Go limiter.RuntimeStat 的字段语义） */
+    /** RuntimeStats/SetModelName 观测通道 */
     @Test
     void runtimeStatsReportsActiveWaitingAndLimit() {
         LocalLimiter limiter = new LocalLimiter();
@@ -183,7 +182,7 @@ class ConcurrencyGovernorTest {
         assertFalse(new ConcurrencyGovernor().runtimeStats().enabled());
     }
 
-    /** 后台任务标记（对照 Go WithBackgroundTask/IsBackgroundTask）：作用域退出即恢复 */
+    /** 后台任务标记：作用域退出即恢复 */
     @Test
     void backgroundTaskMarkIsScoped() {
         assertFalse(BackgroundTaskContext.isBackgroundTask());
@@ -196,7 +195,7 @@ class ConcurrencyGovernorTest {
         }
         assertFalse(BackgroundTaskContext.isBackgroundTask());
 
-        // 标记是线程本地的：不跨虚拟线程传递（对照 Go 需要 CloneContext 才保留）
+        // 标记是线程本地的：不跨线程（含虚拟线程）传递
         AtomicReference<Boolean> inWorker = new AtomicReference<>(true);
         try (BackgroundTaskContext.Scope ignored = BackgroundTaskContext.mark()) {
             Thread worker = Thread.ofVirtual().start(

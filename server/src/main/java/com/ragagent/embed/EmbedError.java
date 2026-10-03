@@ -1,16 +1,15 @@
 package com.ragagent.embed;
 
 /**
- * embed 管理面的服务层错误（对照 Go service 包的哨兵错误与 writeEmbedMgmtError 的
- * 分派，internal/handler/embed_channel.go L830-847）。
+ * embed 管理面的服务层错误。
  *
- * <p>Go 的分派语义：</p>
+ * <p>错误分派：</p>
  * <ul>
- *   <li>ErrEmbedChannelNotFound → 404 {"error":"embed channel not found"}；</li>
- *   <li>ErrEmbedWebhookURLInvalid / ErrEmbedLauncherIconInvalid → 400 + err.Error() 原文；</li>
- *   <li>AppError(code==NotFound) → 404 + 原文（实际不可达：GetAgentByID 对未知 agent
- *       返回的是普通 error——golden 钉死 ghost-agent / 跨租户 agent 都是 500）；</li>
- *   <li>其余（含 ErrEmbedChannelDisabled 走专用分支、ErrEmbedTokenInvalid、agent 归属
+ *   <li>{@code CHANNEL_NOT_FOUND} → 404 {"error":"embed channel not found"}；</li>
+ *   <li>{@code BAD_REQUEST_TEXT}（webhook URL / launcher icon 校验）→ 400 + 错误原文；</li>
+ *   <li>AppError(code==NotFound) → 404 + 原文（实际不可达：agent 归属校验对未知 agent
+ *       抛的是普通错误——golden 钉死 ghost-agent / 跨租户 agent 都是 500）；</li>
+ *   <li>其余（含 {@code CHANNEL_DISABLED} 走专用分支、{@code TOKEN_INVALID}、agent 归属
  *       失败等）→ 500 {"error":"operation failed"}。</li>
  * </ul>
  */
@@ -62,12 +61,12 @@ public final class EmbedError extends RuntimeException {
         return new EmbedError(Kind.SESSION_UNAVAILABLE, "session tokens unavailable");
     }
 
-    /** 对照 ValidateEmbedWebhookURL 的错误文案族。 */
+    /** webhook URL 校验失败的错误文案族。 */
     public static EmbedError webhookInvalid(String detail) {
         return badRequest("invalid embed webhook URL: " + detail);
     }
 
-    /** 对照 ValidateEmbedLauncherIcon 的错误文案族。 */
+    /** launcher icon 校验失败的错误文案族。 */
     public static EmbedError iconInvalid(String detail) {
         return badRequest("invalid embed launcher icon: " + detail);
     }

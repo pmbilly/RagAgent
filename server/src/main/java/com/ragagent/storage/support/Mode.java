@@ -10,10 +10,10 @@ import com.ragagent.auth.apikey.domain.TenantAPIKeyScope;
 import com.ragagent.common.storage.StorageRuntimeEnv;
 
 /**
- * 存储文件在 API 响应里的引用方式（对照 Go {@code internal/storageurl/mode.go}）。
+ * 存储文件在 API 响应里的引用方式。
  *
- * <p>Go 的 {@code Mode} 是字符串类型 + 常量，Java 用枚举；字符串值逐字对齐
- * （{@code "handle"} / {@code "public"}），因为 {@code RESOURCE_URL_MODE} 是运维可见的配置面。</p>
+ * <p>字符串值固定为 {@code "handle"} / {@code "public"}，
+ * 因为 {@code RESOURCE_URL_MODE} 是运维可见的配置面。</p>
  */
 public enum Mode {
 
@@ -29,19 +29,19 @@ public enum Mode {
      */
     PUBLIC("public");
 
-    /** 请求级选择模式的查询参数（对照 Go {@code QueryParam}）。 */
+    /** 请求级选择模式的查询参数。 */
     public static final String QUERY_PARAM = "resource_urls";
 
     /**
-     * 部署级默认模式的 env（对照 Go {@code EnvVar}）。
+     * 部署级默认模式的 env。
      * 它与 {@code APP_EXTERNAL_URL} 配套——后者才是让 {@code resource://} 手柄
      * 真正能解析成公网 {@code /r/<token>} 的那个开关。
      */
     public static final String ENV_VAR = "RESOURCE_URL_MODE";
 
     /**
-     * 调用方要求 PUBLIC，但其凭据不得获得匿名、带时效的文件 URL
-     * （对照 Go {@code ErrPublicModeForbidden}）。调用方映射成 <b>403</b> 而非 400：
+     * 调用方要求 PUBLIC，但其凭据不得获得匿名、带时效的文件 URL。
+     * 调用方映射成 <b>403</b> 而非 400：
      * 请求本身合法，是<b>授权范围</b>不允许。
      */
     public static final String PUBLIC_MODE_FORBIDDEN_MESSAGE =
@@ -60,7 +60,7 @@ public enum Mode {
     }
 
     /**
-     * 校验客户端或配置给出的模式（对照 Go {@code ParseMode}）。
+     * 校验客户端或配置给出的模式。
      * 空值落到 {@link #HANDLE}，让"未设置参数/配置"保持默认。
      */
     public static Mode parse(String raw) {
@@ -75,7 +75,7 @@ public enum Mode {
     }
 
     /**
-     * 部署级默认模式（对照 Go {@code DefaultMode}）。未设置或解析不了都落到
+     * 部署级默认模式。未设置或解析不了都落到
      * {@link #HANDLE}——一个笔误应当降级到安全默认，而不是让每个请求都失败。
      */
     public static Mode defaultMode() {
@@ -92,8 +92,7 @@ public enum Mode {
     }
 
     /**
-     * 合并"每请求查询值"与"部署默认"，再施加两条任何调用方都不得绕过的限制
-     * （对照 Go {@code ResolveMode}）。
+     * 合并"每请求查询值"与"部署默认"，再施加两条任何调用方都不得绕过的限制。
      *
      * <ul>
      *   <li>{@link StorageUrlContext#isHandleModeForced()} 的请求（匿名 embed 流量）
@@ -125,7 +124,7 @@ public enum Mode {
     }
 
     /**
-     * 每个不同的坏值只告警一次（对照 Go 的包级 {@code badDefault}）。
+     * 每个不同的坏值只告警一次。
      *
      * <p>值本身每次重读，所以运维改回正确值不需要重启；但如果再写一个新笔误，
      * 仍会告警——这正是"按值去重"而不是"只告警一次"的原因。</p>

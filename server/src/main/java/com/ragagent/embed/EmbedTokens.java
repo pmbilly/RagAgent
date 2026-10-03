@@ -12,15 +12,14 @@ import javax.crypto.spec.SecretKeySpec;
 import com.ragagent.embed.domain.EmbedChannelEntity;
 
 /**
- * embed 令牌族（对照 Go internal/application/service/embed_channel.go 的
- * generateEmbedPublishToken 与 internal/application/service/embed_session.go 全文）。
+ * embed 令牌族。
  *
  * <ul>
  *   <li>publish token：{@code em_} + 32 字节 base64url（无填充）；</li>
  *   <li>session token：{@code ems_} + 32 字节 base64url（无填充），Redis 侧键
- *       {@code embed:session:<token>}（30 分钟 TTL，跨语言键空间契约）；</li>
+ *       {@code embed:session:<token>}（30 分钟 TTL，键空间契约）；</li>
  *   <li>会话签名：HMAC-SHA256(publish_token, "cid|sid") base64url 无填充
- *       ——{@code SignEmbedSessionHandle} 逐式复刻，A/B 录制脚本里的 python 版与之同式。</li>
+ *       （与外部脚本实现同式）。</li>
  * </ul>
  */
 public final class EmbedTokens {
@@ -33,26 +32,26 @@ public final class EmbedTokens {
 
     private EmbedTokens() {}
 
-    /** 对照 generateEmbedPublishToken。 */
+    /** 发布令牌：32 随机字节 → "em_" + base64url。 */
     public static String generatePublishToken() {
         byte[] buf = new byte[32];
         RANDOM.nextBytes(buf);
         return "em_" + base64Url(buf);
     }
 
-    /** 对照 generateEmbedSessionToken。 */
+    /** 会话令牌：32 随机字节 → "ems_" + base64url。 */
     public static String generateSessionToken() {
         byte[] buf = new byte[32];
         RANDOM.nextBytes(buf);
         return SESSION_TOKEN_PREFIX + base64Url(buf);
     }
 
-    /** 对照 IsEmbedSessionToken。 */
+    /** 是否会话令牌形态（ems_ 前缀）。 */
     public static boolean isSessionToken(String token) {
         return token != null && token.trim().startsWith(SESSION_TOKEN_PREFIX);
     }
 
-    /** 对照 SignEmbedSessionHandle。 */
+    /** 会话句柄签名：HMAC-SHA256(channelId|sessionId, publish token) → base64url。 */
     public static String signHandle(EmbedChannelEntity ch, String sessionId) {
         if (ch == null || sessionId == null || sessionId.trim().isEmpty()) {
             return "";
@@ -67,7 +66,7 @@ public final class EmbedTokens {
         }
     }
 
-    /** 对照 VerifyEmbedSessionHandle（trim + 常量时间比较）。 */
+    /** 会话句柄校验（trim + 常量时间比较）。 */
     public static boolean verifyHandle(EmbedChannelEntity ch, String sessionId, String sig) {
         if (sig == null) {
             return false;

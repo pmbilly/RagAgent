@@ -10,21 +10,21 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ragagent.agent.management.mapper.JsonbRawStringTypeHandler;
 
 /**
- * IM 渠道（对照 Go {@code im.IMChannel}，internal/im/types.go L18-34）。
+ * IM 渠道。
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库行为清单</h2>
  * <ol>
- *   <li><b>钩子 BeforeCreate</b>（Go L94-116）：ID 空时 UUID；mode 兜底（webhook:
+ *   <li><b>创建钩子</b>：ID 空时 UUID；mode 兜底（webhook:
  *       mattermost/yunzhijia，其余 websocket）；output_mode 兜底 stream；session_mode
- *       兜底 user；<b>validateSessionMode</b>（非 user/thread → Create 失败 → 500
- *       "failed to create channel"，golden 钉死）；bot_identity 重算。</li>
- *   <li><b>钩子 BeforeSave</b>（Go L120-129）：session_mode 兜底+校验、bot_identity
+ *       兜底 user；session_mode 非法（非 user/thread）→ 创建失败 → 500
+ *       "failed to create channel"；bot_identity 重算。</li>
+ *   <li><b>保存钩子</b>：session_mode 兜底+校验、bot_identity
  *       重算——update/toggle 每次全量保存都触发。</li>
- *   <li><b>软删除</b>：显式 {@code deleted_at IS NULL}（约定 §9，不用 @TableLogic）。</li>
+ *   <li><b>软删除</b>：显式 {@code deleted_at IS NULL}（不用 @TableLogic）。</li>
  *   <li><b>唯一索引</b> idx_im_channels_bot_identity（部分索引，deleted_at IS NULL AND
  *       bot_identity != ''）——迁移为准；应用层靠 checkDuplicateBot 先查（409 文案）。</li>
- *   <li><b>credentials 是 jsonb</b>：raw 文本直通；Go 的 types.JSON 保留请求原文键序，
- *       H2 里同样保留（真 PG 上由 jsonb 列的规范化统一两侧，A/B 依赖该列行为）。</li>
+ *   <li><b>credentials 是 jsonb</b>：raw 文本直通；落库保留请求原文键序
+ *       （真 PG 上由 jsonb 列的规范化统一两侧，读写方依赖该列行为）。</li>
  * </ol>
  */
 @TableName(value = "im_channels", autoResultMap = true)

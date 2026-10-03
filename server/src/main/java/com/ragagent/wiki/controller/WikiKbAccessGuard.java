@@ -16,7 +16,7 @@ import com.ragagent.wiki.controller.WikiPageController.RawJsonError;
 
 /**
  * WikiPageController 的 KB 访问与所有权守卫：API-Key 数据面白名单、租户判定、
- * KB 存在性/归属、写路径所有权、wiki 启用检查。判定顺序与原实现的路由中间件链一致，
+ * KB 存在性/归属、写路径所有权、wiki 启用检查。判定顺序与路由中间件链一致，
  * 细节见 {@link #requireWikiKB} 的判定矩阵。
  */
 final class WikiKbAccessGuard {
@@ -28,9 +28,9 @@ final class WikiKbAccessGuard {
     }
 
     /**
-     * KB 访问与所有权判定（对应原实现路由上的访问守卫）。
+     * KB 访问与所有权判定。
      *
-     * <p>判定顺序与原实现的中间件链一致（角色下限由 WebConfig 的 RbacInterceptor 先行）：</p>
+     * <p>判定顺序与中间件链一致（角色下限由 WebConfig 的 RbacInterceptor 先行）：</p>
      * <ol>
      *   <li>API-Key 数据面 KB 白名单：KB 受限 Key 指向白名单外 → 403；
      *       web 用户 / full-access Key 恒放行。在 KB 查找<b>之前</b>做。</li>
@@ -69,7 +69,7 @@ final class WikiKbAccessGuard {
             throw BizException.unauthorized("Unauthorized");
         }
 
-        // 必须先按 id 找到（原实现按 id 查询不带空间过滤），
+        // 必须先按 id 找到（查询不带空间过滤），
         // 才能把"库里没有"（404）与"不是你的"（403）区分开。
         KnowledgeBase kb = kbMapper.selectOne(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getId, kbId)

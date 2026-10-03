@@ -20,10 +20,8 @@ import com.ragagent.datasource.domain.Resource;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * 连接器主体：{@code FetchStream} / {@code FetchIncremental} / {@code FetchAll} /
- * {@code ListResources} 与三个纯函数（对照 Go {@code connector.go} 与
- * {@code client_test.go} 的 {@code TestFetchStreamFiltersUnsupportedFilesAndCheckpointsProjects}、
- * {@code TestFetchIncrementalSyncsMultipleProjects}、{@code TestIsSupportedFile}）。
+ * 连接器主体：{@code fetchStream} / {@code fetchIncremental} / {@code fetchAll} /
+ * {@code listResources} 与三个纯函数的语义测试。
  */
 class GitLabConnectorTest {
 
@@ -39,7 +37,7 @@ class GitLabConnectorTest {
 
     // ── 纯函数 ──────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code TestIsSupportedFile} + Go 实录扩充。 */
+    /** 受支持扩展名的判定 + 边界形态扩充。 */
     @Test
     void isSupportedFileMatchesGo() {
         assertThat(GitLabConnector.isSupportedFile("docs/guide.MD")).isTrue();
@@ -49,7 +47,7 @@ class GitLabConnectorTest {
         assertThat(GitLabConnector.isSupportedFile("archive.tar.gz")).isFalse();
         assertThat(GitLabConnector.isSupportedFile("LICENSE")).isFalse();
 
-        // Go 实录：path.Ext 是"最后一个点，且不能越过 /"
+        // 扩展名取"最后一个点，且不能越过 /"
         assertThat(GitLabConnector.isSupportedFile(".hidden")).isFalse();
         assertThat(GitLabConnector.isSupportedFile(".md")).isTrue();
         assertThat(GitLabConnector.isSupportedFile("dir/.md")).isTrue();
@@ -59,11 +57,11 @@ class GitLabConnectorTest {
         assertThat(GitLabConnector.isSupportedFile("a.MARKDOWN")).isTrue();
         assertThat(GitLabConnector.isSupportedFile("b.MHTML")).isTrue();
         assertThat(GitLabConnector.isSupportedFile("d.jpeg")).isTrue();
-        // 扩展名表里没有 .go / .exe / .tar 的兄弟
+        // 扩展名表只收文档类后缀（不含脚本/可执行/归档类）
         assertThat(GitLabConnector.SUPPORTED_FILE_EXTENSIONS).hasSize(26);
     }
 
-    /** 对照 Go {@code inScope}（Go 实录）：根名后面必须跟 {@code "/"} 才算子路径。 */
+    /** {@code inScope}：根名后面必须跟 {@code "/"} 才算子路径。 */
     @Test
     void inScopeMatchesGo() {
         assertThat(GitLabConnector.inScope("a/b.md", null)).isTrue();
@@ -78,7 +76,7 @@ class GitLabConnectorTest {
         assertThat(GitLabConnector.inScope("a/b.md", List.of("", "z"))).isFalse();
     }
 
-    /** 对照 Go {@code splitResourceID}（Go 实录）。 */
+    /** {@code splitResourceId}：首个 {@code ":"} 前是项目 ID，其余是路径。 */
     @Test
     void splitResourceIdMatchesGo() {
         assertThat(GitLabConnector.splitResourceId("42")).containsExactly("42", "");
@@ -91,7 +89,6 @@ class GitLabConnectorTest {
     // ── FetchStream ─────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code TestFetchStreamFiltersUnsupportedFilesAndCheckpointsProjects}：
      * 未在受支持扩展名表里的 blob 不 emit，也<b>不会</b>被读正文。
      */
     @Test
@@ -144,7 +141,7 @@ class GitLabConnectorTest {
 
     /**
      * {@code previous == ""} 走全树枚举；{@code previous != head} 走 compare，
-     * 三支（deleted / renamed / added）都要复刻。
+     * 三支（deleted / renamed / added）都要覆盖。
      */
     @Test
     void fetchStreamUsesCompareWhenHeadChanged() throws IOException {
@@ -181,7 +178,7 @@ class GitLabConnectorTest {
             SyncCursor next = connector.fetchStream(ds, cursorWith("1", "old-1"), handler);
 
             // deleted_file → 一条删除；renamed_file → 老路径一条删除 + 新路径一条新增；
-            // new_file → 新增；code.go 不受支持 → 一条都不发
+            // new_file → 新增；第 4 个 diff 的后缀不受支持 → 一条都不发
             assertThat(handler.items).hasSize(4);
             assertThat(handler.items.get(0).getExternalId()).endsWith(":1:main:gone.md");
             assertThat(handler.items.get(0).isDeleted()).isTrue();
@@ -248,7 +245,7 @@ class GitLabConnectorTest {
 
     /**
      * commit 没变时<b>什么都不发</b>，但 {@code checkpoint} 仍然被调一次
-     * （Go 的 switch 没有 default，但循环体的 checkpoint 在 switch 之外）。
+     * （循环体的 checkpoint 在分支判定之外）。
      */
     @Test
     void fetchStreamStillCheckpointsWhenHeadUnchanged() throws IOException {
@@ -306,7 +303,7 @@ class GitLabConnectorTest {
 
     // ── FetchIncremental / FetchAll ─────────────────────────────────────
 
-    /** 对照 Go {@code TestFetchIncrementalSyncsMultipleProjects}（含"第二次同步 0 条"）。 */
+    /** 多项目增量同步（含"第二次同步 0 条"）。 */
     @Test
     void fetchIncrementalSyncsMultipleProjects() throws IOException {
         GitLabServerStub stub = new GitLabServerStub(exchange -> {
@@ -359,7 +356,7 @@ class GitLabConnectorTest {
                     .containsEntry("2", "commit-2");
             assertThat(first.cursor().getConnectorCursor()).containsKey("raw");
 
-            // head 没变 → 一条都不抓；Go 的 nil slice 对应 Java 的 null
+            // head 没变 → 一条都不抓（无条目时允许 null 或空列表）
             Connector.FetchIncrementalResult second = connector.fetchIncremental(ds, first.cursor());
             assertThat(second.items()).isNullOrEmpty();
         }
@@ -398,7 +395,7 @@ class GitLabConnectorTest {
         }
     }
 
-    /** 一条都没抓到时返回 {@code null}（对照 Go 的 nil slice，不是空列表）。 */
+    /** 一条都没抓到时返回 {@code null}（不是空列表）。 */
     @Test
     void fetchAllReturnsNullWhenNothingMatched() throws IOException {
         GitLabServerStub stub = new GitLabServerStub(exchange -> {
@@ -476,7 +473,7 @@ class GitLabConnectorTest {
 
     // ── cursor ──────────────────────────────────────────────────────────
 
-    /** cursor 形状（Go 实录）：{@code {"projects":…,"raw":"{\"projects\":{…}}"}}。 */
+    /** cursor 形状：{@code {"projects":…,"raw":"{\"projects\":{…}}"}}。 */
     @Test
     void gitLabCursorShapeMatchesGo() {
         Map<String, String> projects = new LinkedHashMap<>();
@@ -485,7 +482,7 @@ class GitLabConnectorTest {
 
         SyncCursor cursor = GitLabConnector.gitLabCursor(projects);
 
-        // 键序按 Go 的 map 规则排序（1 在 2 前）
+        // 键序按字母序排序（1 在 2 前）
         assertThat(cursor.getConnectorCursor().keySet()).containsExactly("projects", "raw");
         assertThat(cursor.getConnectorCursor().get("raw"))
                 .isEqualTo("{\"projects\":{\"1\":\"c1\",\"2\":\"c2\"}}");
@@ -496,7 +493,7 @@ class GitLabConnectorTest {
                 .containsEntry("1", "c1").containsEntry("2", "c2");
     }
 
-    /** cursor 解码的容错（Go 实录）：缺失 / 类型不对都回空 map，已解出的部分保留。 */
+    /** cursor 解码的容错：缺失 / 类型不对都回空 map，已解出的部分保留。 */
     @Test
     void decodeCursorProjectsMatchesGo() {
         assertThat(GitLabConnector.decodeCursorProjects(null)).isEmpty();
@@ -509,7 +506,7 @@ class GitLabConnectorTest {
         // "projects" 是字符串 → 类型不符 → 空 map
         assertThat(GitLabConnector.decodeCursorProjects(cursorRaw("projects", "x"))).isEmpty();
 
-        // 第一个值类型不对 → 一条都解不出（Go 在 SetMapIndex 之前就返回了）
+        // 第一个值类型不对 → 一条都解不出（写入前就整体失败返回）
         Map<String, Object> badFirst = new LinkedHashMap<>();
         badFirst.put("a", 1);
         badFirst.put("b", "x");
@@ -594,7 +591,7 @@ class GitLabConnectorTest {
         return (Map<String, String>) cursor.getConnectorCursor().get("projects");
     }
 
-    /** 对照 Go 测试里的 {@code gitLabStreamRecorder}（假 handler）。 */
+    /** 记录型假 handler。 */
     private static final class RecordingHandler implements StreamHandler {
 
         final List<FetchedItem> items = new ArrayList<>();

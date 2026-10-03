@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * embed 公开面协作者（对照 Go embedChannelHandler 公开段，
- * 自 {@link EmbedChannelController} 机械搬出）：session token 兑换、公开配置、
+ * embed 公开面协作者（自 {@link EmbedChannelController} 拆出的公开段）：
+ * session token 兑换、公开配置、
  * 推荐问题、chunk 读取与访客会话创建。EmbedAuthFilter 已在过滤器层跑完。
  * 持门面回引（ctrl）取 service/sessionService/sessionRepository；渠道解析与
  * 响应组构件经门面类名调用。
@@ -33,7 +33,7 @@ final class EmbedChannelPublicOps {
 
     // ═══════════════════ 公开面（EmbedAuthFilter 已跑） ═══════════════════
 
-    /** 对照 ExchangeEmbedSession：只有 publish token 能换 session token。 */
+    /** 只有 publish token 能换 session token。 */
     public ResponseEntity<Map<String, Object>> exchange(@PathVariable("channel_id") String channelId) {
         EmbedChannelEntity ch = EmbedChannelController.channel(EmbedChannelController.request0());
         String auth = EmbedChannelController.trim(EmbedChannelController.request0().getHeader("Authorization"));
@@ -57,13 +57,13 @@ final class EmbedChannelPublicOps {
         return ResponseEntity.ok(data);
     }
 
-    /** 对照 GetEmbedConfig。 */
+    /** 公开配置视图。 */
     public ResponseEntity<com.fasterxml.jackson.databind.node.ObjectNode> config(@PathVariable("channel_id") String channelId) {
         EmbedChannelEntity ch = EmbedChannelController.channel(EmbedChannelController.request0());
         return ResponseEntity.ok(ctrl.service.publicConfig(ch));
     }
 
-    /** 对照 GetEmbedSuggestedQuestions。 */
+    /** 公开建议问题（开关关闭或失败时返回空列表）。 */
     public ResponseEntity<Map<String, Object>> suggestedQuestions(
             @PathVariable("channel_id") String channelId,
             @RequestParam(name = "limit", required = false) String limit) {
@@ -81,7 +81,7 @@ final class EmbedChannelPublicOps {
                     limitInt = Math.min(n, 12);
                 }
             } catch (NumberFormatException ignored) {
-                // Go：解析失败按"未指定"处理
+                // 解析失败按"未指定"处理
             }
         }
         com.fasterxml.jackson.databind.node.ArrayNode questions;
@@ -95,7 +95,7 @@ final class EmbedChannelPublicOps {
         return ResponseEntity.ok(data);
     }
 
-    /** 对照 GetEmbedChunk。 */
+    /** 公开分块读取（白名单校验 + 404/403 分支）。 */
     public ResponseEntity<?> chunk(@PathVariable("chunk_id") String chunkId) {
         EmbedChannelEntity ch = EmbedChannelController.channel(EmbedChannelController.request0());
         String cid = LogSanitizer.sanitize(chunkId);
@@ -112,7 +112,7 @@ final class EmbedChannelPublicOps {
         }
     }
 
-    /** 对照 CreateEmbedSession：201 {id, sig}。 */
+    /** 创建访客会话：201 {id, sig}。 */
     public ResponseEntity<Map<String, Object>> createSession(
             @PathVariable("channel_id") String channelId) {
         EmbedChannelEntity ch = EmbedChannelController.channel(EmbedChannelController.request0());
@@ -130,7 +130,7 @@ final class EmbedChannelPublicOps {
             ctrl.sessionRepository.setOwnerId(tenantId, created.getId(), owner);
             created.setUserId(owner);
         } catch (RuntimeException e) {
-            // 对照 Go：Warnf 后继续
+            // 失败仅记 warn 后继续
         }
         String sig = EmbedTokens.signHandle(ch, created.getId());
         Map<String, Object> data = new LinkedHashMap<>();

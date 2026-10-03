@@ -30,9 +30,9 @@ import com.ragagent.common.pipeline.ChunkTypes;
 import com.ragagent.retrieval.obs.RetrievalObs;
 
 /**
- * CHUNK_RERANK 阶段插件（对照 Go chat_pipeline/rerank.go 全文）。
+ * CHUNK_RERANK 阶段插件。
  *
- * <h2>编排（实录组 rerank ×12 钉住）</h2>
+ * <h2>编排</h2>
  * <ul>
  *   <li>空段落跳过 → API 失败回退原检索结果（api_error_fallback）→
  *       无结果且阈值 &gt;0.3 降为 ×0.7（不低于 0.3）重试 →
@@ -42,8 +42,8 @@ import com.ragagent.retrieval.obs.RetrievalObs;
  *   <li>MMR（lambda 0.7）多样性选 topK；token 集并发预计算。</li>
  * </ul>
  *
- * <p>段落清洗 cleanPassageForRerank 的 14 条正则族逐条对照 Go（RE2 → Java 语义等价，
- * `$`→`\z`、`\s` 显式类按 §9 教训处理；实录组 rerank_clean ×20 钉住）。</p>
+ * <p>段落清洗 cleanPassageForRerank 的正则族注意 Java 语义差异：串尾锚用
+ * {@code \z}（非 {@code $} 行尾）、空白类显式列出。</p>
  */
 public final class PluginRerank implements Plugin {
 
@@ -273,7 +273,7 @@ public final class PluginRerank implements Plugin {
         return next.next();
     }
 
-    /** 对照 buildRerankSpanOutput（观测面）。 */
+    /** rerank span 的观测输出面。 */
     private static Map<String, Object> buildRerankSpanOutput(
             List<SearchResult> candidates, List<String> passages, List<RankResult> modelScores,
             List<SearchResult> composite, List<SearchResult> finalResults, ChatManage chatManage,
@@ -316,7 +316,7 @@ public final class PluginRerank implements Plugin {
         return out;
     }
 
-    /** 对照 rerank：清洗空段 → 模型调用 → 阈值过滤 → top1 兜底。失败抛异常。 */
+    /** 清洗空段 → 模型调用 → 阈值过滤 → top1 兜底。失败抛异常。 */
     private List<RankResult> rerank(ChatManage chatManage, Reranker rerankModel, String query,
                                     List<String> passages, List<SearchResult> candidates) {
         Map<String, Object> mc = new LinkedHashMap<>();
@@ -417,7 +417,6 @@ public final class PluginRerank implements Plugin {
         return rankFilter;
     }
 
-    /** 对照 rerankFallbackMinScore。 */
     public static double rerankFallbackMinScore(List<SearchTarget> searchTargets) {
         if (new SearchTarget.SearchTargets(searchTargets).hasRecallThresholdOverride()) {
             return 0;
@@ -432,7 +431,6 @@ public final class PluginRerank implements Plugin {
         return results.get(0).getRelevanceScore();
     }
 
-    /** 对照 compositeScore。 */
     public static double compositeScore(SearchResult sr, double modelScore, double baseScore) {
         double sourceWeight;
         switch (sr.getKnowledgeSource() == null ? "" : sr.getKnowledgeSource().toLowerCase(java.util.Locale.ROOT)) {
@@ -449,7 +447,7 @@ public final class PluginRerank implements Plugin {
         return composite;
     }
 
-    /** 对照 applyMMR：预计算 token 集（并发）→ 迭代选 k。 */
+    /** MMR 多样性选择：预计算 token 集（并发）→ 迭代选 k。 */
     static List<SearchResult> applyMMR(ChatManage chatManage, List<SearchResult> results, int k, double lambda) {
         if (k <= 0 || results.isEmpty()) {
             return null;
@@ -521,7 +519,7 @@ public final class PluginRerank implements Plugin {
     }
 
     // ------------------------------------------------------------------
-    // 段落清洗（rerank.go:540-642）
+    // 段落清洗
     // ------------------------------------------------------------------
 
     private static final Pattern RE_CODE_BLOCK =
@@ -546,7 +544,7 @@ public final class PluginRerank implements Plugin {
     private static final Pattern RE_EXCESSIVE_NEWLINES = Pattern.compile("\\n{3,}");
     private static final Pattern RE_LIST_MARKER = Pattern.compile("(?m)^[\\t ]*(?:[-*+]|\\d+\\.)\\s+");
 
-    /** 对照 cleanPassageForRerank：12 步去格式噪声（顺序即语义）。 */
+    /** 12 步去格式噪声（顺序即语义）。 */
     public static String cleanPassageForRerank(String text) {
         // 1. 代码块解包
         text = RE_CODE_BLOCK.matcher(text).replaceAll("$1");
@@ -598,7 +596,7 @@ public final class PluginRerank implements Plugin {
         return text.trim();
     }
 
-    /** 对照 getEnrichedPassage：Content + ImageInfo + GeneratedQuestions 合并。 */
+    /** Content + ImageInfo + GeneratedQuestions 合并。 */
     public static String getEnrichedPassage(SearchResult result) {
         String combinedText = cleanPassageForRerank(result.getContent());
         List<String> enrichments = new ArrayList<>();
@@ -661,7 +659,6 @@ public final class PluginRerank implements Plugin {
         }
     }
 
-    /** 对照 logRerankInputScoreSample。 */
     static void logRerankInputScoreSample(List<SearchResult> results) {
         final int maxLogRows = 8;
         int limit = results == null ? 0 : Math.min(maxLogRows, results.size());

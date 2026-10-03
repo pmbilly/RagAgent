@@ -1,10 +1,10 @@
 package com.ragagent.datasource.connector.rss;
 
 /**
- * HTML → Markdown 转换失败（对照 Go {@code htmltomd.ConvertString} 返回的 {@code err}）。
+ * HTML → Markdown 转换失败。
  *
- * <p>抛出它的效果与 Go 完全一致：{@code htmlToMarkdown} 回落到
- * {@code strings.TrimSpace(html)} 原文。</p>
+ * <p>抛出它的效果：{@code htmlToMarkdown} 回落到
+ * 去空白后的 HTML 原文。</p>
  */
 public class HtmlConversionException extends RuntimeException {
 

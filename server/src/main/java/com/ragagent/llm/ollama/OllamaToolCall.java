@@ -8,16 +8,14 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * Ollama 工具调用（对照 ollamaapi.ToolCall / ToolCallFunction，
- * ollama@v0.23.2/api/types.go:205-216）。
+ * Ollama 工具调用（对齐 ollama v0.23.2 API）。
  *
  * <p><b>Ollama 的工具调用没有语义化 ID</b>：它只有一个 {@code index}（整数）。
  * 本模块入站时用 {@code index} 转成字符串当 ID 用（见 OllamaChat.toolCallTo），
  * 出站时再把 ID 解析回整数（toolCallFrom）。</p>
  *
  * <p>{@code arguments} 是<b>对象</b>（不是 OpenAI 那样的 JSON 字符串），
- * 且恒输出——Go 的 ToolCallFunctionArguments.MarshalJSON 在空值时给 {@code {}}，
- * 这里用"字段永不为 null"来兑现同一契约。</p>
+ * 且恒输出——空值时给 {@code {}}（字段永不为 null）。</p>
  */
 @JsonPropertyOrder({"id", "function"})
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -37,7 +35,7 @@ public class OllamaToolCall {
     public Function getFunction() { return function; }
     public void setFunction(Function v) { function = v == null ? new Function() : v; }
 
-    /** 对照 ollamaapi.ToolCallFunction（index / name / arguments 三者都恒输出）。 */
+    /** function 子对象（index / name / arguments 三者都恒输出）。 */
     @JsonPropertyOrder({"index", "name", "arguments"})
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Function {
@@ -46,7 +44,7 @@ public class OllamaToolCall {
         private int index;
         @JsonProperty("name")
         private String name = "";
-        /** 参数对象，恒非 null：空即 {@code {}}（对照 Go 的 MarshalJSON）。 */
+        /** 参数对象，恒非 null：空即 {@code {}}。 */
         @JsonProperty("arguments")
         private ObjectNode arguments = JsonNodeFactory.instance.objectNode();
 

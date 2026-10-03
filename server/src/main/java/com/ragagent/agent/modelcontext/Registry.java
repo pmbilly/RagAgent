@@ -18,8 +18,7 @@ import com.ragagent.llm.domain.ToolCall;
 import com.ragagent.common.retrieval.SearchResult;
 
 /**
- * 请求局部模型句柄的唯一边界（对照 Go internal/modelcontext/registry.go +
- * mcp.go + mcp_sources.go，全文移植）。
+ * 请求局部模型句柄的唯一边界。
  *
  * <p>边界是刻意的：</p>
  * <ul>
@@ -33,10 +32,9 @@ import com.ragagent.common.retrieval.SearchResult;
  * summary/&lt;knowledge-id&gt; wiki slug 必须先整体变成 resource 类句柄，
  * 内嵌的 document ID 才能被压缩成 dN。调用方无法意外颠倒两个编解码器。</p>
  *
- * <p>JSON 字节语义：凡是 Go 侧走 map[string]json.RawMessage 的路径（MCP envelope、
- * 路由 enum、目录行），这里用 RawJson 扫描器保原始字节、按键序重组；凡是走
- * map[string]interface{} 的路径（walkJSON/rewriteJSONStringValues），数字按 Go
- * 的 float64 语义经 GoJsonCodec 重编。</p>
+ * <p>JSON 字节语义：需要保原始字节的路径（MCP envelope、
+ * 路由 enum、目录行）用 RawJson 扫描器保原始字节、按键序重组；走值级处理的
+ * 路径（值级处理），数字按 double 语义经 GoJsonCodec 重编。</p>
  */
 public final class Registry {
 
@@ -58,7 +56,7 @@ public final class Registry {
     final HandleTable mcpServers;
     final HandleTable mcpTools;
 
-    /** 为一次模型请求 / Agent 执行创建 registry（对照 NewRegistry）。 */
+    /** 为一次模型请求 / Agent 执行创建 registry。 */
     public Registry(boolean citationsEnabled) {
         this.sources = new SourceRegistry(citationsEnabled);
         this.resources = new ResourceRegistry();
@@ -71,7 +69,7 @@ public final class Registry {
         return sources;
     }
 
-    /** 系统私有的模型句柄与引用协议（对照 ProtocolPrompt；字节即契约，实录锁死）。 */
+    /** 系统私有的模型句柄与引用协议（字节即契约）。 */
     public String protocolPrompt() {
         return sources.protocolPrompt() + RESOURCE_HANDLE_PROTOCOL_PROMPT
                 + "\nMCP routing uses request-local msN server IDs and mtN tool references. "
@@ -79,8 +77,7 @@ public final class Registry {
     }
 
     /**
-     * 返回带全部临时句柄、按唯一安全顺序编码的模型面消息副本
-     * （对照 EncodeMessages）。
+     * 返回带全部临时句柄、按唯一安全顺序编码的模型面消息副本。
      */
     public List<ChatMessage> encodeMessages(List<ChatMessage> messages) {
         if (messages == null) {
@@ -111,7 +108,7 @@ public final class Registry {
         return out;
     }
 
-    /** 还原工具调用参数里的全部临时句柄（对照 DecodeToolCalls）。 */
+    /** 还原工具调用参数里的全部临时句柄。 */
     public void decodeToolCalls(List<ToolCall> toolCalls) {
         if (toolCalls == null) {
             return;
@@ -168,7 +165,7 @@ public final class Registry {
         return new ArrayList<>(seen);
     }
 
-    /** 非流式响应的统一解码：还原资源、展开引用、解码工具参数（对照 DecodeResponse）。 */
+    /** 非流式响应的统一解码：还原资源、展开引用、解码工具参数。 */
     public void decodeResponse(ChatResponse response) {
         if (response == null) {
             return;
@@ -178,12 +175,12 @@ public final class Registry {
         decodeToolCalls(response.getToolCalls());
     }
 
-    /** 一个响应文本通道的有序解码器（对照 StreamDecoder）。 */
+    /** 一个响应文本通道的有序解码器。 */
     public StreamDecoder streamDecoder() {
         return new StreamDecoder(resources, sources, issues, mcpServers, mcpTools);
     }
 
-    /** 模型自造、无持久引用背书的 resource 句柄（对照 OrphanResourceHandles）。 */
+    /** 模型自造、无持久引用背书的 resource 句柄。 */
     public List<String> orphanResourceHandles(String decoded) {
         return resources.orphanHandles(decoded);
     }
@@ -192,14 +189,15 @@ public final class Registry {
         return sources.registerChunk(ref);
     }
 
-    /** 让目录条目可被工具寻址，但不允许它在检索前支撑答案（对照 RegisterContextChunk）。 */
+    /** 让目录条目可被工具寻址，但不允许它在检索前支撑答案。 */
     public String registerContextChunk(SourceRegistry.ChunkReference ref) {
         return sources.registerChunk(ref, false);
     }
 
     /**
-     * 引擎桥接（4.6b，新增公开重载，无行为变更）：{@code ChunkReference} 是包内类型，
-     * agent 引擎（observe.go 的 registerRuntimeReferences）拿不到构造面，按字段透传。
+     * 引擎桥接（新增公开重载，无行为变更）：{@code ChunkReference} 是包内类型，
+     * agent 引擎（{@link com.ragagent.agent.PromptAssembly} 的 registerRuntimeReferences）
+     * 拿不到构造面，按字段透传。
      */
     public String registerContextChunk(String chunkId, String knowledgeId, String knowledgeBaseId,
             String documentTitle, int chunkIndex, String chunkType) {
@@ -233,18 +231,18 @@ public final class Registry {
         return sources.chunkHandle(id);
     }
 
-    /** 只替换此前已注册的持久 source ID（对照 CompactKnownText）。 */
+    /** 只替换此前已注册的持久 source ID。 */
     public String compactKnownText(String text) {
         String encoded = resources.encodeText(text);
         return sources.compactKnownText(encoded);
     }
 
-    /** 用已注册句柄渲染工具结果（对照 ModelToolResult）。 */
+    /** 用已注册句柄渲染工具结果。 */
     public String modelToolResult(ToolResult result) {
         return modelToolResultForTool("", result);
     }
 
-    /** 渲染结果并应用该内建工具族显式持有的私有 ID 策略（对照 ModelToolResultForTool）。 */
+    /** 渲染结果并应用该内建工具族显式持有的私有 ID 策略。 */
     public String modelToolResultForTool(String toolName, ToolResult result) {
         if (result == null) {
             return "";
@@ -292,7 +290,7 @@ public final class Registry {
         return "\nOutput files: `" + String.join("`, `", result.getOutputFiles()) + "`";
     }
 
-    /** 对完整文本应用公共引用策略（对照 DecodeOutputText）。 */
+    /** 对完整文本应用公共引用策略。 */
     public String decodeOutputText(String text) {
         text = resources.decodeText(text);
         text = resources.stripOrphanHandles(text);
@@ -300,12 +298,12 @@ public final class Registry {
         return mcpTools.decodeKnownText(mcpServers.decodeKnownText(issues.decodeKnownText(text)));
     }
 
-    /** 引擎在 observe/act 里登记工具私有结果（对照 encodeToolPrivateResult）。 */
+    /** 引擎在 observe/act 里登记工具私有结果。 */
     String encodeToolPrivateResult(String toolName, String output) {
         return ToolPolicy.encodeToolPrivateResult(this, toolName, output);
     }
 
-    // ---- mcp.go ----
+    // ---- MCP 服务/工具句柄与参数改写 ----
 
     /** MCP 路由身份属于 bridge 而非远端 schema（对照 mcpArgumentTable）。 */
     private record McpArgumentTable(String key, HandleTable table) {
@@ -319,7 +317,7 @@ public final class Registry {
         };
     }
 
-    /** 顶层对象的单字段改写（对照 rewriteMCPField）；其余值原字节保留。 */
+    /** 顶层对象的单字段改写；其余值原字节保留。 */
     static String rewriteMCPField(String raw, String key, java.util.function.UnaryOperator<String> rewrite) {
         String result = ToolPolicy.RawJson.rewriteRawObject(raw, key, rawValue -> {
             JsonNode value = GoJsonValues.parse(rawValue);
@@ -408,12 +406,12 @@ public final class Registry {
             }
             rebuilt.put(key, marshalRawArray(encodedRows));
         }
-        // Go: encoded, _ := json.Marshal(object); return encodeRow(string(encoded))
+        // 重组后整体编码，再走一遍行编码
         String encoded = ToolPolicy.RawJson.marshalObject(rebuilt);
         return encodeRowBoth.apply(encoded);
     }
 
-    /** json.Marshal([]json.RawMessage) 的等价：原字节元素按紧凑数组输出。 */
+    /** 原字节元素按紧凑 JSON 数组输出。 */
     static String marshalRawArray(List<String> elements) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < elements.size(); i++) {
@@ -425,7 +423,7 @@ public final class Registry {
         return sb.append(']').toString();
     }
 
-    /** 模型面工具清单副本；registry/executor 保留原 UUID enum（对照 EncodeTools）。 */
+    /** 模型面工具清单副本；registry/executor 保留原 UUID enum。 */
     public List<ChatTool> encodeTools(List<ChatTool> tools) {
         List<ChatTool> encoded = new ArrayList<>(tools.size());
         for (ChatTool tool : tools) {
@@ -463,7 +461,7 @@ public final class Registry {
             for (int j = 0; j < ids.size(); j++) {
                 ids.set(j, registerMCPIdentity(entry.table(), ids.get(j)));
             }
-            // field["enum"], _ = json.Marshal(ids) → 替换后逐层按键序重组
+            // 替换 enum 后逐层按键序重组
             Map<String, String> fieldRewritten = new java.util.LinkedHashMap<>(field);
             fieldRewritten.put("enum", GoJsonCodec.write(GoJsonValues.MAPPER.valueToTree(ids)));
             Map<String, String> propertiesRewritten = new java.util.LinkedHashMap<>(properties);
@@ -471,8 +469,8 @@ public final class Registry {
             Map<String, String> schemaRewritten = new java.util.LinkedHashMap<>(schema);
             schemaRewritten.put("properties", ToolPolicy.RawJson.marshalObject(propertiesRewritten));
             String marshaled = ToolPolicy.RawJson.marshalObject(schemaRewritten);
-            // Go 的 def.Parameters 是 json.RawMessage（原文内嵌）；Java FunctionDef 用
-            // JsonNode——解析保序的编出文本回树，后续序列化保持同样的键序与数字形态
+            // FunctionDef.parameters 是 JsonNode：把编出文本保序解析回树，
+            // 后续序列化保持同样的键序与数字形态
             def.setParameters(GoJsonValues.parse(marshaled));
         }
         for (ChatTool tool : encoded) {
@@ -497,7 +495,7 @@ public final class Registry {
         return encoded;
     }
 
-    /** 解码一个 JSON 字符串数组的原始文本；任何元素非字符串返回 null（对照 json.Unmarshal 失败）。 */
+    /** 解码一个 JSON 字符串数组的原始文本；任何元素非字符串返回 null。 */
     static List<String> decodeStringArray(String raw) {
         JsonNode node = GoJsonValues.parse(raw);
         if (node == null || !node.isArray()) {
@@ -514,7 +512,7 @@ public final class Registry {
         return ids;
     }
 
-    /** 运行时上下文文本只压缩系统私有的路由语法（对照 encodeMCPRoutingText）。 */
+    /** 运行时上下文文本只压缩系统私有的路由语法。 */
     String encodeMCPRoutingText(String text) {
         for (HandleStore.Pair<Void> pair : mcpServers.store().pairs()) {
             text = text.replace(
@@ -524,7 +522,7 @@ public final class Registry {
         return text;
     }
 
-    /** Go strconv.Quote 的等价（路由文本替换用；服务 ID 是简单 ASCII）。 */
+    /** 字符串字面量加引号与转义（路由文本替换用；服务 ID 是简单 ASCII）。 */
     static String goQuote(String s) {
         StringBuilder sb = new StringBuilder(s.length() + 2);
         sb.append('"');
@@ -549,7 +547,7 @@ public final class Registry {
         return sb.toString();
     }
 
-    // ---- mcp_sources.go ----
+    // ---- MCP 结果来源发现 ----
 
     /** MCP 结果里观察到的字面 HTTP(S) 链接索引上限。 */
     static final int MAX_MCP_SOURCE_CANDIDATES = 50;
@@ -559,7 +557,7 @@ public final class Registry {
     private static final java.util.regex.Pattern MCP_URL = java.util.regex.Pattern
             .compile("https?://[^\\t\\n\\u000c\\r <>\"'`\\\\，。；！？、（）【】]+");
 
-    /** 成功结果里观察到的链接 sidecar（对照 mcpSourceCandidates）；结果本身保持不变。 */
+    /** 成功结果里观察到的链接 sidecar；结果本身保持不变。 */
     String mcpSourceCandidates(String output) {
         if (!sources.citationsEnabled) {
             return "";
@@ -610,8 +608,8 @@ public final class Registry {
     }
 
     /**
-     * Go url.Parse 后的守卫：err==nil 且 Hostname 非空、无 userinfo、scheme 是
-     * http/https（regex 已保证前缀；这里查 host 非空、无 userinfo、无控制字符）。
+     * 可抓取 web URL 守卫：host 非空、无 userinfo、无控制字符、scheme 是
+     * http/https（regex 已保证前缀）。
      */
     private static boolean isFetchableWebURL(String rawURL) {
         String rest = rawURL;
@@ -629,7 +627,7 @@ public final class Registry {
             authority = authority.substring(0, pathStart);
         }
         if (authority.lastIndexOf('@') >= 0) {
-            return false; // userinfo（Go: parsed.User != nil）
+            return false; // 带 userinfo（user@host）的 URL 不处理
         }
         int hash = authority.indexOf('#');
         if (hash >= 0) {
@@ -644,7 +642,7 @@ public final class Registry {
         }
         for (int i = 0; i < rawURL.length(); i++) {
             if (rawURL.charAt(i) < 0x20) {
-                return false; // Go url.Parse 拒绝 ASCII 控制字符
+                return false; // 含 ASCII 控制字符的 URL 直接拒绝
             }
         }
         return true;

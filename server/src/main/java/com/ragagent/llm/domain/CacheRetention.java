@@ -1,7 +1,7 @@
 package com.ragagent.llm.domain;
 
 /**
- * provider prompt 缓存 TTL 控制（对照 Go chat.CacheRetention）。
+ * provider prompt 缓存 TTL 控制。
  * 空值语义等同于 SHORT（默认 5 分钟缓存）。
  */
 public enum CacheRetention {

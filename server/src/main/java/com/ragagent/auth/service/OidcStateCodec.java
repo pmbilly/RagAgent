@@ -15,25 +15,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 /**
- * OIDC state 编解码（对照 Go internal/utils/oidc_state.go，逐字节）。
+ * OIDC state 编解码。
  *
  * state = base64url_nopad(json).base64url_nopad(hmac-sha256)，
- * json 字段序 nonce, redirect_uri(omitempty), iat；密钥 = env JWT_SECRET
- * （trim 后非空），否则随机 32B base64(Std)（对照 sync.Once：构造时一次定案）。
+ * json 字段序 nonce, redirect_uri, iat；密钥 = env JWT_SECRET
+ * （trim 后非空），否则随机 32B base64(Std)（构造时一次定案）。
  *
  * verify：必须恰好 2 段、HMAC 相等、redirect_uri trim 后非空、iat != 0、
  * now-iat ≤ 10min 且 iat-now ≤ 1min。所有失败抛 {@link StateException}，
- * 由 handler 层坍缩成 invalid_state 302（错误消息不外泄）。
+ * 由 controller 层坍缩成 invalid_state 302（错误消息不外泄）。
  *
-     * sign 的 JSON 序列化复刻 Go encoding/json 默认 HTML 转义（& < > 与控制字符都转 hex 形式），
-     * 以保证与 Go 侧 SignOIDCState 跨语言互验。
+ * sign 的 JSON 序列化带 HTML 转义（& < > 与控制字符都转 hex 形式），
+ * 与既有签发方字节一致。
  */
 @Component
 public class OidcStateCodec {
 
-    /** 对照 oidcStateMaxAge = 10 * time.Minute */
+    /** state 有效期 10 分钟 */
     private static final long MAX_AGE_SECONDS = 600;
-    /** 对照 time.Until(issuedAt) > time.Minute（未来容忍 1 分钟） */
+    /** iat 的未来容忍 1 分钟 */
     private static final long FUTURE_TOLERANCE_SECONDS = 60;
 
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -54,11 +54,11 @@ public class OidcStateCodec {
         this.signingKey = secret.getBytes(StandardCharsets.UTF_8);
     }
 
-    /** 对照 OIDCStatePayload */
+    /** state 载荷 */
     public record Payload(String nonce, String redirectUri, long issuedAt) {
     }
 
-    /** verify 失败（消息对照 Go error 原文，仅供日志，不外泄） */
+    /** verify 失败（消息仅供日志，不外泄） */
     public static class StateException extends RuntimeException {
         public StateException(String message) {
             super(message);
@@ -66,8 +66,8 @@ public class OidcStateCodec {
     }
 
     /**
-     * 对照 SignOIDCState。iat 传 0 = time.Now().Unix()。
-     * public 供契约测试签 state（测试需与录制脚本 python 锻造等价的入口）。
+     * 签发 state。iat 传 0 = 当前秒级时间。
+     * public 供契约测试签 state（测试需与录制脚本等价的入口）。
      */
     public String sign(String nonce, String redirectUri, long issuedAt) {
         if (nonce == null || UserService.goTrimSpace(nonce).isEmpty()) {
@@ -77,7 +77,7 @@ public class OidcStateCodec {
             throw new IllegalArgumentException("oidc state redirect_uri is required");
         }
         long iat = issuedAt == 0 ? Instant.now().getEpochSecond() : issuedAt;
-        // 字段序 nonce, redirect_uri, iat（Go struct 声明序；redirect_uri 必填故 omitempty 恒输出）
+        // 字段序 nonce, redirect_uri, iat（与既有签发方一致；redirect_uri 必填恒输出）
         String raw = "{\"nonce\":" + goJsonString(nonce)
                 + ",\"redirect_uri\":" + goJsonString(redirectUri)
                 + ",\"iat\":" + iat + "}";
@@ -85,10 +85,10 @@ public class OidcStateCodec {
         return base64Url(rawBytes) + "." + base64Url(hmac(rawBytes));
     }
 
-    /** 对照 VerifyOIDCState */
+    /** 校验并解码 state。 */
     public Payload verify(String rawState) {
         String raw = rawState == null ? "" : UserService.goTrimSpace(rawState);
-        String[] parts = raw.split("\\.", -1); // 对照 strings.Split（全切）
+        String[] parts = raw.split("\\.", -1); // 全切（保留尾空段）
         if (parts.length != 2) {
             throw new StateException("invalid oidc state format");
         }
@@ -144,7 +144,7 @@ public class OidcStateCodec {
     }
 
     /**
-     * Go encoding/json 的字符串字面量序列化（默认 HTML 转义开启）：
+     * JSON 字符串转义（HTML 转义开启）：
      * 双引号/反斜杠与 0x20 以下控制字符转义（LF CR TAB 有短形式，其余为四位小写 hex 形式），
      * 另 & < > 与 U+2028/U+2029 也转义为各自的 hex 形式。
      */

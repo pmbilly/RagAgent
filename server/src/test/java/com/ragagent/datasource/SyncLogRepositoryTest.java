@@ -26,18 +26,17 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 同步日志仓储在 H2 上的语义（对照 Go
- * internal/application/repository/datasource_repo.go L153-324）。
+ * 同步日志仓储在 H2 上的语义。
  *
  * <p>重点：</p>
  * <ul>
- *   <li>{@code BeforeCreate} 钩子（id / {@code started_at} 补 UTC now）；</li>
+ *   <li>创建时自动补 {@code id} / {@code started_at}（UTC now）；</li>
  *   <li>{@link SyncLogRepository#findLatest} 未命中回 {@code null}
  *       ——与同文件 {@link SyncLogRepository#findById} 上抛**不同**；</li>
  *   <li>分页钳制（{@code limit <= 0 → 10}、{@code offset < 0 → 0}）；</li>
  *   <li>{@code update}（结构体，跳零值）vs {@code updateResult}（显式 map，
  *       <b>能写空串</b>）——这是两个方法存在的理由；</li>
- *   <li>{@code cancelPendingByDataSource} 的四列（含 GORM 偷偷补的 {@code updated_at}）；</li>
+ *   <li>{@code cancelPendingByDataSource} 的四列（含自动补上的 {@code updated_at}）；</li>
  *   <li>{@code cleanupOldLogs} 是**物理删**且全局，保留天数钳制。</li>
  * </ul>
  */
@@ -80,7 +79,7 @@ class SyncLogRepositoryTest {
 
     // ── create ─────────────────────────────────────────────────────────────
 
-    /** 对照 {@code BeforeCreate}：id 为空就生成 UUID、{@code started_at} 零值补 **UTC** now。 */
+    /** 创建时：id 为空就生成 UUID、{@code started_at} 零值补 **UTC** now。 */
     @Test
     void createFillsIdAndStartedAt() {
         SyncLog log = newLog(DataSourceConstants.SYNC_LOG_STATUS_RUNNING);
@@ -94,7 +93,7 @@ class SyncLogRepositoryTest {
                 .isEqualTo(DataSourceConstants.SYNC_LOG_STATUS_RUNNING);
     }
 
-    /** 调用方已给的 {@code started_at} 不能被覆盖（{@code if s.StartedAt.IsZero()}）。 */
+    /** 调用方已给的 {@code started_at} 不能被覆盖（仅在零值时补 now）。 */
     @Test
     void createKeepsCallerSuppliedStartedAt() {
         OffsetDateTime when = OffsetDateTime.now(ZoneOffset.UTC).minusHours(3);
@@ -242,7 +241,7 @@ class SyncLogRepositoryTest {
 
     // ── update（结构体） vs updateResult（显式 map） ────────────────────────
 
-    /** {@code Updates(结构体)} 跳过零值：用 {@code update} 清空 {@code error_message} 是做不到的。 */
+    /** {@code update} 跳过零值：用它清空 {@code error_message} 是做不到的。 */
     @Test
     void updateSkipsZeroValues() {
         SyncLog log = newLog(DataSourceConstants.SYNC_LOG_STATUS_FAILED);
@@ -261,7 +260,7 @@ class SyncLogRepositoryTest {
         assertThat(stored.getItemsFailed()).isEqualTo(3);
     }
 
-    /** 但 {@code updated_at} 例外——{@code Updates(结构体)} 对它无条件覆盖。 */
+    /** 但 {@code updated_at} 例外——{@code update} 对它无条件覆盖。 */
     @Test
     void updateAlwaysRefreshesUpdatedAt() {
         SyncLog log = newLog(DataSourceConstants.SYNC_LOG_STATUS_RUNNING);
@@ -334,8 +333,8 @@ class SyncLogRepositoryTest {
     // ── cancelPendingByDataSource ──────────────────────────────────────────
 
     /**
-     * Go 的 map 只有三列，但 GORM 会替它补 {@code updated_at}（§9）——
-     * 所以线上写的是四列。这里验证三列的净效果。
+     * 取消操作写三列业务值，{@code updated_at} 会被自动补上（§9）——共四列。
+     * 这里验证三列的净效果。
      */
     @Test
     void cancelPendingMarksRunningAndPendingAsCanceled() {
@@ -344,7 +343,7 @@ class SyncLogRepositoryTest {
         SyncLog terminal = newLog(DataSourceConstants.SYNC_LOG_STATUS_SUCCESS);
         repo.create(terminal);
 
-        // "pending" 是 Go 里内联的字面量（没有常量），这里直接造一行
+        // "pending" 没有对应常量，这里直接造一行
         SyncLog pending = newLog("pending");
         repo.create(pending);
 
@@ -364,8 +363,7 @@ class SyncLogRepositoryTest {
     }
 
     /**
-     * {@code finished_at} 与 {@code updated_at} 用的是**同一个 {@code now}**
-     * （Go 的 {@code now := time.Now().UTC()} 被两处共用）。
+     * {@code finished_at} 与 {@code updated_at} 用的是**同一个 {@code now}**。
      *
      * <p>断言的是两个值的**相等**，不涉及"时间已经过去多久"——两列都由同一个
      * {@code OffsetDateTime} 写出，所以不受机器负载影响（不写靠墙钟的用例，§9）。</p>
@@ -407,7 +405,7 @@ class SyncLogRepositoryTest {
                 Integer.class, fresh.getId())).isEqualTo(1);
     }
 
-    /** {@code retentionDays <= 0} 回落到 30（Go 的 {@code if retentionDays <= 0}）。 */
+    /** {@code retentionDays <= 0} 回落到 30。 */
     @Test
     void cleanupOldLogsFallsBackToThirtyDays() {
         SyncLog fortyDays = newLog(DataSourceConstants.SYNC_LOG_STATUS_SUCCESS);
@@ -437,7 +435,7 @@ class SyncLogRepositoryTest {
                 .isEqualTo(1);
     }
 
-    /** 清理是**全局**的：别的数据源的旧日志同样被删（Go 的 Delete 不带租户条件）。 */
+    /** 清理是**全局**的：别的数据源的旧日志同样被删（不带租户条件）。 */
     @Test
     void cleanupOldLogsIsGlobal() {
         DataSource other = new DataSource();
@@ -460,7 +458,7 @@ class SyncLogRepositoryTest {
                 Integer.class, otherOld.getId())).isZero();
     }
 
-    /** 保证测试用的 UUID 是合法形态（Go 的 uuid.New() 同形）。 */
+    /** 保证测试用的 UUID 是合法形态。 */
     @Test
     void generatedIdsAreUuidShaped() {
         SyncLog log = newLog(DataSourceConstants.SYNC_LOG_STATUS_RUNNING);

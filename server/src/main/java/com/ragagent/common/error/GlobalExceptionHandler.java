@@ -12,7 +12,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * 统一错误形态（契约标准 §2 第 4 条）：
+ * 统一错误形态：
  * - BizException → 其 HTTPCode + {@code {"error": {code, message, details}}}
  * - 其他异常 → 500 + {@code {"error": {1007, "Internal server error"}}}
  */
@@ -28,9 +28,9 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 路由守卫式 403（对照 Go 中间件的纯字符串形态 {@code {"error":"Forbidden: ..."}}）。
+     * 路由守卫式 403：纯字符串形态 {@code {"error":"Forbidden: ..."}}。
      *
-     * <p>与 {@link BizException} 的 403 **形态不同**：后者是 AppError 信封。Go 里两种并存，
+     * <p>与 {@link BizException} 的 403 **形态不同**：后者是 AppError 信封。两种形态并存，
      * 按拒绝发生在中间件还是 handler 区分——控制器里做的所有权判定属于前者，
      * 详见 {@link GuardForbiddenException} 的类注释。</p>
      */
@@ -47,7 +47,7 @@ public class GlobalExceptionHandler {
      * Go handler 直写的纯字符串错误形态（{@code c.JSON(status, gin.H{"error": msg})}），
      * 状态码随异常携带——system admin 组的 promote/revoke/reset-password 等大量使用。
      * 与 {@link #handleGuardForbidden(GuardForbiddenException)} 同族（那边恒 403 且
-     * 消息带 "Forbidden: " 前缀），这边按 Go 原文原样输出。
+     * 消息带 "Forbidden: " 前缀），这边按消息原文原样输出。
      */
     @ExceptionHandler(PlainErrorException.class)
     public ResponseEntity<String> handlePlainError(PlainErrorException ex) {
@@ -145,7 +145,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(400).body(errorBody(e));
     }
 
-    /** 约束违规文案的中文归一：自定义消息原样，框架默认英文翻译为统一措辞。 */
+    /** 约束违规文案的中文归一：自定义消息原样，框架默认英文文案统一为固定中文措辞。 */
     private String translateConstraint(org.springframework.validation.FieldError fe) {
         String msg = fe.getDefaultMessage();
         if (msg == null) {

@@ -3,7 +3,7 @@ package com.ragagent.wiki.domain;
 import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 /**
- * 返回给浏览器的目录节点。JSON 键为 snake（§11 登记边界，前端按此解析）。
+ * 返回给浏览器的目录节点。JSON 键为 snake（前端按此解析）。
  *
  * <p>JSON 是扁平结构：{@code folder} 字段经 {@link JsonUnwrapped} 铺开，
  * WikiFolder 的字段直接出现在对象顶层（与 pageCount/hasChildren 同级），

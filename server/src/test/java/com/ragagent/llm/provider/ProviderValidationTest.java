@@ -10,10 +10,8 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go internal/models/provider/provider_test.go 的各厂商 ValidateConfig/Info 子测试
- * （TestAnthropicProviderValidation / TestOpenAIProviderValidation / TestAliyunProviderValidation /
- * TestMiniMaxProviderValidation / TestZhipuProviderValidation / TestRequestyProviderValidation）。
- * 校验文案与 Go 的 fmt.Errorf 逐字一致。
+ * 各厂商的 ValidateConfig / Info 校验测试。
+ * 校验文案逐字断言。
  */
 class ProviderValidationTest {
 
@@ -135,9 +133,9 @@ class ProviderValidationTest {
         assertTrue(info.requiresAuth());
     }
 
-    // ---------------- 其余厂商的校验顺序（Go 原文 baseURL → key → model） ----------------
+    // ---------------- 其余厂商的校验顺序（baseURL → key → model） ----------------
 
-    /** 对照 Go LongCatProvider/MoonshotProvider/QiniuProvider 等：baseURL 缺失先报 base URL */
+    /** LongCatProvider/MoonshotProvider/QiniuProvider 等：baseURL 缺失先报 base URL */
     @Test
     void providersWithBaseUrlCheckReportItFirst() {
         for (Provider p : new Provider[]{new LongCatProvider(), new MoonshotProvider(),
@@ -150,13 +148,13 @@ class ProviderValidationTest {
         }
     }
 
-    /** 对照 Go WeKnoraCloudProvider.ValidateConfig：无条件通过（结构校验） */
+    /** WeKnoraCloudProvider 的 ValidateConfig：无条件通过（结构校验） */
     @Test
     void weKnoraCloudAcceptsAnything() {
         assertDoesNotThrow(() -> new WeKnoraCloudProvider().validateConfig(config("", "")));
     }
 
-    /** 对照 Go AzureOpenAIProvider：五项检验顺序 baseURL 最后（key → model → baseURL） */
+    /** AzureOpenAIProvider：五项检验顺序 baseURL 最后（key → model → baseURL） */
     @Test
     void azureOpenAiValidation() {
         AzureOpenAIProvider p = new AzureOpenAIProvider();

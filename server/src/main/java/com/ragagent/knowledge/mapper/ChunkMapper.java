@@ -23,11 +23,9 @@ public interface ChunkMapper extends BaseMapper<Chunk> {
      * 全字段 UPDATE。
      * <p>写成显式 SQL 而不是 wrapper，是因为 wrapper 的 {@code set()} 不套实体上的
      * {@code typeHandler}（三个 json 列必须 3 参 set 或显式注解，见本仓约定）。
-     * 三条 json 列挂 {@code PgJsonTypeHandler, jdbcType=OTHER}（null 也走
+     * 三条 json 列挂 {@code PgJsonTypeHandler, jdbcType=OTHER}（null 也走 typeHandler）；
      * 可空时间列显式 {@code jdbcType=TIMESTAMP_WITH_TIMEZONE}（memory 模块同款先例）。</p>
-     * SoftDeleteUpdateClause），照抄。</p>
-     * （把整行再插回去）；service 层总是先查后存，HTTP 面不可达该分支，Java 未复刻
-     * （已记入任务报告的已知差异）。</p>
+     * <p>影响行数为 0 时不回退把整行再插回去；service 层总是先查后存，HTTP 面不可达该分支。</p>
      */
     @Update("UPDATE chunks SET "
             + "tenant_id = #{c.tenantId}, "

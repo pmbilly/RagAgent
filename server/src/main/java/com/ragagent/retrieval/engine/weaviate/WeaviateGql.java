@@ -9,11 +9,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.retrieval.engine.weaviate.WeaviateRestClient.Json;
 
 /**
- * Weaviate GraphQL 查询串构造——逐字节对照 {@code weaviate-go-client v5.7.3} 的
- * {@code graphql.GetBuilder#build} / {@code filters.WhereBuilder#String}（Go 实录见
- * {@code WeaviateGqlTest} 的常量，录自 v5 客户端的 Build()）。
+ * Weaviate GraphQL 查询串构造——逐字节对齐既有客户端的 wire 形态
+ * （{@code graphql.GetBuilder#build} / {@code filters.WhereBuilder#String} 的实测常量见
+ * {@code WeaviateGqlTest}）。
  *
- * <h2>Go 实录的形态（别改）</h2>
+ * <h2>查询串形态（别改）</h2>
  * <pre>
  * {Get {Class (where:{operator: And operands:[{operator: Equal path: ["is_enabled"] valueBoolean: true}]},
  *        nearVector:{certainty: 0.7 vector: [0.1,0.2,0.3]}, limit: 10)
@@ -21,7 +21,7 @@ import com.ragagent.retrieval.engine.weaviate.WeaviateRestClient.Json;
  * </pre>
  * 要点：参数按 where → （bm25/nearVector）→ limit → offset → after 的固定序、逗号+空格分隔；
  * where 内部的段用<b>单空格</b>连接、operands 用<b>逗号无空格</b>、`operands:`/`nearVector:`/
- * `bm25:`/`where:` 后<b>无空格</b>；字符串一律 Go {@code %q} 引号；数组在
+ * `bm25:`/`where:` 后<b>无空格</b>；字符串一律双引号 + 转义（见 {@link #quote}）；数组在
  * {@code len>1 || operator∈{ContainsAny,ContainsAll,ContainsNone}} 时加方括号。
  */
 public final class WeaviateGql {
@@ -29,12 +29,12 @@ public final class WeaviateGql {
     private WeaviateGql() {
     }
 
-    // ── 字段集（照 getEmbeddingFields / getKeywordsFields / getVectorFields） ──
+    // ── 字段集 ─────────────────────────────────────────────────────────────
 
     static final String FIELDS_EMBEDDING =
             "content source_id source_type chunk_id knowledge_id knowledge_base_id tag_id "
                     + "_additional{id certainty}";
-    /** 照 {@code getKeywordsFields}。 */
+    /** 关键词检索的字段集（_additional 取 score）。 */
     static final String FIELDS_KEYWORDS =
             "content source_id source_type chunk_id knowledge_id knowledge_base_id tag_id "
                     + "_additional{id score}";
@@ -45,13 +45,13 @@ public final class WeaviateGql {
 
     // ── where 构造 ─────────────────────────────────────────────────────────
 
-    /** 对照 {@code filters.WhereOperator}。 */
+    /** where 操作符常量。 */
     public static final String OP_AND = "And";
     public static final String OP_EQUAL = "Equal";
     public static final String OP_NOT_EQUAL = "NotEqual";
     public static final String OP_CONTAINS_ANY = "ContainsAny";
 
-    /** 对照 {@code WhereBuilder}：一条过滤（或一组 operands）。 */
+    /** 一条过滤（或一组 operands）。 */
     public static final class Where {
 
         private final String operator;
@@ -110,12 +110,12 @@ public final class WeaviateGql {
             return this;
         }
 
-        /** 对照 {@code WhereBuilder.String()}：{@code where:{...}}。 */
+        /** 整个 where 子句：{@code where:{...}}。 */
         public String gql() {
             return "where:{" + body() + "}";
         }
 
-        /** 对照 {@code WhereBuilder.string()}（不含 where: 前缀，供 operands 内嵌）。 */
+        /** 不含 where: 前缀，供 operands 内嵌。 */
         String body() {
             List<String> clause = new ArrayList<>();
             if (!operator.isEmpty()) {
@@ -148,7 +148,7 @@ public final class WeaviateGql {
         }
 
         /**
-         * 对照 {@code WhereBuilder.Build()} 的 JSON 形态（批量删除用）：单值且非 Contains*
+         * 批量删除用的 JSON 形态：单值且非 Contains*
          * 用标量键（{@code valueText}/{@code valueString}），否则用 {@code valueTextArray} 等。
          */
         public ObjectNode json() {
@@ -198,14 +198,14 @@ public final class WeaviateGql {
         }
     }
 
-    /** 对照 {@code isContainsOperator}。 */
+    /** Contains* 操作符判定。 */
     static boolean isContainsOperator(String operator) {
         return OP_CONTAINS_ANY.equals(operator)
                 || "ContainsAll".equals(operator)
                 || "ContainsNone".equals(operator);
     }
 
-    /** 对照 {@code formatValues}：字符串 {Go %q} 引号；多值或 Contains* → 方括号数组。 */
+    /** 值格式化：字符串走 {@link #quoteGo} 引号；多值或 Contains* → 方括号数组。 */
     static String formatValues(List<?> values, String operator) {
         List<String> clause = new ArrayList<>(values.size());
         for (Object value : values) {
@@ -222,7 +222,7 @@ public final class WeaviateGql {
         return joined;
     }
 
-    // ── Get 查询构造（照 GetBuilder.build + createFilterClause 的固定参数序） ──
+    // ── Get 查询构造（固定参数序，见类注释要点） ────────────────────────────
 
     /** 向量检索：{@code (where, nearVector: {certainty, vector}, limit)}。 */
     public static String vectorQuery(String className, Where where, int limit, float[] vector,
@@ -249,7 +249,7 @@ public final class WeaviateGql {
         return getQuery(className, args, FIELDS_KEYWORDS);
     }
 
-    /** 对照 {@code BM25ArgumentBuilder.build()}：{@code bm25:{query: "…", properties: ["…"]}}。 */
+    /** bm25 参数：{@code bm25:{query: "…", properties: ["…"]}}。 */
     static String bm25Arg(String query, List<String> properties) {
         List<String> clause = new ArrayList<>();
         if (query != null && !query.isEmpty()) {
@@ -268,7 +268,7 @@ public final class WeaviateGql {
     /**
      * 拷贝分页：{@code (where, limit, offset)} + {@code _additional{id vectors{embedding}}}。
      *
-     * <p><b>与 Go 的差异（有意修正，见 known-issues）</b>：Go 用
+     * <p><b>与旧客户端的有意修正（见 known-issues）</b>：旧客户端用
      * {@code where + limit + after}——服务端直接拒绝（{@code cursor api: invalid 'after'
      * parameter: where cannot be set with after and limit parameters}），且命名向量类下
      * {@code _additional{vector}} 恒空。本仓改为 {@code where + limit + offset} +
@@ -301,12 +301,11 @@ public final class WeaviateGql {
         return "{Get {" + className + " (" + String.join(", ", args) + ") {" + fields + "}}}";
     }
 
-    // ── 字面量（照 Go 的 %q 与 encoding/json 浮点编码） ─────────────────────
+    // ── 字面量 ─────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code %q}：加双引号并转义（{@code \"}、{@code \\}、换行/制表/回车与
-     * 不可打印字符走 {@code U+XXXX}）。中文等可打印 Unicode 原样保留（Go 的 %q 对
-     * 可打印字符不转义）。
+     * 字符串引号：加双引号并转义（{@code \"}、{@code \\}、换行/制表/回车与
+     * 不可打印字符走 {@code U+XXXX}）。中文等可打印 Unicode 原样保留。
      */
     static String quoteGo(String s) {
         StringBuilder b = new StringBuilder(s.length() + 2);
@@ -332,7 +331,7 @@ public final class WeaviateGql {
         return b.append('"').toString();
     }
 
-    /** 向量字面量：照 Go {@code json.Marshal([]float32)}（最短表示、整数值不带小数）。 */
+    /** 向量字面量（最短表示、整数值不带小数）。 */
     static String vectorLiteral(float[] vector) {
         if (vector == null || vector.length == 0) {
             return "[]";
@@ -345,7 +344,7 @@ public final class WeaviateGql {
     }
 
     /**
-     * 浮点字面量：Go 的 JSON/`%v` 最短表示（{@code 1} 不带 {@code .0}；极小/极大值走
+     * 浮点字面量：JSON 最短表示（{@code 1} 不带 {@code .0}；极小/极大值走
      * {@code 1e-07} 形态）。Weaviate 的 certainty/向量元素都在这个可读区间内。
      */
     static String floatGo(float v) {

@@ -18,8 +18,8 @@ import org.apache.ibatis.type.JdbcType;
  * {@code tenant_api_keys.knowledge_base_ids / capabilities} 是
  * {@code NOT NULL DEFAULT '[]'}，写 SQL NULL 会被 PG 拒绝。</p>
  *
- * <p>Go 侧的语义是：{@code types.StringArray(nil).Value()} 返回的是**字面量
- * {@code null}**（一个合法的 jsonb 非 NULL 值），空切片返回 {@code []}。
+ * <p>写入语义：空列表写 {@code []}，未设置（null）写**字面量
+ * {@code null}**（一个合法的 jsonb 非 NULL 值）。
  * 所以写路径必须能表达"值是 json 文本 {@code null}"这件事，不能是 SQL NULL。</p>
  *
  * <p>做法：参数先用 {@link APIKeyStringListTypeHandler#encode(java.util.List)}

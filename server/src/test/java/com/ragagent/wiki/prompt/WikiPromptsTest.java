@@ -18,21 +18,20 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * Wiki prompt 常量与模板渲染器的对等测试（对照 Go
- * internal/agent/prompts_wiki_test.go，183 行，用例逐条翻译；
- * 外加一条 Go 侧没有的<b>字节级保真</b>测试）。
+ * Wiki prompt 常量与模板渲染器的测试，
+ * 外加一条<b>字节级保真</b>测试。
  */
 class WikiPromptsTest {
 
     // ═══════════════════════════════════════════════════════════════
-    // 字节级保真（Java 侧新增，钉住"逐字对照"这条硬约束）
+    // 字节级保真（钉住 prompt 文本不漂移的硬约束）
     // ═══════════════════════════════════════════════════════════════
 
     /**
-     * 每个常量的 SHA-256，<b>由 Go 源文件 prompts_wiki.go 的 raw string 字面量原样算出</b>。
+     * 每个常量的 SHA-256 基准值，prompt 文本被逐字节钉死。
      *
-     * <p>这条测试是"prompt 逐字对照"唯一可靠的机械化护栏：任何标点、空格、换行的改动
-     * 都会让哈希漂移。生成方式见报告里的脚本说明。</p>
+     * <p>这条测试是 prompt 文本不漂移的机械化护栏：任何标点、空格、换行的改动
+     * 都会让哈希漂移。</p>
      */
     private static final Map<String, String> GO_SHA256 = new LinkedHashMap<>();
 
@@ -81,7 +80,7 @@ class WikiPromptsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TestWikiGranularityGuidance_*（Go prompts_wiki_test.go L9-64）
+    // 粒度指引块（按 key 路由 / 未知回落 standard / 三块互异）
     // ═══════════════════════════════════════════════════════════════
 
     @Test
@@ -121,7 +120,7 @@ class WikiPromptsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 渲染器（替代 Go text/template）的对等性质
+    // 模板渲染器的性质
     // ═══════════════════════════════════════════════════════════════
 
     private static String renderChunkCitation(String candidateSlugs, String chunksXml, String lang) {
@@ -237,7 +236,7 @@ class WikiPromptsTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 渲染器语义（对照 Go text/template）
+    // 渲染器语义
     // ═══════════════════════════════════════════════════════════════
 
     @Nested

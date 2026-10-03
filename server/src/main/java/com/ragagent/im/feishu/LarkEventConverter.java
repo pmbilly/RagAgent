@@ -9,18 +9,16 @@ import com.ragagent.im.runtime.ImTypes;
 import com.ragagent.im.runtime.IncomingMessage;
 
 /**
- * 长连接事件帧 → 统一消息（对照 Go {@code internal/im/feishu/longconn.go} 的
- * {@code convertEvent}/{@code convertTextEvent}/{@code convertFileEvent}/
- * {@code convertImageEvent}/{@code convertPostEvent}，L111-360）。
+ * 长连接事件帧 → 统一消息。
  *
- * <p>与 webhook 的 {@code ParseCallback} 有三处<b>刻意不同</b>（都是照 Go 的既有分歧）：</p>
+ * <p>与 webhook 的 {@code parseCallback} 有三处<b>刻意不同</b>：</p>
  * <ol>
- *   <li><b>不设 threadId</b>——Go 的长连接分支不填 {@code ThreadID}（只有 root_id/message_id
+ *   <li><b>不设 threadId</b>——长连接分支不填 threadId（只有 root_id/message_id
  *       的 webhook 分支填）；</li>
  *   <li><b>post 会提取首张内嵌图</b>：{@code tag == "img"} 取第一个 {@code image_key}，
  *       有图则整条按<b>图片消息</b>返回（content 仍是拼好的文本、fileName = {@code <image_key>.png}）；
  *       webhook 的 post 分支只取文本；</li>
- *   <li>只认 {@code im.message.receive_v1}，其余事件返回 null（照 SDK 只注册该事件）。</li>
+ *   <li>只认 {@code im.message.receive_v1}，其余事件返回 null。</li>
  * </ol>
  */
 public final class LarkEventConverter {
@@ -31,7 +29,7 @@ public final class LarkEventConverter {
     private LarkEventConverter() {
     }
 
-    /** 对照 {@code convertEvent}；无法识别时返回 null（照 Go）。 */
+    /** 无法识别时返回 null。 */
     public static IncomingMessage convert(FeishuRegion region, byte[] eventJson) throws Exception {
         JsonNode root = MAPPER.readTree(eventJson == null ? new byte[0] : eventJson);
         if (!EVENT_TYPE_MESSAGE_RECEIVE.equals(root.path("header").path("event_type").asText(""))) {
@@ -113,7 +111,7 @@ public final class LarkEventConverter {
                                 }
                             }
                             default -> {
-                                // at 等标签照 Go 跳过
+                                // at 等标签跳过
                             }
                         }
                     }

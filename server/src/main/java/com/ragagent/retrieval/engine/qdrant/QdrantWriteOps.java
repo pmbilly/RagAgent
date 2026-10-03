@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Qdrant 引擎的写入/删除/批量更新/拷贝簇：点构造（新 UUID 点 ID + payload 清洗）、
  * 按维度分组 100 分片 upsert、按字段过滤删除、跨集合 SetPayload 批量更新、
- * CopyIndices 分页拷贝（64/页，含向量回搬与 SourceID 三态翻译）。
+ * CopyIndices 分页拷贝（64/页，含向量回搬与 SourceID 三态改写）。
  */
 final class QdrantWriteOps {
 
@@ -109,7 +109,7 @@ final class QdrantWriteOps {
         return body;
     }
 
-    /** 对照 {@code PointStruct}：id + vector + payload。 */
+    /** 单个 point：id + vector + payload。 */
     static ObjectNode pointBody(String pointId, QdrantVectorEmbedding row) {
         ObjectNode point = QdrantRestClient.object();
         point.put("id", pointId);
@@ -121,7 +121,7 @@ final class QdrantWriteOps {
         return point;
     }
 
-    /** 对照 {@code createPayload}：payload 键序按写入序（Go map → 库端无键序约束）。 */
+    /** payload 构造：键序按写入序（库端无键序约束）。 */
     static ObjectNode createPayload(QdrantVectorEmbedding row) {
         ObjectNode payload = QdrantRestClient.object();
         payload.put(QdrantRetrieveRepository.FIELD_CONTENT, QdrantRetrieveRepository.sanitize(row.content));
@@ -162,7 +162,7 @@ final class QdrantWriteOps {
         ObjectNode body = QdrantRestClient.object();
         body.set("filter", QdrantRetrieveRepository.mustOnly(QdrantRetrieveRepository.matchAny(field, ids)));
         try {
-            // 照 Go：Delete 不带 wait（异步默认）。
+            // Delete 不带 wait（异步默认）。
             service.client.request("POST", "/collections/" + collection + "/points/delete", body);
         } catch (RuntimeException e) {
             log.error("[Qdrant] Failed to delete by {}: {}", subject, e.getMessage());
@@ -173,6 +173,7 @@ final class QdrantWriteOps {
 
     // ── 批量更新（跨集合 SetPayload） ──────────────────────────────────────
 
+    /** 批量改状态：按 true/false 分组 → 每集合两次 SetPayload。 */
     void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
             throws Exception {
         if (chunkStatusMap == null || chunkStatusMap.isEmpty()) {
@@ -216,6 +217,7 @@ final class QdrantWriteOps {
         log.info("[Qdrant] Batch update chunk enabled status completed");
     }
 
+    /** 批量改标签：按 tagID 分组 → 每集合逐组 SetPayload。 */
     void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
         if (chunkTagMap == null || chunkTagMap.isEmpty()) {
             log.warn("[Qdrant] Empty chunk tag map provided, skipping");
@@ -255,7 +257,7 @@ final class QdrantWriteOps {
         }
     }
 
-    /** 对照 {@code SetPayloadPoints}：单字段 payload + 选择器条件（照 Go 的批量更新调用点）。 */
+    /** 批量更新调用点：单字段 payload + 选择器条件。 */
     void setPayload(String collection, String field, Object value, ObjectNode selector) {
         ObjectNode payload = QdrantRestClient.object();
         if (value instanceof Boolean b) {

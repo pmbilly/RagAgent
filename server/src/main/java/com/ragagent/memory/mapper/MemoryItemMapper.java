@@ -12,15 +12,14 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * {@code memory_items} 的仓储（对照 Go internal/application/repository/memory.go 的
- * {@code scoped} 系列与 memory_lifecycle.go）。
+ * {@code memory_items} 的仓储。
  *
- * <h2>逐条 SQL 的对齐说明</h2>
+ * <h2>逐条 SQL 的说明</h2>
  * <ul>
- *   <li><b>{@code notExpired} 的括号</b>：Go 写 {@code Where("expires_at IS NULL OR expires_at > ?")}，
- *       GORM 的 {@code clause.Where} 检测到表达式里有 {@code " OR "} 会**自动加括号**
- *       （{@code clause/where.go:61}），所以实际 SQL 是
- *       {@code … AND (expires_at IS NULL OR expires_at > ?)}。这里照抄括号——
+ *   <li><b>{@code notExpired} 的括号</b>：
+ *       {@code expires_at IS NULL OR expires_at > ?} 必须整体加括号再与其它条件 AND，
+ *       实际 SQL 是
+ *       {@code … AND (expires_at IS NULL OR expires_at > ?)}——
  *       少了它整条查询的优先级就变了。</li>
  *   <li><b>{@code id DESC} 破平局</b>：{@code ListItems} 的 {@code valid_from DESC, id DESC}
  *       不是装饰。一次蒸馏会同时写好几条，只按 valid_from 排会让数据库在翻页时
@@ -32,7 +31,7 @@ import org.apache.ibatis.annotations.Update;
  * </ul>
  *
  * <p>所有方法都不带事务注解：它们由 {@link MemoryRepository} 在
- * {@code MemoryTxTemplate.withSubject} 的事务里调用（Go 的 {@code tx} 参数）。</p>
+ * {@code MemoryTxTemplate.withSubject} 的事务里调用。</p>
  */
 @Mapper
 public interface MemoryItemMapper extends BaseMapper<MemoryItem> {
@@ -51,8 +50,8 @@ public interface MemoryItemMapper extends BaseMapper<MemoryItem> {
                        @Param("status") String status);
 
     /**
-     * 对照 {@code ListActiveByKinds}：{@code kinds} 为空时 Go 直接回 {@code (nil, nil)}，
-     * 所以调用方必须先判空、别指望这里兜。
+     * 对照 {@code ListActiveByKinds}：{@code kinds} 为空时这里不兜底，
+     * 调用方必须先判空。
      */
     @Select("<script>"
             + "SELECT * FROM memory_items WHERE tenant_id = #{tenantId} AND subject_id = #{subjectId} "
@@ -155,8 +154,8 @@ public interface MemoryItemMapper extends BaseMapper<MemoryItem> {
     // ── 删除（一律带 scope） ───────────────────────────────────────────────
 
     /**
-     * 对照 {@code DeleteItem} 的最后一步与 {@code trimTombstones} 的同类写法：
-     * Go 的 {@code Where(...).Delete(...)} 一定带 {@code tenant_id}/{@code subject_id}。
+     * 删除与墓碑清理的同类写法：
+     * SQL 一定带 {@code tenant_id}/{@code subject_id}。
      *
      * <p>⚠️ 这就是本模块**不用** MyBatis-Plus {@code deleteById} 的原因：
      * 后者只按主键，传一个别人的 id 会真的删掉别人的行。</p>
@@ -209,10 +208,9 @@ public interface MemoryItemMapper extends BaseMapper<MemoryItem> {
      * 对照 {@code TouchUsed}：{@code use_count = use_count + 1} 是 SQL 侧自增，
      * 读回来再写会丢并发。
      *
-     * <p>⚠️ {@code updated_at} 在 Go 的 map 里**没有**，但 GORM 的
-     * {@code ConvertToAssignments}（callbacks/update.go L236-254）会对"map 里没写
-     * updated_at 的模型"自动补上 {@code updated_at = now}——所以线上确实写了这一列。
-     * 这类"Go 源码没写、GORM 偷偷补"的地方本模块共三处（另两处见下），
+     * <p>⚠️ {@code updated_at} 虽然调用方没有明说，但落库语义会**自动补**
+     * {@code updated_at = now}——所以这里必须显式写这一列。
+     * 这类"隐式补 updated_at"的地方本模块共三处（另两处见下），
      * 漏掉会在真 PG 上表现为"updated_at 不动"，H2 测不出来。</p>
      */
     @Update("<script>"
@@ -242,7 +240,7 @@ public interface MemoryItemMapper extends BaseMapper<MemoryItem> {
                                             @Param("modelId") String modelId,
                                             @Param("limit") int limit);
 
-    // ── 生命周期（memory_lifecycle.go） ────────────────────────────────────
+    // ── 生命周期 ────────────────────────────────────
 
     /**
      * 对照 {@code SaveItem} 尾部的批量取代 UPDATE。
@@ -299,7 +297,7 @@ public interface MemoryItemMapper extends BaseMapper<MemoryItem> {
     /**
      * 对照 {@code DeleteItem} 对"待确认的替换者"那一次 UPDATE。
      *
-     * <p>Go 的 map 里只有 status / invalid_at 两列，但 GORM 会自动补
+     * <p>语义上是 status / invalid_at 两列，但落库语义会自动补
      * {@code updated_at = now}（见 {@link #touchUsed} 的说明）——所以要写三列。</p>
      */
     @Update("UPDATE memory_items SET status = #{superseded}, invalid_at = #{now}, updated_at = #{now} "

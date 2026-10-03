@@ -7,9 +7,8 @@ import java.util.Map;
 
 
 /**
- * 对照 Go {@code types.GetWebSearchProviderTypes()}（internal/types/web_search_provider.go
- * L176-372）：/web-search-providers/types 与旧版 /web-search/providers 共用的静态元数据。
- * 条目顺序 = Go 数组字面量顺序（契约，勿排序/增删）。
+ * /web-search-providers/types 与旧版 /web-search/providers 共用的静态元数据。
+ * 条目顺序固定（契约，勿排序/增删）。
  */
 public final class WebSearchProviderTypes {
 

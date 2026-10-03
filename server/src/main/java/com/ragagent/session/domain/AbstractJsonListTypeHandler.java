@@ -33,7 +33,7 @@ import org.apache.ibatis.type.JdbcType;
 public abstract class AbstractJsonListTypeHandler<T> extends BaseTypeHandler<List<T>> {
 
     /**
-     * §9：jsonb 回读必须容忍未知属性（Go 的 json.Unmarshal 默认忽略未知字段）。
+     * jsonb 回读必须容忍未知属性。
      * ⚠️ 必须挂 JavaTimeModule：元素类型（如 MessageArtifact）带 OffsetDateTime 字段
      * （mod_time/created_at），缺模块时读回即抛 "Java 8 date/time type not supported"
      * 让整列不可用（G6 契约测试抓到的真缺陷）。

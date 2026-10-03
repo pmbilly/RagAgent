@@ -24,10 +24,9 @@ import com.ragagent.common.graph.GraphRelation;
 import com.ragagent.common.graph.NameSpace;
 
 /**
- * Neo4j 图仓储（对照 Go {@code internal/application/repository/retriever/neo4j/repository.go}
- * 全文 236 行）：实体/关系图谱的写（AddGraph）/删（DelGraph）/读（SearchNode）。
+ * Neo4j 图仓储：实体/关系图谱的写（AddGraph）/删（DelGraph）/读（SearchNode）。
  *
- * <h2>标签模型（与 Go 逐字一致）</h2>
+ * <h2>标签模型</h2>
  * <ul>
  *   <li>节点标签 = {@code ENTITY} + 命名空间各段（{@code -} 换 {@code _}），
  *       形如 {@code ENTITYkbId:ENTITYknowledgeId}；</li>
@@ -36,21 +35,21 @@ import com.ragagent.common.graph.NameSpace;
  *       {@code apoc.merge.relationship}；删除走 {@code apoc.periodic.iterate}
  *       （batchSize 1000、parallel）；</li>
  *   <li>检索：一跳子图（{@code MATCH (n)-[r]-(m)} + 节点名 CONTAINS 任一关键词），
- *       节点去重、关系不去重——照抄 Go。</li>
+ *       节点去重、关系不去重。</li>
  * </ul>
  *
  * <h2>driver 为 null 的语义</h2>
- * <p>对照 Go 的 {@code n.driver == nil} 三个分支：告警 {@code NOT SUPPORT RETRIEVE GRAPH}
+ * <p>三个操作遇 null driver：告警 {@code NOT SUPPORT RETRIEVE GRAPH}
  * 后静默返回（写/删返回 void，检索返回 null）。因此 NEO4J_ENABLE 未启用时，调用方无需判空。</p>
  */
 public class Neo4jGraphRepository implements RetrieveGraphRepository {
 
     private static final Logger log = LoggerFactory.getLogger(Neo4jGraphRepository.class);
 
-    /** 对照 {@code NewNeo4jRepository} 的 nodePrefix。 */
+    /** 节点标签前缀。 */
     public static final String NODE_PREFIX = "ENTITY";
 
-    /** 对照 {@code node_import_query}（文本逐字一致，缩进由 text block 归一）。 */
+    /** 节点导入语句（文本固定，缩进由 text block 归一）。 */
     static final String NODE_IMPORT_QUERY = """
             UNWIND $data AS row
             CALL apoc.merge.node(row.labels, {name: row.name, kg: row.knowledge_id}, row.props, {}) YIELD node
@@ -58,7 +57,7 @@ public class Neo4jGraphRepository implements RetrieveGraphRepository {
             RETURN distinct 'done' AS result
             """;
 
-    /** 对照 {@code rel_import_query}。 */
+    /** 关系导入语句。 */
     static final String REL_IMPORT_QUERY = """
             UNWIND $data AS row
             CALL apoc.merge.node(row.source_labels, {name: row.source, kg: row.knowledge_id}, {}, {}) YIELD node as source
@@ -67,7 +66,7 @@ public class Neo4jGraphRepository implements RetrieveGraphRepository {
             RETURN distinct 'done'
             """;
 
-    /** 对照 {@code deleteRelsQuery}（{@code %s} 处填标签表达式）。 */
+    /** 删关系语句（{@code %s} 处填标签表达式）。 */
     static final String DELETE_RELS_TEMPLATE =
             "CALL apoc.periodic.iterate("
             + "\"MATCH (n:`%s` {kg: $knowledge_id})-[r]-(m:`%s` {kg: $knowledge_id}) RETURN r\", "
@@ -75,7 +74,7 @@ public class Neo4jGraphRepository implements RetrieveGraphRepository {
             + "{batchSize: 1000, parallel: true, params: {knowledge_id: $knowledge_id}}"
             + ") YIELD batches, total RETURN total";
 
-    /** 对照 {@code deleteNodesQuery}。 */
+    /** 删节点语句。 */
     static final String DELETE_NODES_TEMPLATE =
             "CALL apoc.periodic.iterate("
             + "\"MATCH (n:`%s` {kg: $knowledge_id}) RETURN n\", "
@@ -83,7 +82,7 @@ public class Neo4jGraphRepository implements RetrieveGraphRepository {
             + "{batchSize: 1000, parallel: true, params: {knowledge_id: $knowledge_id}}"
             + ") YIELD batches, total RETURN total";
 
-    /** 对照 SearchNode 的查询（标签表达式拼进语句，照 Go 的字符串拼接）。 */
+    /** 检索语句（标签表达式拼进语句）。 */
     static String searchQuery(String labelExpr) {
         return "MATCH (n:" + labelExpr + ")-[r]-(m:" + labelExpr + ") "
                 + "WHERE ANY(nodeText IN $nodes WHERE n.name CONTAINS nodeText) "
@@ -96,19 +95,19 @@ public class Neo4jGraphRepository implements RetrieveGraphRepository {
         this.driver = driver;
     }
 
-    /** 对照 Go 的 {@code n.driver != nil} 判定（供装配与自检用）。 */
+    /** 驱动是否可用（供装配与自检用）。 */
     public boolean enabled() {
         return driver != null;
     }
 
-    // ── 标签（对照 Labels / Label / _remove_hyphen） ──
+    // ── 标签 ──
 
-    /** 对照 {@code _remove_hyphen}：把连字符换成下划线。 */
+    /** 把连字符换成下划线。 */
     static String removeHyphen(String s) {
         return s == null ? "" : s.replace("-", "_");
     }
 
-    /** 对照 {@code Labels}：命名空间各段加 {@code ENTITY} 前缀。 */
+    /** 命名空间各段加 {@code ENTITY} 前缀。 */
     public List<String> labels(NameSpace namespace) {
         List<String> res = new ArrayList<>();
         if (namespace == null) {
@@ -120,12 +119,12 @@ public class Neo4jGraphRepository implements RetrieveGraphRepository {
         return res;
     }
 
-    /** 对照 {@code Label}：以 {@code :} 连接（Cypher 标签表达式）。 */
+    /** 以 {@code :} 连接（Cypher 标签表达式）。 */
     public String label(NameSpace namespace) {
         return String.join(":", labels(namespace));
     }
 
-    // ── 写（对照 AddGraph / addGraph） ──
+    // ── 写 ──
 
     @Override
     public void addGraph(NameSpace namespace, List<GraphData> graphs) {
@@ -178,13 +177,13 @@ public class Neo4jGraphRepository implements RetrieveGraphRepository {
                 return null;
             });
         } catch (RuntimeException e) {
-            // 对照 Go：failed to add graph → 记日志并上抛（由调用方决定是否吞）
+            // failed to add graph → 记日志并上抛（由调用方决定是否吞）
             log.error("failed to add graph: {}", e.toString());
             throw e;
         }
     }
 
-    // ── 删（对照 DelGraph） ──
+    // ── 删 ──
 
     @Override
     public void delGraph(List<NameSpace> namespaces) {
@@ -213,7 +212,7 @@ public class Neo4jGraphRepository implements RetrieveGraphRepository {
         }
     }
 
-    // ── 读（对照 SearchNode） ──
+    // ── 读 ──
 
     @Override
     public GraphData searchNode(NameSpace namespace, List<String> nodes) {
@@ -255,7 +254,7 @@ public class Neo4jGraphRepository implements RetrieveGraphRepository {
         }
     }
 
-    /** 对照 {@code listI2listS}：Cypher 列表 → 字符串列表（{@code fmt.Sprintf("%v")} 语义）。 */
+    /** Cypher 列表 → 字符串列表。 */
     static List<String> listI2listS(Value value) {
         if (value == null || value.isNull()) {
             return new ArrayList<>();

@@ -3,8 +3,7 @@ package com.ragagent.im.runtime;
 import java.util.Map;
 
 /**
- * 渠道凭据/模式小助手（对照 Go internal/im/{credentials.go,mode.go} 全文，
- * 波 5 W5γ1 逐行翻译）。
+ * 渠道凭据/模式小助手。
  */
 public final class ImCredentials {
 
@@ -34,8 +33,7 @@ public final class ImCredentials {
     }
 
     /**
-     * 读布尔（JSON bool、字符串 "true"/"1"/"yes"、非零数字）——credentials.go L23-45
-     * 的 switch 逐字对照。
+     * 读布尔（JSON bool、字符串 "true"/"1"/"yes"、非零数字）。
      */
     public static boolean getBool(Map<String, Object> creds, String key) {
         if (creds == null || !creds.containsKey(key)) {
@@ -61,7 +59,7 @@ public final class ImCredentials {
         return false;
     }
 
-    /** 对照 ResolveMode（mode.go）：channel.Mode 为空回落 def。 */
+    /** channel.Mode 为空回落 def。 */
     public static String resolveMode(com.ragagent.im.domain.ImChannelEntity channel, String def) {
         if (channel.getMode() == null || channel.getMode().isEmpty()) {
             return def;

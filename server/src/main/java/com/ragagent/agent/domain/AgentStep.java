@@ -21,7 +21,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  *       空时省略；</li>
  *   <li>{@code tool_calls} <b>恒输出</b>：null 输出 {@code "tool_calls":null}；</li>
  *   <li>{@code timestamp} 零值输出 {@code "0001-01-01T00:00:00Z"}
- *       （不是 {@code null}），由 {@link GoTimeSerializer} 复刻。</li>
+ *       （不是 {@code null}），由 {@link GoTimeSerializer} 序列化。</li>
  * </ul>
  *
  * <p>实测的完整形状（零值时）：</p>

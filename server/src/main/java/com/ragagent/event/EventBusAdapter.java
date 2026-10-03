@@ -1,31 +1,28 @@
 package com.ragagent.event;
 
 /**
- * {@link EventBus} 到 {@link EventBusInterface} 的适配
- * （对照 Go {@code event.EventBusAdapter}，internal/event/adapter.go 全文）。
+ * {@link EventBus} 到 {@link EventBusInterface} 的适配。
  *
- * <p>Go 的适配器做 {@code types.Event ↔ event.Event} 的逐字段拷贝——那份重复存在的唯一
- * 理由是打破 import cycle（adapter.go 注释原话）。Java 无循环依赖约束、只有一种
- * {@link Event}，故转换是恒等：本类保留 Go 的形状（让 chat_manage / approval 风格的
- * 消费方以接口持有总线），构造器与 {@link EventBus#asEventBusInterface()} 对照
- * {@code NewEventBusAdapter} / {@code AsEventBusInterface}。</p>
+ * <p>本类的存在意义是让消费方（chat_manage / approval 风格）以接口持有总线；
+ * 事件在 Java 中只有一种表示，转发是恒等的。通常经
+ * {@link EventBus#asEventBusInterface()} 获取实例。</p>
  */
 public final class EventBusAdapter implements EventBusInterface {
 
     private final EventBus bus;
 
-    /** 对照 Go {@code NewEventBusAdapter(bus) types.EventBusInterface}。 */
+    /** 包装给定总线。 */
     public EventBusAdapter(EventBus bus) {
         this.bus = bus;
     }
 
-    /** 对照 Go {@code EventBusAdapter.On}（types.EventType → event.EventType 的转换在 Java 中恒等）。 */
+    /** 直接转发（事件类型只有一种表示，无需转换）。 */
     @Override
     public void on(String eventType, EventHandler handler) {
         bus.on(eventType, handler);
     }
 
-    /** 对照 Go {@code EventBusAdapter.Emit}（types.Event → event.Event 的转换在 Java 中恒等）。 */
+    /** 直接转发（事件只有一种表示，无需转换）。 */
     @Override
     public void emit(Event event) {
         bus.emit(event);

@@ -3,14 +3,13 @@ package com.ragagent.datasource.connector.notion;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 页面/数据库的父关系（对照 Go {@code notionParent}，types.go L83-89）。
+ * 页面/数据库的父关系。
  *
  * <p><b>内部 API 形状，不是契约</b>：只进出于 Notion API 的 JSON，从不落 jsonb、
- * 从不作 HTTP 响应体，所以按约定 §7.5 不需要 {@code @JsonIgnore}/{@code GoMapSerializer}
+ * 从不作 HTTP 响应体，所以不需要 {@code @JsonIgnore}/{@code GoMapSerializer}
  * 那一套。字段用 public（Jackson 直接绑定），取值一律靠 {@link #parentId()} 归一化。</p>
  *
- * <p>四个 ID 字段在 Go 里都是 {@code omitempty}（写出去时省略空值）——本类型从不写出，
- * 只在解析时用，故省略语义无对应物。</p>
+ * <p>本类型从不写出，只在解析时用。</p>
  */
 public final class NotionParent {
 
@@ -29,13 +28,13 @@ public final class NotionParent {
     @JsonProperty("block_id")
     public String blockId;
 
-    /** 对照 Go {@code Type}：缺字段时为 Go 的零值 {@code ""}。 */
+    /** 缺字段时为 {@code ""}。 */
     public String type() {
         return type == null ? "" : type;
     }
 
     /**
-     * 对照 Go {@code (*notionParent).GetParentID}：按 type 取对应的那个 ID，
+     * 按 type 取对应的那个 ID，
      * 其它 type（含 {@code "workspace"} 与空 type）一律回 {@code ""}。
      */
     public String parentId() {

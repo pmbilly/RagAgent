@@ -3,15 +3,14 @@ package com.ragagent.common.web;
 import java.util.Locale;
 
 /**
- * 扩展名 → Content-Type / 内联判定（对照 Go utils/fileutil.go 的
- * GetContentTypeByExt / SafeContentTypeByFilename / IsActiveBrowserContentExt）。
+ * 扩展名 → Content-Type / 内联判定。
  */
 public final class ContentTypeByFilename {
 
     private ContentTypeByFilename() {
     }
 
-    /** 对照 Go IsActiveBrowserContentExt（fileutil.go L9-16）。 */
+    /** "活动浏览器内容"扩展名：内联展示不安全，须强制下载。 */
     public static boolean isActiveBrowserContentExt(String ext) {
         String lower = ext == null ? "" : ext.toLowerCase(Locale.ROOT);
         return switch (lower) {
@@ -20,7 +19,7 @@ public final class ContentTypeByFilename {
         };
     }
 
-    /** 对照 Go GetContentTypeByExt（fileutil.go L19-67）。 */
+    /** 按扩展名取 Content-Type；活动浏览器内容扩展一律 octet-stream。 */
     public static String getByExt(String ext) {
         if (isActiveBrowserContentExt(ext)) {
             return "application/octet-stream";
@@ -53,8 +52,7 @@ public final class ContentTypeByFilename {
     }
 
     /**
-     * 对照 Go SafeContentTypeByFilename（fileutil.go L73-84）：返回
-     * (contentType, inline)；"活动浏览器内容"扩展强制 octet-stream 且不内联。
+     * 返回 (contentType, inline)；"活动浏览器内容"扩展强制 octet-stream 且不内联。
      */
     public static Record safe(String filename) {
         String ext = filename == null ? "" : extensionOf(filename);
@@ -64,7 +62,7 @@ public final class ContentTypeByFilename {
         return new Record(getByExt(ext), true);
     }
 
-    /** 简化 record（对照 Go 的多返回值）。 */
+    /** (contentType, inline) 二元组。 */
     public record Record(String contentType, boolean inline) {
     }
 

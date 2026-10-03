@@ -21,7 +21,7 @@ import org.apache.ibatis.type.JdbcType;
  * {@code List<String>} 走泛型擦除后是 {@code List.class}，Jackson 会反序列化成
  * {@code List<LinkedHashMap>} / {@code List<Object>}，元素类型丢失。</p>
  *
- * <p><b>写路径约定</b>：**空列表也写成 SQL NULL**——出口契约（golden 实录）里这些列都是
+ * <p><b>写路径约定</b>：**空列表也写成 SQL NULL**——出口契约里这些列都是
  * NULL（响应输出 {@code "aliases":null}），而 Java 的实体无法区分"未设置"与"显式空"，
  * 统一按 NULL 落库。</p>
  *

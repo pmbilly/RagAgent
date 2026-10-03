@@ -7,23 +7,21 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 对照 Go provider 包的全局注册表 + DetectProvider（provider.go）。
+ * 服务商注册表 + DetectProvider。
  *
  * ⚠️ 与 com.ragagent.model.service.ProviderRegistry 不是一回事：那个是模型模块的 HTTP 目录
- * 响应（golden 数据 + 前端字符串映射），本类对应 Go internal/models/provider 的 registry /
- * Get / GetOrDefault / List / ListByModelType / DetectProvider，供运行时路由与校验使用。
+ * 响应（golden 数据 + 前端字符串映射），本类供运行时路由与校验使用。
  *
- * Go 侧每个 provider 文件用 init() 注册自己；Java 没有包级 init 钩子，改由本类静态块按
- * AllProviders() 的顺序显式注册（新增厂商时两处都要加：本静态块 + {@link #allProviders()}）。
- * Go 的 sync.RWMutex + map → Java ConcurrentHashMap（约定 §1）。
+ * 注册由本类静态块按 {@link #allProviders()} 的顺序显式完成
+ * （新增厂商时两处都要加：本静态块 + {@link #allProviders()}）。
+ * 并发访问用 {@link ConcurrentHashMap}。
  */
 public final class ProviderRegistry {
 
     private static final Map<ProviderName, Provider> REGISTRY = new ConcurrentHashMap<>();
 
     static {
-        // 对照各 provider 文件的 func init() { Register(&XxxProvider{}) }
-        // 顺序 = Go AllProviders() 声明序（List/ListByModelType 的输出顺序由 allProviders() 决定）
+        // 顺序 = allProviders() 声明序（List/ListByModelType 的输出顺序由 allProviders() 决定）
         register(new GenericProvider());
         register(new WeKnoraCloudProvider());
         register(new AliyunProvider());
@@ -57,8 +55,8 @@ public final class ProviderRegistry {
     }
 
     /**
-     * 对照 Go AllProviders()：所有注册的提供者名称，顺序即 List/ListByModelType 的输出顺序。
-     * 注意 weknoracloud 排在第二位（Go 的 AllProviders 把它紧跟在 generic 之后）。
+     * 所有注册的提供者名称，顺序即 List/ListByModelType 的输出顺序。
+     * 注意 weknoracloud 排在第二位（紧跟在 generic 之后）。
      */
     public static List<ProviderName> allProviders() {
         return List.of(
@@ -91,12 +89,12 @@ public final class ProviderRegistry {
                 ProviderName.AZURE_OPEN_AI);
     }
 
-    /** 对照 Go Register：按 name 覆盖注册（后注册者胜） */
+    /** 按 name 覆盖注册（后注册者胜） */
     public static void register(Provider p) {
         REGISTRY.put(p.info().name(), p);
     }
 
-    /** 对照 Go Get：未注册返回空（Go 是 (nil, false)） */
+    /** 未注册返回空 */
     public static Optional<Provider> get(ProviderName name) {
         if (name == null) {
             return Optional.empty();
@@ -105,14 +103,13 @@ public final class ProviderRegistry {
     }
 
     /**
-     * 对照 Go GetOrDefault：未找到时返回 generic（Go 是再查一次 ProviderGeneric 并直接返回，
-     * 未注册则返回 nil；Java 静态块保证 generic 恒注册，故此处非 null）。
+     * 未找到时返回 generic（静态块保证 generic 恒注册，故非 null）。
      */
     public static Provider getOrDefault(ProviderName name) {
         return get(name).orElseGet(() -> REGISTRY.get(ProviderName.GENERIC));
     }
 
-    /** 对照 Go List：按 AllProviders() 顺序返回已注册提供者的元数据 */
+    /** 按 AllProviders() 顺序返回已注册提供者的元数据 */
     public static List<ProviderInfo> list() {
         List<ProviderInfo> result = new ArrayList<>();
         for (ProviderName name : allProviders()) {
@@ -124,7 +121,7 @@ public final class ProviderRegistry {
         return result;
     }
 
-    /** 对照 Go ListByModelType：按 AllProviders() 顺序返回支持指定模型类型的提供者 */
+    /** 按 AllProviders() 顺序返回支持指定模型类型的提供者 */
     public static List<ProviderInfo> listByModelType(ModelType modelType) {
         List<ProviderInfo> result = new ArrayList<>();
         for (ProviderName name : allProviders()) {
@@ -141,15 +138,15 @@ public final class ProviderRegistry {
     }
 
     /**
-     * 对照 Go DetectProvider（provider.go）：通过 BaseURL 检测服务商。
+     * 通过 BaseURL 检测服务商。
      *
-     * 逐条照抄 Go 的 switch 顺序 —— 顺序即语义（先命中者胜），不得重排或合并：
+     * 判定顺序即语义（先命中者胜），不得重排或合并：
      * dashscope → bigmodel/zhipu → openrouter → litellm → requesty → siliconflow → jina →
      * azure → openai → anthropic → deepseek → gemini → volces/volcengine → hunyuan →
      * minimax → xiaomimimo → gpustack → modelscope → qiniu → moonshot → qianfan/baidubce →
      * longcat → lkeap → nvidia → novita → weknora；全部未命中返回 generic。
      *
-     * 匹配是 Go strings.Contains 语义（大小写敏感、子串匹配），Java 用 String.contains 等价实现。
+     * 匹配为大小写敏感的子串匹配（String.contains）。
      */
     public static ProviderName detectProvider(String baseURL) {
         String url = baseURL == null ? "" : baseURL;
@@ -212,7 +209,7 @@ public final class ProviderRegistry {
         return ProviderName.GENERIC;
     }
 
-    /** 对照 Go containsAny：任一子串命中即真（大小写敏感，strings.Contains 语义） */
+    /** 任一子串命中即真（大小写敏感） */
     private static boolean containsAny(String s, String... substrs) {
         for (String sub : substrs) {
             if (s.contains(sub)) {

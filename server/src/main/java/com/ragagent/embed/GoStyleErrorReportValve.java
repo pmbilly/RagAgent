@@ -8,8 +8,8 @@ import org.apache.catalina.connector.Response;
 import org.apache.catalina.valves.ErrorReportValve;
 
 /**
- * Go 风格的容器级错误报文（对照 Go net/http 对**协议层拒绝**的输出：
- * 纯文本 {@code "<status> <message>"}，例如畸形请求头行 → body 恰为
+ * 容器级错误报文（**协议层拒绝**输出纯文本
+ * {@code "<status> <message>"}：例如畸形请求头行 → body 恰为
  * {@code "400 Bad Request"}，见 golden emb-pub-load-badvisitor）。
  *
  * <p>通过 {@code host.setErrorReportValveClass} 替换 Tomcat 默认的 HTML 错误页阀
@@ -32,7 +32,7 @@ public class GoStyleErrorReportValve extends ErrorReportValve {
         String message = response.getMessage() == null ? "" : response.getMessage();
         if (message.isEmpty()) {
             // Tomcat 的 status line 文案在协议层拒绝时尚未落到 message；
-            // 对照 Go 的 http.StatusText 用标准 reason phrase 兜底。
+            // 用标准 reason phrase 兜底。
             try {
                 message = org.springframework.http.HttpStatus.valueOf(response.getStatus()).getReasonPhrase();
             } catch (IllegalArgumentException ignored) {

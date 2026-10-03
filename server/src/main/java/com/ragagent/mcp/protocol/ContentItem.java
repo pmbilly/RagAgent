@@ -1,10 +1,10 @@
 package com.ragagent.mcp.protocol;
 
 /**
- * tools/call 的内容项（对照 Go internal/mcp/types.go 的 {@code ContentItem}）。
+ * tools/call 的内容项。
  *
- * <p>{@code type} 取值 "text" / "image"（Go 的注释还列了 "resource"，但 client.go 的转换
- * 只处理 text 与 image 两种——见 {@code DefaultMcpClient#callTool}）。</p>
+ * <p>{@code type} 取值只处理 "text" / "image" 两种（见 {@code DefaultMcpClient#callTool}，
+ * 其余类型静默丢弃）。</p>
  */
 public record ContentItem(String type, String text, String data, String mimeType) {
 

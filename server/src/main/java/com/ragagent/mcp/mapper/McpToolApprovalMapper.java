@@ -13,16 +13,14 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * mcp_tool_approvals 仓储语句（对照 Go internal/application/repository/
- * mcp_tool_approval_repository.go）。
+ * mcp_tool_approvals 仓储语句。
  *
  * <p><b>缺行语义</b>：没有策略行 = enabled=true、require_approval=false，
  * 所以 {@link #selectEnabled} 返回 {@code null} 时调用方判 true，
  * {@link #selectRequireApproval} 返回 {@code null} 时判 false。</p>
  *
- * <p><b>为什么 UPDATE 用脚本而不是实体</b>：Go 用 map + OnConflict 的
- * {@code Assignments(updates)} 只写 patch 里出现过的列，避免"改 enabled 把
- * require_approval 抹掉"。Java 用 {@code <if>} 表达同一件事——
+ * <p><b>为什么 UPDATE 用脚本而不是实体</b>：只写 patch 里出现过的列，避免"改 enabled 把
+ * require_approval 抹掉"（{@code <if>} 表达）——
  * <b>不能用实体全列 UPDATE</b>，那会把未 patch 的列重置为实体默认值。</p>
  */
 @Mapper
@@ -79,7 +77,7 @@ public interface McpToolApprovalMapper {
 
     /**
      * 首次插入：<b>显式传值</b>，绝不依赖实体默认值——Java 的 boolean 零值是 false，
-     * 而这里 enabled 的缺省必须是 true（对照 Go 用 map Create 绕开 GORM 省略零值）。
+     * 而这里 enabled 的缺省必须是 true。
      */
     @Insert("INSERT INTO mcp_tool_approvals "
             + "(id, tenant_id, service_id, tool_name, require_approval, enabled, created_at, updated_at) "

@@ -16,12 +16,11 @@ import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.ObjectProvider;
 
 /**
- * {@link InProcessDataSourceSyncTaskQueue} 的语义测试（对照 Go 里 asynq 客户端在
- * {@code Scheduler.triggerSync} 那条路径上被依赖的三条语义：TaskID 去重、
- * 重试预算、任务超时）。
+ * {@link InProcessDataSourceSyncTaskQueue} 的语义测试（{@code Scheduler.triggerSync}
+ * 路径依赖的三条语义：TaskID 去重、重试预算、任务超时）。
  *
  * <h2>不靠墙钟</h2>
- * <p>asynq 的默认退避是 {@code n^4 + 15 + rand(30)*(n+1)} 秒（第一次就要 15–45 秒），
+ * <p>默认退避是 {@code n^4 + 15 + rand(30)*(n+1)} 秒（第一次就要 15–45 秒），
  * 单测里跑不动。{@link InProcessDataSourceSyncTaskQueue#setRetryDelayOverrideSeconds(Long)}
  * 就是为这条留的缝（与 wiki / memory 两处同款），测试里设为 0。
  * 等待完成用 {@link CountDownLatch} 而非 sleep——只等"事件发生"，不等"时间流逝"。</p>
@@ -78,7 +77,7 @@ class InProcessDataSourceSyncTaskQueueTest {
 
     /**
      * 同一个 TaskID 在"入队到执行结束"期间第二次入队 → {@code TASK_ID_CONFLICT}。
-     * 这正是 Go 里 {@code asynq.ErrTaskIDConflict} 让调度器把 sync_log 记成 canceled 的那条路。
+     * 这正是调度器把 sync_log 记成 canceled 的那条路。
      */
     @Test
     void duplicateTaskIdWhileInFlightConflicts() throws Exception {
@@ -197,10 +196,10 @@ class InProcessDataSourceSyncTaskQueueTest {
         assertThat(attempts.get()).isEqualTo(1);
     }
 
-    // ── 任务超时（{@code asynq.Timeout} → 中断执行线程） ──────────────────
+    // ── 任务超时（超时 → 中断执行线程） ───────────────────────────────────
 
     /**
-     * 超时后执行线程被**中断**（对应 Go 的 ctx 取消），本次尝试算失败、进入重试预算。
+     * 超时后执行线程被**中断**，本次尝试算失败、进入重试预算。
      * 这里用"handler 阻塞到被中断"来验证中断确实送达——这正是连接器里
      * {@link Connector#sleep} 依赖的机制。
      */

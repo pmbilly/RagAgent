@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Agent 查询事件数据（对照 Go {@code event.AgentQueryData}，internal/event/event_data.go:130-135）。
+ * Agent 查询事件数据。
  */
 @JsonPropertyOrder({"session_id", "query", "request_id", "extra"})
 public class AgentQueryData {
@@ -18,12 +18,12 @@ public class AgentQueryData {
     @JsonProperty("query")
     private String query = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("request_id")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String requestId = "";
 
-    /** Go omitempty */
+    /** null 或空省略 */
     @JsonProperty("extra")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Object> extra;

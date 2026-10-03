@@ -12,45 +12,43 @@ import com.ragagent.datasource.domain.DataSourceConstants;
 import com.ragagent.datasource.domain.SyncLog;
 
 /**
- * 数据源管理端点的响应体（对照 Go {@code dto.DataSourceResponse}，
- * internal/handler/dto/datasource.go L17-46）。
+ * 数据源管理端点的响应体。
  *
  * <h2>它为什么不是裸实体</h2>
- * <p>Go 的 {@code types.DataSource.Config} 里躺着加密后的连接器凭据。直接把实体丢给
- * {@code c.JSON} 会把密文（以及历史行里的明文）送到前端，所以每一个管理端点都必须
+ * <p>实体的 {@code config} 里躺着加密后的连接器凭据。直接把实体丢给序列化器
+ * 会把密文（以及历史行里的明文）送到前端，所以每一个管理端点都必须
  * 经本类出参——<b>credentials 按构造被剥离</b>，"配没配"只经
  * {@code credentials.credentials.configured} 这一个布尔暴露。</p>
  *
- * <h2>键序 = Go struct 声明序</h2>
+ * <h2>键序 = 声明序</h2>
  * <pre>
  *   {"id","tenant_id","knowledge_base_id","name","type","config","sync_schedule","sync_mode",
  *    "status","conflict_strategy","sync_deletions","last_sync_at","last_sync_cursor",
  *    "last_sync_result","error_message","sync_log_retention_days","created_at","updated_at",
  *    "total_items_synced","latest_sync_log","credentials"}
  * </pre>
- * <p>Go 的 struct 按声明序输出（不是字母序）——{@code config} 夹在 {@code type} 与
+ * <p>按字段声明序输出（不是字母序）——{@code config} 夹在 {@code type} 与
  * {@code sync_schedule} 之间、{@code credentials} 在最后。</p>
  *
- * <h2>omitempty 逐字段（照抄 Go 的 tag）</h2>
+ * <h2>omitempty 逐字段</h2>
  * <ul>
- *   <li>{@code config}：指针 + omitempty → ParseConfig 失败时为 {@code null} 并<b>省略整个键</b>；</li>
- *   <li>{@code last_sync_cursor} / {@code last_sync_result}：{@code json.RawMessage} + omitempty
- *       → {@code len(bytes)==0} 省略。Java 用 {@code NON_EMPTY}（JsonNode 的 {@code null}
- *       与空节点都省略）；</li>
- *   <li>{@code error_message}：string + omitempty → 空串省略（注意这与实体自身
+ *   <li>{@code config}：解析失败时为 {@code null} 并<b>省略整个键</b>；</li>
+ *   <li>{@code last_sync_cursor} / {@code last_sync_result}：{@code NON_EMPTY}
+ *       （JsonNode 的 {@code null} 与空节点都省略）；</li>
+ *   <li>{@code error_message}：空串省略（注意这与实体自身
  *       "恒输出空串"的形态**不同**，只有 DTO 这一层省略）；</li>
- *   <li>{@code latest_sync_log}：指针 + omitempty → nil 省略；</li>
- *   <li>{@code credentials}：map + omitempty → 空 map 省略。Go 的实现**恒**塞一个
+ *   <li>{@code latest_sync_log}：{@code null} 省略；</li>
+ *   <li>{@code credentials}：map + omitempty → 空 map 省略。但工厂方法**恒**塞一个
  *       {@code credentials} 键进去，所以线上永远出现；</li>
  *   <li>{@code last_sync_at} / {@code created_at} / {@code updated_at} / {@code total_items_synced}
  *       / {@code sync_deletions} / 四个字符串字段：<b>没有</b> omitempty → 恒输出（null 照输出）。</li>
  * </ul>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>持久化语义</h2>
  * <ol>
  *   <li><b>钩子</b>：无（本类不落表）。</li>
  *   <li><b>关联预加载</b>：{@code latest_sync_log} 是"由 service 逐个回填"的
- *       {@code gorm:"-"} 字段，不是 Preload。</li>
+ *       非表字段，不是联表查询。</li>
  *   <li><b>软删除 / 默认排序 / 唯一索引 / 自动时间戳</b>：全无。</li>
  * </ol>
  */
@@ -97,13 +95,13 @@ public class DataSourceResponse {
     private SyncLog latestSyncLog;
 
     /**
-     * 单个逻辑凭据字段。挂 {@link GoMapSerializer}：Go 的 map 恒按 key 排序，
+     * 单个逻辑凭据字段。挂 {@link GoMapSerializer}：map 键按字母序输出，
      * 而这里只有一个键——排序本身无所谓，但挂上它同时保证 {@code NON_EMPTY} 的语义
-     * （自定义序列化器会让 {@code @JsonInclude(NON_EMPTY)} 失效，见 §9）。
+     * （自定义序列化器会让 {@code @JsonInclude(NON_EMPTY)} 失效）。
      */
     private Map<String, CredentialFieldMetadata> credentials;
 
-    /** 对照 Go {@code NewDataSourceResponse}：nil 入参回 nil。 */
+    /** 工厂：null 入参回 null。 */
     public static DataSourceResponse from(DataSource ds) {
         if (ds == null) {
             return null;
@@ -136,7 +134,7 @@ public class DataSourceResponse {
         out.lastSyncAt = ds.getLastSyncAt();
         out.lastSyncCursor = ds.getLastSyncCursor();
         out.lastSyncResult = ds.getLastSyncResult();
-        // Go 的 ErrorMessage 带 omitempty：空串**省略键**（与实体自身的恒输出不同）
+        // errorMessage 空串**省略键**（与实体自身的恒输出不同）
         out.errorMessage = ds.getErrorMessage();
         out.syncLogRetentionDays = ds.getSyncLogRetentionDays();
         out.createdAt = ds.getCreatedAt();
@@ -148,7 +146,7 @@ public class DataSourceResponse {
     }
 
     /**
-     * 对照 Go {@code enrichRSSFeedURLsInSettings}：把 {@code feed_urls} 从 credentials
+     * 把 {@code feed_urls} 从 credentials
      * 补进 settings。
      *
      * <p>Feed URL <b>不是密钥</b>，但它历史上住在加密的 credentials blob 里；

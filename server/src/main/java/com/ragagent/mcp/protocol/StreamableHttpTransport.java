@@ -23,7 +23,7 @@ import java.util.function.Consumer;
  * <p>线上行为逐条对照 mcp-go：</p>
  * <ul>
  *   <li>单端点 POST；{@code Content-Type: application/json}，
- *       {@code Accept: application/json, text/event-stream}（streamable_http.go:626-629）；</li>
+ *       {@code Accept: application/json, text/event-stream}；</li>
  *   <li>initialize 响应里的 {@code Mcp-Session-Id} 头被记下，<b>后续每个请求都要回传</b>
  *       （:571-578 / :630-634）；</li>
  *   <li>initialize 协商出的 protocolVersion 经 {@code Mcp-Protocol-Version} 头回传（:636-641）；</li>
@@ -82,8 +82,7 @@ public final class StreamableHttpTransport implements McpTransport {
         if (!protocolVersion.isEmpty()) {
             builder.header(McpProtocol.HEADER_PROTOCOL_VERSION, protocolVersion);
         }
-        // 调用方头最后设置（对照 Go：先 Set Accept/Content-Type，再 Set c.headers，
-        // 故自定义头里的同名键会覆盖协议默认值——顺序刻意保持与 Go 一致）。
+        // 调用方头最后设置：自定义头里的同名键会覆盖协议默认值——顺序刻意如此。
         for (Map.Entry<String, String> e : headers.entrySet()) {
             builder.setHeader(e.getKey(), e.getValue());
         }
@@ -148,7 +147,7 @@ public final class StreamableHttpTransport implements McpTransport {
 
     /**
      * 对照 mcp-go {@code StreamableHTTP.SendNotification}：无 id 的 POST，服务端回 200/202 即算送达，
-     * 响应体一律丢弃（对照 streamable_http.go:820-870）。
+     * 响应体一律丢弃。
      */
     @Override
     public void sendNotification(String method, Object params, McpContext ctx) {
@@ -209,7 +208,7 @@ public final class StreamableHttpTransport implements McpTransport {
                 try {
                     node = MAPPER.readTree(message.data());
                 } catch (Exception nonJson) {
-                    continue; // 非 JSON 帧（注释/心跳）忽略，对照 Go 的 non-fatal 处理
+                    continue; // 非 JSON 帧（注释/心跳）忽略，非致命
                 }
                 JsonRpcResponse parsed = JsonRpcResponse.from(node);
                 if (parsed.isNotification()) {
@@ -224,7 +223,7 @@ public final class StreamableHttpTransport implements McpTransport {
                 "SSE stream ended before a response for request " + wantId + " was received");
     }
 
-    /** 非 200/202 的错误路径（对照 mcp-go streamable_http.go:526-567）。 */
+    /** 非 200/202 的错误路径。 */
     private JsonRpcResponse handleErrorResponse(int status, HttpResponse<InputStream> response, JsonRpcRequest request) {
         if (status == 401) {
             String metadataUrl = McpAuthHeaders.extractResourceMetadataUrl(
@@ -232,7 +231,7 @@ public final class StreamableHttpTransport implements McpTransport {
             throw new McpAuthorizationRequiredException(metadataUrl);
         }
         if (McpProtocol.METHOD_INITIALIZE.equals(request.method()) && status >= 400 && status < 500) {
-            // 对照 Go ErrLegacySSEServer：initialize 收到 4xx 说明服务端只支持传统 HTTP+SSE。
+            // initialize 收到 4xx 说明服务端只支持传统 HTTP+SSE（legacy SSE server 信号）。
             throw new McpException(McpErrorCode.CONNECTION_CLOSED,
                     "server returned " + status + " for initialize: it likely only supports the legacy HTTP+SSE transport");
         }

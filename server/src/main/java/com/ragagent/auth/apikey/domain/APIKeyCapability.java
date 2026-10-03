@@ -7,9 +7,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 租户 API Key 的**能力（capability）模型**——对照 Go {@code types.APIKeyCapability}
- * 常量表与 {@code NormalizeAPIKeyCapability} / {@code NormalizeAPIKeyCapabilities}
- * （internal/types/tenant_api_key.go L71-243）。
+ * 租户 API Key 的**能力（capability）模型**：能力常量表与归一化规则。
  *
  * <p><b>这是权限语义，不是配置项</b>：能力是"叠加式授权"（additive grant），
  * 与 JWT 的角色/所有权（{@link com.ragagent.common.web.RbacInterceptor}）是
@@ -17,8 +15,7 @@ import java.util.Set;
  * scoped Key 只能做能力清单里列出的动作，且其 {@code knowledgeBaseIds} 白名单
  * 在知识库相关路由上仍额外生效。</p>
  *
- * <p>逐条注释与 Go 的常量注释一一对应，改动前请先读 Go 侧注释——每条能力都写明了
- * "它不包含什么"，那才是划分边界的关键。</p>
+ * <p>每条能力的注释都写明了"它不包含什么"——那是划分边界的关键。</p>
  */
 public final class APIKeyCapability {
 
@@ -77,7 +74,7 @@ public final class APIKeyCapability {
     public static final String SYSTEM_AUDIT_READ = "system_audit_read";
 
     /**
-     * 全部已知能力，**顺序与 Go 的 switch 分支顺序一致**
+     * 全部已知能力
      * （仅用于文档/调试，判定一律走 {@link #normalize(String)}）。
      */
     public static final List<String> ALL = List.of(
@@ -95,9 +92,8 @@ public final class APIKeyCapability {
     }
 
     /**
-     * 对照 {@code NormalizeAPIKeyCapability}（L169-224）：输入去空白 + 转小写后
-     * 命中已知能力则返回归一后的字符串，**无法识别返回 {@code null}**，
-     * 让调用方显式丢弃（Go 返回 {@code ""}）。
+     * 输入去空白 + 转小写后命中已知能力则返回归一后的字符串，
+     * **无法识别返回 {@code null}**，让调用方显式丢弃。
      */
     public static String normalize(String capability) {
         if (capability == null) {
@@ -108,14 +104,12 @@ public final class APIKeyCapability {
     }
 
     /**
-     * 对照 {@code NormalizeAPIKeyCapabilities}（L227-243）：去重 + 丢弃未知能力，
-     * 保持首次出现顺序。
+     * 去重 + 丢弃未知能力，保持首次出现顺序。
      *
-     * <p><b>返回值恒为可变列表且从不为 null</b>——Go 的
-     * {@code out := make(StringArray, 0, len(in))} 保证空输入产出空切片（{@code []}）
-     * 而非 nil。这一点有外部契约后果：{@code tenantAPIKeyResponse.capabilities}
+     * <p><b>返回值恒为可变列表且从不为 null</b>：空输入产出空列表（{@code []}）。
+     * 这一点有外部契约后果：{@code tenantAPIKeyResponse.capabilities}
      * 走本函数归一化后，**永远是数组**（full-access Key 也是 {@code []}），
-     * 而 {@code knowledgeBaseIds} 没有这一步，nil 时输出 {@code null}。</p>
+     * 而 {@code knowledgeBaseIds} 没有这一步，null 时输出 {@code null}。</p>
      */
     public static List<String> normalizeAll(List<String> in) {
         List<String> out = new ArrayList<>(in == null ? 0 : in.size());

@@ -4,15 +4,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Ollama {@code POST /api/chat} 响应（对照 ollamaapi.ChatResponse，
- * ollama@v0.23.2/api/types.go:534-560 + Metrics）。
+ * Ollama {@code POST /api/chat} 响应（对齐 ollama v0.23.2 API）。
  *
  * <p>流式时同一个结构体会来很多次，最后一次 {@code done=true} 并带上
  * {@code prompt_eval_count} / {@code eval_count}。</p>
  *
- * <p><b>注意两个用量的口径不一致</b>（Go 侧既有行为，见 ollama.go 的取用点）：
+ * <p><b>注意两个用量的口径不一致</b>（既有口径，不要统一）：
  * 非流式路径算 {@code eval_count - prompt_eval_count} 当补全量，
- * 流式路径直接用 {@code eval_count}。两边照抄，不要统一。</p>
+ * 流式路径直接用 {@code eval_count}。</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class OllamaChatResponse {

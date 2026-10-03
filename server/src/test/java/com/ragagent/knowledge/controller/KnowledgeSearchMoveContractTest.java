@@ -27,14 +27,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
- * knowledge「搜索与移动/复制」契约测试（波 2 第三批，8 条路由）。golden：
+ * knowledge「搜索与移动/复制」契约测试（8 条路由）。golden：
  * scripts/record-knowledge-search-golden.sh。
  *
- * <p>种子严格复刻录制脚本：KB1..KB7（KB4=faq、KB5 挂异构 embedding、KB6 挂
+ * <p>种子与录制脚本一致：KB1..KB7（KB4=faq、KB5 挂异构 embedding、KB6 挂
  * vector_store、KS1/2/3/7 关索引）、KG1..KG9（纯十六进制 id、created_at 互不相同且
  * DESC 序 = 录制序、custom_metadata='{}' 对照 PG 列默认）。搜索 golden 用租户内唯一
  * 关键词 ksdoc 收敛命中集合；move/copy 是异步任务——用例轮询进度到 completed 再比对
- * 终态 golden（Go 侧 sleep 4s 后录到的也是终态）。</p>
+ * 终态 golden（录制侧 sleep 4s 后录到的也是终态）。</p>
  *
  * <p>掩码：UUID 值/文案内嵌 UUID/ISO 时间戳沿用既有三件套，另加 task_id（嵌租户+时间戳
  * +uuid，两侧必然不同）与 updated_at 的 10 位 Unix 秒（进度对象的 created_at 恒 0
@@ -123,7 +123,7 @@ class KnowledgeSearchMoveContractTest {
 
         String off = "{\"vectorEnabled\":false,\"keywordEnabled\":false,"
                 + "\"wikiEnabled\":false,\"graphEnabled\":false}";
-        // 对照 Go dev：API 建 KB 时 applyAndValidateStorageBackend 会把租户的
+        // API 建 KB 时 applyAndValidateStorageBackend 会把租户的
         // System LOCAL（legacy alias, source=env）回填进 storage_backend_id + provider=local——
         // duplicate 响应里的这两个字段依赖它（golden 钉住）。
         jdbc.update("INSERT INTO storage_backends (id, tenant_id, name, provider, config, source, "
@@ -339,7 +339,7 @@ class KnowledgeSearchMoveContractTest {
 
     @Test
     void copyMatchesGo() throws Exception {
-        // 复刻录制序前置：copy 之前 KG2 已被 move 搬进 KS2（进度 total=4 依赖这个状态：
+        // 录制序前置：copy 之前 KG2 已被 move 搬进 KS2（进度 total=4 依赖这个状态：
         // remove = KS2 里的 KG2+KG6 两行）。本用例只驱动状态，golden 断言在 moveMatchesGo。
         MvcResult mv = postForAccepted("/api/v1/knowledge/move", moveBody(KG2, KB1, KB2, "reuse_vectors"),
                 owner, null);

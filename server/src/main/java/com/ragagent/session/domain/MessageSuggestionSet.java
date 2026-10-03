@@ -11,10 +11,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * 一条助手消息 + 一套生效 agent 配置的**生成/缓存记录**（对照 Go
- * {@code types.MessageSuggestionSet}，internal/types/message_suggestion.go L71-94）。
+ * 一条助手消息 + 一套生效 agent 配置的**生成/缓存记录**。
  *
- * <h2>GORM 隐式行为 → Java 的等效清单（约定 §3）</h2>
+ * <h2>落库隐式行为清单</h2>
  * <ol>
  *   <li><b>钩子 BeforeCreate</b>（Go L98-106）：ID 为空时才生成 UUID（**不是**无条件覆盖），
  *       并把 nil 的 {@code Questions} 置为空切片。注意与 Session/Message 的
@@ -47,7 +46,7 @@ public class MessageSuggestionSet {
 
     private String agentId = "";
 
-    /** **不进 JSON**（Go 的 {@code json:"-"}）。 */
+    /** **不进 JSON**。 */
     @TableField("agent_tenant_id")
     @JsonIgnore
     private long agentTenantId;
@@ -78,7 +77,7 @@ public class MessageSuggestionSet {
 
     private String errorCode = "";
 
-    /** 生成租约。**不进 JSON**（Go 的 {@code json:"-"}）。 */
+    /** 生成租约。**不进 JSON**。 */
     @JsonIgnore
     private OffsetDateTime leaseUntil;
 
@@ -91,7 +90,7 @@ public class MessageSuggestionSet {
     public MessageSuggestionSet() {
     }
 
-    /** 对照 Go 的 BeforeCreate：ID **为空时**才生成（保留调用方传入的值）。 */
+    /** 落库前兜底：ID **为空时**才生成（保留调用方传入的值）。 */
     public void normalizeForInsert() {
         if (id == null || id.isEmpty()) {
             id = java.util.UUID.randomUUID().toString();

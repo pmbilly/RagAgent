@@ -26,21 +26,19 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 
 /**
- * Elasticsearch v8 检索引擎仓库——对照 Go
- * {@code internal/application/repository/retriever/elasticsearch/v8/repository.go}（820 行）
- * 与 {@code elasticsearch/structs.go}（文档结构与双向转换）。
+ * Elasticsearch v8 检索引擎仓库（文档结构与双向转换也在本类）。
  *
- * <h2>照抄点</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>构造即自举：{@code HEAD /{index}} 不存在则 {@code PUT /{index}}（仅在
- *       {@code numberOfShards > 0 || numberOfReplicas >= 0} 时带 settings，值转字符串——
- *       照 Go 的 {@code fmt.Sprintf("%d", ...)}），随后 {@code GET /{index}/_mapping}
+ *       {@code numberOfShards > 0 || numberOfReplicas >= 0} 时带 settings，值转十进制字符串），
+ *       随后 {@code GET /{index}/_mapping}
  *       探测 {@code chunk_id} 是否为 {@code keyword}：是 → 查询不加后缀，否/缺失/出错 →
  *       加 {@code .keyword} 后缀（{@code idField} 全查询统一走它）；索引名解析优先级
- *       {@code indexName > ELASTICSEARCH_INDEX env > xwrag_default}（照 {@code ResolveIndexName}）；
- *       连接配置里 shards 默认 0、replicas 默认 -1（照 {@code GetNumberOfShards/Replicas}）</li>
- *   <li>存储估算 = 内容字节 + 维度×4 + 250 固定开销 + (内容+向量)×0.5（照
- *       {@code calculateStorageSize} 的整数算式 {@code (c+v)*5/10}）</li>
+ *       {@code indexName > ELASTICSEARCH_INDEX env > xwrag_default}；
+ *       连接配置里 shards 默认 0、replicas 默认 -1</li>
+ *   <li>存储估算 = 内容字节 + 维度×4 + 250 固定开销 + (内容+向量)×0.5
+ *       （整数算式 {@code (c+v)*5/10}）</li>
  *   <li>写入：单条 {@code POST /{index}/_doc}（**空向量直接报错** "empty embedding vector
  *       for chunk ID: X"）；批量 {@code POST /{index}/_bulk}，每行
  *       {@code {"create":{"_index":"<index>"}}} + 文档，**空列表直接跳过**（告警不报错）</li>
@@ -49,7 +47,7 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
  *   <li>检索：向量 = {@code script_score}（{@code cosineSimilarity(params.query_vector,
  *       'embedding')} + {@code min_score} = float32(threshold)，外层 bool.filter = 基础条件，
  *       {@code size}=topK，{@code _source.excludes=["embedding"]}）；关键词 = 外层
- *       bool{filter=基础条件, must=[{match:{content:{query}}}]}；两者命中的
+ *       bool{filter=基础条件, must=[{match:{content:{query}}}]}; 两者命中的
  *       {@code _source} 反序列化为 {@link VectorEmbedding} 并取 {@code _score}；
  *       返回单元素 {@link RetrieveResult} 列表（结果 + "elasticsearch" + 检索类型）</li>
  *   <li>基础条件（{@code getBaseConds}）：must = kbIDs → knowledgeIDs → tagIDs（AND 语义）；
@@ -57,8 +55,8 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
  *       excludeKnowledgeIDs → excludeChunkIDs</li>
  *   <li>改状态：{@code _update_by_query} + painless（{@code ctx._source.is_enabled = true|false}，
  *       按值分组两次）；改标签：按 tagID 分组，脚本
- *       {@code ctx._source.tag_id = params.tag_id} + {@code params.tag_id}（照 Go 的
- *       {@code json.RawMessage(`"`+tagID+`"`)}）</li>
+ *       {@code ctx._source.tag_id = params.tag_id} + {@code params.tag_id}
+ *       （tagID 参数为 JSON 字符串值）</li>
  *   <li>复制索引（{@code CopyIndices}）：按源 kb 分页（from/size，批 500）检索 → 逐条按映射
  *       换 chunk/knowledge id → **SourceID 三态变换**（=chunkID 的普通块用目标 chunkID；
  *       {@code <chunkID>-<questionID>} 的生成问题保留 questionID 段；其余生成新 UUID）→
@@ -66,14 +64,11 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
  *       取回页数 < 批大小即结束</li>
  * </ul>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现说明</h2>
  * <ul>
- *   <li>Go 的 ES typed client 把请求体结构体直序列化；Java 用 Jackson 手搭同等 JSON
- *       （键序按本仓惯例与 Go 声明的字段序一致；ES 不敏感键序）</li>
- *   <li>Go 侧由 {@code engine_factory.go} 建 client（含 SSRF RoundTripper）；Java 在这里
- *       做等价的地址 SSRF 校验（guard 可空 = 测试口）+ Basic Auth</li>
- *   <li>本类为<b>驱动层</b>：factory/注册表（{@code engine_factory.go} 的等价物）与
- *       {@code NewKVHybridRetrieveEngine} 包装层未在本批——待接线批统一处理</li>
+ *   <li>请求体用 Jackson 手搭 JSON（键序 snake_case 固定；ES 不敏感键序）</li>
+ *   <li>client 由本类自建：构造期做地址 SSRF 校验（guard 可空 = 测试口）+ Basic Auth</li>
+ *   <li>本类为<b>驱动层</b>；引擎工厂/注册表见 {@code EngineFactory}/{@code EngineRegistry}</li>
  * </ul>
  */
 public class ElasticsearchV8RetrieveRepository
@@ -83,13 +78,13 @@ public class ElasticsearchV8RetrieveRepository
             LoggerFactory.getLogger(ElasticsearchV8RetrieveRepository.class);
     static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 {@code ResolveIndexName(indexCfg, "ELASTICSEARCH_INDEX", "xwrag_default")}。 */
+    /** 索引名环境键与缺省值：{@code indexName > env ELASTICSEARCH_INDEX > xwrag_default}。 */
     public static final String ENV_INDEX_KEY = "ELASTICSEARCH_INDEX";
     public static final String DEFAULT_INDEX = "xwrag_default";
-    /** 照 Go {@code batchSize := 500}（CopyIndices 分页）。 */
+    /** CopyIndices 分页批大小。 */
     static final int COPY_BATCH_SIZE = 500;
 
-    /** 对照 {@code elasticsearch/structs.go} 的 {@code VectorEmbedding}（文档结构）。 */
+    /** ES 文档结构。 */
     public static final class VectorEmbedding {
         public String content = "";
         public String sourceId = "";
@@ -101,7 +96,7 @@ public class ElasticsearchV8RetrieveRepository
         public float[] embedding;
         public boolean isEnabled;
         public boolean isRecommended;
-        /** 检索命中时回填（照 {@code VectorEmbeddingWithScore.Score}，非文档字段）。 */
+        /** 检索命中时回填（非文档字段）。 */
         public double score;
     }
 
@@ -136,7 +131,7 @@ public class ElasticsearchV8RetrieveRepository
         if (address.isEmpty()) {
             throw new IllegalArgumentException("elasticsearch address is required");
         }
-        // 照 engine_factory.go：地址先过 SSRF 校验（guard 为空 = 测试口，跳过）
+        // 地址先过 SSRF 校验（guard 为空 = 测试口，跳过）
         if (ssrfGuard != null) {
             ssrfGuard.validateURLForSSRF(address);
         }
@@ -148,7 +143,7 @@ public class ElasticsearchV8RetrieveRepository
         this.password = password == null ? "" : password;
         this.http = http;
 
-        // 照 NewElasticsearchEngineRepository：建索引（失败只记日志）+ 探测字段类型
+        // 建索引（失败只记日志）+ 探测字段类型
         try {
             createIndexIfNotExists();
         } catch (Exception e) {
@@ -159,12 +154,12 @@ public class ElasticsearchV8RetrieveRepository
         this.writeOps = new ElasticsearchV8WriteOps(this);
     }
 
-    /** 对照 {@code types.ResolveIndexName}：indexName > env > default（共享助手）。 */
+    /** 索引名解析：indexName > env > default（共享助手）。 */
     static String resolveIndexName(String indexName) {
         return EngineTypes.resolveIndexName(indexName, ENV_INDEX_KEY, DEFAULT_INDEX);
     }
 
-    /** 对照 {@code idField}：text 映射时 ID 字段要带 .keyword 后缀。 */
+    /** ID 字段名：text 映射时要带 .keyword 后缀。 */
     String idField(String name) {
         return useKeywordSuffix ? name + ".keyword" : name;
     }
@@ -174,19 +169,19 @@ public class ElasticsearchV8RetrieveRepository
         return useKeywordSuffix;
     }
 
-    /** 对照 {@code EngineType}。 */
+    /** 引擎类型常量。 */
     public String engineType() {
         return EngineTypes.ENGINE_ELASTICSEARCH;
     }
 
-    /** 对照 {@code Support}：关键词 + 向量。 */
+    /** 支持 keywords + 向量两路。 */
     public List<String> support() {
         return List.of(EngineTypes.RETRIEVER_KEYWORDS, EngineTypes.RETRIEVER_VECTOR);
     }
 
     // ── 索引自举 ────────────────────────────────────────────────────────────
 
-    /** 对照 {@code createIndexIfNotExists}。 */
+    /** 索引不存在则按缺省 settings 建。 */
     void createIndexIfNotExists() throws Exception {
         HttpResult exists = request("HEAD", "/" + index, null);
         if (exists.status() == 200) {
@@ -216,7 +211,7 @@ public class ElasticsearchV8RetrieveRepository
         log.info("[Elasticsearch] Index created successfully: {}", index);
     }
 
-    /** 对照 {@code detectFieldTypes}：chunk_id 是 keyword → 不加后缀，否则加（含出错）。 */
+    /** 字段类型探测：chunk_id 是 keyword → 不加后缀，否则加（含出错）。 */
     void detectFieldTypes() {
         try {
             HttpResult resp = request("GET", "/" + index + "/_mapping", null);
@@ -259,7 +254,7 @@ public class ElasticsearchV8RetrieveRepository
 
     // ── 存储估算 ────────────────────────────────────────────────────────────
 
-    /** 对照 {@code calculateStorageSize}。 */
+    /** 单文档存储估算（整数算式，见类注释）。 */
     static long calculateStorageSize(VectorEmbedding embedding) {
         long contentSizeBytes = embedding.content == null ? 0
                 : embedding.content.getBytes(StandardCharsets.UTF_8).length;
@@ -269,7 +264,7 @@ public class ElasticsearchV8RetrieveRepository
         return contentSizeBytes + vectorSizeBytes + metadataSizeBytes + indexOverheadBytes;
     }
 
-    /** 对照 {@code EstimateStorageSize}。 */
+    /** 存储估算。 */
     public long estimateStorageSize(List<IndexInfo> indexInfoList,
                                     Map<String, Object> params) {
         long total = 0;
@@ -281,9 +276,9 @@ public class ElasticsearchV8RetrieveRepository
         return total;
     }
 
-    // ── 文档转换（照 elasticsearch/structs.go） ──────────────────────────────
+    // ── 文档转换 ─────────────────────────────────────────────────────────────
 
-    /** 对照 {@code ToDBVectorEmbedding}。 */
+    /** IndexInfo → 文档字段；embedding/chunk_enabled 经 additionalParams 映射注入。 */
     @SuppressWarnings("unchecked")
     static VectorEmbedding toDbVectorEmbedding(IndexInfo info, Map<String, Object> additionalParams) {
         VectorEmbedding vector = new VectorEmbedding();
@@ -312,7 +307,7 @@ public class ElasticsearchV8RetrieveRepository
         return vector;
     }
 
-    /** 对照 {@code FromDBVectorEmbeddingWithScore}。 */
+    /** 文档 → 命中项（id/score/matchType 由调用方补齐）。 */
     static IndexWithScore fromDbVectorEmbeddingWithScore(String id, VectorEmbedding embedding,
                                                          int matchType) {
         IndexWithScore out = new IndexWithScore();
@@ -331,7 +326,7 @@ public class ElasticsearchV8RetrieveRepository
     }
 
 
-    /** 文档 JSON（键序与 Go struct 声明一致，snake_case）。 */
+    /** 文档 JSON（键序 snake_case 固定）。 */
     static String docJson(VectorEmbedding doc) {
         ObjectNode node = MAPPER.createObjectNode();
         node.put("content", doc.content);
@@ -354,7 +349,7 @@ public class ElasticsearchV8RetrieveRepository
         return node.toString();
     }
 
-    /** {@code {"terms":{field:[...]}}}（照 types.TermsQuery）。 */
+    /** terms 查询：{@code {"terms":{field:[...]}}}。 */
     static ObjectNode termsQuery(String field, List<String> values) {
         ObjectNode terms = MAPPER.createObjectNode();
         ArrayNode array = terms.putArray(field);
@@ -370,7 +365,7 @@ public class ElasticsearchV8RetrieveRepository
 
     // ── 检索 ────────────────────────────────────────────────────────────────
 
-    /** {@code _source} → 文档（字段缺失按零值，照 Go 的 json.Unmarshal 语义）。 */
+    /** {@code _source} → 文档（字段缺失按零值）。 */
     static VectorEmbedding parseSource(JsonNode source) {
         VectorEmbedding doc = new VectorEmbedding();
         doc.content = source.path("content").asText("");
@@ -457,12 +452,12 @@ public class ElasticsearchV8RetrieveRepository
     // ── 迁移知识 ────────────────────────────────────────────────────────────
 
     /**
-     * 对照 {@code v8/move.go} 的 {@code MoveKnowledgeIndices}：把某知识的所有分块挪到目标
+     * 把某知识的所有分块挪到目标
      * kb 并清空 tag；查询是 {@code bool.filter = [terms(kb), terms(knowledge)]}（**terms** 数组），
-     * 脚本**不带 lang**（照 Go 只有 source + params，ES 默认 painless）；带
+     * 脚本**不带 lang**（只带 source + params，ES 默认 painless）；带
      * {@code ?refresh=true}；响应必须"完全成功"——total/updated 都在、total ≥ 0、
      * total == updated、未 timed_out、version_conflicts == 0、failures 为空，
-     * 否则报 {@code move indices was incomplete}（照 Go）。
+     * 否则报 {@code move indices was incomplete}。
      */
     @Override
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,

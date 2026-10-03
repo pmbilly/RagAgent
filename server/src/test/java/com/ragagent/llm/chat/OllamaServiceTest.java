@@ -22,12 +22,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * OllamaService 的 HTTP 契约测试（对照 Go internal/models/utils/ollama/ollama.go）。
- *
- * <p>与 Go 的差异：Go 用官方 SDK（{@code api.NewClient}）打真实 httptest 服务端；
- * Java 侧没有该 SDK，OllamaService 自己发 HTTP，所以这里就是一个真实的本地 Ollama 假服务端——
- * <b>同时验证了"线格式与 SDK 一致"</b>：心跳是 {@code HEAD /}，模型列表是
- * {@code GET /api/tags}，拉取是 NDJSON 的 {@code POST /api/pull}。</p>
+ * OllamaService 的 HTTP 契约测试：OllamaService 直接自己发 HTTP（不依赖 SDK），
+ * 这里起一个真实的本地 Ollama 假服务端——<b>同时验证了线格式</b>：心跳是
+ * {@code HEAD /}，模型列表是 {@code GET /api/tags}，拉取是 NDJSON 的 {@code POST /api/pull}。
  */
 class OllamaServiceTest {
 
@@ -81,7 +78,7 @@ class OllamaServiceTest {
         OllamaService service = startOllama(false);
 
         assertTrue(service.isModelAvailable("qwen3:latest"));
-        // 不带 tag 的名字会自动补 :latest 再比对（对照 Go）
+        // 不带 tag 的名字会自动补 :latest 再比对
         assertTrue(service.isModelAvailable("qwen3"));
         assertFalse(service.isModelAvailable("missing"));
         assertEquals("0.9.0", service.getVersion());
@@ -109,7 +106,7 @@ class OllamaServiceTest {
         assertTrue(requests.contains("POST /api/pull"), "模型缺失必须触发拉取");
     }
 
-    /** 接口报错的文案与 Go 的 StatusError 对齐：{@code "<code> <reason>: <error 字段>"}。 */
+    /** 接口报错的文案格式：{@code "<code> <reason>: <error 字段>"}。 */
     @Test
     void apiErrorsCarryStatusAndMessage() throws Exception {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -152,7 +149,7 @@ class OllamaServiceTest {
         assertTrue(error.getMessage().startsWith("ollama service unavailable: "), error.getMessage());
     }
 
-    /** 模型名校验（对照 Go IsValidModelName）。 */
+    /** 模型名校验（{@code OllamaService#isValidModelName}）。 */
     @Test
     void modelNameValidation() {
         assertTrue(OllamaService.isValidModelName("qwen3:latest"));

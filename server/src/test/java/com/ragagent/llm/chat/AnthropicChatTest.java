@@ -33,22 +33,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * 对照 Go internal/models/chat/anthropic_test.go（表内 7 条 + 端点拼接 2 条）。
+ * Anthropic chat 语义测试（表内 7 条 + 端点拼接 2 条）。
  *
- * <p>Go 用 {@code httptest.NewServer}；Java 用 JDK 自带的
+ * <p>fake 服务端用 JDK 自带的
  * {@code com.sun.net.httpserver.HttpServer}，并用
- * {@link SsrfGuard#reloadWhitelist} 把 127.0.0.1 放行（Go 用
- * {@code t.Setenv("SSRF_WHITELIST", "127.0.0.1")}）。</p>
+ * {@link SsrfGuard#reloadWhitelist} 把 127.0.0.1 放行（等价于往
+ * {@code SSRF_WHITELIST} 注入 127.0.0.1）。</p>
  *
- * <p>Go 的 {@code TestNewRemoteChat_AnthropicProvider} 校验的是
- * {@code NewRemoteChat} 的工厂分派（provider.go，本任务范围外），这里改成等价可测的一条：
+ * <p>工厂分派（provider 路由）不在本测试范围，这里钉等价可测的一条：
  * <b>没给 baseURL 时回落到厂商默认基址，且默认基址拼出 {@code /v1/messages}</b>。</p>
  */
 class AnthropicChatTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 Go 测试里的固定响应体。 */
+    /** 模拟上游的固定响应体。 */
     private static final String PLAIN_RESPONSE = """
             {
               "id":"msg_123","type":"message","role":"assistant",
@@ -133,7 +132,7 @@ class AnthropicChatTest {
     // 对应用例
     // ------------------------------------------------------------------
 
-    /** 对照 Go TestAnthropicChat：请求形态（顶层 system + 尾断点）与响应解析。 */
+    /** 请求形态（顶层 system + 尾断点）与响应解析。 */
     @Test
     void anthropicChatSendsTopLevelSystemAndParsesResponse() throws Exception {
         AtomicReference<Captured> captured = new AtomicReference<>();
@@ -172,7 +171,7 @@ class AnthropicChatTest {
         }
     }
 
-    /** 对照 Go TestAnthropicChat 的头断言（x-api-key / anthropic-version / 自定义头）。 */
+    /** 头断言（x-api-key / anthropic-version / 自定义头）。 */
     @Test
     void anthropicChatSendsAuthHeadersAndCustomHeaders() throws Exception {
         AtomicReference<com.sun.net.httpserver.Headers> headers = new AtomicReference<>();
@@ -196,7 +195,7 @@ class AnthropicChatTest {
         }
     }
 
-    /** 对照 Go TestAnthropicChat_CacheUsage：input + cache_read + cache_creation = prompt。 */
+    /** input + cache_read + cache_creation = prompt。 */
     @Test
     void anthropicChatMergesCacheUsageIntoPromptTokens() throws Exception {
         AtomicReference<Captured> captured = new AtomicReference<>();
@@ -222,7 +221,7 @@ class AnthropicChatTest {
         }
     }
 
-    /** 对照 Go TestAnthropicChat：默认 max_tokens 硬编码 1024（opts 为 nil 时）。 */
+    /** 默认 max_tokens 硬编码 1024（opts 为 null 时）。 */
     @Test
     void anthropicChatDefaultsMaxTokensTo1024() throws Exception {
         AtomicReference<Captured> captured = new AtomicReference<>();
@@ -238,7 +237,7 @@ class AnthropicChatTest {
         }
     }
 
-    /** 对照 Go TestAnthropicChat_FullEndpoint：非 /v1 结尾的代理路径 → 补 /v1/messages。 */
+    /** 非 /v1 结尾的代理路径 → 补 /v1/messages。 */
     @Test
     void anthropicChatAppendsV1MessagesToProxyPath() throws Exception {
         AtomicReference<Captured> captured = new AtomicReference<>();
@@ -254,7 +253,7 @@ class AnthropicChatTest {
         }
     }
 
-    /** 对照 Go TestAnthropicChat_MessagesEndpoint：已是 /messages 结尾 → 原样使用。 */
+    /** 已是 /messages 结尾 → 原样使用。 */
     @Test
     void anthropicChatKeepsMessagesEndpoint() throws Exception {
         AtomicReference<Captured> captured = new AtomicReference<>();
@@ -272,8 +271,8 @@ class AnthropicChatTest {
 
     /**
      * 端点拼接的三种形态：已是 /messages → 原样；/v1 或 /v1beta 结尾 → 补 /messages；
-     * 其余 → 补 /v1/messages。（构造器会做 SSRF 校验，故这里把测试用主机名加白——
-     * Go 侧对应 {@code t.Setenv("SSRF_WHITELIST", ...)}。）
+     * 其余 → 补 /v1/messages。（构造器会做 SSRF 校验，故这里把测试用主机名加白，
+     * 等价于往 {@code SSRF_WHITELIST} 写入这些主机。）
      */
     @Test
     void endpointJoiningThreeForms() {
@@ -288,7 +287,7 @@ class AnthropicChatTest {
                 chat("https://proxy.example.com/messages").endpoint());
     }
 
-    /** 对照 Go TestAnthropicChat_SSEResponse：非流式入口拿到 text/event-stream 的整段解析。 */
+    /** 非流式入口拿到 text/event-stream 的整段解析。 */
     @Test
     void anthropicChatParsesSseBodyWhenContentTypeIsEventStream() throws Exception {
         String sse = """
@@ -324,7 +323,7 @@ class AnthropicChatTest {
         }
     }
 
-    /** 对照 Go TestAnthropicChat_ChatStream：流式两块（答案 + done），请求带 stream=true。 */
+    /** 流式两块（答案 + done），请求带 stream=true。 */
     @Test
     void anthropicChatStreamEmitsAnswerThenDone() throws Exception {
         String sse = """
@@ -374,7 +373,7 @@ class AnthropicChatTest {
         }
     }
 
-    /** 对照 Go TestAnthropicChat_CacheRetentionNoneKeepsPlainStrings：关缓存时保持纯字符串。 */
+    /** 关缓存时保持纯字符串。 */
     @Test
     void cacheRetentionNoneKeepsPlainStrings() throws Exception {
         AtomicReference<Captured> captured = new AtomicReference<>();

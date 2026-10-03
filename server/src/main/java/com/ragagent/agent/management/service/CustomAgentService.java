@@ -29,7 +29,7 @@ import com.ragagent.knowledge.service.KnowledgeBaseService;
  * <ul>
  *   <li>suggested-questions 的 wiki fallback 未实现。</li>
  *   <li>kb_selection_mode=all 的能力过滤只实现 quick-answer 的 vector/keyword any-of
- *       基础面，allowed_tools→capability 派生表未移植。</li>
+ *       基础面，allowed_tools→capability 派生表未实现。</li>
  * </ul>
  */
 @Service

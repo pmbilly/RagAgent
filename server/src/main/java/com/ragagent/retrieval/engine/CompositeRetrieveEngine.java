@@ -18,29 +18,23 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 
 /**
- * 复合检索引擎——对照 Go {@code internal/application/service/retriever/composite.go}
- * （353 行，{@code CompositeRetrieveEngine}）。
+ * 复合检索引擎——按"检索类型 → 承载它的引擎"分派：{@code Retrieve} 逐参数挑第一个支持
+ * 该检索类型的引擎；其余方法对<b>全部</b>引擎扇出（迁移类操作先整体预检再逐个执行）。
  *
- * <p>按"检索类型 → 承载它的引擎"分派：{@code Retrieve} 逐参数挑第一个支持该检索类型的引擎；
- * 其余方法对<b>全部</b>引擎扇出（迁移类操作先整体预检再逐个执行）。</p>
- *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现说明</h2>
  * <ul>
- *   <li><b>顺序确定</b>：Go 的 {@code engineInfos} 由 {@code maps.Values} 产出（顺序随机），
- *       并发收集结果也是完成序；本仓一律按"入参序 / 引擎序"回填——同一输入两次跑出的
- *       {@code RetrieveResult} 列表逐项一致（多引擎共同支持同一检索类型时，Go 选谁是不确定的）。</li>
- *   <li><b>并发用虚拟线程</b>（对应 Go 的 goroutine + {@code WaitGroup}）；错误取<b>下标最小</b>的
- *       那一个（Go 取信道里先到的那个，同样不确定）。全部执行完才返回（不提前取消其余），
- *       与 Go 的 {@code concurrentExecWithError} 一致。</li>
- *   <li>{@code common.Deduplicate}（Go 用 map 收集 → 结果无序）→ 本仓按 SourceID
- *       <b>保首次出现顺序</b>去重。</li>
+ *   <li><b>顺序确定</b>：结果一律按"入参序 / 引擎序"回填，同一输入两次跑出的
+ *       {@code RetrieveResult} 列表逐项一致；多引擎共同支持同一检索类型时取引擎序第一个。</li>
+ *   <li><b>并发用虚拟线程</b>；错误取<b>下标最小</b>的那一个；全部执行完才返回
+ *       （不提前取消其余）。</li>
+ *   <li>去重按 SourceID <b>保首次出现顺序</b>。</li>
  * </ul>
  */
 public class CompositeRetrieveEngine {
 
     private static final Logger log = LoggerFactory.getLogger(CompositeRetrieveEngine.class);
 
-    /** 对照 {@code engineInfo}：一条引擎 + 它承载的检索类型。 */
+    /** 一条引擎 + 它承载的检索类型。 */
     static final class EngineInfo {
         final RetrieveEngineService engine;
         final List<String> retrieverTypes;
@@ -58,9 +52,9 @@ public class CompositeRetrieveEngine {
     }
 
     /**
-     * 对照 {@code NewCompositeRetrieveEngine}：按租户有效引擎从注册表取服务并合成。
+     * 按租户有效引擎从注册表取服务并合成。
      *
-     * <p>与 Go 一样含两道校验：注册表没有该引擎类型 → 报错；引擎不支持该检索类型 → 报错。
+     * <p>含两道校验：注册表没有该引擎类型 → 报错；引擎不支持该检索类型 → 报错。
      * 同一引擎类型出现多次时把检索类型<b>并起来</b>（不是产生第二条 engineInfo）。</p>
      */
     public static CompositeRetrieveEngine create(RetrieveEngineRegistry registry,
@@ -93,12 +87,12 @@ public class CompositeRetrieveEngine {
         return new CompositeRetrieveEngine(new ArrayList<>(engineInfos.values()));
     }
 
-    /** 单引擎合成（对照 Go 工厂里直接构造 {@code engineInfos} 的那一段）。 */
+    /** 单引擎合成。 */
     static CompositeRetrieveEngine ofSingle(RetrieveEngineService service) {
         return new CompositeRetrieveEngine(List.of(new EngineInfo(service, service.support())));
     }
 
-    /** 引擎条数（测试断言用；Go 的测试直接读 {@code engineInfos}）。 */
+    /** 引擎条数（测试断言用）。 */
     int engineCount() {
         return engineInfos.size();
     }
@@ -115,13 +109,13 @@ public class CompositeRetrieveEngine {
 
     // ── 检索 ────────────────────────────────────────────────────────────────
 
-    /** 对照 {@code Retrieve}：逐参数挑第一个支持该检索类型的引擎，并发执行。 */
+    /** 逐参数挑第一个支持该检索类型的引擎，并发执行。 */
     public List<RetrieveResult> retrieve(List<RetrieveParams> retrieveParams) throws Exception {
         if (retrieveParams == null || retrieveParams.isEmpty()) {
             return new ArrayList<>();
         }
         int count = retrieveParams.size();
-        // 并发写入按入参下标落位（Go 是完成序，见类注释的确定性备案）。
+        // 并发写入按入参下标落位（顺序确定，见类注释）。
         AtomicReferenceArray<List<RetrieveResult>> slots =
                 new AtomicReferenceArray<>(count);
         Throwable[] errors = new Throwable[count];
@@ -154,7 +148,7 @@ public class CompositeRetrieveEngine {
         return results;
     }
 
-    /** 对照 {@code SupportRetriever}：任一引擎承载该检索类型即可。 */
+    /** 任一引擎承载该检索类型即可。 */
     public boolean supportRetriever(String retrieverType) {
         for (EngineInfo info : engineInfos) {
             if (info == null) {
@@ -169,7 +163,7 @@ public class CompositeRetrieveEngine {
 
     // ── 写入 / 删除 / 复制（扇出到全部引擎） ────────────────────────────────
 
-    /** 对照 {@code Index}。 */
+    /** 单条写入扇出。 */
     public void index(Embedder embedder, IndexInfo indexInfo) throws Exception {
         rethrowFirst(execPerEngine(info -> {
             try {
@@ -182,7 +176,7 @@ public class CompositeRetrieveEngine {
         }));
     }
 
-    /** 对照 {@code BatchIndex}（先按 SourceID 去重再扇出）。 */
+    /** 批量写入扇出（先按 SourceID 去重再扇出）。 */
     public void batchIndex(Embedder embedder, List<IndexInfo> indexInfoList) throws Exception {
         List<IndexInfo> deduped = dedupeBySourceId(indexInfoList);
         rethrowFirst(execPerEngine(info -> {
@@ -196,7 +190,7 @@ public class CompositeRetrieveEngine {
         }));
     }
 
-    /** 对照 {@code DeleteByChunkIDList}。 */
+    /** 按 chunkID 扇出删除。 */
     public void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
             throws Exception {
         rethrowFirst(execPerEngine(info -> {
@@ -210,7 +204,7 @@ public class CompositeRetrieveEngine {
         }));
     }
 
-    /** 对照 {@code DeleteBySourceIDList}。 */
+    /** 按 SourceID 扇出删除。 */
     public void deleteBySourceIdList(List<String> sourceIdList, int dimension,
                                      String knowledgeType) throws Exception {
         rethrowFirst(execPerEngine(info -> {
@@ -224,7 +218,7 @@ public class CompositeRetrieveEngine {
         }));
     }
 
-    /** 对照 {@code DeleteByKnowledgeIDList}。 */
+    /** 按 knowledgeID 扇出删除。 */
     public void deleteByKnowledgeIdList(List<String> knowledgeIdList, int dimension,
                                         String knowledgeType) throws Exception {
         rethrowFirst(execPerEngine(info -> {
@@ -238,7 +232,7 @@ public class CompositeRetrieveEngine {
         }));
     }
 
-    /** 对照 {@code CopyIndices}。 */
+    /** 扇出拷贝。 */
     public void copyIndices(String sourceKnowledgeBaseId,
                             Map<String, String> sourceToTargetKbIdMap,
                             Map<String, String> sourceToTargetChunkIdMap,
@@ -256,22 +250,21 @@ public class CompositeRetrieveEngine {
         }));
     }
 
-    /** 对照 {@code BatchUpdateChunkEnabledStatus}。 */
+    /** 扇出批量改状态。 */
     public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
             throws Exception {
         rethrowFirst(execPerEngine(info ->
                 info.engine.batchUpdateChunkEnabledStatus(chunkStatusMap)));
     }
 
-    /** 对照 {@code BatchUpdateChunkTagID}。 */
+    /** 扇出批量改标签。 */
     public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
         rethrowFirst(execPerEngine(info ->
                 info.engine.batchUpdateChunkTagID(chunkTagMap)));
     }
 
     /**
-     * 对照 {@code EstimateStorageSize}：并发求和；任一引擎失败只记日志，仍返回<b>已累计的部分和</b>
-     * （照 Go 的 {@code sum.Add} + 末尾 {@code logger.Errorf}）。
+     * 存储体量估算：并发求和；任一引擎失败只记日志，仍返回<b>已累计的部分和</b>。
      */
     public long estimateStorageSize(Embedder embedder, List<IndexInfo> indexInfoList) {
         AtomicLong sum = new AtomicLong();
@@ -290,7 +283,7 @@ public class CompositeRetrieveEngine {
 
     // ── 迁移（先整体预检，再逐个执行） ──────────────────────────────────────
 
-    /** 对照 {@code ValidateKnowledgeIndexMove}：在第一次改动之前验完所有 store。 */
+    /** 在第一次改动之前验完所有 store。 */
     public void validateKnowledgeIndexMove() {
         for (EngineInfo info : engineInfos) {
             if (!(info.engine instanceof RetrieveEngineService.KnowledgeIndexMover)) {
@@ -303,7 +296,7 @@ public class CompositeRetrieveEngine {
         }
     }
 
-    /** 对照 {@code MoveKnowledgeIndices}：先整体预检，再扇出执行。 */
+    /** 先整体预检，再扇出执行。 */
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
                                      List<String> chunkIds, int dimension, String knowledgeType)
             throws Exception {
@@ -327,7 +320,7 @@ public class CompositeRetrieveEngine {
         void run(int index) throws Exception;
     }
 
-    /** 对照 {@code concurrentExecWithError}：全部跑完，返回下标最小的错误（Go 为信道首错）。 */
+    /** 逐引擎并发执行：全部跑完，返回按下标回填的错误数组。 */
     private Throwable[] execPerEngine(EngineTask task) {
         int count = engineInfos.size();
         Throwable[] errors = new Throwable[count];
@@ -366,7 +359,7 @@ public class CompositeRetrieveEngine {
         }
     }
 
-    /** 取下标最小的错误并抛出（保持 Go 的"抛第一个遇到的错误"语义，但下标确定）。 */
+    /** 取下标最小的错误并抛出。 */
     private static void rethrowFirst(Throwable[] errors) throws Exception {
         Throwable first = firstError(errors);
         if (first == null) {
@@ -390,7 +383,7 @@ public class CompositeRetrieveEngine {
         return null;
     }
 
-    /** 对照 {@code common.Deduplicate}（按 SourceID），本仓保首次出现顺序。 */
+    /** 按 SourceID 去重，保首次出现顺序。 */
     private static List<IndexInfo> dedupeBySourceId(List<IndexInfo> indexInfoList) {
         if (indexInfoList == null || indexInfoList.isEmpty()) {
             return new ArrayList<>();

@@ -1,15 +1,14 @@
 package com.ragagent.event;
 
 /**
- * 事件类型常量（对照 Go {@code event.EventType} 及其 39 个常量，internal/event/event.go:14-92）。
+ * 事件类型常量。
  *
- * <p>Go 里 {@code EventType} 是命名 string 类型；Java 侧用 String 常量集中定义
- * （与 {@code com.ragagent.common.llm.ResponseType} 的做法同源——流式子集的取值
- * 与 ResponseType 的 wire 值逐字相同：thought / tool_call / tool_result / command_output /
- * reflection / references / final_answer / error / tool_approval_required / ...
- * 接线层如需 ResponseType 枚举，按值映射即可）。</p>
+ * <p>取值为 String 常量集中定义（与 {@code com.ragagent.common.llm.ResponseType}
+ * 的做法同源——流式子集的取值与 ResponseType 的 wire 值逐字相同：thought / tool_call /
+ * tool_result / command_output / reflection / references / final_answer / error /
+ * tool_approval_required / ...。接线层如需 ResponseType 枚举，按值映射即可）。</p>
  *
- * <p>事件类型同时是 {@link EventBus} 的订阅键（Go {@code map[EventType][]EventHandler}）
+ * <p>事件类型同时是 {@link EventBus} 的订阅键
  * 与 {@link Event#getType()} 的取值。不要在别处散写字面量——这里是唯一权威。</p>
  */
 public final class EventType {

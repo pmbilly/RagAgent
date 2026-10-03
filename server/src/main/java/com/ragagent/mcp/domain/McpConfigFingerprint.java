@@ -9,18 +9,17 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * 对照 Go types.MCPConfigFingerprint（internal/types/mcp_metadata.go:57-68）。
+ * MCP 服务配置的规范化 JSON 指纹。
  *
  * <p>摘要排除展示文案与启用状态：改文档不改上游身份。但 <b>秘密影响身份</b>——
  * api_key / token 参与摘要（只存摘要，不存秘密本身）。</p>
  *
- * <p>⚠️ 保真要点：Go 用 {@code json.Marshal} 序列化一个**匿名结构体**，字段序为
- * {@code Transport, URL, Headers, Auth, Stdio, Env}，且该匿名结构体的字段**没有 json tag**，
- * 所以输出的是 Go 字段名本身、并且即使是 nil 也输出 {@code null}（无 omitempty）。
- * 嵌套对象则用各自 tag 的 omitempty 规则。Java 侧手工构造同样的字节串，使
- * <b>摘要与 Go 逐字节一致</b>（同一行 mcp_metadata 跨语言读写时 Stale 判定才不会误报）。</p>
+ * <p>⚠️ 规范化 JSON 的字节形态是稳定契约：顶层字段序固定为
+ * {@code Transport, URL, Headers, Auth, Stdio, Env}，顶层键名原样保留、
+ * 即使是 null 也输出 {@code null}（无 omitempty）；嵌套对象则按各自的 omitempty
+ * 规则省略。摘要字节形态一旦变化，已有 mcp_metadata 行的 Stale 判定就会误报。</p>
  *
- * <p>同时复刻 Go encoding/json 的 HTML 转义（{@code < > &} → {@code < > &}）
+ * <p>字符串编码开启 HTML 转义（{@code < > &} 三字符转成 unicode 转义）
  * 与 U+2028/U+2029 转义。</p>
  */
 public final class McpConfigFingerprint {
@@ -28,10 +27,9 @@ public final class McpConfigFingerprint {
     private McpConfigFingerprint() {}
 
     /**
-     * 对照 Go MCPConfigFingerprint：SHA-256 十六进制小写。
+     * 摘要算法：SHA-256 十六进制小写。
      *
-     * @param service 不可为 null（Go 会 panic 于 nil 解引用；Java 显式返回 null 更安全，
-     *                但调用方按 Go 语义总是传非 nil）
+     * @param service 服务配置（调用方总是传非 null；null 时返回 null）
      */
     public static String of(McpService service) {
         if (service == null) {
@@ -52,7 +50,7 @@ public final class McpConfigFingerprint {
         }
     }
 
-    /** 暴露规范化 JSON 便于测试对照 Go 实录（Go 的 json.Marshal 输出）。 */
+    /** 暴露规范化 JSON，便于测试比对。 */
     public static String canonicalJson(McpService s) {
         StringBuilder sb = new StringBuilder();
         sb.append('{');
@@ -66,7 +64,7 @@ public final class McpConfigFingerprint {
         return sb.toString();
     }
 
-    /** 对照 Go MCPAuthConfig 的 json tag + omitempty（含 custom_headers 的键排序） */
+    /** 嵌套鉴权配置的规范化形态（snake_case 键名 + omitempty，含 custom_headers 的键排序） */
     private static String authConfig(McpAuthConfig c) {
         if (c == null) {
             return "null";
@@ -102,13 +100,13 @@ public final class McpConfigFingerprint {
         return sb.toString();
     }
 
-    /** 对照 Go MCPStdioConfig：command / args **都无 omitempty**，nil args → null */
+    /** stdio 配置的规范化形态：command / args **都无 omitempty**，null args → null */
     private static String stdioConfig(McpStdioConfig c) {
         if (c == null) {
             return "null";
         }
         StringBuilder sb = new StringBuilder();
-        // Go 的零值是 ""，Java 未赋值时是 null——同一语义（无 omitempty，恒输出）
+        // 未赋值时按空串处理（无 omitempty，恒输出）
         sb.append("{\"command\":").append(quote(c.getCommand() == null ? "" : c.getCommand()));
         sb.append(",\"args\":");
         if (c.getArgs() == null) {
@@ -127,7 +125,7 @@ public final class McpConfigFingerprint {
         return sb.toString();
     }
 
-    /** 对照 Go map[string]string 编码：键按字节序排序，nil → null，空 map → {} */
+    /** 字符串 map 的规范化形态：键按字节序排序，null → null，空 map → {} */
     private static String stringMap(Map<String, String> m) {
         if (m == null) {
             return "null";
@@ -166,7 +164,7 @@ public final class McpConfigFingerprint {
     }
 
     /**
-     * 对照 Go encoding/json 的字符串编码（HTMLEscape 默认开启）：
+     * 字符串编码（HTML 转义开启）：
      * 引号与反斜杠转义，控制字符转 unicode 转义（换行/回车/制表符用短形式），
      * {@code < > &} 转 unicode 转义，U+2028/U+2029 同样转义。
      */
@@ -196,7 +194,7 @@ public final class McpConfigFingerprint {
                     if (cp < 0x20) {
                         sb.append(String.format("\\u%04x", cp));
                     } else if (cp >= 0xD800 && cp <= 0xDFFF) {
-                        // 未配对代理项：Go 用 U+FFFD 替换
+                        // 未配对代理项：替换为 U+FFFD
                         sb.append('�');
                     } else {
                         sb.appendCodePoint(cp);
@@ -208,7 +206,7 @@ public final class McpConfigFingerprint {
         return sb.toString();
     }
 
-    /** 供测试/调试：列出全部键（保留以便对照 Go 输出的键序） */
+    /** 供测试/调试：列出全部顶层键（固定键序） */
     static List<String> fingerprintKeys() {
         List<String> keys = new ArrayList<>();
         keys.add("Transport");

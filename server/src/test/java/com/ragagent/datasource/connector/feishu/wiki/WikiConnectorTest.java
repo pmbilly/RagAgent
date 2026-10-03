@@ -34,7 +34,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 /**
- * 对照 Go {@code feishu/wiki/connector_test.go} 全文（含 {@code connector_golden_test.go}）。
+ * wiki 连接器的语义测试。
  *
  * <p>覆盖：连接器接口面、惰性加载、祖先解析、各 obj_type 的抓取、docx 的 blocks 路径
  * 与导出回落、附件/图片的白名单与大小过滤、增量与删除检测、部分列举、
@@ -75,7 +75,7 @@ class WikiConnectorTest {
         return FeishuTestSupport.wikiConfig(server.baseUrl(), resourceIds);
     }
 
-    /** 对照 Go 的 {@code fakeFeishu(nodes)}：只有顶层节点。 */
+    /** 只搭出顶层节点的层级桩。 */
     private void fakeFeishu(WikiFixtures.Node... nodes) {
         WikiFixtures.hierarchyRoute(server, List.of(nodes), Map.of());
     }
@@ -187,7 +187,7 @@ class WikiConnectorTest {
                 WikiFixtures.Node.of("nt-grandchild", "obj-gc", "docx", "Grandchild", "300")));
         WikiFixtures.hierarchyRoute(server, List.of(root), children);
 
-        // 顺序就是 Go 的插入序：先空间，然后**自底向上**逐级父节点
+        // 顺序：先空间，然后**自底向上**逐级父节点
         List<String> ancestors = connector().resolveResourceAncestors(
                 config(null), List.of("space1:nt-grandchild"));
         assertThat(ancestors).containsExactly("space1", "space1:nt-child", "space1:nt-root");
@@ -266,7 +266,7 @@ class WikiConnectorTest {
 
             com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiNode empty =
                     new com.ragagent.datasource.connector.feishu.core.FeishuApiTypes.WikiNode();
-            // 缺失的时间保持 Go 零值，而不是 epoch
+            // 缺失的时间保持零值字面量，而不是 epoch
             assertThat(WikiConnector.contentEditTime(empty).toInstant())
                     .isEqualTo(java.time.Instant.parse("0001-01-01T00:00:00Z"));
             assertThat(WikiConnector.contentCreateTime(empty).toInstant())
@@ -1008,8 +1008,8 @@ class WikiConnectorTest {
                 List.of("space1"));
         assertThat(items).hasSize(1);
         assertThat(items.get(0).getExternalId()).isEqualTo("nt1");
-        // 分类按 Go 的 switch 顺序：原文里带 "rate limited"（job_error_msg）→ 限流分支
-        // **先于** "export task failed" 分支命中。这条顺序是 Go 钉死的，别按直觉写。
+        // 分支判定顺序：原文里带 "rate limited"（job_error_msg）→ 限流分支
+        // **先于** "export task failed" 分支命中。这条顺序是刻意钉死的，别按直觉写。
         assertThat(items.get(0).getMetadata())
                 .containsEntry("error_reason_code", "feishu_rate_limited")
                 .containsEntry("error_reason",

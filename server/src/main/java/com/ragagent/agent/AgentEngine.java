@@ -62,7 +62,7 @@ import com.ragagent.tracing.langfuse.Span;
  *   <li><b>消息列表/计数器</b>用 {@link MsgRef} / AtomicInteger /
  *       AtomicReference 装箱共享。</li>
  *   <li><b>complete 事件的 usage 键恒输出</b>：用量缺失也输出
- *       {@code "usage":null}（实录钉住）；Java 用 {@link NullNode} 复刻，消费侧按
+ *       {@code "usage":null}；以 {@link NullNode} 编码，消费侧按
  *       {@code usage instanceof TokenUsage} 判别。</li>
  *   <li><b>LLM 瞬态重试</b>的 sleep（1s/2s）保留。</li>
  * </ul>
@@ -486,7 +486,7 @@ public class AgentEngine {
         span.finish(output, meta, err);
     }
 
-    /** rune 截断 + 尾加 "…"。 */
+    /** 按码点截断 + 尾加 "…"。 */
     static String truncateRunes(String s, int n) {
         if (n <= 0 || s.isEmpty()) {
             return s;
@@ -572,7 +572,7 @@ public class AgentEngine {
             }
 
             // 循环走完没有最终答案就补一个——上下文被取消（用户停止）时跳过：
-            // 兜底调用会在已取消的 ctx 上失败并把占位文案漏给用户。
+            // 兜底调用会在已取消的上下文上失败并把占位文案漏给用户。
             if (!state.isComplete() && pollCancellation() == null) {
                 finalize.handleMaxIterations(query, state, sessionId, messagesRef.items);
             }

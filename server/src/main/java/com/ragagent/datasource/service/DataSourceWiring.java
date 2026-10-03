@@ -24,42 +24,28 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * datasource 模块的装配（对照 Go {@code internal/container/container.go} 里的三段：
- * {@code initConnectorRegistry}（L1678-1722）、{@code datasource.NewScheduler}（L370）、
- * {@code startDataSourceScheduler}（L1725-1734））。
+ * datasource 模块的装配。
  *
  * <h2>为什么连接器注册表是普通 bean 而不是 {@code @Component}</h2>
- * <p>与 Go 一样：注册表是"被显式构造并逐条填充"的容器对象，
+ * <p>注册表是"被显式构造并逐条填充"的容器对象，
  * {@link ConnectorRegistry} 的类注释也写明了它刻意不给自己加 {@code @Component}
  * ——填充逻辑属于装配层。</p>
  *
- * <h2>9 个连接器实例，逐条对照 Go</h2>
- * <pre>
- *   wiki.NewConnector(core.RegionFeishu)        → WikiConnector(FeishuRegion.FEISHU)
- *   wiki.NewConnector(core.RegionLark)          → WikiConnector(FeishuRegion.LARK)
- *   drive.NewDriveConnector(core.RegionFeishuDrive) → DriveConnector(FEISHU_DRIVE)
- *   drive.NewDriveConnector(core.RegionLarkDrive)   → DriveConnector(LARK_DRIVE)
- *   notionConnector.NewConnector()
- *   yuqueConnector.NewConnector()
- *   imaConnector.NewConnector()
- *   rssConnector.NewConnector()
- *   gitlabConnector.NewConnector()
- * </pre>
- * <p><b>顺序也是照抄的</b>——注册表是 {@code LinkedHashMap}（{@code list()} 的返回序
- * 与 Go 的 map 迭代序不同，但 Go 那边本来也无序），保持同一顺序只是为了让
- * "读 Go 源码时能一一对上"。</p>
+ * <h2>9 个连接器实例</h2>
+ * <p>feishu / lark（同一条 wiki 连接器，国际云只是 host 与 tenant 不同）、
+ * feishu_drive / lark_drive（云盘模式）、notion、yuque、ima、rss、gitlab。
+ * 注册表是 {@code LinkedHashMap}，{@code list()} 按注册顺序返回。</p>
  *
  * <h2>注册失败 = 启动失败</h2>
- * <p>Go 用 {@code errors.Join} 聚合所有注册错误后返回 error，
- * <b>故意</b>让"连接器配错或重复注册"在容器初始化时就大声失败，而不是运行期静默
- * 少掉一个功能。Java 侧等价于让 {@link #connectorRegistry()} 抛异常 → 上下文刷新失败。</p>
+ * <p>所有注册错误聚合后<b>故意</b>让"连接器配错或重复注册"在容器初始化时就大声失败，
+ * 而不是运行期静默少掉一个功能。体现为 {@link #connectorRegistry()} 抛异常 → 上下文刷新失败。</p>
  */
 @Configuration
 public class DataSourceWiring {
 
     private static final Logger log = LoggerFactory.getLogger(DataSourceWiring.class);
 
-    /** 对照 Go {@code initConnectorRegistry}。 */
+    /** 构造并填充连接器注册表。 */
     @Bean
     public ConnectorRegistry connectorRegistry() {
         ConnectorRegistry registry = new ConnectorRegistry();
@@ -99,7 +85,7 @@ public class DataSourceWiring {
         }
     }
 
-    /** 对照 Go {@code datasource.NewScheduler(dsRepo, syncLogRepo, taskQueue)}。 */
+    /** 构造数据源调度器。 */
     @Bean
     public Scheduler dataSourceScheduler(DataSourceRepository dsRepo,
                                          SyncLogRepository syncLogRepo,
@@ -108,10 +94,9 @@ public class DataSourceWiring {
     }
 
     /**
-     * 对照 Go {@code startDataSourceScheduler}：应用启动时加载全部 active 数据源的
-     * cron 表达式。
+     * 应用启动时加载全部 active 数据源的 cron 表达式并启动调度器。
      *
-     * <p>Go 的实现是<b>尽力而为</b>的：{@code scheduler.Start} 失败只记 warn，
+     * <p><b>尽力而为</b>：{@code scheduler.start} 失败只记 warn，
      * 容器照常起来（调度挂了不影响管理面）。关闭时摘掉 cron 任务。</p>
      */
     @Bean
@@ -141,7 +126,7 @@ public class DataSourceWiring {
                 return running;
             }
 
-            /** 与 Go 的 {@code cleaner.RegisterWithName("DataSourceScheduler", ...)} 同一时机。 */
+            /** 晚于绝大多数生命周期 bean，关闭时最先被停。 */
             @Override
             public int getPhase() {
                 return Integer.MAX_VALUE - 100;

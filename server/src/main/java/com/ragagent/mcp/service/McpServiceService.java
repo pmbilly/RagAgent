@@ -43,8 +43,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * MCP 服务应用层（对照 Go internal/application/service/mcp_service.go 的
- * mcpServiceService；目录快照部分见 {@link McpMetadataService}）。
+ * MCP 服务应用层（目录快照部分见 {@link McpMetadataService}）。
  *
  * <p><b>两条硬契约</b>：</p>
  * <ol>
@@ -64,7 +63,7 @@ public class McpServiceService {
 
     private static final Logger log = LoggerFactory.getLogger(McpServiceService.class);
 
-    /** 对照 Go：测试连接的 30 秒超时 */
+    /** 测试连接的 30 秒超时 */
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(30);
 
     private static final String STDIO_DISABLED_MESSAGE =
@@ -102,8 +101,8 @@ public class McpServiceService {
     /**
      * 对照 CreateMCPService：stdio 硬拒绝 → 出站 URL SSRF 校验 → 默认高级配置 → 落库。
      *
-     * <p>SSRF 校验在 service 层与 handler 层各做一次（Go 亦然）：handler 负责给用户
-     * 友好的 400 文案，service 层保证"无论谁调用都过不了"。此处的失败按 Go 的
+     * <p>SSRF 校验在 service 层与 handler 层各做一次：handler 负责给用户
+     * 友好的 400 文案，service 层保证"无论谁调用都过不了"。此处的失败按
      * service 错误路径处理（handler 会包成 500）。</p>
      */
     public void createMCPService(McpService service) {
@@ -117,7 +116,7 @@ public class McpServiceService {
             service.setAdvancedConfig(McpAdvancedConfig.defaults());
         }
         if (service.getId() == null || service.getId().isEmpty()) {
-            // 对照 Go BeforeCreate 钩子
+            // ID 为空时生成 UUID
             service.setId(UUID.randomUUID().toString());
         }
         OffsetDateTime ts = now();
@@ -160,10 +159,10 @@ public class McpServiceService {
         return metadataService.listMCPMetadataSummaries(tenantId, services);
     }
 
-    // ── 更新（Go 侧 206 行的单函数：标量存在性 + 非标量 + 不碰密钥） ────────
+    // ── 更新（标量存在性 + 非标量 + 不碰密钥） ──────────────────────────
 
     /**
-     * 对照 UpdateMCPService（mcp_service.go:122-325）。
+     * 部分更新。
      *
      * <p><b>标量字段的存在性更新语义</b>：name / description / usage_instructions /
      * enabled 的零值无法区分"没传"与"显式清空"，所以用 handler 传来的
@@ -300,7 +299,7 @@ public class McpServiceService {
         if (currStdioSet != preStdioSet) {
             configChanged = true;
         } else if (currStdioSet) {
-            // 对照 Go slices.Equal：nil 与空切片相等
+            // null 与空列表相等
             List<String> currArgs = nullToEmpty(existing.getStdioConfig().getArgs());
             if (!nullToEmpty(existing.getStdioConfig().getCommand()).equals(preStdioCommand)
                     || !currArgs.equals(preStdioArgs)) {
@@ -380,7 +379,7 @@ public class McpServiceService {
 
         McpClientConfig config = new McpClientConfig(service);
         if (service.getAuthConfig() != null && service.getAuthConfig().isOAuth()) {
-            // 对照 Go：config.TenantID / config.Principal / config.OAuthRepo
+            // OAuth：补充 tenant / principal / oauthSupport
             config = new McpClientConfig(service, TenantContext.currentTenantId(),
                     McpPrincipal.fromContext(), null, oauthSupport.orElse(null));
         }
@@ -433,7 +432,7 @@ public class McpServiceService {
             try {
                 client.disconnect();
             } catch (RuntimeException ignored) {
-                // 对照 Go defer client.Disconnect()：清理失败不影响结果
+                // 清理失败不影响结果
             }
         }
     }
@@ -562,7 +561,7 @@ public class McpServiceService {
 
     // ── 工具方法 ─────────────────────────────────────────────────────────
 
-    /** 对照 Go mcp.ValidateServiceOutboundURLs，错误按 service 侧路径包装 */
+    /** 出站 URL SSRF 校验，错误按 service 侧路径包装 */
     private static void validateOutboundUrls(McpService service) {
         try {
             McpServiceUrls.validateServiceOutboundUrls(service);
@@ -585,7 +584,7 @@ public class McpServiceService {
                 BizException.internal("MCP client manager is not available"));
     }
 
-    /** 对照 Go：空指针是否提供了值用 null 判定，值本身用 "" 表示空 */
+    /** null 归一化为空串 */
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
     }
@@ -594,7 +593,7 @@ public class McpServiceService {
         return l == null ? List.of() : l;
     }
 
-    /** McpAuthType 的 null 归一化为 NONE（Go 的零值就是 MCPAuthNone == ""） */
+    /** McpAuthType 的 null 归一化为 NONE */
     private static McpAuthType authTypeOf(McpAuthConfig config) {
         if (config == null || config.getAuthType() == null) {
             return McpAuthType.NONE;

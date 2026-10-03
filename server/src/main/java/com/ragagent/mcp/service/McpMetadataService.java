@@ -35,11 +35,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * MCP 目录快照应用层（对照 Go internal/application/service/mcp_metadata.go，
- * 那些方法在 Go 里挂在 mcpServiceService 上；Java 拆成独立类，依赖方向单向：
- * {@link McpServiceService} → 本类）。
+ * MCP 目录快照应用层（依赖方向单向：{@link McpServiceService} → 本类）。
  *
- * <p>设计要点（逐条对照 Go 注释）：</p>
+ * <p>设计要点：</p>
  * <ul>
  *   <li>快照是**完整且显式同步**的目录，绝不做部分发布；</li>
  *   <li>刷新失败保留上一次快照供排查（配置指纹把旧连接的快照挡在执行路径之外）；</li>
@@ -52,15 +50,15 @@ public class McpMetadataService {
 
     private static final Logger log = LoggerFactory.getLogger(McpMetadataService.class);
 
-    /** 对照 Go commitMCPMetadata：8 MiB 上限 */
+    /** 提交时的 8 MiB 上限 */
     static final long MAX_METADATA_BYTES = 8L * 1024 * 1024;
 
-    /** 对照 Go maxLoggedTools */
+    /** 调试日志里最多列出的工具数 */
     private static final int MAX_LOGGED_TOOLS = 30;
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    /** 对照 Go：整个刷新的 30 秒超时 */
+    /** 整个刷新的 30 秒超时 */
     private static final Duration REFRESH_TIMEOUT = Duration.ofSeconds(30);
 
     private final McpServiceMapper mcpServiceMapper;
@@ -153,7 +151,7 @@ public class McpMetadataService {
             try {
                 principal = metadataPrincipal(service);
             } catch (RuntimeException e) {
-                // 对照 Go：OAuth 服务缺 principal 时跳过该服务，不影响整批列表
+                // OAuth 服务缺 principal 时跳过该服务，不影响整批列表
                 continue;
             }
             McpMetadataSummary row = byKey.get(key(service.getId(), principal));
@@ -164,7 +162,7 @@ public class McpMetadataService {
         return out;
     }
 
-    /** 对照 Go 的 {@code service.ID + "\x00" + principal} 复合键 */
+    /** 复合键 {@code serviceId + '\0' + principal} */
     private static String key(String serviceId, String principal) {
         return (serviceId == null ? "" : serviceId) + '\0' + (principal == null ? "" : principal);
     }
@@ -215,12 +213,12 @@ public class McpMetadataService {
     }
 
     /**
-     * 对照 Go：{@code json.Marshal(snapshot)} 的字节长度 > 8 MiB 即拒绝。
+     * 序列化后的字节长度 > 8 MiB 即拒绝。
      *
-     * <p>Go 序列化的字段是 service_id / tools / instructions / server_name /
+     * <p>序列化字段固定为 service_id / tools / instructions / server_name /
      * server_version / server_description / synced_at（TenantID、Principal、
-     * ConfigFingerprint、Stale 是 {@code json:"-"}）。Java 复刻同样的形状；
-     * 时间戳用 ISO-8601 而非 RFC3339Nano，长度差异在毫秒/纳秒尾零级别，
+     * ConfigFingerprint、Stale 不参与）。
+     * 时间戳用 ISO-8601，长度差异在毫秒/纳秒尾零级别，
      * 对 8 MiB 量级的门禁没有影响。</p>
      */
     static long serializedSize(McpMetadata snapshot) {
@@ -276,8 +274,7 @@ public class McpMetadataService {
         }
 
         McpContext refreshCtx = McpContext.deadline(Instant.now().plus(REFRESH_TIMEOUT));
-        // 对照 Go：defer Disconnect 在**整个函数退出时**执行——连接在
-        // commitMCPMetadata 期间仍然保持（提交本身不碰客户端，但保持顺序一致）。
+        // Disconnect 放在 finally：连接在整个方法期间保持（包括提交期间）。
         try {
             try {
                 client.connect(refreshCtx);
@@ -326,17 +323,17 @@ public class McpMetadataService {
             try {
                 client.disconnect();
             } catch (RuntimeException ignored) {
-                // 对照 Go defer func(){ _ = client.Disconnect() }()
+                // 清理失败不影响结果
             }
         }
     }
 
-    /** 对照 Go {@code len(string)}：按 UTF-8 字节数 */
+    /** 按 UTF-8 字节数计 */
     private static int utf8Length(String s) {
         return s == null ? 0 : s.getBytes(StandardCharsets.UTF_8).length;
     }
 
-    /** 对照 Go {@code len(tool.InputSchema)}（json.RawMessage 的原始字节数） */
+    /** inputSchema 的 JSON 字节数 */
     private static int schemaLength(McpTool tool) {
         if (tool.getInputSchema() == null) {
             return 0;

@@ -49,11 +49,11 @@ import org.springframework.transaction.annotation.Transactional;
  * <p><b>残余差异</b>：并发认领者在第 4 步可能发生"部分行被对方抢先"的极小窗口
  * （READ COMMITTED 下 UPDATE 重估 WHERE 导致），此时该 key 被放弃，其中已被本事务
  * 盖戳的行会停留在"已认领但未消费"态，直到 {@code claimStaleAfter}（90 分钟）后被
- * 下一个认领者回收——这与原实现对"worker 崩溃留下认领"的恢复路径是同一条，
+ * 下一个认领者回收——worker 崩溃留下的认领也走同一条回收路径，
  * 因此不会永久丢行，只是回收变慢。要彻底消除它需要 PG 专属语法，故按可移植性优先。</p>
  *
  * <p>多实例部署下本实现<b>天然跨实例安全</b>（靠数据库行级条件更新），
- * 与原实现的分布式认领模式行为一致——这一点比 wiki 的进程内 slug 锁要好。</p>
+ * 这一点比 wiki 的进程内 slug 锁要好。</p>
  */
 @Repository
 public class TaskPendingOpsRepository {
@@ -61,10 +61,10 @@ public class TaskPendingOpsRepository {
     private static final Logger log = LoggerFactory.getLogger(TaskPendingOpsRepository.class);
 
     /**
-     * 认领时单次扫描的候选行上限（原实现无此限制的取舍）。
+     * 认领时单次扫描的候选行上限。
      *
-     * <p>原实现把 {@code LIMIT} 直接限制在 SQL 层，且"按 key 分组"是在 SQL 里做的；
-     * Java 侧为了可移植性必须在内存里分组，因此加一个宽松的扫描上限防止病态元组
+     * <p>LIMIT 与"按 key 分组"都在内存里完成（SQL 方言差异导致无法下沉），
+     * 因此加一个宽松的扫描上限防止病态元组
      * 一次拉空整表。取值远大于任何真实批次的候选量（默认每批 5 篇文档）。</p>
      */
     static final int CLAIM_SCAN_CAP = 2000;
@@ -177,7 +177,7 @@ public class TaskPendingOpsRepository {
      * 显式删除（或加 fail_count 后留着给下一轮）。
      */
     /**
-     * 有在途 ingest op 的 KB 列表（B12：启动期孤儿任务重放用）。
+     * 有在途 ingest op 的 KB 列表（启动期孤儿任务重放用）。
      *
      * <p>只返回 scope_id 单列；租户由该 KB 的任一行反查（见重放器）。</p>
      */
@@ -187,7 +187,7 @@ public class TaskPendingOpsRepository {
 
     public List<TaskPendingOp> peekBatch(String taskType, String scope, String scopeId, int limit) {
         if (limit <= 0) {
-            // 原实现的 SQL 里 LIMIT n 在 n<=0 时是"无限制"；Java 侧显式挡掉，
+            // SQL 里 LIMIT n 在 n<=0 时是"无限制"；这里显式挡掉，
             // 避免一次拉全表。wiki 的调用点总是传 >0 的值。
             return List.of();
         }

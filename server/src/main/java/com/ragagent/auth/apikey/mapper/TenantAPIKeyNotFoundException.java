@@ -1,11 +1,9 @@
 package com.ragagent.auth.apikey.mapper;
 
 /**
- * 对照 Go {@code repository.ErrTenantAPIKeyNotFound}
- * （internal/application/repository/tenant_api_key.go L13）。
+ * "API Key 不存在 / 已撤销 / 已过期"的领域异常。
  *
- * <p>Go 用 {@code errors.New} 哨兵 + {@code errors.Is} 判定；Java 用专用受检外的
- * 运行时异常类型，语义等价且免除调用方比字符串。</p>
+ * <p>用专用运行时异常类型表示"未找到"，调用方按类型判定，不必比字符串。</p>
  *
  * <p>映射到 HTTP 的两个位置：认证通道（{@code APIKeyAuthChannel}）把它翻成
  * 401 {@code Unauthorized: invalid API key}——**撤销 / 过期的 Key 与不存在的 Key

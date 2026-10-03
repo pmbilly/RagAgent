@@ -7,8 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 /**
- * 解析引擎规则解析的验收（对照 Go ResolveChatParserEngine / DefaultParserEngine /
- * normalizeParserFileType；agent 与租户两份规则的同一语义）。
+ * 解析引擎规则解析的验收（{@code ParserEngineRules} 的 resolve / defaultEngine /
+ * normalize；agent 与租户两份规则的同一语义）。
  */
 class ParserEngineRulesTest {
 

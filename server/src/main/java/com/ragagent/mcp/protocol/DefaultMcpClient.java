@@ -23,12 +23,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
- * 默认 MCP 客户端（对照 Go internal/mcp/client.go 的 {@code mcpGoClient}）。
+ * 默认 MCP 客户端。
  *
  * <p>三件事：<b>握手/状态机</b>、<b>工具目录的分页与上限</b>、<b>OAuth 调用纪律</b>。
- * 报文收发全部委托给 {@link McpTransport}（对照 Go 委托给 mark3labs/mcp-go）。</p>
+ * 报文收发全部委托给 {@link McpTransport}。</p>
  *
- * <p><b>为什么 tools/list 走原始 JSON-RPC</b>（Go client.go:483-486 注释）：SDK 的强类型
+ * <p><b>为什么 tools/list 走原始 JSON-RPC</b>：依赖 SDK 的强类型
  * ToolInputSchema 会丢掉 {@code oneOf} 这类根级关键字，并把 {@code definitions} 改写成
  * {@code $defs} 却不改引用——所以必须用同一套已鉴权的传输通道自己读原始 schema。
  * 用字符串请求 ID（{@code "weknora-tools-<uuid>"}）确保不会与客户端的数字自增 ID 撞车。</p>
@@ -45,9 +45,9 @@ public final class DefaultMcpClient implements McpClient {
 
     private final AtomicBoolean connected = new AtomicBoolean();
     private final AtomicBoolean initialized = new AtomicBoolean();
-    /** 数字请求 ID 自增（对照 mcp-go 客户端的 requestID 计数器）。 */
+    /** 数字请求 ID 自增。 */
     private final AtomicLong requestIdSeq = new AtomicLong(1);
-    /** initialize 里服务端下发的文档；volatile 即可（对照 Go 的 metadataMu + string）。 */
+    /** initialize 里服务端下发的文档；volatile 即可。 */
     private volatile String instructions = "";
 
     public DefaultMcpClient(McpService service, McpTransport transport, McpOAuthRuntime oauthRuntime) {
@@ -57,7 +57,7 @@ public final class DefaultMcpClient implements McpClient {
         this.timeout = resolveTimeout(service);
     }
 
-    /** 对照 Go {@code NewMCPClient} 的超时解析：AdvancedConfig.timeout > 0 才覆盖，默认 30s。 */
+    /** 超时解析：AdvancedConfig.timeout > 0 才覆盖，默认 30s。 */
     static Duration resolveTimeout(McpService service) {
         McpAdvancedConfig advanced = service == null ? null : service.getAdvancedConfig();
         if (advanced != null && advanced.getTimeout() > 0) {
@@ -109,8 +109,7 @@ public final class DefaultMcpClient implements McpClient {
         if (!connected.get()) {
             throw new McpException(McpErrorCode.NOT_CONNECTED);
         }
-        // 键序照 mcp-go 的 params 匿名结构字段序（client/client.go:206-213）：
-        // protocolVersion → clientInfo → capabilities
+        // params 键序固定：protocolVersion → clientInfo → capabilities
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("protocolVersion", McpProtocol.PROTOCOL_VERSION);
         Map<String, Object> clientInfo = new LinkedHashMap<>();
@@ -131,9 +130,8 @@ public final class DefaultMcpClient implements McpClient {
                     throw r.errorAsException();
                 }
                 String negotiated = r.result() == null ? "" : r.result().path("protocolVersion").asText("");
-                // 照 mcp-go client/client.go:232-234：应答版本不在白名单 → 报错（文案照
-                // mcp/errors.go:57-63；SDK 自带错误不对应哨兵 → code 为 null），
-                // 且不设版本头、不发 initialized 通知（顺序照 SDK）
+                // 应答版本不在白名单 → 报错（固定文案，code 为 null），
+                // 且不设版本头、不发 initialized 通知
                 if (!McpProtocol.isSupportedProtocolVersion(negotiated)) {
                     throw new McpException("unsupported protocol version: \"" + negotiated + "\"");
                 }
@@ -142,7 +140,7 @@ public final class DefaultMcpClient implements McpClient {
                     streamable.setProtocolVersion(negotiated);
                 }
                 // MCP 要求握手成功后补一条通知，否则服务端不认为初始化完成。
-                // 通知发送失败在 Go 侧会让整个 initialize 失败（mcp-go client.go:253-259）。
+                // 通知发送失败会让整个 initialize 失败。
                 try {
                     transport.sendNotification(McpProtocol.METHOD_INITIALIZED_NOTIFICATION, null, ctx);
                 } catch (RuntimeException e) {
@@ -212,7 +210,7 @@ public final class DefaultMcpClient implements McpClient {
     }
 
     /**
-     * 分页读取工具目录（对照 Go {@code listRawTools}，client.go:487-549）。
+     * 分页读取工具目录。
      *
      * <p>租户自填的 MCP 端点不可信，整个目录又要全量驻留内存并在之后做 schema 编译，
      * 因此对协议分页做硬上限——敌对或死循环的服务端不能在 list 超时前把目录无限撑大。
@@ -232,7 +230,7 @@ public final class DefaultMcpClient implements McpClient {
             if (!cursor.isEmpty()) {
                 params.put("cursor", cursor);
             }
-            // 字符串 ID：不会与客户端数字自增 ID 撞车（对照 Go 的注释）
+            // 字符串 ID：不会与客户端数字自增 ID 撞车
             JsonRpcRequest request = new JsonRpcRequest(
                     "weknora-tools-" + UUID.randomUUID(), McpProtocol.METHOD_TOOLS_LIST, params);
             JsonRpcResponse response = transport.send(request, ctx);
@@ -318,7 +316,7 @@ public final class DefaultMcpClient implements McpClient {
             JsonNode result = response.result() == null ? MAPPER.createObjectNode() : response.result();
             List<ContentItem> content = new ArrayList<>();
             for (JsonNode item : result.path("content")) {
-                // 逐条对照 Go 的转换：只认 text 与 image，其余类型静默丢弃
+                // 只认 text 与 image，其余类型静默丢弃
                 String type = item.path("type").asText("");
                 if ("text".equals(type)) {
                     content.add(ContentItem.text(item.path("text").asText("")));
@@ -384,7 +382,7 @@ public final class DefaultMcpClient implements McpClient {
     // 内部工具
     // ------------------------------------------------------------------
 
-    /** 发一条带数字 ID 的请求并做通用错误处理（对照 Go 通过 SDK 发的那几条）。 */
+    /** 发一条带数字 ID 的请求并做通用错误处理。 */
     private JsonRpcResponse send(String method, Object params, McpContext ctx) {
         JsonRpcResponse response = transport.send(new JsonRpcRequest(nextRequestId(), method, params), ctx);
         if (response == null) {
@@ -410,15 +408,14 @@ public final class DefaultMcpClient implements McpClient {
     }
 
     /**
-     * 测试可见：把客户端直接置成"已 initialize"状态（对照 Go 测试里
-     * {@code c.initialized.Store(true)} 的用法，用于只测目录读取逻辑）。
+     * 测试可见：把客户端直接置成"已 initialize"状态（用于只测目录读取逻辑）。
      */
     void markInitializedForTest() {
         initialized.set(true);
     }
 
     /**
-     * 对照 Go {@code oauthCall}（client.go:316-335）：带 WeKnora 自己的 token 生命周期检查跑一次操作。
+     * 带 token 生命周期检查跑一次操作。
      * 资源端的 401 <b>恰好强制刷新一次并重试一次</b>；其它错误一律不重试——
      * 免得在语义不明的网络失败后把工具的副作用做第二遍。
      */
@@ -438,7 +435,7 @@ public final class DefaultMcpClient implements McpClient {
     }
 
     /**
-     * 对照 Go {@code checkErrorAndDisconnectIfNeeded}（client.go:301-314）：SSE 与 Streamable
+     * SSE 与 Streamable
      * 都用服务端分配的会话（{@code Mcp-Session-Id}），会话过期/被回收后应当主动断开，
      * 让后续 {@code GetOrCreateClient} 重新建连。
      *
@@ -458,7 +455,7 @@ public final class DefaultMcpClient implements McpClient {
         }
     }
 
-    /** 对照 Go {@code fmt.Errorf("%s: %w", prefix, err)}：保留底层 code，消息加前缀。 */
+    /** 保留底层 code，消息加前缀。 */
     private static McpException wrap(String prefix, Throwable cause) {
         McpErrorCode code = cause instanceof McpException me ? me.code() : null;
         return new McpException(code, prefix + ": " + cause.getMessage(), cause);

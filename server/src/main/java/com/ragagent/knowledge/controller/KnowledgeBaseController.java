@@ -60,7 +60,7 @@ import java.util.UUID;
  * 删除返回 204。</p>
  *
  * <p><b>待办</b>：create 仍把请求体直接绑定 {@link KnowledgeBase} 实体（含 storage_config
- * 兼容），待"请求侧 DTO 化"批次改为独立请求 DTO。</p>
+ * 兼容），待改为独立请求 DTO。</p>
  */
 @RestController
 @RequestMapping("/api/v1/knowledge-bases")

@@ -8,11 +8,9 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * 追问建议两张表的 MyBatis-Plus 基础仓储（对照 Go
- * internal/application/repository/message_suggestion.go）。
+ * 追问建议两张表的 MyBatis-Plus 基础仓储。
  *
- * <p><b>ON CONFLICT DO NOTHING 的方言分叉</b>：Go 用 GORM 的
- * {@code clause.OnConflict{DoNothing: true}}，在 PG / SQLite 上都能生成
+ * <p><b>ON CONFLICT DO NOTHING 的方言分叉</b>：PG / SQLite 支持
  * {@code ON CONFLICT (...) DO NOTHING}；<b>H2 不支持这个子句</b>，所以这里按方言给两条 SQL。
  * 语义相同（唯一键冲突时插入零行），区别只是 H2 那条不是原子的——测试环境够用。</p>
  */
@@ -21,7 +19,7 @@ public interface MessageSuggestionMapper extends BaseMapper<MessageSuggestionSet
 
     /**
      * 抢占生成权：靠唯一索引 {@code (tenant_id, assistant_message_id, placement, config_hash, locale)}
-     * 做"插入或什么都不做"（对照 Go {@code AcquireGeneration} 的前半段，L70-78）。
+     * 做"插入或什么都不做"。
      *
      * @return 1 = 这次真的插入了（抢到）；0 = 已存在（没抢到）
      */

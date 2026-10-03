@@ -7,15 +7,15 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * 检索侧文本工具（对照 Go {@code internal/searchutil/textutil.go} 全文）。
+ * 检索侧文本工具。
  *
  * <h2>⚠️ 唯一实质降级：中文分词（jieba）</h2>
- * <p>Go 的 {@code TokenizeSimple} 对含中文的文本用 gojieba 的
+ * <p>上游的 {@code TokenizeSimple} 对含中文的文本用 jieba 的
  * {@code CutForSearch}（search 模式细粒度切分）。本项目不允许新增依赖，且
- * <b>Java 侧没有等价分词器</b>——与波 0 RSS 的 readability 降级同类，这里做成接缝：
+ * <b>Java 侧没有等价分词器</b>——与 RSS 的 readability 降级同类，这里做成接缝：
  * {@link Segmenter} 接口的默认实现 {@link UnavailableSegmenter} 退化为
- * 「按空白切 + 把连续 CJK 段切成二字滑窗」。<b>与 Go 的 jieba 分词结果不逐词一致</b>；
- * 去重/Jaccard 的相对语义保留（同为集合、同样过滤单 rune 与纯标点），但具体分词
+ * 「按空白切 + 把连续 CJK 段切成二字滑窗」。<b>与标准 jieba 分词结果不逐词一致</b>；
+ * 去重/Jaccard 的相对语义保留（同为集合、同样过滤单字符与纯标点），但具体分词
  * 边界会分叉。内容签名/包含判断等与分词无关的函数不受影响。</p>
  */
 public final class SearchTextUtil {
@@ -24,7 +24,7 @@ public final class SearchTextUtil {
     }
 
     /**
-     * 对照 BuildContentSignature：小写 → trim → 空白折叠 → 全文 MD5 hex。
+     * 内容签名：小写 → trim → 空白折叠 → 全文 MD5 hex。
      * 空内容返回 ""。
      */
     public static String buildContentSignature(String content) {
@@ -46,13 +46,13 @@ public final class SearchTextUtil {
         }
     }
 
-    /** 对照 containsChinese：是否含 CJK 统一表意文字（unicode.Han）。 */
+    /** 是否含 CJK 统一表意文字。 */
     static boolean containsChinese(String text) {
         return text.codePoints().anyMatch(SearchTextUtil::isHan);
     }
 
     private static boolean isHan(int r) {
-        // unicode.Han（Go rangeTable）：CJK 统一表意及其扩展区 + 兼容表意 + 计数符
+        // Unicode Han：CJK 统一表意及其扩展区 + 兼容表意 + 计数符
         return (r >= 0x2E80 && r <= 0x2EF3)      // CJK 部首/笔画（Han 范围起）
                 || (r >= 0x2F00 && r <= 0x2FD5)
                 || (r >= 0x3005 && r <= 0x3005)
@@ -67,7 +67,7 @@ public final class SearchTextUtil {
 
     /** 中文分词接缝（默认实现降级，见类注释）。 */
     public interface Segmenter {
-        /** 对照 jieba.CutForSearch(text, true)：search 模式切词。 */
+        /** search 模式切词（jieba CutForSearch 语义）。 */
         java.util.List<String> cutForSearch(String text);
     }
 
@@ -120,17 +120,16 @@ public final class SearchTextUtil {
 
     /**
      * 分词接缝的读取口——Qdrant 驱动的 {@code tokenizeQuery} 需要
-     * {@code CutForSearch} 的<b>原始词序列</b>（Go 侧直接调 {@code types.Jieba.CutForSearch}，
-     * 之后自己做 trim/lower/长度过滤/去重），套 {@code tokenizeSimple} 的归一化会丢序/多滤。
+     * {@code CutForSearch} 的<b>原始词序列</b>（之后自己做 trim/lower/长度过滤/去重），
+     * 套 {@code tokenizeSimple} 的归一化会丢序/多滤。
      */
     public static Segmenter segmenter() {
         return jieba;
     }
 
     /**
-     * 对照 TokenizeSimple：小写 trim 后分词（中文走 jieba 接缝，否则按空白），
-     * 过滤单 rune 与纯标点/空白 token，返回唯一 token 集。空文本返回空集
-     * （Go 返回 nil——Java 侧空集等价）。
+     * 分词：小写 trim 后分词（中文走 jieba 接缝，否则按空白），
+     * 过滤单字符与纯标点/空白 token，返回唯一 token 集。空文本返回空集。
      */
     public static Set<String> tokenizeSimple(String text) {
         String t = goTrimSpace((text == null ? "" : text).toLowerCase(java.util.Locale.ROOT));
@@ -150,7 +149,7 @@ public final class SearchTextUtil {
         return set;
     }
 
-    /** 对照 isAllPunct：全部是标点/空白/符号。 */
+    /** 全部是标点/空白/符号。 */
     static boolean isAllPunct(String s) {
         for (int r : s.codePoints().toArray()) {
             if (!isPunct(r) && !Character.isWhitespace(r) && !isSymbol(r)) {
@@ -160,7 +159,7 @@ public final class SearchTextUtil {
         return true;
     }
 
-    /** unicode.IsPunct 的近似（ASCII + 常见 Unicode 标点块）。 */
+    /** 标点判定（ASCII + 常见 Unicode 标点块的近似）。 */
     private static boolean isPunct(int r) {
         byte type = (byte) Character.getType(r);
         return type == Character.CONNECTOR_PUNCTUATION || type == Character.DASH_PUNCTUATION
@@ -175,7 +174,7 @@ public final class SearchTextUtil {
                 || type == Character.MODIFIER_SYMBOL || type == Character.OTHER_SYMBOL;
     }
 
-    /** 对照 Jaccard：两个 token 集的 Jaccard 相似度（双空集 → 0）。 */
+    /** 两个 token 集的 Jaccard 相似度（双空集 → 0）。 */
     public static double jaccard(Set<String> a, Set<String> b) {
         if (a.isEmpty() && b.isEmpty()) {
             return 0;
@@ -196,7 +195,7 @@ public final class SearchTextUtil {
         return (double) inter / (double) union;
     }
 
-    /** 对照 NormalizeContent：小写 + trim + 空白折叠。 */
+    /** 小写 + trim + 空白折叠。 */
     public static String normalizeContent(String s) {
         return buildContentSignaturePrefix(s);
     }
@@ -210,7 +209,7 @@ public final class SearchTextUtil {
     }
 
     /**
-     * 对照 IsContentContained：normalizedShort 是否为 normalizedLong 的子串。
+     * normalizedShort 是否为 normalizedLong 的子串。
      * 两个入参必须先经 {@link #normalizeContent}。
      */
     public static boolean isContentContained(String normalizedShort, String normalizedLong) {
@@ -225,7 +224,7 @@ public final class SearchTextUtil {
     }
 
     /**
-     * 对照 ContentOverlapRatio：overlap 系数 |交|/|较小集|；任一空集 → 0。
+     * overlap 系数 |交|/|较小集|；任一空集 → 0。
      */
     public static double contentOverlapRatio(String a, String b) {
         Set<String> tokA = tokenizeSimple(a);
@@ -244,7 +243,7 @@ public final class SearchTextUtil {
         return (double) inter / (double) small.size();
     }
 
-    /** 对照 ClampFloat。 */
+    /** 钳到 [minV, maxV]。 */
     public static double clampFloat(double v, double minV, double maxV) {
         if (v < minV) {
             return minV;
@@ -255,7 +254,7 @@ public final class SearchTextUtil {
         return v;
     }
 
-    /** Go strings.Fields（unicode 空白切分）。 */
+    /** 按 Unicode 空白切分。 */
     static java.util.List<String> goFields(String s) {
         java.util.List<String> out = new java.util.ArrayList<>();
         int i = 0;

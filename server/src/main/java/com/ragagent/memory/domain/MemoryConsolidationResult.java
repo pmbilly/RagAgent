@@ -2,19 +2,18 @@ package com.ragagent.memory.domain;
 
 
 /**
- * 一次"整仓回顾"做了什么（对照 Go {@code types.MemoryConsolidationResult}，
- * internal/types/memory.go:1016-1026）。
+ * 一次"整仓回顾"做了什么。
  *
  * <p>零值表示**仓库本来就整洁**，不是回顾失败——失败与否由 {@link #skipped} 说明。
  * 这个区分是有意的：一次什么都没合并的回顾是常态，"什么都没发生"本身
  * 既不能告诉提问的人它有没有干活，也不能告诉他值不值得再点一次。</p>
  *
  * <p>六个字段全部恒输出（契约 §1.6「禁止条件键」）：{@code skipped} 未跳过时是
- * {@code null}，空串就是空串——旧 Go 的 {@code omitempty} 已随 §14.9k M1 退役。</p>
+ * {@code null}，空串就是空串——没有条件省略键。</p>
  */
 public class MemoryConsolidationResult {
 
-    // ── skipped 的取值（对照 Go 的 MemoryConsolidationSkip* 常量） ──────────
+    // ── skipped 的取值 ──────────
 
     /** 记忆太少，不可能已经漂移出矛盾——不值得花一次模型调用。 */
     public static final String SKIP_TOO_FEW_ITEMS = "too_few_items";

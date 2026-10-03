@@ -7,7 +7,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.LKEAPProvider + lkeap.go（腾讯云知识引擎原子能力）。
+ * 腾讯云知识引擎原子能力。
  * 支持 DeepSeek-R1, DeepSeek-V3 系列模型，具备思维链能力。
  */
 public class LKEAPProvider implements Provider {
@@ -36,7 +36,7 @@ public class LKEAPProvider implements Provider {
     }
 
     /**
-     * 对照 Go IsLKEAPDeepSeekV3Model：DeepSeek V3.x 系列。
+     * DeepSeek V3.x 系列。
      * V3.x 系列支持通过 Thinking 参数控制思维链开关。
      */
     public static boolean isLKEAPDeepSeekV3Model(String modelName) {
@@ -44,14 +44,14 @@ public class LKEAPProvider implements Provider {
     }
 
     /**
-     * 对照 Go IsLKEAPDeepSeekR1Model：DeepSeek R1 系列。
+     * DeepSeek R1 系列。
      * R1 系列默认开启思维链。
      */
     public static boolean isLKEAPDeepSeekR1Model(String modelName) {
         return (modelName == null ? "" : modelName.toLowerCase(Locale.ROOT)).contains("deepseek-r1");
     }
 
-    /** 对照 Go IsLKEAPThinkingModel：R1 或 V3 即支持思维链 */
+    /** R1 或 V3 即支持思维链 */
     public static boolean isLKEAPThinkingModel(String modelName) {
         return isLKEAPDeepSeekR1Model(modelName) || isLKEAPDeepSeekV3Model(modelName);
     }

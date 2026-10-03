@@ -20,13 +20,12 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.runtime.ReplyMessage;
 
 /**
- * 微信（个人号）iLink 机器人适配器——对照 Go {@code internal/im/wechat/adapter.go}
- * L31-329。
+ * 微信（个人号）iLink 机器人适配器。
  *
  * <p><b>只有长轮询，没有回调</b>：{@code VerifyCallback}/{@code ParseCallback} 明确报
- * "does not support webhook callbacks"、{@code HandleURLVerification} 恒 false（都照 Go）。</p>
+ * "does not support webhook callbacks"、{@code HandleURLVerification} 恒 false。</p>
  *
- * <h2>照抄点</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>基址 {@code https://ilinkai.weixin.qq.com}、CDN 基址
  *       {@code https://novac2c.cdn.weixin.qq.com/c2c}；</li>
@@ -36,10 +35,10 @@ import com.ragagent.im.runtime.ReplyMessage;
  *   <li>发消息 {@code /ilink/bot/sendmessage}：{@code msg{from_user_id:"", to_user_id,
  *       client_id:"weknora_<纳秒>", message_type:2(BOT), message_state:2(FINISH),
  *       item_list:[{type:1(TEXT), text_item:{text}}], context_token}}（context_token 来自消息 extra，
- *       文本<b>原样</b>不做展示格式化——照 Go）；</li>
+ *       文本<b>原样</b>不做展示格式化）；</li>
  *   <li>输入中 {@code /ilink/bot/sendtyping}：{@code {ilink_user_id, status:1}}；</li>
  *   <li>下载：{@code fileKey} 就是 CDN URL，先过 SSRF 校验；extra 里带 {@code aes_key} 才
- *       AES-128-ECB 解密（否则原样返回，照 Go）；文件名缺省回落 fileKey。</li>
+ *       AES-128-ECB 解密（否则原样返回）；文件名缺省回落 fileKey。</li>
  * </ul>
  */
 public class WechatAdapter implements AdapterInterfaces.Adapter, AdapterInterfaces.FileDownloader {
@@ -63,7 +62,7 @@ public class WechatAdapter implements AdapterInterfaces.Adapter, AdapterInterfac
         this(botToken, ilinkBotId, ILINK_BASE_URL, ssrfGuard);
     }
 
-    /** {@code baseUrl} 供测试指向本地 stub（Go 是包级 const，这里开测试口，已备案）。 */
+    /** {@code baseUrl} 供测试指向本地 stub。 */
     public WechatAdapter(String botToken, String ilinkBotId, String baseUrl,
                          SsrfGuard ssrfGuard) {
         this.botToken = botToken == null ? "" : botToken;
@@ -85,7 +84,7 @@ public class WechatAdapter implements AdapterInterfaces.Adapter, AdapterInterfac
         return ImTypes.PLATFORM_WECHAT;
     }
 
-    /** 照 Go：iLink 走长轮询，回调三面明确不支持。 */
+    /** iLink 走长轮询，回调三面明确不支持。 */
     @Override
     public Exception verifyCallback(CallbackExchange exchange) {
         return new AdapterInterfaces.VerifyException(UNSUPPORTED_CALLBACK);
@@ -128,7 +127,7 @@ public class WechatAdapter implements AdapterInterfaces.Adapter, AdapterInterfac
         ilinkPost("/ilink/bot/sendmessage", payload);
     }
 
-    /** 对照 {@code SendTyping}：{@code {ilink_user_id, status:1}}（Go 的接口面，Java 侧暂无调用点）。 */
+    /** 输入中状态：{@code {ilink_user_id, status:1}}（当前无调用点）。 */
     public void sendTyping(IncomingMessage incoming) throws Exception {
         ObjectNode payload = MAPPER.createObjectNode();
         payload.put("ilink_user_id", incoming.userId == null ? "" : incoming.userId);
@@ -137,7 +136,7 @@ public class WechatAdapter implements AdapterInterfaces.Adapter, AdapterInterfac
         ilinkPost("/ilink/bot/sendtyping", payload);
     }
 
-    /** 对照 {@code BuildCDNDownloadURL}。 */
+    /** 拼 CDN 下载地址。 */
     public static String buildCdnDownloadUrl(String encryptQueryParam) {
         return CDN_BASE_URL + "/download?encrypted_query_param="
                 + URLEncoder.encode(encryptQueryParam == null ? "" : encryptQueryParam,
@@ -146,7 +145,7 @@ public class WechatAdapter implements AdapterInterfaces.Adapter, AdapterInterfac
 
     // ── 下载 ────────────────────────────────────────────────────────────────
 
-    /** 对照 {@code DownloadFile}：SSRF 先校验；有 aes_key 才解密（照 Go）。 */
+    /** 下载文件：SSRF 先校验；有 aes_key 才解密。 */
     @Override
     public DownloadedFile downloadFile(IncomingMessage msg) throws Exception {
         if (msg.fileKey == null || msg.fileKey.isEmpty()) {
@@ -183,7 +182,7 @@ public class WechatAdapter implements AdapterInterfaces.Adapter, AdapterInterfac
 
     // ── iLink 调用 ──────────────────────────────────────────────────────────
 
-    /** 对照 {@code ilinkPost}：统一认证头 + 非 200 抛。 */
+    /** 统一认证头 + 非 200 抛。 */
     byte[] ilinkPost(String path, Object payload) throws Exception {
         byte[] body = MAPPER.writeValueAsBytes(payload);
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + path))
@@ -204,14 +203,14 @@ public class WechatAdapter implements AdapterInterfaces.Adapter, AdapterInterfac
         return respBody;
     }
 
-    /** 对照 {@code newBaseInfo}。 */
+    /** 组 base_info（channel_version 等）。 */
     static ObjectNode baseInfo() {
         ObjectNode node = MAPPER.createObjectNode();
         node.put("channel_version", CHANNEL_VERSION);
         return node;
     }
 
-    /** 对照 {@code generateWeChatUIN}：随机 uint32 → 十进制串 → base64。 */
+    /** 随机 uint32 → 十进制串 → base64。 */
     static String generateWeChatUin() {
         long value = RANDOM.nextInt() & 0xFFFF_FFFFL;
         return java.util.Base64.getEncoder()

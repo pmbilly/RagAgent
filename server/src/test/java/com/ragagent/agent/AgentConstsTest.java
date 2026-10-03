@@ -7,8 +7,7 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 /**
- * const.go 纯逻辑的 Go 实录断言（/tmp/wave42rec：const.go + types/agent.go 预算族 +
- * browserskill/human.go 内嵌）。
+ * 常量与预算族纯逻辑的录制断言（{@code AgentConsts}）。
  */
 class AgentConstsTest {
 
@@ -96,7 +95,7 @@ class AgentConstsTest {
 
     @Test
     void generateEventIDIsBridgedNotDuplicated() {
-        // 波 4.1 已收编到 event 包：格式 <uuid前8位>-<suffix>（EventIdsTest 有实录断言）
+        // 已收编到 event 包：格式 <uuid前8位>-<suffix>（EventIdsTest 有录制断言）
         String id = com.ragagent.event.EventIds.generateEventID("thinking");
         assertThat(id).endsWith("-thinking");
         assertThat(id.split("-")[0]).hasSize(8).matches("[0-9a-f]{8}");

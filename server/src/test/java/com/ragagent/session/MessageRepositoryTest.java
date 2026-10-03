@@ -26,7 +26,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 消息仓储语义（H2）——对照 Go internal/application/repository/message.go。
+ * 消息仓储语义（H2）。
  *
  * <p>重点是那些 mock 测不出来的 SQL 行为：<b>结构体 Updates 的零值跳过</b>、软删、
  * 倒序取 + 正序重排的比较器、jsonb 列的落库形态。</p>
@@ -96,11 +96,11 @@ class MessageRepositoryTest {
         assertThat(repo.create(m).getId()).isNotEqualTo("caller-id");
     }
 
-    // ── 更新：GORM 结构体 Updates 的零值跳过 ─────────────────────────────────
+    // ── 更新：零值字段跳过 ──────────────────────────────────────────────────
 
     @Test
     void updateSkipsZeroValuedFields() {
-        // 这是本模块最容易"顺手修好"的地方：GORM 对结构体的 Updates 只写非零字段，
+        // 这是本模块最容易"顺手修好"的地方：update 只写非零字段，
         // 所以把 content 改成空串、把 is_completed 改成 false 都**不会生效**。
         Message m = message(Message.ROLE_ASSISTANT, "original", "r1");
         m.setCompleted(true);
@@ -141,7 +141,7 @@ class MessageRepositoryTest {
 
     @Test
     void updateWithEveryFieldZeroIsANoOp() {
-        // GORM 全部为零时会生成 `UPDATE messages SET` 这种非法语句；Java 侧直接跳过
+        // 全部字段为零时是 no-op：直接跳过，不生成 UPDATE
         Message m = message(Message.ROLE_ASSISTANT, "original", "r1");
         Message empty = new Message();
         empty.setId(m.getId());
@@ -162,7 +162,7 @@ class MessageRepositoryTest {
 
     @Test
     void getMessageByRequestIdReturnsNullInsteadOfThrowing() {
-        // 与同文件其它读方法不同：Go 在这里把 ErrRecordNotFound 显式翻成 nil, nil
+        // 与同文件其它读方法不同：查不到时返回 null 而不是抛 MessageNotFoundException
         assertThat(repo.getMessageByRequestId(sessionId, "nope")).isNull();
 
         message(Message.ROLE_USER, "hi", "r1");
@@ -330,7 +330,7 @@ class MessageRepositoryTest {
         assertThat(row.getMessage().isCompleted()).isTrue();              // is_completed → completed
         assertThat(row.getMessage().getAgentDurationMs()).isEqualTo(42);
 
-        // 空入参 → 空列表（Go 的 nil, nil 短路）
+        // 空入参 → 空列表（不抛错）
         assertThat(repo.getMessagesByKnowledgeIds(List.of())).isEmpty();
     }
 
@@ -350,7 +350,7 @@ class MessageRepositoryTest {
 
     @Test
     void getMessagesByKnowledgeIdsReadsJsonbColumnsThroughMethodLevelResults() {
-        // 波 0 memory 同款坑：自定义 @Select 不套实体的 @TableField(typeHandler=...)，
+        // 自定义 @Select 不套实体的 @TableField(typeHandler=...)，
         // jsonb 列必须走方法级 @Results——没有它这列读回来就是 null
         Message m = message(Message.ROLE_ASSISTANT, "with refs", "r11");
         SearchResult ref = new SearchResult();

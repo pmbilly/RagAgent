@@ -34,26 +34,23 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 消息 HTTP 层（对照 Go {@code internal/handler/message.go}，路由对照
- * {@code routes_chat.go} RegisterMessageRoutes L28-31 的 4 条）。
+ * 消息 HTTP 层。
  *
- * <h2>响应形态（§14.9l S2 换锚后，§2.1）</h2>
+ * <h2>响应形态（§2.1）</h2>
  * <ul>
  *   <li>load → 裸 {@code [Message]}；search → 裸 {@link MessageSearchResult}；
  *       stats → 裸 {@code ChatHistoryKbStats}；</li>
  *   <li>删除 → <b>204</b>（§1.13；旧 {@code {"message":…,"success":true}} 退役）。</li>
  * </ul>
  *
- * <h2>错误门槛（逐条对照 Go handler）</h2>
+ * <h2>错误门槛</h2>
  * <ul>
  *   <li>{@code resourceUrls} 非法：public 拒绝 → 403，其他坏值 → 400；</li>
- *   <li>{@code limit} 非整数**容错**回落 20（Go 的 Atoi 失败 → 默认值，不是 400）；</li>
- *   <li>{@code beforeTime} 解析失败 → 400（中文文案，不再是 Go 的英文固定串）；</li>
+ *   <li>{@code limit} 非整数**容错**回落 20（解析失败 → 默认值，不是 400）；</li>
+ *   <li>{@code beforeTime} 解析失败 → 400（固定中文文案）；</li>
  *   <li>会话不可见 → 404 "session not found"；消息不存在 → 404 "record not found"
- *       （Go 透传 gorm.ErrRecordNotFound 的原文，两个 404 文案**不同**）；</li>
- *   <li>搜索 {@code query} 缺失/为空 → 400 {@code query: 不能为空}（DTO 上的 {@code @NotBlank}，
- *       取代 Go validator 的 tag 文案——handler 里那句 "Query content cannot be empty"
- *       在 Go 里就不可达）。</li>
+ *       （两个 404 文案**不同**）；</li>
+ *   <li>搜索 {@code query} 缺失/为空 → 400 {@code query: 不能为空}（DTO 上的 {@code @NotBlank}）。</li>
  * </ul>
  */
 @RestController
@@ -61,7 +58,7 @@ public class MessageController {
 
     private static final Logger log = LoggerFactory.getLogger(MessageController.class);
 
-    /** 对照 Go {@code gorm.ErrRecordNotFound.Error()}——消息不存在时 404 的文案。 */
+    /** 消息不存在时 404 的文案。 */
     private static final String RECORD_NOT_FOUND = "record not found";
 
     private final MessageService messageService;
@@ -75,7 +72,7 @@ public class MessageController {
                              com.ragagent.auth.service.TenantService tenantService) {
         this.messageService = messageService;
         // 两个端口按 ObjectProvider 取（A3-3 起 StorageBackendResolver 有生产实现；
-        // FileService 的进程级实现仍属装配项），缺 bean 时按 Go 的 nil 分支降级。
+        // FileService 的进程级实现仍属装配项），缺 bean 时按未装配分支降级。
         this.fileService = fileService.getIfAvailable();
         this.storageBackendResolver = storageBackendResolver.getIfAvailable();
         this.tenantService = tenantService;
@@ -84,11 +81,9 @@ public class MessageController {
     // ══════════════════════════ 加载消息历史 ══════════════════════════
 
     /**
-     * 对照 Go {@code LoadMessages}（L83-178）。
-     *
-     * <p>⚠️ {@code limit} 是**容错**的：非整数回落默认 20（Go 的
-     * {@code strconv.Atoi} 失败 → Warnf + 默认值），与分页那套 strconv 400 不同；
-     * 且 limit 在 Go 里也过 {@code SanitizeForLog}。</p>
+     * <p>⚠️ {@code limit} 是**容错**的：非整数回落默认 20（解析失败 → 记日志 +
+     * 默认值），与分页参数解析失败即 400 不同；limit 进日志前也过
+     * {@code SanitizeForLog}。</p>
      */
     @GetMapping("/api/v1/messages/{sessionId}/load")
     public ResponseEntity<List<Message>> loadMessages(
@@ -138,8 +133,8 @@ public class MessageController {
     }
 
     /**
-     * 对照 Go {@code parseMessageBeforeTime}（L331-346）：RFC3339 / RFC3339Nano 都收
-     * （{@link OffsetDateTime#parse} 覆盖两者），失败 → 400 固定文案。
+     * RFC3339 / RFC3339Nano 都收（{@link OffsetDateTime#parse} 覆盖两者），
+     * 失败 → 400 固定文案。
      */
     private static OffsetDateTime parseBeforeTime(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -161,8 +156,8 @@ public class MessageController {
     // ══════════════════════════ 删除消息 ══════════════════════════
 
     /**
-     * 对照 Go {@code DeleteMessage}（L193-233）。两个 404 文案**刻意不同**：
-     * 会话不可见是 "session not found"；消息不存在是 gorm 的原文 "record not found"。
+     * 两个 404 文案**刻意不同**：
+     * 会话不可见是 "session not found"；消息不存在是 "record not found"。
      */
     @DeleteMapping("/api/v1/messages/{sessionId}/{id}")
     public ResponseEntity<Void> deleteMessage(
@@ -187,12 +182,9 @@ public class MessageController {
     // ══════════════════════════ 搜索 ══════════════════════════
 
     /**
-     * 对照 Go {@code SearchMessages}（L247-287）。
-     *
-     * <p>⚠️ {@code query} 带 {@code binding:"required"}——空串/缺失在 **binding 层**
-     * 就被拒，validator 文案进 message（golden 已录）；handler 里那句
-     * "Query content cannot be empty" 实际不可达（Go 的死代码，陷阱 §5 第 5 条）。</p>
-     * <p>{@code query} 还要过一遍 {@code SanitizeForLog} 才进搜索（Go handler L266）。</p>
+     * <p>⚠️ {@code query} 空串/缺失在 DTO 校验层就被拒（{@code @NotBlank}，
+     * 文案 {@code query: 不能为空}）；handler 内没有第二道空 query 检查。</p>
+     * <p>{@code query} 进搜索前还要过一遍 {@code SanitizeForLog}。</p>
      */
     @PostMapping("/api/v1/messages/search")
     public ResponseEntity<MessageSearchResult> searchMessages(
@@ -213,7 +205,6 @@ public class MessageController {
 
     // ══════════════════════════ 聊天历史统计 ══════════════════════════
 
-    /** 对照 Go {@code GetChatHistoryKBStats}（L311-327）。 */
     @GetMapping("/api/v1/messages/chat-history-stats")
     public ResponseEntity<com.ragagent.session.domain.ChatHistoryKbStats> getChatHistoryKbStats() {
         com.ragagent.session.domain.ChatHistoryKbStats stats;
@@ -228,7 +219,7 @@ public class MessageController {
     // ══════════════════════════ 公共 ══════════════════════════
 
     /**
-     * 对照 Go {@code resolveResourceRewriter}（L56-66）：public 拒绝 → 403，
+     * public 拒绝 → 403，
      * 其他坏值 → 400。缺 bean 降级与 SessionStreamController 的 ObjectProvider 模式一致。
      */
     private Rewriter resolveResourceRewriter(String resourceUrls) {
@@ -260,7 +251,7 @@ public class MessageController {
 
     /**
      * 已带形态的业务错误必须原样透传（二次包装会把 "error code: N, error message: "
-     * 前缀叠两层——G1 踩过，见 docs/known-issues/02-wave-0-1.md 原 §9「波 1 G1」第 1 条）。
+     * 前缀叠两层，见 docs/known-issues/02-wave-0-1.md 的记录）。
      */
     private static BizException toInternal(RuntimeException e) {
         if (e instanceof BizException biz) {

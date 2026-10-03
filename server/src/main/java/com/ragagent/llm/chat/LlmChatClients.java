@@ -10,8 +10,7 @@ import com.ragagent.llm.provider.ProviderName;
 import com.ragagent.llm.provider.ProviderRegistry;
 
 /**
- * 聊天实例工厂（对照 Go chat.NewChat / NewRemoteChat，
- * internal/models/chat/chat.go:167-198）。
+ * 聊天实例工厂。
  *
  * 两级分发：
  * 1. **传输层**：Source = "local" → Ollama；"remote" → 远程厂商；其他报错
@@ -22,12 +21,12 @@ import com.ragagent.llm.provider.ProviderRegistry;
  *
  * 装饰器从内到外：内层实现 → 并发闸门（最外，只包住真正的 provider 往返）。
  *
- * **Java 侧未实现的两个装饰器（已在约定文档 §9 登记）**：
- * - `wrapChatDebug`（Go 的 llm_debug_wrapper）：受 LLMDebugEnabled 环境变量控制，
- *   未启用时 Go 也只是返回原对象——Java 侧直接省略，等价于"未启用"
- * - `wrapChatLangfuse`：Go 在未启用 tracing 时不安装包装器（零成本）。Java 侧
- *   的 chat/embedding/rerank 包装发生在 ModelRuntimeFactory 装饰层
- *   （LangfuseChatClient/Embedder/Reranker.wrap，dbf4cff 起），不再在本类包
+ * **本类未实现的两个装饰器**：
+ * - debug 包装器：受 LLMDebugEnabled 环境变量控制，
+ *   未启用时等价于直接返回原对象
+ * - langfuse 包装器：chat/embedding/rerank 的 tracing 包装发生在
+ *   ModelRuntimeFactory 装饰层
+ *   （LangfuseChatClient/Embedder/Reranker.wrap），不再在本类包
  */
 public final class LlmChatClients {
 
@@ -35,7 +34,7 @@ public final class LlmChatClients {
     }
 
     /**
-     * 创建聊天实例（对照 Go NewChat）。
+     * 创建聊天实例。
      *
      * @param config        模型配置；null 时报错
      * @param ollamaService 本地 Ollama 服务（仅在 source=local 时使用，可为 null）
@@ -56,7 +55,7 @@ public final class LlmChatClients {
         return new ConcurrencyChatClient(client, config.getMaxConcurrency(), governor);
     }
 
-    /** 按 provider 创建远程聊天实例（对照 Go NewRemoteChat）。 */
+    /** 按 provider 创建远程聊天实例。 */
     public static LlmChatClient newRemoteChat(ChatConfig config) {
         ProviderName providerName = ProviderName.fromValue(config.getProvider());
         if (providerName == null) {

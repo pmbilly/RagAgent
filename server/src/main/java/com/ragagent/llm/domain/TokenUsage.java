@@ -5,12 +5,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Token 用量（对照 Go types.TokenUsage，internal/types/chat.go:21-157）。
+ * Token 用量。
  *
- * JSON 契约（字段序 = Go struct 声明序，恒输出/省略规则照抄）：
- * prompt_tokens/completion_tokens/total_tokens/cache_reported 无 omitempty 恒输出；
- * cached_tokens/cache_read_tokens/cache_write_tokens/cache_miss_tokens/cache_status 带 omitempty
- * → Java 侧用 NON_DEFAULT（int 0 / 空串省略）。
+ * JSON 契约（字段序 = 声明序）：
+ * prompt_tokens/completion_tokens/total_tokens/cache_reported 恒输出；
+ * cached_tokens/cache_read_tokens/cache_write_tokens/cache_miss_tokens/cache_status
+ * 用 NON_DEFAULT（int 0 / 空串省略）。
  *
  * 行为契约（不只是数据——Accumulate 的合并语义是 agent 多轮统计的依据）：
  * - SetPromptCacheUsage：负数截 0；reported=false → "unreported"；read>0 → "hit"；否则 "miss"
@@ -19,7 +19,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
  *   reported 取 OR，status 由合并后的计数重算 → 任一次命中即整体为 hit
  * - PromptCacheHitRate：CacheReadTokens/PromptTokens*100，prompt<=0 时 0
  *
- * 持久化：Go 实现 driver.Valuer/sql.Scanner（jsonb 列），Java 侧对应 PgJsonTypeHandler。
+ * 持久化：jsonb 列，经 PgJsonTypeHandler。
  */
 @JsonPropertyOrder({
         "prompt_tokens", "completion_tokens", "total_tokens",

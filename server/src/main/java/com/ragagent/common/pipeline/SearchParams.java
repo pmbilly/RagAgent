@@ -7,10 +7,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 
 /**
- * 混合检索参数（对照 Go {@code types.SearchParams}，internal/types/search.go:230-252）。
+ * 混合检索参数。
  *
- * <p>管线侧载体：HybridSearch seam（{@code com.ragagent.chatpipeline.PipelinePorts.KnowledgeBaseService}）的入参。
- * 字段语义逐条对照 Go 注释。</p>
+ * <p>管线侧载体：HybridSearch seam（{@code com.ragagent.chatpipeline.PipelinePorts.KnowledgeBaseService}）的入参。</p>
  */
 public final class SearchParams {
 

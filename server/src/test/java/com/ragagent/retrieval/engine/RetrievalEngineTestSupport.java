@@ -14,16 +14,14 @@ import com.ragagent.vectorstore.domain.VectorStore;
 import com.ragagent.vectorstore.mapper.VectorStoreRepository;
 
 /**
- * 接线批测试共用的假件——对照 Go {@code factory_test.go} / {@code registry_test.go} /
- * {@code registry_rehydrate_test.go} 里的 {@code fakeEngine} / {@code fakeOwnership} /
- * {@code fakeStoreRepo} / {@code mockEngineService}。
+ * 检索引擎测试共用的假件：假引擎服务、假租户归属、假 store 仓库。
  */
 final class RetrievalEngineTestSupport {
 
     private RetrievalEngineTestSupport() {
     }
 
-    /** 对照 {@code mockEngineService}：记下被调的方法名，便于断言"扇出到了谁"。 */
+    /** 记录型假件：记下被调的方法名，便于断言"扇出到了谁"。 */
     static class FakeEngineService implements RetrieveEngineService {
 
         final String engineType;
@@ -33,7 +31,7 @@ final class RetrievalEngineTestSupport {
         final List<IndexInfo> batchPayload = new CopyOnWriteArrayList<>();
         List<RetrieveResult> retrieveResult = List.of();
         long estimateValue = 0L;
-        /** 命中即抛的失败方法名（对照 Go 里让某条扇出失败的写法）。 */
+        /** 命中即抛的失败方法名（让指定的那次扇出失败）。 */
         RuntimeException failure;
         String failureOn;
 
@@ -129,7 +127,7 @@ final class RetrievalEngineTestSupport {
         }
     }
 
-    /** 带迁移能力的假件（对照 Go 里实现了 {@code KnowledgeIndexMover} 的引擎）。 */
+    /** 带迁移能力的假件（实现 {@code KnowledgeIndexMover} 的引擎）。 */
     static class MoverFakeEngineService extends FakeEngineService
             implements RetrieveEngineService.KnowledgeIndexMover,
             RetrieveEngineService.KnowledgeIndexMoveValidator {
@@ -178,7 +176,7 @@ final class RetrievalEngineTestSupport {
         }
     }
 
-    /** 对照 {@code fakeStoreRepo}：只服务一个 store；其余方法大声报错（Go 用嵌入接口 nil-panic 表达）。 */
+    /** 只服务一个 store 的假仓库；其余方法大声报错。 */
     static class FakeStoreRepo implements VectorStoreRepository {
 
         VectorStore store;

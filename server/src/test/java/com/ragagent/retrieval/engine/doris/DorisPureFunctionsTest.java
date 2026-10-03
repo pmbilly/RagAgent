@@ -14,13 +14,13 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.vectorstore.domain.IndexConfig;
 
 /**
- * Doris 驱动纯函数族对照 Go {@code retriever/doris} 的 compat.go / query.go / schema.go：
+ * Doris 驱动纯函数族：
  * 兼容模式解析、embedding 字面量与解析、校验与单位化、SourceID 三态改写、
  * 建表 DDL 形状、存储估算（UTF-8 字节）、Stream Load 拆批。
  */
 class DorisPureFunctionsTest {
 
-    // ── DorisCompatMode（照 compat.go） ─────────────────────────────────────
+    // ── DorisCompatMode ─────────────────────────────────────────────────────
 
     @Test
     @DisplayName("configured：空→auto；三种别名归一到 inner_product_duplicate；非法值回落 auto 并带回原值")
@@ -65,7 +65,7 @@ class DorisPureFunctionsTest {
         }
     }
 
-    // ── embedding 字面量（照 query.go L226-252 + Go FormatFloat 'g'） ───────
+    // ── embedding 字面量 ────────────────────────────────────────────────────
 
     @Test
     @DisplayName("embeddingLiteral：Go 'g' 形态——去尾随 .0、指数形态、NaN/±Inf/-0 拼写")
@@ -122,7 +122,7 @@ class DorisPureFunctionsTest {
         assertThat(DorisSql.normalizeEmbedding(null)).isNull();
     }
 
-    // ── SourceID 三态改写（照 repository.go L564-578） ──────────────────────
+    // ── SourceID 三态改写 ───────────────────────────────────────────────────
 
     @Test
     @DisplayName("translateSourceId：普通 chunk / 生成型问题 / 其他（新 UUID）")
@@ -135,7 +135,7 @@ class DorisPureFunctionsTest {
         assertThat(generated).matches("[0-9a-f-]{36}").isNotEqualTo("chunk-2");
     }
 
-    // ── 建表 DDL（照 schema.go L136-178） ──────────────────────────────────
+    // ── 建表 DDL ────────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("buildCreateTableDdl：内积副本模式（DUPLICATE KEY + inner_product）")
@@ -211,7 +211,7 @@ class DorisPureFunctionsTest {
         assertThat(DorisRetrieveRepository.hostFromAddr(null)).isEmpty();
     }
 
-    // ── Stream Load 拆批（照 streamload.go chunkRows） ─────────────────────
+    // ── Stream Load 拆批 ────────────────────────────────────────────────────
 
     @Test
     @DisplayName("chunkRows：按累积 JSON 体大小拆批（1 MiB），单行超限仍自成一批")

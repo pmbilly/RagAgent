@@ -18,16 +18,15 @@ import io.jsonwebtoken.security.SignatureException;
 import org.springframework.stereotype.Component;
 
 /**
- * JWT 签发与解析（对照 Go internal/application/service/user.go 的 JWT 部分）。
+ * JWT 签发与解析。
  *
- * 契约（逐条对照 Go）：
+ * 契约：
  * - 签名：HS256；secret 取 env JWT_SECRET（trim 后非空），否则随机 32 字节 base64(Std)，进程内一次生成
- *   （对照 getJwtSecret 的 sync.Once 语义）
  * - access claims：user_id, email, tenant_id, exp(+24h 秒), iat, type="access"
  * - refresh claims：user_id, exp(+7d 秒), iat, type="refresh"（无 email/tenant_id）
  *
- * 已知差异（记录于约定 §8）：Go 对短 secret（&lt;32 字节）不报错；jjwt 对 HS256 强制 key ≥ 256bit，
- * SecretKeySpec 构造不校验，但 parse 时 WeakKeyException。dev 无 JWT_SECRET 时走随机 32 字节，无影响。
+ * 已知差异：jjwt 对 HS256 强制 key ≥ 256bit（SecretKeySpec 构造不校验，
+ * parse 时抛 WeakKeyException）。dev 无 JWT_SECRET 时走随机 32 字节，无影响。
  */
 @Component
 public class JwtService {
@@ -41,7 +40,7 @@ public class JwtService {
                 getJwtSecret(properties.secret()).getBytes(StandardCharsets.UTF_8), "HmacSHA256");
     }
 
-    /** 对照 getJwtSecret()：{@code JWT_SECRET}（属性绑定）→ 未配置随机 32B base64 */
+    /** 密钥来源：{@code JWT_SECRET}（属性绑定）→ 未配置随机 32B base64 */
     private static String getJwtSecret(String env) {
         if (env != null && !env.trim().isEmpty()) {
             return env.trim();
@@ -66,10 +65,9 @@ public class JwtService {
     }
 
     /**
-     * 对照 IssueSandboxTerminalTicket（service/sandbox_terminal_ticket.go L33-53）：
      * 沙箱终端 WS 握手票据。不是访问令牌——ValidateToken 拒绝它
      * （{@link #isSandboxTerminalTicketClaims}）；绑定 user/tenant/session/token 四元组，
-     * TTL 缺省 2 分钟（DefaultSandboxTerminalTicketTTL）。W5d 批新增。
+     * TTL 缺省 2 分钟。
      */
     public String generateSandboxTerminalTicket(String userId, long tenantId,
             String sessionId, String tokenId, java.time.Duration ttl) {
@@ -101,9 +99,9 @@ public class JwtService {
     }
 
     /**
-     * 解析并校验签名（对照 jwt.Parse + HMAC 方法校验）。
-     * 仅校验签名与 exp；业务语义校验（revocation/类型）由 UserService.validateToken 负责，
-     * 与 Go 分层一致（middleware 调 UserService.ValidateToken）。
+     * 解析并校验签名。
+     * 仅校验签名与 exp；业务语义校验（revocation/类型）由 UserService.validateToken 负责
+     * （分层：filter 调 UserService.validateToken）。
      *
      * @throws TokenValidationException 签名无效/过期/非 HS256
      */
@@ -124,7 +122,7 @@ public class JwtService {
         }
     }
 
-    /** 对照 tenantIDFromClaims：claim 缺失/非数字/≤0 → fallback */
+    /** tenant_id claim 解析：缺失/非数字/≤0 → fallback */
     public static long tenantIdFromClaims(Claims claims, long fallback) {
         Object raw = claims.get("tenant_id");
         if (raw instanceof Number n) {
@@ -134,25 +132,25 @@ public class JwtService {
         return fallback;
     }
 
-    /** 对照 isRefreshTokenClaims */
+    /** refresh 类型判定 */
     public static boolean isRefreshTokenClaims(Claims claims) {
         return "refresh".equals(claims.get("type"));
     }
 
-    /** 对照 isSandboxTerminalTicketClaims（sandboxTerminalTicketType = "sandbox_terminal"） */
+    /** 沙箱终端票据类型判定（type = "sandbox_terminal"） */
     public static boolean isSandboxTerminalTicketClaims(Claims claims) {
         return "sandbox_terminal".equals(claims.get("type"));
     }
 
     /**
-     * 对照 {@code jwt.Parse(..., jwt.WithoutClaimsValidation())}（user.go L1318-1326，
-     * Logout 的 userIDFromSignedToken 用）：签名与算法必须校验，但 **claims 不校验**——
-     * 过期的 token 也允许登出（Go 注释原文："expired tokens are allowed so logout
+     * 解析签名但**不校验 claims**（Logout 的 userIDFromSignedToken 用）：
+     * 签名与算法必须校验——
+     * 过期的 token 也允许登出（"expired tokens are allowed so logout
      * still works after the access token TTL"）。jjwt 的签名校验先于 exp 检查，
      * 因此 {@link io.jsonwebtoken.ExpiredJwtException} 抛出时签名已验证通过，
      * 从异常里取回 claims 即等价。
      *
-     * @throws TokenValidationException 签名无效/非 HS256（与 Go 同样拒绝）
+     * @throws TokenValidationException 签名无效/非 HS256
      */
     public Claims parseSignedAllowExpired(String token) {
         try {

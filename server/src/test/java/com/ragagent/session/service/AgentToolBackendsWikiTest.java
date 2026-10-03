@@ -25,13 +25,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * wiki 工具族接缝（2026-09-23 接线批·切片 2c）：{@link WikiPages}
- * 桥到真实 {@link WikiPageService}（H2 真库）的映射与契约翻译。
+ * wiki 工具族接缝：{@link WikiPages}
+ * 桥到真实 {@link WikiPageService}（H2 真库）的映射与契约转换。
  *
- * <p>工具自身的输出字节由 {@code GoRecording45A/B} 对照 Go 实录钉住；本测试覆盖
- * 此前从未被构造的那一层——桥。三处 Go 语义翻译是回归高发点：
- * ErrWikiPageNotFound → null、editSource 经 {@code WikiEditContext}、
- * time.Time → RFC3339Nano 文本。</p>
+ * <p>工具自身的输出字节由 {@code GoRecording45A/B} 夹具钉住；本测试覆盖
+ * 此前从未被构造的那一层——桥。三处语义转换是回归高发点：
+ * NotFound → null、editSource 经 {@code WikiEditContext}、
+ * 时间 → RFC3339Nano 文本。</p>
  */
 @SpringBootTest
 class AgentToolBackendsWikiTest {
@@ -68,11 +68,11 @@ class AgentToolBackendsWikiTest {
         return v;
     }
 
-    /** Go 的 ErrWikiPageNotFound 在接缝上是 null（resolveUniqueWikiPage 据此跳过该 KB）。 */
+    /** 页不存在（NotFound）在接缝上是 null（resolveUniqueWikiPage 据此跳过该 KB）。 */
     @Test
     void missingPageIsNullExceptionNotFailure() {
         assertThat(pages.getPageBySlug(KB, "entity/ghost")).isNull();
-        // 真实 service 走的是抛异常路径——接缝必须把它翻译掉
+        // 真实 service 走的是抛异常路径——接缝必须把它转成 null
         assertThatThrownBy(() -> wikiPageService.getPageBySlug(KB, "entity/ghost"))
                 .isInstanceOf(WikiPageNotFoundException.class);
     }
@@ -90,14 +90,14 @@ class AgentToolBackendsWikiTest {
         assertThat(read.pageType()).isEqualTo("entity");
         assertThat(read.aliases()).containsExactly("Acme", "别名甲");
         assertThat(read.sourceRefs()).containsExactly("k1|文档一");
-        // OutLinks 由 service 从正文重解析（Go CreatePage 同）
+        // OutLinks 由 service 从正文重解析
         assertThat(read.outLinks()).containsExactly("concept/rag");
         assertThat(read.knowledgeBaseId()).isEqualTo(KB);
         assertThat(read.slug()).isEqualTo("entity/acme-corp");
     }
 
     /**
-     * 对照 wiki_rename_page.go：Go 用字段字面量建新页，ID 恒为空 → 新 UUID。
+     * 重命名的落库路径是新插入（ID 恒为空 → 新 UUID）。
      * Java 工具经 {@code PageView.copy()} 会带来旧 ID，接缝必须清掉，
      * 否则与尚未删除的旧页撞主键。
      */
@@ -114,7 +114,7 @@ class AgentToolBackendsWikiTest {
         assertThat(pages.getPageBySlug(KB, "entity/acme-corp")).isNotNull();
     }
 
-    /** 写归因：Go 的 WithWikiEditSource(ctx, agent) → last_edit_source='agent'。 */
+    /** 写归因：editSource=agent → last_edit_source='agent'。 */
     @Test
     void writePathsStampAgentEditSource() {
         pages.createPage(view("entity/acme-corp"), WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
@@ -122,7 +122,7 @@ class AgentToolBackendsWikiTest {
                 "SELECT last_edit_source FROM wiki_pages WHERE slug = ?", String.class,
                 "entity/acme-corp")).isEqualTo("agent");
 
-        // 未带来源的写入按 Go 的归一化落 'pipeline'，说明来源确实是逐调用传递的
+        // 未带来源的写入按归一化规则落 'pipeline'，说明来源确实是逐调用传递的
         WikiPage plain = new WikiPage();
         plain.setTenantId(TENANT);
         plain.setKnowledgeBaseId(KB);
@@ -167,7 +167,7 @@ class AgentToolBackendsWikiTest {
     }
 
     /**
-     * issue 视图：Go 的 json.MarshalIndent(issue) 以字符串承载时间，
+     * issue 视图：时间以字符串承载，
      * RFC3339Nano 去掉小数秒尾零（Java 的 ISO_OFFSET_DATE_TIME 会补齐到 9 位）。
      */
     @Test
@@ -187,10 +187,10 @@ class AgentToolBackendsWikiTest {
         assertThat(issue.createdAt()).isEqualTo("2026-09-01T08:00:00.1Z");
         assertThat(issue.updatedAt()).isEqualTo("2026-09-02T08:00:00Z");
         assertThat(issue.deletedAtValid()).isFalse();
-        // 对照 Go：time.Time 零值 → 0001-01-01T00:00:00Z，不是 null
+        // null 时间 → 0001-01-01T00:00:00Z（历史线格式的零值时间），不输出 null
         assertThat(AgentToolWikiBackends.goTimeText(null))
                 .isEqualTo("0001-01-01T00:00:00Z");
-        // toGoJsonIndent 的字段序 = Go struct 声明序
+        // toGoJsonIndent 的字段序 = 历史线格式的固定声明序
         assertThat(issue.toGoJsonIndent()).startsWith("{\n  \"id\": \"i1\",\n")
                 .contains("\"deleted_at\": null\n}");
     }
@@ -231,13 +231,13 @@ class AgentToolBackendsWikiTest {
         assertThat(pages.listIssues(KB, "", "resolved")).hasSize(1);
     }
 
-    /** overview 缺失/服务异常时接缝返回 null（Go 的 err != nil 静默跳过分支）。 */
+    /** overview 缺失/服务异常时接缝返回 null（service 出错不抛、静默跳过）。 */
     @Test
     void indexOverviewIsBestEffort() {
         pages.createPage(view("entity/acme-corp"), WikiContentRewrite.WIKI_EDIT_SOURCE_AGENT);
         IndexOverviewView overview =
                 pages.getIndexView(KB, WikiIndexOverview.WIKI_INDEX_AGENT_TOP_K);
-        // wiki_pages 里没有 index 行时 Go 侧 getIndex 会建默认页；两条路径都必须是可用视图
+        // wiki_pages 里没有 index 行时 getIndex 会建默认页；两条路径都必须是可用视图
         assertThat(overview == null || overview.groups() != null).isTrue();
         assertThat(pages.getIndexView("no-such-kb", WikiIndexOverview.WIKI_INDEX_AGENT_TOP_K)).isNull();
     }

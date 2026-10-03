@@ -35,9 +35,8 @@ public interface TaskPendingOpMapper extends BaseMapper<TaskPendingOp> {
     /**
      * fail_count 自增并返回新值。
      *
-     * <p>原实现用 {@code RETURNING fail_count} 或在事务里先读后写；Java 侧用一条
-     * {@code UPDATE ... SET fail_count = fail_count + 1} 再单独读回，包在同一个
-     * 事务里（仓储层方法上有 {@code @Transactional}），语义等价。</p>
+     * <p>用一条 {@code UPDATE ... SET fail_count = fail_count + 1} 再单独读回，包在同一个
+     * 事务里（仓储层方法上有 {@code @Transactional}），语义等价于"自增并返回新值"。</p>
      */
     @Update("UPDATE task_pending_ops SET fail_count = fail_count + 1 WHERE id = #{id}")
     int incrementFailCount(@Param("id") long id);
@@ -60,7 +59,7 @@ public interface TaskPendingOpMapper extends BaseMapper<TaskPendingOp> {
                    @Param("now") OffsetDateTime now,
                    @Param("staleBefore") OffsetDateTime staleBefore);
     /**
-     * 有在途（未结算）ingest op 的 KB 列表——供启动期孤儿任务重放用（B12）。
+     * 有在途（未结算）ingest op 的 KB 列表——供启动期孤儿任务重放用。
      *
      * <p>只取 {@code scope_id} 单列：单实例下 KB id 全局唯一，租户由该 KB 的任一行
      * 反查（{@code peekBatch} 取一条即可），避免多列结果集的列名大小写差异（H2 与 PG 不同）。</p>

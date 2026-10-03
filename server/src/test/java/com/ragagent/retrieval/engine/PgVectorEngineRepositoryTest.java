@@ -140,7 +140,7 @@ class PgVectorEngineRepositoryTest {
         assertThat(rows.get(0).get("TAG_ID")).isEqualTo("").as("CopyIndices 不复制 tag_id");
         assertThat(rows.get(1).get("SOURCE_ID")).isEqualTo("c1t-q1").as("生成问题保留 qid");
         // H2 的 is_enabled 列无默认值，插入为 FALSE——is_enabled 的 DEFAULT TRUE 语义
-        // 只在真 PG 上由列默认值生效（见类注释的 GORM default 对照）
+        // 只在真 PG 上由列默认值生效
         // 孤儿行未复制
         Integer orphans = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM embeddings WHERE chunk_id = 'c2t'", Integer.class);

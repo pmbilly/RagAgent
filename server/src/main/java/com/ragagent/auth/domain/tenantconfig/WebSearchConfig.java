@@ -7,14 +7,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 对照 Go {@code types.WebSearchConfig}（internal/types/web_search.go L10-32）。
+ * 联网搜索配置段。
  *
- * <p>字段序 = Go struct 声明序；omitempty 逐字段对照（provider/api_key 与
- * rag 压缩四字段 + proxy_url 是 omitempty，其余恒输出）。
- * Go 的 {@code Filters} 字段 json:"-"，不翻。</p>
+ * <p>字段序 = JSON 键序；provider/api_key 与 rag 压缩四字段 + proxy_url 为
+ * 空值省略，其余恒输出。{@code Filters} 字段不在本投影（服务端不消费）。</p>
  *
- * <p>字符串字段默认 ""（Go 零值），blacklist 默认 null（Go nil slice →
- * json 输出 {@code null}；经 Effective 归一化后才变 []）。</p>
+ * <p>字符串字段默认 ""，blacklist 默认 null（json 输出 {@code null}；
+ * 经 Effective 归一化后才变 []）。</p>
  */
 @JsonPropertyOrder({
         "provider", "api_key", "max_results", "include_date", "compression_method",
@@ -23,9 +22,9 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 })
 public class WebSearchConfig {
 
-    /** 对照 DefaultWebSearchMaxResults。 */
+    /** max_results 的生效下限/缺省值。 */
     public static final int DEFAULT_MAX_RESULTS = 10;
-    /** 对照 DefaultWebSearchCompressionMethod。 */
+    /** compression_method 的缺省值。 */
     public static final String DEFAULT_COMPRESSION_METHOD = "none";
 
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -45,7 +44,7 @@ public class WebSearchConfig {
     @JsonProperty("compression_method")
     private String compressionMethod = "";
 
-    /** Go []string 无 omitempty：null → "blacklist":null，[] → [] */
+    /** 列表字段恒输出：null → "blacklist":null，[] → [] */
     @JsonProperty("blacklist")
     private List<String> blacklist;
 
@@ -53,7 +52,7 @@ public class WebSearchConfig {
     @JsonProperty("embedding_model_id")
     private String embeddingModelId = "";
 
-    /** Go int + omitempty：0 省略 */
+    /** 数值 0 省略键 */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     @JsonProperty("embedding_dimension")
     private int embeddingDimension;
@@ -94,8 +93,8 @@ public class WebSearchConfig {
     public void setProxyUrl(String v) { proxyUrl = v == null ? "" : v; }
 
     /**
-     * 对照 EffectiveWebSearchConfig（web_search.go L47-63）：
-     * 原地归一化本对象（Go 是拷贝后返回，调用方语义等价）。
+     * 归一化生效值：原地修改本对象
+     * （max_results≤0→10、compression_method 空→"none"、blacklist null→[]）。
      */
     public void applyEffective() {
         if (maxResults <= 0) {

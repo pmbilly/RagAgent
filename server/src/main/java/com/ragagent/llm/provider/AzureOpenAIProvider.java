@@ -6,16 +6,15 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.AzureOpenAIProvider（azure_openai.go）。
+ * Azure OpenAI。
  *
  * 唯一的 ExtraFields 使用者（api_version，default "2024-10-21"），其余 provider 的
- * ExtraFields 均为 Go 零值 nil。
+ * ExtraFields 均未配置。
  */
 public class AzureOpenAIProvider implements Provider {
 
     /**
-     * Go 侧该 URL 是 Info() 里的内联字面量（azure_openai.go 无 const），
-     * 此处提取为私有常量以便 5 处复用，值一字不改。
+     * Azure 端点是含资源名的模板（{resource} 按租户替换），故提取为私有常量以便 5 处复用。
      */
     private static final String RESOURCE_ENDPOINT = "https://{resource}.openai.azure.com";
 

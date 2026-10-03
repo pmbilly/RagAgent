@@ -3,7 +3,7 @@ package com.ragagent.storage.config;
 import java.util.function.Function;
 
 /**
- * 存储域 provider 环境族的查找面（B6 批 8）。
+ * 存储域 provider 环境族的查找面。
  *
  * <p>三个 provider 读取器（{@code StorageFileResolver} / {@code FileServiceFactory} /
  * {@code StorageBackendService}）都按**运行期分支决定的键名**读环境

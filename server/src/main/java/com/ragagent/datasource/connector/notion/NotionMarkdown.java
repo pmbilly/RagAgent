@@ -7,23 +7,22 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.datasource.ConnectorException;
 
 /**
- * 块树 → Markdown（对照 Go markdown.go 全文 + connector.go 的
- * {@code isFileBlock} / {@code mimeTypeForAttachment} / {@code fileNameFromURL}）。
+ * 块树 → Markdown。
  *
  * <p>这一块的输出是**逐字符契约**：它直接变成知识条目的正文（{@code Content}），
  * 所以 {@code # }、{@code \n\n}、{@code | }、{@code ---|}、{@code <br>}、
- * {@code ## X 内容}、{@code - **name**: val} 这类拼法必须与 Go 一字不差。
- * 本类的期望值全部来自 Go 实跑的 probe（见 {@code NotionMarkdownTest}）。</p>
+ * {@code ## X 内容}、{@code - **name**: val} 这类拼法必须与既有数据一字不差。
+ * 期望值由 {@code NotionMarkdownTest} 钉住。</p>
  *
- * <h2>三处必须照抄的"怪"行为</h2>
+ * <h2>三处刻意的"怪"行为</h2>
  * <ol>
- *   <li><b>空输出的页面拿到的是 {@code "\n"}</b>：{@code BlocksToMarkdown} 恒在
+ *   <li><b>空输出的页面拿到的是 {@code "\n"}</b>：转换恒在
  *       末尾补一个 {@code "\n"}，即使正文为空。上游用
- *       {@code strings.TrimSpace(markdown) != ""} 判"页面是否为空"，
+ *       "去空白后非空"判"页面是否为空"，
  *       所以这个 {@code "\n"} 不会造成空条目。</li>
  *   <li><b>连续换行折叠是"循环替换到没有为止"</b>：{@code 5} 个换行会先被折成
- *       {@code 3} 个、再折成 {@code 2} 个（Java 的 {@code replace} 一次替换全部
- *       不重叠出现，与 Go 的 {@code ReplaceAll} 相同，循环条件保留）。</li>
+ *       {@code 3} 个、再折成 {@code 2} 个（{@code replace} 一次替换全部
+ *       不重叠出现，循环条件保留）。</li>
  *   <li><b>列表间距靠 {@code inList} 状态机</b>：列表项之间不空行，列表结束
  *       （下一个块不是列表）或列表收尾时补一个 {@code "\n"}——于是列表块
  *       与后续段落之间是**一个**空行。</li>
@@ -31,9 +30,9 @@ import com.ragagent.datasource.ConnectorException;
  *
  * <h2>与 Java 默认 API 的两处不同（必须显式处理）</h2>
  * <ul>
- *   <li>{@code strings.TrimSpace} → {@link NotionValues#trimSpace}（U+00A0 等）；</li>
- *   <li>{@code strings.Split(text, "\n")} → {@code text.split("\n", -1)}
- *       （Java 默认会**丢掉尾随空串**，Go 不会）。</li>
+ *   <li>去空白用 {@link NotionValues#trimSpace}（含 U+00A0 等）；</li>
+ *   <li>按 {@code \n} 切分要用 {@code text.split("\n", -1)}
+ *       （默认会**丢掉尾随空串**）。</li>
  * </ul>
  */
 final class NotionMarkdown {
@@ -41,7 +40,7 @@ final class NotionMarkdown {
     private NotionMarkdown() {
     }
 
-    /** 对照 Go 的 {@code (string, []attachment)} 双返回值。 */
+    /** 转换结果：Markdown 文本 + 收集到的附件。 */
     static final class Result {
         final String markdown;
         final List<NotionAttachment> attachments;
@@ -53,9 +52,9 @@ final class NotionMarkdown {
     }
 
     /**
-     * 对照 Go {@code BlocksToMarkdown}。
+     * 把块树渲染成 Markdown。
      *
-     * <p>末尾三步的顺序是契约：先折叠连续换行 → 再 {@code TrimSpace} →
+     * <p>末尾三步的顺序是契约：先折叠连续换行 → 再去空白 →
      * 最后补 {@code "\n"}。</p>
      */
     static Result blocksToMarkdown(List<NotionBlock> blocks) {
@@ -70,7 +69,7 @@ final class NotionMarkdown {
         return new Result(NotionValues.trimSpace(result) + "\n", attachments);
     }
 
-    /** 对照 Go {@code renderBlocks}。 */
+    /** 渲染块列表（维护列表间距状态机）。 */
     static void renderBlocks(StringBuilder b, List<NotionBlock> blocks, int depth,
                              List<NotionAttachment> attachments) {
         if (blocks == null) {
@@ -102,7 +101,7 @@ final class NotionMarkdown {
         }
     }
 
-    /** 对照 Go {@code renderBlock}（每一个 case 都逐字符照抄）。 */
+    /** 渲染单个块（每一种 case 的输出都是逐字符契约）。 */
     static void renderBlock(StringBuilder b, NotionBlock block, int depth,
                             List<NotionAttachment> attachments, int index,
                             List<NotionBlock> siblings) {
@@ -314,7 +313,7 @@ final class NotionMarkdown {
         }
     }
 
-    /** 对照 Go {@code renderMediaBlock}。 */
+    /** 渲染媒体块："[名字](链接)" + 收集附件。 */
     static void renderMediaBlock(StringBuilder b, NotionBlock block,
                                  List<NotionAttachment> attachments) {
         FileAndCaption fc = extractFileAndCaption(block.rawContent);
@@ -331,7 +330,7 @@ final class NotionMarkdown {
     }
 
     /**
-     * 对照 Go {@code renderTable}：第一行后面补分隔行，单元格里的 {@code |}
+     * 表格渲染：第一行后面补分隔行，单元格里的 {@code |}
      * 转义成 {@code \|}。没有子块时**什么都不输出**（连空行都不补）。
      */
     static void renderTable(StringBuilder b, NotionBlock block) {
@@ -362,7 +361,7 @@ final class NotionMarkdown {
     // 富文本渲染
     // ──────────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code renderRichText}。 */
+    /** 渲染富文本片段序列。 */
     static String renderRichText(List<NotionRichText> texts) {
         if (texts == null) {
             return "";
@@ -371,7 +370,7 @@ final class NotionMarkdown {
         for (NotionRichText rt : texts) {
             String text = richTextToString(rt);
             text = applyAnnotations(text, rt.annotations());
-            // 注意：`code` 样式下**不**加链接包装（Go 的 !rt.Annotations.Code）
+            // 注意：`code` 样式下**不**加链接包装（annotations.code 为真时）
             if (!rt.href().isEmpty() && !rt.annotations().code) {
                 text = "[" + text + "](" + rt.href() + ")";
             }
@@ -380,7 +379,7 @@ final class NotionMarkdown {
         return b.toString();
     }
 
-    /** 对照 Go {@code richTextToString}。 */
+    /** 拼接富文本为纯串（含 mention/equation 等分支）。 */
     static String richTextToString(NotionRichText rt) {
         switch (rt.type()) {
             case "text":
@@ -437,7 +436,7 @@ final class NotionMarkdown {
     }
 
     /**
-     * 对照 Go {@code applyAnnotations}：**空文本原样返回**（不套任何标记）——
+     * **空文本原样返回**（不套任何标记）——
      * 所以一个空的加粗片段渲染成 {@code ""} 而不是 {@code "****"}（probe 已钉住）。
      * 包裹顺序由内到外是 code → bold/italic → strikethrough → underline。
      */
@@ -466,10 +465,10 @@ final class NotionMarkdown {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // 原始内容抽取（Go markdown.go L368-497）
+    // 原始内容抽取
     // ──────────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code extractRichText}：{@code raw == nil} → nil 切片。 */
+    /** 取 {@code rich_text} 数组；{@code raw} 为 null 或不是对象 → {@code null}。 */
     static List<NotionRichText> extractRichText(JsonNode raw) {
         if (raw == null) {
             return null;
@@ -489,8 +488,8 @@ final class NotionMarkdown {
     }
 
     /**
-     * 对照 Go {@code extractString}：raw 不是对象、键缺席、或值不是字符串时都回
-     * {@code ""}（Go 的 {@code json.Unmarshal(非字符串, &s)} 会报错并被忽略）。
+     * 取字符串字段：raw 不是对象、键缺席、或值不是字符串时都回
+     * {@code ""}。
      */
     static String extractString(JsonNode raw, String key) {
         if (raw == null || !raw.isObject()) {
@@ -503,7 +502,7 @@ final class NotionMarkdown {
         return val.textValue();
     }
 
-    /** 对照 Go {@code extractBool}。 */
+    /** 取布尔字段；取不到回 {@code false}。 */
     static boolean extractBool(JsonNode raw, String key) {
         if (raw == null || !raw.isObject()) {
             return false;
@@ -516,8 +515,8 @@ final class NotionMarkdown {
     }
 
     /**
-     * 对照 Go {@code extractIcon}：只有 {@code icon.type == "emoji"} 才回 emoji，
-     * 其它类型（含 {@code "file"}）回 {@code ""}——probe 里一个 file 型图标
+     * 只有 {@code icon.type == "emoji"} 才回 emoji，
+     * 其它类型（含 {@code "file"}）回 {@code ""}——file 型图标
      * 的 callout 渲染成 {@code "> img"} 而不是 {@code "> url img"}。
      */
     static String extractIcon(JsonNode raw) {
@@ -537,7 +536,7 @@ final class NotionMarkdown {
         return emoji != null && emoji.isTextual() ? emoji.textValue() : "";
     }
 
-    /** 对照 Go 的 {@code (notionFile, string)} 双返回值。 */
+    /** 文件对象 + 渲染后的 caption。 */
     static final class FileAndCaption {
         final NotionFile file;
         final String caption;
@@ -548,7 +547,7 @@ final class NotionMarkdown {
         }
     }
 
-    /** 对照 Go {@code extractFileAndCaption}。 */
+    /** 解出文件对象并渲染 caption。 */
     static FileAndCaption extractFileAndCaption(JsonNode raw) {
         NotionFile file = new NotionFile();
         if (raw != null) {
@@ -568,7 +567,7 @@ final class NotionMarkdown {
         return new FileAndCaption(file, captionText);
     }
 
-    /** 对照 Go {@code extractCaptionText}。 */
+    /** 渲染 {@code caption} 数组为纯串。 */
     static String extractCaptionText(JsonNode raw) {
         if (raw == null || !raw.isObject()) {
             return "";
@@ -584,7 +583,7 @@ final class NotionMarkdown {
         return renderRichText(texts);
     }
 
-    /** 对照 Go {@code extractTableCells}。 */
+    /** 解出表格单元格的富文本行列。 */
     static List<List<NotionRichText>> extractTableCells(JsonNode raw) {
         if (raw == null || !raw.isObject()) {
             return new ArrayList<>();
@@ -606,7 +605,7 @@ final class NotionMarkdown {
         return out;
     }
 
-    /** 对照 Go {@code extractLinkToPageID}。 */
+    /** 取 {@code link_to_page.page_id}；取不到回空串。 */
     static String extractLinkToPageID(JsonNode raw) {
         if (raw == null || !raw.isObject()) {
             return "";
@@ -616,7 +615,7 @@ final class NotionMarkdown {
     }
 
     /**
-     * 对照 Go {@code fileNameFromURL}：先砍查询串，再取最后一个 {@code /} 之后的部分；
+     * 从 URL 提取文件名：先砍查询串，再取最后一个 {@code /} 之后的部分；
      * 拿不到就回 {@code fallbackType}。
      */
     static String fileNameFromURL(String url, String fallbackType) {
@@ -638,7 +637,7 @@ final class NotionMarkdown {
         return fallbackType;
     }
 
-    /** 对照 Go {@code mimeTypeForAttachment}。 */
+    /** 附件类型 → MIME。 */
     static String mimeTypeForAttachment(String attType) {
         switch (attType == null ? "" : attType) {
             case "image":
@@ -654,7 +653,7 @@ final class NotionMarkdown {
         }
     }
 
-    /** 对照 Go {@code isFileBlock}：只有这五种块才可能带 file_upload。 */
+    /** 只有这五种块才可能带 file_upload。 */
     static boolean isFileBlock(String blockType) {
         switch (blockType == null ? "" : blockType) {
             case "image":

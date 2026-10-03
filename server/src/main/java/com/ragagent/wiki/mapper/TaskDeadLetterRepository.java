@@ -11,9 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 死信档案仓储。
  *
- * <p>原实现有两个写入方：队列死信中间件（每归档一个队列任务写一行），以及服务层重试
- * 处理器（每个耗尽批内重试预算的 op 写一行）。<b>Java 侧只有后者</b>——队列换成
- * 进程内虚拟线程队列（见 {@code InProcessWikiIngestTaskQueue}），
+ * <p>写入方：服务层重试处理器（每个耗尽批内重试预算的 op 写一行）。队列层不直接写本表
+ * ——队列换成进程内虚拟线程队列（见 {@code InProcessWikiIngestTaskQueue}），
  * 队列层的归档由该实现自行处理。</p>
  *
  * <p>读取是运维驱动的：按 scope 列查（定位单个 KB）、按 task_type 列查
@@ -43,7 +42,7 @@ public class TaskDeadLetterRepository {
             dl.setFailCount(0);
         }
         if (dl.getFailedAt() == null) {
-            // 原实现由 DB 的 failed_at DEFAULT NOW() 填；Java 侧显式给值，
+            // DB 对 failed_at 有 DEFAULT NOW()；这里显式给值，
             // 让插入后内存对象的时间戳与库里一致（响应/日志会读到它）
             dl.setFailedAt(OffsetDateTime.now());
         }

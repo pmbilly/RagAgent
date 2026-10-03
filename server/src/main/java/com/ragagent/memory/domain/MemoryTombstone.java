@@ -8,16 +8,15 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 一条被**刻意忘掉**的陈述的记录，免得后台蒸馏下次读到那条消息时又悄悄把它加回来
- * （对照 Go {@code types.MemoryTombstone}，internal/types/memory.go L806-833）。
+ * 一条被**刻意忘掉**的陈述的记录，免得后台蒸馏下次读到那条消息时又悄悄把它加回来。
  *
  * <p>它只存主题和一个指纹，**从不存原文**。这个取舍是明说的：换个说法重述可以回来，
  * 这就是不保留"用户要求丢弃的内容"的代价。</p>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库隐式行为清单（约定 §3）</h2>
  * <ol>
- *   <li><b>自动时间戳</b>：只有 {@code created_at}（Go struct 里也只有它），
- *       走字段名约定，Go 显式写。</li>
+ *   <li><b>自动时间戳</b>：只有 {@code created_at}，
+ *       走字段名约定，落库时显式写。</li>
  *   <li><b>钩子</b>：无。</li>
  *   <li><b>关联预加载</b>：无。</li>
  *   <li><b>软删除</b>：无——{@code trimTombstones} 超上限时是**物理删**。</li>
@@ -26,11 +25,11 @@ import com.ragagent.common.web.GoTimeSerializer;
  *       ——模型 tag 与迁移都声明了，{@code AddTombstone} 的 {@code ON CONFLICT} 打的就是它。</li>
  *   <li><b>普通索引</b>：{@code source_message_id}（tag 里的 {@code index} 与迁移一致）。</li>
  *   <li><b>DEFAULT 列</b>：{@code topic}（{@code default:''}）带字面量 default tag →
- *       GORM 实测仍显式写入。</li>
+ *       落库时仍显式写入。</li>
  * </ol>
  *
  * <p>本类型**不是**响应体（仓储层的 {@code ListTombstones} 目前只被抽取路径用，且只取
- * {@code getTopic()} 拼进提示词）。JSON 面只在测试里，§14.9k M2 换锚后键名＝Java 字段名、
+ * {@code getTopic()} 拼进提示词）。JSON 面只在测试里，键名＝Java 字段名、
  * 键序＝声明序：{@code sourceMessageId} 是 {@code ""}（恒输出）。</p>
  */
 @TableName("memory_tombstones")

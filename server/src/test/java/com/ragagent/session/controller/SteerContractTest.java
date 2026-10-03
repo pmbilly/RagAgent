@@ -32,11 +32,11 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * steer 的契约测试（波 1 G4，对照 Go steer.go L461-810）。
+ * steer 的契约测试。
  *
  * golden 分支（无活轮 + 校验错误）来自 scripts/record-steer-golden.sh；
- * 排队/注入路径 HTTP 层造不出活轮（live run 只能由 agent 引擎设置，波 4/5），
- * 用直种 streamManager 的单测覆盖（响应形态对照 Go handler 的 gin.H 字母序），
+ * 排队/注入路径 HTTP 层造不出活轮（live run 只能由 agent 引擎设置），
+ * 用直种 streamManager 的单测覆盖（响应形态按字母序核对），
  * 引擎接线后补 e2e。
  */
 @SpringBootTest
@@ -330,7 +330,7 @@ class SteerContractTest {
         return builder.contentType("application/json").content(body);
     }
 
-    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake，§9）。 */
+    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake）。 */
     private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
 

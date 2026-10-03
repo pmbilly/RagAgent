@@ -30,7 +30,7 @@ import com.ragagent.wiki.service.page.WikiTextUtils;
  *
  * <p>管线形态：<b>Pass 0</b>（候选 slug 骨架）→ <b>Pass 1..N</b>（把候选挂到具体
  * chunk）→ <b>Reduce</b>（用逐字 chunk 正文当证据写页面）。本类负责中间那段：
- * 分桶、渲染、并发分类、句柄翻译、引用合并；另含 Pass 0 的两个抽取器
+ * 分桶、渲染、并发分类、句柄映射、引用合并；另含 Pass 0 的两个抽取器
  * （{@code extractCandidateSlugs} / {@code extractEntitiesAndConceptsNoUpsert}，
  * 后者共享同一套渲染与去重协议）。</p>
  *

@@ -3,7 +3,7 @@ package com.ragagent.knowledge.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 批量向量化的批大小配置（{@code BATCH_EMBED_SIZE}，B6 批 5）。
+ * 批量向量化的批大小配置（{@code BATCH_EMBED_SIZE}）。
  *
  * <p>env 名保持原样：{@code BATCH_EMBED_SIZE} → {@code batch.embed-size}（Spring 松散绑定）。</p>
  *

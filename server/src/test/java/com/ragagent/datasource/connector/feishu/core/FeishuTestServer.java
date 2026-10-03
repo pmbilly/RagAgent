@@ -15,20 +15,20 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * 本机飞书 API 桩（对应 Go 测试里的 {@code httptest.NewServer(http.NewServeMux())}）。
+ * 本机飞书 API 桩服务器。
  *
  * <p><b>测试禁止依赖真实网络</b>（约定 §7.5 第 7 条）：绑 {@code 127.0.0.1}、端口 0
- * 由内核分配，喂与 Go 测试同形的 JSON。绝不出现真实公网域名。</p>
+ * 由内核分配，喂与真实 API 同形的 JSON。绝不出现真实公网域名。</p>
  *
- * <h2>路由规则照抄 Go 的 {@code http.ServeMux}</h2>
+ * <h2>路由规则</h2>
  * <ul>
  *   <li>不以 {@code '/'} 结尾的模式 = <b>精确</b>匹配；</li>
  *   <li>以 {@code '/'} 结尾的模式 = <b>子树</b>匹配（前缀）；</li>
- *   <li>精确优先于子树；多条子树命中时取<b>最长</b>前缀（Go 也是这样）。</li>
+ *   <li>精确优先于子树；多条子树命中时取<b>最长</b>前缀。</li>
  * </ul>
  *
  * <p>放行 loopback 的 SSRF 白名单由 {@link FeishuTestSupport#allowLoopback()} 负责
- * ——对照 Go 的 {@code t.Setenv("SSRF_WHITELIST", "127.0.0.1,::1,localhost")}。</p>
+ * （{@code SSRF_WHITELIST=127.0.0.1,::1,localhost}）。</p>
  */
 public final class FeishuTestServer implements AutoCloseable {
 
@@ -40,7 +40,7 @@ public final class FeishuTestServer implements AutoCloseable {
             return query == null || query.isEmpty() ? path : path + "?" + query;
         }
 
-        /** 便捷：查询参数取值（缺席回空串，对照 Go 的 {@code r.URL.Query().Get}）。 */
+        /** 便捷：查询参数取值（缺席回空串）。 */
         public String queryParam(String name) {
             if (query == null || query.isEmpty()) {
                 return "";

@@ -3,7 +3,7 @@
  *
  * <p>实体被部分端点直出（Knowledge/Chunk 响应体），字段名即线上契约：按仓库契约政策用 Java
  * 字段名（camelCase）、不写逐字段 {@code @JsonProperty}、可空字段**显式输出 {@code null}**。
- * {@code @JsonInclude}（Go {@code omitempty} 的直译）属**分批清理面**，不要新增。
+ * {@code @JsonInclude} 属**分批清理面**，不要新增。
  *
  * <p>jsonb 列必须逐字段声明 {@code @TableField(typeHandler = PgJsonTypeHandler.class)}，
  * 且所在实体要带 {@code @TableName(autoResultMap = true)}——只写 typeHandler 会出现

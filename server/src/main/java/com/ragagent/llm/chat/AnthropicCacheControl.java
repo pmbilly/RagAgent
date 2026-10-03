@@ -5,11 +5,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Anthropic content 断点标记（对照 Go chat.anthropicCacheControl，
- * internal/models/chat/anthropic.go:28-31）。
+ * Anthropic content 断点标记。
  *
- * <p>{@code type} 恒输出（Go 无 omitempty），{@code ttl} 为空则省略
- * （Go 的 {@code json:"ttl,omitempty"}）。</p>
+ * <p>{@code type} 恒输出，{@code ttl} 为空则省略。</p>
  */
 @JsonPropertyOrder({"type", "ttl"})
 public class AnthropicCacheControl {

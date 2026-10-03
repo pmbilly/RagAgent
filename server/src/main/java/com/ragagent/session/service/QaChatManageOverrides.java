@@ -8,7 +8,7 @@ import com.ragagent.agent.management.service.AgentConfigJson;
 import com.ragagent.chatpipeline.ChatManage;
 
 /**
- * {@code SessionQaResolution} 的**agent 覆盖簇**（§11.37 第 2 步）：把 custom agent 的配置
+ * {@code SessionQaResolution} 的**agent 覆盖簇**：把 custom agent 的配置
  * （system_prompt / context / 采样与检索参数 / 各能力开关）覆盖到 {@code ChatManage} 上，
  * 以及从 agentRow + 配置读出提示词（{@code resolveCustomAgentPrompts}）。
  *

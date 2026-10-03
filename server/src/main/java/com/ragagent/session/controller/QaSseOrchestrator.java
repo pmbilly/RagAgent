@@ -31,12 +31,12 @@ import com.ragagent.stream.StreamManager;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * {@code KnowledgeQaController} 的**SSE 编排簇**（§14.9c 刀 5）：建立 SSE 流上下文、写
+ * {@code KnowledgeQaController} 的**SSE 编排簇**：建立 SSE 流上下文、写
  * {@code agent_query} 请求帧、看门狗线程（流结束/断连即收尾）、把 agent 事件转发进 SSE，
  * 以及 quick answer 时间线的录制（步进/工具调用）。
  *
- * <p>共享行为处理（§11.26 判据）：{@code runWithTenant} / {@code completeAssistantMessage} 随刀 7
- * 已进 {@link QaTurnFinalizer}，本类**持有它**转发（不回调控制器）；{@code ensureQuickAnswerStep}
+ * <p>共享行为：{@code runWithTenant} / {@code completeAssistantMessage} 在
+ * {@link QaTurnFinalizer}，本类**持有它**转发（不回调控制器）；{@code ensureQuickAnswerStep}
  * 是 static 且执行簇也在用 → 留控制器，按类名引用。</p>
  */
 final class QaSseOrchestrator {
@@ -86,10 +86,10 @@ final class QaSseOrchestrator {
             }
         }
 
-        // agent_query 事件写流（writeAgentQueryEvent，helpers.go L418-440）
+        // agent_query 事件写流
         writeAgentQueryEvent(reqCtx);
 
-        // stop 事件处理器（setupStopEventHandler，helpers.go L318-338）
+        // stop 事件处理器
         long sessionTenantId = reqCtx.session.getTenantId();
         eventBus.on(EventType.EVENT_STOP, evt -> {
             log.info("Received stop event, cancelling async operations for session: {}", reqCtx.sessionId);
@@ -99,7 +99,7 @@ final class QaSseOrchestrator {
                     streamCtx.assistantMessage, "", "", sessionTenantId));
         });
 
-        // 独立 stop watcher（helpers.go L364-415；自终止：complete/终态错误）
+        // 独立 stop watcher（自终止：complete/终态错误）
         startStopWatcher(reqCtx.sessionId, reqCtx.assistantMessage.getId(), eventBus);
 
         // AgentStreamBridge 订阅（17 种事件）
@@ -148,7 +148,6 @@ final class QaSseOrchestrator {
                     reqCtx.sessionId, assistantMessageId, e.toString());
         }
     }
-    /** startStopWatcher（helpers.go L364-415）。 */
     private void startStopWatcher(String sessionId, String assistantMessageId, EventBus eventBus) {
         Thread.ofVirtual().start(() -> {
             int offset = 0;
@@ -237,7 +236,7 @@ final class QaSseOrchestrator {
                     } catch (IOException ignored) {
                         // 客户端已断开
                     }
-                    // 对照 Go c.SSEvent("message", &StreamResponse{ResponseType: "stop", ...})
+                    // 写出 stop 事件帧
                     com.ragagent.llm.domain.StreamResponse stopResp = new com.ragagent.llm.domain.StreamResponse();
                     stopResp.setId(requestId);
                     stopResp.setResponseType(ResponseType.STOP);

@@ -30,19 +30,17 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 波 2 终扫批契约测试：chunker/preview 1 端点（对照 golden 逐字节比对）。
+ * 契约测试：chunker/preview 1 端点（对照 golden 逐字节比对）。
  *
- * golden 来源：Go dev server（localhost:8080，2026-09-19 录制，
- * scripts/record-fav-cprev-golden.sh，13 条 cprev-*.json）。
+ * golden 来源：录制脚本 scripts/record-fav-cprev-golden.sh（13 条 cprev-*.json）。
  *
  * preview 是纯无状态端点：响应完全确定（无时间戳、无 uuid），全部
- * <b>零掩码逐字节</b>——double 的 Go 格式（"91" 非 "91.0"）、md_heading_counts
- * 的 int 键 map、rejected 的 nil→null、context_header 的 omitempty 都被静态钉住。
+ * <b>零掩码逐字节</b>——double 的紧凑格式（"91" 非 "91.0"）、md_heading_counts
+ * 的 int 键 map、rejected 的空值 null、context_header 的空值省略都被静态钉住。
  *
  * 策略矩阵刻意覆盖：空 strategy=legacy（不是 auto！）、显式 heading/legacy、
  * 未知 strategy 落 default→auto、parent-child、token_limit 压缩、中文。
- * 深层结构类型错误（如 chunk_size:"five"）的 Go/Jackson 解码措辞是已知差异，
- * 刻意不录。
+ * 深层结构类型错误（如 chunk_size:"five"）的解码措辞存在已知差异，刻意不录。
  */
 @SpringBootTest
 @AutoConfigureMockMvc

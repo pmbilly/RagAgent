@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.GPUStackProvider（gpustack.go）。
+ * GPUStack。
  * Rerank 用独立 BaseURL（/v1 而非 /v1-openai）。
  */
 public class GPUStackProvider implements Provider {

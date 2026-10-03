@@ -12,18 +12,16 @@ import org.junit.jupiter.params.provider.ValueSource;
 import com.ragagent.wiki.service.WikiLlmRetryPolicy;
 
 /**
- * LLM 瞬时错误判定的对等测试（对照 Go
- * internal/application/service/wiki_ingest_retry_test.go，137 行，<b>用例逐条翻译</b>）。
+ * LLM 瞬时错误判定的测试。
  *
- * <p>Go 用 {@code context.Background()} 表示"父作用域未取消"；Java 侧对应
- * {@code parentContextCancelled = false}。</p>
+ * <p>"父作用域未取消"用 {@code parentContextCancelled = false} 表示。</p>
  */
 class WikiIngestRetryTest {
 
     private static final boolean CTX_ALIVE = false;
     private static final boolean CTX_CANCELLED = true;
 
-    // ── TestIsTransientLLMError_HTTPStatuses（Go L14-40） ──
+    // ── HTTP 状态码分支 ──
 
     @ParameterizedTest(name = "{0} → 瞬时={1}")
     @DisplayName("TestIsTransientLLMError_HTTPStatuses：状态码分支")
@@ -50,7 +48,7 @@ class WikiIngestRetryTest {
         assertThat(WikiLlmRetryPolicy.isTransientLlmError(CTX_ALIVE, message)).isEqualTo(want);
     }
 
-    // ── TestIsTransientLLMError_TransportSubstrings（Go L42-72） ──
+    // ── 传输层子串分支 ──
 
     @ParameterizedTest(name = "{0} → 瞬时={1}")
     @DisplayName("TestIsTransientLLMError_TransportSubstrings：传输层子串分支")
@@ -72,7 +70,7 @@ class WikiIngestRetryTest {
         assertThat(WikiLlmRetryPolicy.isTransientLlmError(CTX_ALIVE, message)).isEqualTo(want);
     }
 
-    // ── TestIsTransientLLMError_AbortsWhenParentCtxDone（Go L74-90） ──
+    // ── 父作用域取消时短路 ──
 
     @Test
     @DisplayName("TestIsTransientLLMError_AbortsWhenParentCtxDone：父作用域取消时短路为非瞬时")
@@ -83,7 +81,7 @@ class WikiIngestRetryTest {
         assertThat(WikiLlmRetryPolicy.isTransientLlmError(CTX_CANCELLED, message)).isFalse();
     }
 
-    // ── TestIsTransientLLMError_NilError（Go L92-99） ──
+    // ── null 错误 ──
 
     @Test
     @DisplayName("TestIsTransientLLMError_NilError：nil 永不瞬时")
@@ -101,7 +99,7 @@ class WikiIngestRetryTest {
                 CTX_ALIVE, new RuntimeException("bad request"))).isFalse();
     }
 
-    // ── TestIsTransientLLMError_RateLimit403（Go L101-137） ──
+    // ── 403 限流语义 ──
 
     @ParameterizedTest(name = "{0}")
     @DisplayName("TestIsTransientLLMError_RateLimit403：403 只在响应体是限流语义时才瞬时")
@@ -138,7 +136,7 @@ class WikiIngestRetryTest {
                 .isTrue();
     }
 
-    // ── 退避常量（对照 Go wikiLLMBackoffBase / wikiLLMMaxAttempts） ──
+    // ── 退避常量 ──
 
     @ParameterizedTest
     @DisplayName("退避序列 = base << (attempt-1)：2s、4s、8s")

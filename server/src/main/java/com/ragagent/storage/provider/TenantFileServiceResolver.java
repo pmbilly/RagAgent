@@ -7,8 +7,7 @@ import com.ragagent.auth.domain.tenantconfig.StorageEngineConfig;
 import com.ragagent.common.storage.StorageRuntimeEnv;
 
 /**
- * 租户级文件服务解析 + 回退（对照 Go
- * {@code ResolveTenantFileServiceWithFallback}，file/resolve_tenant.go 全文）。
+ * 租户级文件服务解析 + 回退。
  *
  * <p>规则：先按租户配置解析（{@code backendId/provider} 指定，缺失则用租户默认）；
  * 解析失败时，<b>若请求的 provider 与进程级 {@code STORAGE_TYPE} 相同</b>，用全局文件服务兜底
@@ -18,14 +17,14 @@ public final class TenantFileServiceResolver {
 
     private static final Logger log = LoggerFactory.getLogger(TenantFileServiceResolver.class);
 
-    /** 对照 Go：进程级默认存储类型。 */
+    /** 进程级默认存储类型 env。 */
     public static final String ENV_STORAGE_TYPE = "STORAGE_TYPE";
     public static final String DEFAULT_STORAGE_TYPE = "local";
 
     /** 租户解析接缝（对照 {@code interfaces.StorageBackendResolver.ResolveFileService}）。 */
     public interface TenantResolver {
         /**
-         * @return 解析结果；失败抛异常（Go 的 {@code (…, err)} 折叠为异常）
+         * @return 解析结果；失败抛异常
          */
         FileServiceFactory.Created resolve(long tenantId, String backendId, String provider,
                                            String localBaseDir);
@@ -74,7 +73,7 @@ public final class TenantFileServiceResolver {
         return new Fallback(null, "", false);
     }
 
-    /** 对照 Go：{@code STORAGE_TYPE} 小写归一，空 → {@code local}。 */
+    /** {@code STORAGE_TYPE} 小写归一，空 → {@code local}。 */
     public static String globalStorageType() {
         String v = StorageRuntimeEnv.storageType();
         if (v == null || v.trim().isEmpty()) {

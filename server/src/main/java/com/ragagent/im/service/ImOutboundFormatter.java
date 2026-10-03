@@ -23,7 +23,7 @@ final class ImOutboundFormatter {
         this.service = service;
     }
 
-    /** 对照 sendStreamReply（service.go L2195-2216）。 */
+    /** 流式整段回复。 */
     void sendStreamReply(IncomingMessage msg, StreamSender streamer, String content)
             throws Exception {
         String streamId = streamer.startStream(msg);
@@ -32,7 +32,7 @@ final class ImOutboundFormatter {
         streamer.endStream(msg, streamId);
     }
 
-    // ── 出站内容整形（service.go L144-201） ──────────────────────────────
+    // ── 出站内容整形 ─────────────────────────────────────────────────────
 
     String cleanIMContent(String content) {
         content = ImFormat.stripImageXMLTags(content);

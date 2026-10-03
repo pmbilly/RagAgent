@@ -7,11 +7,10 @@ import com.ragagent.agent.AgentConfig;
 import com.ragagent.agent.tools.SearchTarget.SearchTargets;
 
 /**
- * 装配期 AgentConfig 扩展（波 4.6d 新增文件）。
+ * 装配期 AgentConfig 扩展。
  *
- * <p>4.6b 的 {@link AgentConfig} 只收引擎消费字段（4.6b 决策点⑥：其余 Go 字段
- * 「随 4.6d agent_service 装配按需补」）。根包既有文件不可改，故以子类携带
- * agent_service.go 装配路径的消费字段——引擎经父类 getter 读取，不受影响；
+ * <p>{@link AgentConfig} 只收引擎消费字段；本子类携带
+ * 装配路径的其余消费字段——引擎经父类 getter 读取，不受影响；
  * 本类只新增字段与存取器，零行为覆盖。</p>
  */
 public class QaAgentConfig extends AgentConfig {

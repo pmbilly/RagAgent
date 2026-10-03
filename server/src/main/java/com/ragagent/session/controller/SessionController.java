@@ -41,14 +41,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 会话 HTTP 层（对照 Go {@code internal/handler/session/handler.go} 的
- * CreateSession / GetSession / GetSessionsByTenant / UpdateSession / DeleteSession /
- * BatchDeleteSessions / PinSession / UnpinSession，路由对照
- * {@code routes_chat.go} RegisterSessionRoutes L53-83）。
+ * 会话 HTTP 层。
  *
  * <p>本波（G1）只落会话 CRUD + 置顶 8 条；消息 / steer / 附件 / 产物随后续分组补。</p>
  *
- * <h2>响应形态（§14.9l S1b 换锚后，§2.1）</h2>
+ * <h2>响应形态（§2.1）</h2>
  * <ul>
  *   <li>创建 → <b>201</b> + 裸 {@link Session}；读取/更新 → 200 + 裸 {@link Session}；</li>
  *   <li>列表 → {@code {items,page,pageSize,total}}（{@link SessionListResponse}）；</li>
@@ -59,7 +56,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>停止生成 → 成功 <b>204</b>（§1.17：操作类响应不带服务端文案）。</li>
  * </ul>
  *
- * <h2>错误门槛顺序（逐条对照 Go handler）</h2>
+ * <h2>错误门槛顺序</h2>
  * <ol>
  *   <li>路径参数 sanitize 后为空 → 400 {@code "invalid session id"}；</li>
  *   <li>请求体绑定失败 → 400，文案由全局处理器给（空体/字面量 null → {@code 请求体不能为空}；
@@ -68,14 +65,12 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>服务层 ErrSessionNotFound → 404 {@code "session not found"}（code 1003）；</li>
  *   <li>其余服务层错误 → 500 + 错误 message。</li>
  * </ol>
- * <p>⚠️ {@code stop} 端点的错误仍是**纯字符串信封** {@code {"error":"…"}}
- * （Go 原文 {@code c.JSON(code, gin.H{"error": …})}）——错误形态统一是独立的一批（§14.9 第 ④ 项），
- * 本批不混轴。</p>
+ * <p>⚠️ {@code stop} 端点的错误仍是**纯字符串信封** {@code {"error":"…"}}，
+ * 与组内其他端点的 AppError 信封不同。</p>
  *
  * <h2>SanitizeForLog 为什么参与查找</h2>
- * <p>Go handler 拿到路径参数后先 {@code secutils.SanitizeForLog} 再查库——
- * 这不只是日志卫生：批量删除会把 sanitize 后的 id 列表**当作真实入参**。
- * Java 侧用 {@link LogSanitizer} 逐字对照。</p>
+ * <p>路径参数先过 {@link LogSanitizer} 再查库——
+ * 这不只是日志卫生：批量删除会把 sanitize 后的 id 列表**当作真实入参**。</p>
  */
 @RestController
 public class SessionController {
@@ -95,7 +90,7 @@ public class SessionController {
     }
 
     /**
-     * 对照 Go 的 {@code NewInternalServerError(err.Error())}：**已带形态的业务错误**
+     * **已带形态的业务错误**
      * （BizException，比如渠道筛选的 {@code "error code: 1002, error message: …"}）
      * 必须原样透传——二次包装会把前缀叠两层（真实踩过，golden 抓到）。
      */
@@ -108,10 +103,10 @@ public class SessionController {
 
     // ══════════════════════════ 创建 ══════════════════════════
 
-    /** 对照 Go {@code CreateSession}（L123-178）。换锚后：<b>201</b> + 裸 {@link Session}。 */
+    /** 创建会话：<b>201</b> + 裸 {@link Session}。 */
     @PostMapping("/api/v1/sessions")
     public ResponseEntity<Session> createSession(@RequestBody @Valid CreateSessionRequest request) {
-        // 对照 Go：body 解析门槛**先于**租户门槛
+        // 请求体绑定校验（@Valid）先于租户校验
         Long tenantId = TenantContext.currentTenantId();
         if (tenantId == null) {
             throw new BizException(AppError.unauthorized("Unauthorized"));
@@ -141,7 +136,6 @@ public class SessionController {
 
     // ══════════════════════════ 读取 ══════════════════════════
 
-    /** 对照 Go {@code GetSession}（L192-225）。 */
     @GetMapping("/api/v1/sessions/{id}")
     public ResponseEntity<Session> getSession(@PathVariable("id") String id) {
         String sessionId = LogSanitizer.sanitize(id);
@@ -161,11 +155,9 @@ public class SessionController {
     }
 
     /**
-     * 对照 Go {@code GetSessionsByTenant}（L243-277）。
-     *
-     * <p>查询参数换锚后是 camelCase（{@code page}/{@code pageSize}/{@code keyword}/{@code source}/
-     * {@code agentId}，§1.16）；分页门槛的文案是标准中文（见 {@link #bindPagination}），
-     * 不再是 go-playground 的 tag 文案。响应是 {@link SessionListResponse}（§2.1）。</p>
+     * <p>查询参数是 camelCase（{@code page}/{@code pageSize}/{@code keyword}/{@code source}/
+     * {@code agentId}，§1.16）；分页门槛的文案是标准中文（见 {@link #bindPagination}）。
+     * 响应是 {@link SessionListResponse}（§2.1）。</p>
      */
     @GetMapping("/api/v1/sessions")
     public SessionListResponse getSessionsByTenant(
@@ -228,7 +220,7 @@ public class SessionController {
     // ══════════════════════════ 更新 ══════════════════════════
 
     /**
-     * 对照 Go {@code UpdateSession}（L292-348）：更新成功后**重新加载**再返回
+     * 更新成功后**重新加载**再返回
      * （拿完整的落库时间戳），这是响应与请求体不同源的原因。
      */
     @PutMapping("/api/v1/sessions/{id}")
@@ -275,7 +267,7 @@ public class SessionController {
 
     // ══════════════════════════ 删除 ══════════════════════════
 
-    /** 对照 Go {@code DeleteSession}（L362-392）。换锚后：同步删除 → <b>204</b>（§1.13）。 */
+    /** 删除会话：同步删除 → <b>204</b>（§1.13）。 */
     @DeleteMapping("/api/v1/sessions/{id}")
     public ResponseEntity<Void> deleteSession(@PathVariable("id") String id) {
         String sessionId = LogSanitizer.sanitize(id);
@@ -294,8 +286,8 @@ public class SessionController {
     }
 
     /**
-     * 对照 Go {@code BatchDeleteSessions}（L455-514）：{@code deleteAll=true} 走全量删除；
-     * 否则要求非空 ids，逐个 sanitize 后丢弃空项。换锚后：<b>204</b>（同步删除）。
+     * {@code deleteAll=true} 走全量删除；
+     * 否则要求非空 ids，逐个 sanitize 后丢弃空项。成功 → <b>204</b>（同步删除）。
      */
     @DeleteMapping("/api/v1/sessions/batch")
     public ResponseEntity<Void> batchDeleteSessions(
@@ -337,7 +329,6 @@ public class SessionController {
     // ══════════════════════════ 清空消息 ══════════════════════════
 
     /**
-     * 对照 Go {@code ClearSessionMessages}（handler.go L407-435，路由 L59）：
      * 会话本身保留，消息全软删（含建议与聊天历史知识清理——在 MessageService 里）。
      * 会话不可见 → 404 "session not found"。
      */
@@ -360,20 +351,19 @@ public class SessionController {
 
     // ══════════════════════════ 置顶 ══════════════════════════
 
-    /** 对照 Go {@code PinSession}（L527-529）。换锚后：200 + {@code {"pinned":true}}。 */
+    /** 置顶：200 + {@code {"pinned":true}}。 */
     @PostMapping("/api/v1/sessions/{sessionId}/pin")
     public SessionPinResponse pinSession(@PathVariable("sessionId") String sessionId) {
         return setSessionPinned(sessionId, true);
     }
 
-    /** 对照 Go {@code UnpinSession}（L542-544）。 */
     @DeleteMapping("/api/v1/sessions/{id}/pin")
     public SessionPinResponse unpinSession(@PathVariable("id") String id) {
         return setSessionPinned(id, false);
     }
 
     /**
-     * 对照 Go {@code setSessionPinned}（L546-582）：服务层报错 → 500（不是 404）；
+     * 服务层报错 → 500（不是 404）；
      * 0 行受影响（不存在/不可见）→ 404 {@code "session not found"}。
      */
     private SessionPinResponse setSessionPinned(String rawId, boolean pinned) {
@@ -393,10 +383,9 @@ public class SessionController {
         return new SessionPinResponse(pinned);
     }
 
-    // ══════════════════════════ 产物（波 1 G6） ══════════════════════════
+    // ══════════════════════════ 产物 ══════════════════════════
 
     /**
-     * 对照 Go {@code ListSessionArtifacts}（artifact_download.go L49-93）：
      * 会话全部 assistant 消息的产物元数据，**不含存储 URL**——客户端不能绕过
      * download 端点直接读 provider:// 路径。
      */
@@ -406,7 +395,7 @@ public class SessionController {
         if (sessionId.isEmpty()) {
             throw new BizException(AppError.badRequest("invalid session id"));
         }
-        // 归属校验走 GetSession（读可见性，与 Go 相同）
+        // 归属校验走 GetSession（读可见性）
         try {
             sessionService.getSession(sessionId);
         } catch (SessionNotFoundException e) {
@@ -423,7 +412,7 @@ public class SessionController {
         return artifactListItems(artifacts);
     }
 
-    /** 对照 Go {@code ListMessageArtifacts}（L103-144）。换锚后：裸数组。 */
+    /** 消息产物列表：裸数组。 */
     @GetMapping("/api/v1/sessions/{id}/messages/{messageId}/artifacts")
     public List<ArtifactView> listMessageArtifacts(
             @PathVariable("id") String id,
@@ -454,11 +443,8 @@ public class SessionController {
     }
 
     /**
-     * 对照 Go {@code DownloadMessageArtifact}（L152-258）。
-     *
-     * <p>确定性分支逐条对照（400/404 文案固定）；实际取文件依赖 access 层的
-     * 资源目录解析（未翻译）——Go 在 catalog 查不到资源时同样回
-     * 404 "artifact not accessible"，Java 恒落该分支（provider 级文件服务未翻译）。</p>
+     * <p>参数/范围分支的 400/404 文案固定；实际取文件依赖的资源目录解析
+     * 未实现——恒回 404 "artifact not accessible"。</p>
      */
     @GetMapping("/api/v1/sessions/{id}/messages/{messageId}/artifacts/{index}/download")
     public ResponseEntity<Void> downloadMessageArtifact(
@@ -502,13 +488,11 @@ public class SessionController {
         if (artifact.getUrl() == null || artifact.getUrl().isEmpty()) {
             throw BizException.notFound("artifact storage path missing");
         }
-        // access.ResolveMessageArtifact（资源目录/共享授权）未翻译——与 Go 的
-        // catalog 查不到资源同一出口：404 "artifact not accessible"。
-        // （Go 的 fileService==nil → 500 分支生产装配不可达；Java 侧同理不设。）
+        // 资源目录/共享授权解析未实现：恒落 404 "artifact not accessible"。
         throw BizException.notFound("artifact not accessible");
     }
 
-    /** 对照 Go {@code artifactListItem}（L265-279）：{@code index} 是列表下标、其余字段照抄。 */
+    /** {@code index} 是列表下标，其余字段取自产物本体。 */
     private static List<ArtifactView> artifactListItems(
             List<com.ragagent.session.domain.MessageArtifact> artifacts) {
         List<ArtifactView> items = new ArrayList<>(artifacts.size());
@@ -520,11 +504,11 @@ public class SessionController {
 
 
 
-    // ══════════════════════════ 生成标题（波 1 G6） ══════════════════════════
+    // ══════════════════════════ 生成标题 ══════════════════════════
 
     /**
-     * 对照 Go {@code GenerateTitle}（title.go L25-76）。写会话行，用严格 owner 范围
-     * （GetOwnedSession——管理员可读不可改）。响应 {"data":title,"success":true}。
+     * 写会话行，用严格 owner 范围
+     * （GetOwnedSession——管理员可读不可改）。响应 {@code {"title":"…"}}。
      */
     @PostMapping("/api/v1/sessions/{sessionId}/generate_title")
     public GenerateTitleResponse generateTitle(
@@ -551,11 +535,9 @@ public class SessionController {
         return new GenerateTitleResponse(title);
     }
 
-    // ══════════════════════════ 停止生成（波 1 G6） ══════════════════════════
+    // ══════════════════════════ 停止生成 ══════════════════════════
 
     /**
-     * 对照 Go {@code StopSession}（stream.go L219-324）。
-     *
      * <p>⚠️ 错误形态与组内其他端点不同：Go 直接 {@code c.JSON(code, gin.H{"error": "..."})}
      * ——纯字符串信封（**不是** AppError 信封），状态码有 400/401/403/404 五种。
      * 停止事件经 StreamManager 落存储（跨语言键空间），事件 type 是
@@ -596,12 +578,12 @@ public class SessionController {
             return errorBody(404, "Session not found");
         }
         if (session.getTenantId() == null || session.getTenantId().longValue() != tenantId) {
-            // ⚠️ Long 比较必须拆箱（陷阱 §5 第 6 条：租户 10002 超出缓存区间，
-            // 引用比较恒不等 → 误判 "Access denied"，G6 契约测试抓回）
+            // ⚠️ Long 比较必须拆箱/equals（租户 id 超出 Integer 缓存区间时
+            // 引用比较恒不等 → 会误判 "Access denied"）
             return errorBody(403, "Access denied");
         }
         if (message.isCompleted()) {
-            // 已经结束的消息是幂等的成功（换锚后不再回 message 文案，§1.17）
+            // 已经结束的消息是幂等的成功（不回 message 文案，§1.17）
             return ResponseEntity.noContent().build();
         }
 
@@ -623,11 +605,10 @@ public class SessionController {
     }
 
     /**
-     * Go 的 {@code c.JSON(code, gin.H{"error": "..."})}：纯字符串错误信封。
+     * 纯字符串错误信封 {@code {"error": "..."}}。
      *
-     * <p>⚠️ 只有 {@code stop} 端点用它（Go 原文如此）；其余端点的错误都是 AppError 信封。
-     * 错误形态统一是独立的一批（§14.9 第 ④ 项），本批不混轴——所以这里连成功响应
-     * 也只能是 {@link ResponseEntity}{@code <?>}。</p>
+     * <p>⚠️ 只有 {@code stop} 端点用它；其余端点的错误都是 AppError 信封。
+     * 所以这里连成功响应也只能是 {@link ResponseEntity}{@code <?>}。</p>
      */
     private static ResponseEntity<Map<String, Object>> errorBody(int status, String message) {
         Map<String, Object> body = new LinkedHashMap<>();

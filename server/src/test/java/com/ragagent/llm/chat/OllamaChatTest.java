@@ -31,17 +31,16 @@ import com.ragagent.llm.ollama.OllamaToolCall;
 import org.junit.jupiter.api.Test;
 
 /**
- * Ollama chat 路径的语义测试（Go 侧 internal/models/chat/ollama.go 没有对应测试文件，
- * 这里按代码逐条建契约，覆盖"最容易翻错"的几处）。
+ * Ollama chat 路径的语义测试（按代码逐条建契约，覆盖最容易出错的几处）。
  *
- * <p>用 {@link FakeOllamaService} 替换真实服务（对照 Go 侧直接传一个 service 指针的做法），
+ * <p>用 {@link FakeOllamaService} 替换真实服务，
  * 假服务返回的响应体从 JSON 解析，顺带把线上字段名也钉住了。</p>
  */
 class OllamaChatTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** 对照 Go {@code NewOllamaChat(config, ollamaService)} 里的注入方式。 */
+    /** 以构造器注入的方式替换真实服务。 */
     private static final class FakeOllamaService extends OllamaService {
 
         private final List<OllamaChatResponse> responses = new ArrayList<>();
@@ -149,7 +148,7 @@ class OllamaChatTest {
         assertEquals(true, sent.get("stream").asBoolean());
     }
 
-    /** opts 为 null 时只有空 options（Go 里 Options 已 make，故输出 {}）。 */
+    /** opts 为 null 时只有空 options（输出 {}）。 */
     @Test
     void buildChatRequestWithoutOptions() {
         JsonNode sent = MAPPER.valueToTree(
@@ -220,7 +219,7 @@ class OllamaChatTest {
         assertTrue(outboundJson.get("id") == null, "Ollama 的工具调用没有语义化 ID");
         assertEquals(3, outboundJson.get("function").get("index").asInt());
 
-        // 非数字 ID → index 0（对照 Go 忽略 Atoi 的错误）
+        // 非数字 ID → index 0（解析失败按 0 处理）
         assertEquals(0, client.toolCallFrom(List.of(new ToolCall())).get(0).getFunction().getIndex());
 
         OllamaToolCall inbound = MAPPER.readValue(
@@ -320,7 +319,7 @@ class OllamaChatTest {
         assertEquals("thinking_tool", chunks.get(4).getData().get("source"));
         assertEquals("0", chunks.get(4).getData().get("tool_call_id"));
 
-        // 终态：流式补全量直接用 eval_count（与非流式口径不同，照抄 Go）
+        // 终态：流式补全量直接用 eval_count（与非流式口径不同）
         StreamResponse last = chunks.get(5);
         assertEquals(ResponseType.ANSWER, last.getResponseType());
         assertTrue(last.isDone());

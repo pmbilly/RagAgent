@@ -14,9 +14,9 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.agent.support.Fetcher;
 
 /**
- * WEB_FETCH 阶段插件（对照 Go chat_pipeline/web_fetch.go）：rerank 之后对 web 结果
+ * WEB_FETCH 阶段插件：rerank 之后对 web 结果
  * 抓取全文替换摘要，topN 默认 3；单页超 8000 字节截断追加 "\n...(truncated)"。
- * 抓取走 webfetch 的 pipeline fetcher（4.4：15s/100KB + SSRF 守卫）。
+ * 抓取走 webfetch 的 pipeline fetcher（15s/100KB + SSRF 守卫）。
  */
 public final class PluginWebFetch implements Plugin {
 
@@ -59,7 +59,7 @@ public final class PluginWebFetch implements Plugin {
             return next.next();
         }
 
-        // 并发抓取（对照 goroutine 组；web_fetch.FetchURLContent = NewPipelineFetcher().Fetch）
+        // 并发抓取（经 pipeline fetcher）
         String[] contents = new String[webResults.size()];
         Throwable[] errors = new Throwable[webResults.size()];
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {

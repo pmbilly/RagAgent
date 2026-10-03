@@ -55,7 +55,7 @@ final class WikiMaintenanceOps {
     /**
      * 体检——读端点（Viewer+ 角色 + KB 读权限）。
      *
-     * <p>⚠️ 报告里的 {@code issues} 在"零问题"时是 JSON {@code null}（与原实现的 nil 切片一致），
+     * <p>⚠️ 报告里的 {@code issues} 在"零问题"时是 JSON {@code null}（不是空数组），
      * 由 {@code WikiLintReport} 的 {@code @JsonInclude(ALWAYS)} + 服务层共同保证。</p>
      */
     ResponseEntity<?> lint(String kbId) {

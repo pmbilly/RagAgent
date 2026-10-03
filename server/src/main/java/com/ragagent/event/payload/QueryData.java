@@ -7,10 +7,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 查询相关事件数据（对照 Go {@code event.QueryData}，internal/event/event_data.go:8-14）。
+ * 查询相关事件数据。
  *
- * <p>字段序 = Go struct 声明序；带 omitempty 的字段 {@code NON_DEFAULT}/{@code NON_EMPTY}
- * （0/空/false/null 省略，对照 Go 的零值省略），不带 omitempty 的恒输出（零值也输出）。</p>
+ * <p>字段按声明序输出；标 {@code NON_DEFAULT}/{@code NON_EMPTY} 的字段
+ * （0/空/false/null）省略，其余恒输出（零值也输出）。</p>
  */
 @JsonPropertyOrder({"original_query", "rewritten_query", "session_id", "user_id", "extra"})
 public class QueryData {
@@ -18,7 +18,7 @@ public class QueryData {
     @JsonProperty("original_query")
     private String originalQuery = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("rewritten_query")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String rewrittenQuery = "";
@@ -26,12 +26,12 @@ public class QueryData {
     @JsonProperty("session_id")
     private String sessionId = "";
 
-    /** Go omitempty */
+    /** 空串省略 */
     @JsonProperty("user_id")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     private String userId = "";
 
-    /** Go omitempty（nil 或空 map 都省略） */
+    /** null 或空 map 都省略 */
     @JsonProperty("extra")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private Map<String, Object> extra;

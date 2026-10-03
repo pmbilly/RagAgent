@@ -3,7 +3,7 @@ package com.ragagent.common.retrieval;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 检索驱动的部署配置（{@code RETRIEVE_DRIVER}，B6 批 3）。
+ * 检索驱动的部署配置（{@code RETRIEVE_DRIVER}）。
  *
  * <p>env 名保持原样：{@code RETRIEVE_DRIVER} → {@code retrieve.driver}（Spring 松散绑定），
  * 部署侧 .env 不需要改。</p>

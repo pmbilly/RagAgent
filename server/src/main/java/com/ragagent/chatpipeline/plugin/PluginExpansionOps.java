@@ -18,22 +18,21 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.event.TenantContextSnapshot;
 
 /**
- * 查询扩展协作者（对照 Go query_expansion.go 全文，自 {@link PluginSearch} 机械搬出）：
+ * 查询扩展协作者（自 {@link PluginSearch} 拆出）：
  * 低召回时的本地变体检索（并发窗口 16）与变体查询生成（关键词/短语/去疑问词）。
  * 持门面回引取 knowledgeBaseService；{@code withTenant}/{@code QueryTextOps} 经类名访问。
  */
 final class PluginExpansionOps {
-
     private final PluginSearch service;
 
     PluginExpansionOps(PluginSearch service) {
         this.service = service;
     }
 
-    // 查询扩展（query_expansion.go 全文）
+    // 查询扩展
     // ------------------------------------------------------------------
 
-    /** 对照 runQueryExpansion：低召回时的本地变体检索，并发窗口 16。 */
+    /** 低召回时的本地变体检索，并发窗口 16。 */
     public List<SearchResult> runQueryExpansion(ChatManage chatManage) {
         Map<String, Object> f = new LinkedHashMap<>();
         f.put("current", chatManage.getSearchResult().size());
@@ -55,7 +54,7 @@ final class PluginExpansionOps {
         List<SearchResult> expResults = new ArrayList<>();
         Object lock = new Object();
 
-        // 统计有效作业数（跳过 nil / 空 KB ID 的目标）
+        // 统计有效作业数（跳过 null / 空 KB ID 的目标）
         List<Object[]> jobs = new ArrayList<>();
         for (String q : expansions) {
             for (SearchTarget target : chatManage.getSearchTargets()) {
@@ -146,7 +145,7 @@ final class PluginExpansionOps {
     }
 
     /**
-     * 对照 expandQueries：无 LLM 的本地变体生成（去停用词、引号短语、分隔符切段、
+     * 无 LLM 的本地变体生成（去停用词、引号短语、分隔符切段、
      * 去疑问词），最多 5 条。
      */
     public List<String> expandQueries(ChatManage chatManage) {
@@ -174,7 +173,7 @@ final class PluginExpansionOps {
             addIfNew(expansions, seen, phrase);
         }
 
-        // 3. 分隔符切段取长段（Go 的 len(seg) > 5 是 UTF-8 字节数：CJK 短语按字节计入）
+        // 3. 分隔符切段取长段（按 UTF-8 字节数 &gt; 5：CJK 短语按字节计入）
         for (String seg : QueryTextOps.splitByDelimiters(query)) {
             if (seg.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 5) {
                 addIfNew(expansions, seen, seg);
@@ -199,7 +198,7 @@ final class PluginExpansionOps {
 
     private static void addIfNew(List<String> expansions, Set<String> seen, String s) {
         String v = s.trim();
-        // Go 的 len(s) 是 UTF-8 字节数（ASCII 短语 &lt;3 与单 CJK 字符 =3 字节的分界都要对齐）
+        // 按 UTF-8 字节数计（ASCII 短语 &lt;3 与单 CJK 字符 =3 字节的分界都要对齐）
         if (v.isEmpty() || v.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 3) {
             return;
         }

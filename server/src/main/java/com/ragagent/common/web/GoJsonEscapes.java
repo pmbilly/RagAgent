@@ -7,17 +7,17 @@ import com.fasterxml.jackson.core.io.SerializedString;
 /**
  * 把 Jackson 的字符串转义改成与 Go {@code encoding/json} <b>逐字节一致</b>。
  *
- * <h2>实测的两侧差异</h2>
+ * <h2>两侧差异</h2>
  *
- * <p>实测 Go 的 {@code json.Marshal}（默认开启 HTML 转义）对
- * {@code hi <b>&</b>} 输出 {@code "hi <b>&</b>"} 的转义形态。与
+ * <p>目标行为：{@code json.Marshal}（默认开启 HTML 转义）会把
+ * {@code hi <b>&</b>} 输出为转义形态。与
  * Jackson 默认行为相比，只有三类不同：</p>
  * <ol>
  *   <li>{@code <}、{@code >}、{@code &}：Go 转成 {@code <} 一类的形式，
  *       Jackson <b>原样输出</b>；</li>
  *   <li>其余控制字符（{@code 0x00-0x1F} 中除 {@code \b \t \n \f \r} 之外）：
- *       Go 用小写十六进制，Jackson 用大写；</li>
- *   <li>U+2028 / U+2029：Go 会转义（<b>本类未复刻</b>，见下）。</li>
+ *       目标格式用小写十六进制，Jackson 用大写；</li>
+ *   <li>U+2028 / U+2029：目标格式会转义（<b>本类不管</b>，见下）。</li>
  * </ol>
  *
  * <p><b>注意</b>：Jackson 的 {@code CharacterEscapes} 是**整表替换**而不是叠加——
@@ -25,24 +25,24 @@ import com.fasterxml.jackson.core.io.SerializedString;
  * 虽然两侧行为本来就一致，也必须在这里显式声明（实现时漏掉，`\n`/`\t`/`\b` 直接漏成了原文，
  * 由 {@code StreamJsonTest} 抓到）。</p>
  *
- * <h2>不复刻会怎样</h2>
+ * <h2>不对齐会怎样</h2>
  *
  * <p>事件落的是 Go 与 Java <b>共用</b>的 Redis 键。JSON 本身两边都读得懂，功能上不炸；
  * 但 {@code ClearLiveRun} 的 CAS 是在原始 JSON 上做子串匹配、
  * {@code UpdateSteerEventData} 的 CAS 是拿读到的原文比对槽位——两个实现写出的字节
- * 不同时，跨语言的这两条 CAS 会一路重试到放弃。复刻转义规则把这类"偶发跨语言失败"
+ * 不同时，跨语言的这两条 CAS 会一路重试到放弃。对齐转义规则把这类"偶发跨语言失败"
  * 整体消掉。</p>
  *
  * <h2>为什么 U+2028 / U+2029 不管</h2>
  *
  * <p>Jackson 的 {@code CharacterEscapes} 只管 7-bit 那段，非 ASCII 走另一条路径
- * （要复刻得开 {@code ESCAPE_NON_ASCII}，而那会把中文也一起转义，反而偏离 Go）。
+ * （要对齐得开 {@code ESCAPE_NON_ASCII}，而那会把中文也一起转义，反而偏离目标格式）。
  * 这两个字符出现在流事件正文里的概率可以忽略——真正参与 CAS 比对的是 {@code id} 与
  * {@code assistant_message_id}，都是 UUID 形态。</p>
  */
 final public class GoJsonEscapes extends CharacterEscapes {
 
-    /** Go 的十六进制字母表是小写的（{@code const hex = "0123456789abcdef"}）。 */
+    /** 十六进制字母表必须小写（{@code 0123456789abcdef}）。 */
     private static final char[] LOWER_HEX = "0123456789abcdef".toCharArray();
 
     private final int[] ascii;
@@ -56,7 +56,7 @@ final public class GoJsonEscapes extends CharacterEscapes {
         // 引号与反斜杠同理
         table['"'] = ESCAPE_CUSTOM;
         table['\\'] = ESCAPE_CUSTOM;
-        // Go 默认（未调 SetEscapeHTML(false)）就会转义这三个
+        // 目标格式默认开启 HTML 转义，这三个字符要转义
         table['<'] = ESCAPE_CUSTOM;
         table['>'] = ESCAPE_CUSTOM;
         table['&'] = ESCAPE_CUSTOM;

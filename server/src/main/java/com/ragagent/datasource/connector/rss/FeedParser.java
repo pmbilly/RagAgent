@@ -6,22 +6,22 @@ import java.util.List;
 /**
  * <b>接缝（seam）</b>：feed 解析器。
  *
- * <h2>Go 侧是什么</h2>
- * <p>Go 的实现是 {@code github.com/mmcdole/gofeed} 的
+ * <h2>目标语义</h2>
+ * <p>参照 {@code github.com/mmcdole/gofeed} 的
  * {@code gofeed.NewParser().Parse(reader)}，它支持 <b>RSS 0.9x / 1.0 / 2.0、Atom 1.0、
  * 以及 JSON Feed</b>，并且用一个非常宽松的、自研的 XML pull parser（goxpp）
  * 读文档——连未声明的 HTML 实体（{@code &nbsp;}）和裸 {@code &} 都能容忍。</p>
  *
- * <h2>Java 侧为什么是一个接口</h2>
- * <p>本项目<b>不允许为了翻译而新增依赖</b>，而 gofeed 没有任何等价的 Java 库。
+ * <h2>为什么是一个接口</h2>
+ * <p>gofeed 没有任何等价的 Java 库。
  * 所以解析这一步被抽成接口，默认实现是
  * {@link JdkXmlFeedParser}——用 JDK 自带的 DOM 解析器（不算新依赖）
  * 实现 <b>字段子集</b>。将来若要引入 feed 库（或自己补齐），
  * 只需另写一个实现并在 {@link RssConnector} 的构造器里换上，连接器的其余逻辑一行不动。</p>
  *
  * <h2>接口只暴露连接器真正用到的字段</h2>
- * <p>Go 的 {@code gofeed.Feed}/{@code gofeed.Item} 有几十个字段，
- * 但 RSS 连接器只读下面这几个（见 {@code connector.go} 的 {@code ListResources} 与
+ * <p>参照库有几十个字段，
+ * 但 RSS 连接器只读下面这几个（见 {@code listResources} 与
  * {@code resolveItem}）：</p>
  * <pre>
  *   Feed : Title / Description / Link / UpdatedParsed / Items
@@ -45,14 +45,14 @@ import java.util.List;
  *   <li><b>Atom 条目的 link 只认 {@code rel="alternate"}</b>——gofeed 的
  *       {@code firstLinkWithType("alternate", …)} 是<b>精确匹配</b>，
  *       没有 {@code rel} 属性的 {@code <link href="…"/>} 取不到值。
- *       这个反直觉的行为照抄了（{@code JdkXmlFeedParser} 有对应测试钉住）。</li>
+ *       这个反直觉的行为保持一致（{@code JdkXmlFeedParser} 有对应测试钉住）。</li>
  * </ul>
  *
  * <h2>失败语义</h2>
  * <p>解析失败抛 {@link FeedParseException}，消息会原样进入
  * {@code "parse feed <url>: <msg>"} / {@code ListResources} 的
- * {@code "parse failed: <msg>"}。Go 的非 feed 文档报 {@code "Failed to detect feed type"}
- * ——Java 侧对"根元素不是 rss/rdf/feed"的情况也用这条文案。</p>
+ * {@code "parse failed: <msg>"}。非 feed 文档报 {@code "Failed to detect feed type"}
+ * ——这里对"根元素不是 rss/rdf/feed"的情况也用这条文案。</p>
  */
 public interface FeedParser {
 
@@ -65,7 +65,7 @@ public interface FeedParser {
     ParsedFeed parse(byte[] data);
 
     /**
-     * 连接器用到的 feed 字段子集（对照 {@code gofeed.Feed} 的子集）。
+     * 连接器用到的 feed 字段子集（参照 {@code gofeed.Feed} 的子集）。
      *
      * <p>{@code updatedParsed} 可为 {@code null}（RSS 没有 {@code lastBuildDate}/{@code dc:date}
      * 时就是这样）——{@code ListResources} 只有非 null 才回填 {@code modified_at}。</p>

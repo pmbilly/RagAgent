@@ -14,12 +14,11 @@ import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
 
 /**
- * CHAT_COMPLETION 阶段插件（对照 Go chat_pipeline/chat_completion.go）：
+ * CHAT_COMPLETION 阶段插件：
  * 非流式生成——组消息（历史 + 模型上下文句柄化）→ 调模型 → 解码响应 →
  * ChatResponse 挂回 ChatManage。
  *
- * <p>Go 的 withPromptCacheMetadata（PromptPrefixFingerprint + WithLLMCallMetadata）
- * 不翻（4.6b 备案③：Java 客户端无 ctx 形参、无消费点）。</p>
+ * <p>提示词缓存指纹元数据不接线（LLM 客户端无 ctx 形参、无消费点）。</p>
  */
 public final class PluginChatCompletion implements Plugin {
 

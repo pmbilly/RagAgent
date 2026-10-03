@@ -26,10 +26,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  *       探测 "properties": 42 这类坏 schema）。</li>
  * </ul>
  *
- * <p><b>为什么手写校验器</b>：Maven 无与既定实现逐字节等价的现成校验器；引第三方库会带来
- * 传递依赖且复刻不了 "no URLLoader set" 的边界。MCP 入参校验的特征集
+ * <p><b>为什么手写校验器</b>：Maven 无逐字节等价的现成校验器；引第三方库会带来
+ * 传递依赖且无法复现 "no URLLoader set" 的边界。MCP 入参校验的特征集
  * 是封闭的（语料：type 数组/required/additionalProperties/items/
- * uniqueItems/oneOf/allOf/anyOf/if-then-else/const/minLength(按 rune)/minimum/$defs+本地
+ * uniqueItems/oneOf/allOf/anyOf/if-then-else/const/minLength(按码点)/minimum/$defs+本地
  * $ref/布尔 schema），本实现按该语料全覆盖，深度上限防御恶意递归。</p>
  */
 public final class McpInputSchemaValidator {
@@ -214,7 +214,7 @@ public final class McpInputSchemaValidator {
             }
         }
 
-        // 字符串长度按 code point 计（实录："中文" 过 minLength 2）
+        // 字符串长度按 code point 计（如 "中文" 过 minLength 2）
         if (value.isTextual()) {
             JsonNode minLength = schema.get("minLength");
             if (minLength != null && minLength.isNumber()
@@ -427,7 +427,7 @@ public final class McpInputSchemaValidator {
         };
     }
 
-    /** JSON 值等值（数字按数值比较——1 与 1.0 相等，实录 [1,"2] 分界）。 */
+    /** JSON 值等值（数字按数值比较——1 与 1.0 相等，1 与 "2" 不等）。 */
     private static boolean jsonEquals(JsonNode a, JsonNode b) {
         if (a.isNumber() && b.isNumber()) {
             return a.decimalValue().compareTo(b.decimalValue()) == 0;

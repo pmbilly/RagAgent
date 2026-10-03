@@ -43,20 +43,19 @@ import com.ragagent.stream.StreamEvent;
 import com.ragagent.stream.StreamManager;
 
 /**
- * agent 事件订阅桥（对照 Go internal/handler/session/agent_stream_handler.go 全文）。
+ * agent 事件订阅桥。
  *
  * <p>每个请求一条专属 EventBus（无 SessionID 过滤），事件按到达序 AppendEvent 进
  * StreamManager（不做累积——前端按 event id 累积）。</p>
  *
- * <h2>17 种事件订阅 + final_answer 分片重组（最高危，逐条对照 Go）</h2>
+ * <h2>17 种事件订阅 + final_answer 分片重组（最高危）</h2>
  * <ul>
  *   <li><b>superseded preamble 剔除</b>：一次非终局轮可能在它自己的 answer event id
  *       下流出一段前导（"让我搜一下…"），随后该轮决定调工具 → 这些段被标 superseded，
  *       不再进持久化的 Message.Content。tool_call 首次到达时统一标记。</li>
  *   <li><b>duration 记账</b>：thought/final_answer 用 evt.ID 记首 chunk 时间；
  *       tool_call/tool_result 用 ToolCallID。</li>
- *   <li><b>complete 事件</b>：usage 恒取（Go 的 typed-nil 语义在 4.6b 已定：
- *       Java 用 NullNode/instanceof 判别）；agent_steps 经 Sanitize 落库；
+ *   <li><b>complete 事件</b>：usage 恒取（缺省用 NullNode/instanceof 判别）；agent_steps 经 Sanitize 落库；
  *       finalAnswer 为空但有 FinalAnswer 时补发 fallback answer 事件对。</li>
  * </ul>
  *
@@ -76,7 +75,7 @@ public final class AgentStreamBridge {
     private final Message assistantMessage;
     private final StreamManager streamManager;
 
-    /** SSE 发射缝（§14 步骤 2：各 handler 的"组装 + 试追加 + 日志"样板收拢处）。 */
+    /** SSE 发射缝（各 handler 的"组装 + 试追加 + 日志"样板收拢处）。 */
     private final AgentStreamEmitter emitter;
     private final EventBus eventBus;
     // ---- State tracking ----
@@ -88,7 +87,7 @@ public final class AgentStreamBridge {
     private final Map<String, Long> eventStartTimes = new LinkedHashMap<>();
     private final Object mu = new Object();
 
-    /** 对照 answerSegment（agent_stream_handler.go L54-58）。 */
+    /** 单个 answer event id 下的分片累积。 */
     private static final class AnswerSegment {
         final String id;
         String content = "";
@@ -108,7 +107,7 @@ public final class AgentStreamBridge {
         return null;
     }
 
-    /** 对照 composeFinalAnswer：所有未 superseded 的段按到达序重组。 */
+    /** 所有未 superseded 的段按到达序重组。 */
     private String composeFinalAnswer() {
         StringBuilder b = new StringBuilder();
         for (AnswerSegment seg : answerSegments) {
@@ -139,7 +138,7 @@ public final class AgentStreamBridge {
     }
 
     /**
-     * 对照 emitArtifactsPending（agent_stream_handler.go L841-858）：告知活 UI
+     * 告知活 UI
      * 沙箱有文件正在上传。count ≤ 0 直接跳过。
      */
     private void emitArtifactsPending(int count) {
@@ -619,7 +618,7 @@ public final class AgentStreamBridge {
         return null;
     }
 
-    // ── searchResultFromMap（helpers.go L467-508 的等价实现，见 StreamResponseBuilder 同款） ──
+    // ── searchResultFromMap（见 StreamResponseBuilder 同款） ──
 
     private static SearchResult searchResultFromMap(Map<?, ?> refMap) {
         SearchResult sr = new SearchResult();
@@ -672,7 +671,7 @@ public final class AgentStreamBridge {
         }
     }
 
-    /** 已订阅事件类型数（自检用，17 = Go 的订阅数）。 */
+    /** 已订阅事件类型数（自检用，应为 17）。 */
     public static Set<String> subscribedEventTypes() {
         Set<String> types = new LinkedHashSet<>();
         types.add(EventType.EVENT_AGENT_THOUGHT);

@@ -33,19 +33,19 @@ import com.ragagent.im.runtime.ReplyMessage;
 import com.ragagent.im.runtime.ThinkDisplay;
 
 /**
- * 钉钉适配器（对照 Go {@code internal/im/dingtalk/adapter.go} L29-968）。
+ * 钉钉适配器。
  *
  * <p>三面：{@code Adapter}（验签/解析/发送）+ {@code StreamSender}（AI 卡片流式，可选）
  * + {@code FileDownloader}（downloadCode → 临时 URL → 取字节）。</p>
  *
- * <h2>照抄点</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>验签：{@code Timestamp}/{@code Sign} 头，时间窗 ±3600 秒，
  *       期望签名 = Base64(HMAC-SHA256({@code <timestamp>\n<clientSecret>}, clientSecret))
  *       （走共享 {@link ImAdapterVerify#dingtalkExpectedSignature}），定长比较；
- *       clientSecret 为空跳过（照 Go）；</li>
+ *       clientSecret 为空跳过；</li>
  *   <li>解析：群聊判据 {@code conversationType == "2"}；userId 取 senderStaffId 回落 senderId；
- *       四段链 <b>richText → file/picture → audio → text</b>（顺序照 Go）；
+ *       四段链 <b>richText → file/picture → audio → text</b>（按此顺序）；
  *       richText 取文本片段（trim + 换行连接）+ 首图 downloadCode（原图优先回落预览码），
  *       多图时追加"仅处理第一张"提示；图片无 fileName → {@code <msgId>.png}；
  *       audio 取 recognition 作为文本；</li>
@@ -62,17 +62,17 @@ import com.ragagent.im.runtime.ThinkDisplay;
  *       逐次 {@code PUT /v1.0/card/streaming}（isFull=true、isFinalize、key=content）
  *       ——**500ms 节流**；EndStream 时 isFinalize=true；没有卡片就退回 sessionWebhook
  *       整段发出（再没有就 OpenAPI）；</li>
- *   <li>流 ID 是确定性的 {@code dt:<userId>:<messageId>}（照 Go）；</li>
+ *   <li>流 ID 是确定性的 {@code dt:<userId>:<messageId>}；</li>
  *   <li>token：{@code /v1.0/oauth2/accessToken}（appKey/appSecret）→ accessToken/expireIn，
  *       缓存留 5 分钟余量。</li>
  * </ul>
  *
- * <h2>与 Go 的实现差异（备案）</h2>
+ * <h2>实现差异（备案）</h2>
  * <ul>
- *   <li>孤儿流回收是惰性的（Go 起 ticker 每分钟清 5 分钟前的条目），在每次
+ *   <li>孤儿流回收是惰性的（清理 5 分钟前的条目），在每次
  *       {@link #startStream} 时顺带清理；</li>
- *   <li>Go 的 {@code replyViaOpenAPI} 把 {@code https://api.dingtalk.com} 写死在函数里，
- *       这里统一走可注入的 {@code apiBaseUrl}（生产同值；Go 的 apiBaseURL 变量本就是测试口）。</li>
+ *   <li>OpenAPI 回复统一走可注入的 {@code apiBaseUrl}（生产为
+ *       {@code https://api.dingtalk.com}，测试可指向本地 stub）。</li>
  * </ul>
  */
 public class DingtalkAdapter implements AdapterInterfaces.Adapter,
@@ -82,19 +82,19 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public static final String DEFAULT_API_BASE_URL = "https://api.dingtalk.com";
-    /** 群聊判据（照 Go {@code dingtalkConvTypeGroup}）。 */
+    /** 群聊判据。 */
     static final String CONV_TYPE_GROUP = "2";
-    /** 连续卡片更新的最小间隔（照 Go {@code minCardUpdateInterval}）。 */
+    /** 连续卡片更新的最小间隔。 */
     static final long MIN_CARD_UPDATE_INTERVAL_MS = 500;
     static final long STREAM_ORPHAN_TTL_MS = 5 * 60 * 1000L;
-    /** 临时下载链接的放行后缀（照 Go {@code allowedDingTalkDownloadHostSuffixes}）。 */
+    /** 临时下载链接的放行后缀。 */
     static final List<String> ALLOWED_DOWNLOAD_HOST_SUFFIXES =
             List.of(".aliyuncs.com", ".dingtalk.com");
 
-    /** 全局流表（照 Go 的包级 dStreams），key = stream ID。 */
+    /** 全局流表，key = stream ID。 */
     static final Map<String, StreamState> STREAMS = new ConcurrentHashMap<>();
 
-    /** 一条流的状态（对照 Go {@code streamState}）。 */
+    /** 一条流的状态。 */
     static final class StreamState {
         final long createdAt = System.currentTimeMillis();
         final Object lock = new Object();
@@ -138,13 +138,13 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         return ImTypes.PLATFORM_DINGTALK;
     }
 
-    /** 对照 Go：钉钉不走 URL 挑战。 */
+    /** 钉钉不走 URL 挑战。 */
     @Override
     public boolean handleURLVerification(CallbackExchange exchange) {
         return false;
     }
 
-    /** 对照 {@code VerifyCallback}：Sign/Timestamp 头 + ±1 小时时间窗 + 定长比较。 */
+    /** Sign/Timestamp 头 + ±1 小时时间窗 + 定长比较。 */
     @Override
     public Exception verifyCallback(CallbackExchange exchange) {
         if (clientSecret.isEmpty()) {
@@ -189,7 +189,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         return parseCallbackMessage(msg);
     }
 
-    /** 对照 {@code parseCallbackMessage}：richText → file/picture → audio → text。 */
+    /** 四段链：richText → file/picture → audio → text。 */
     static IncomingMessage parseCallbackMessage(JsonNode msg) {
         String conversationType = msg.path("conversationType").asText("");
         boolean isGroup = CONV_TYPE_GROUP.equals(conversationType);
@@ -245,7 +245,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         int pictureCount;
     }
 
-    /** 对照 {@code parseRichTextContent}：msgtype=richText 才认；否则 null。 */
+    /** msgtype=richText 才认；否则 null。 */
     static RichText parseRichTextContent(String msgType, JsonNode content) {
         if (msgType == null || !msgType.trim().equalsIgnoreCase("richText")) {
             return null;
@@ -277,7 +277,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         return result;
     }
 
-    /** 对照 {@code pictureDownloadCode}：type=picture 才认；原图码优先回落预览码。 */
+    /** type=picture 才认；原图码优先回落预览码。 */
     static String pictureDownloadCode(JsonNode item) {
         if (!item.path("type").asText("").trim().equalsIgnoreCase("picture")) {
             return "";
@@ -286,7 +286,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         return code.isEmpty() ? item.path("pictureDownloadCode").asText("") : code;
     }
 
-    /** 对照 {@code parseAudioContent}：msgtype=audio 且 recognition 非空。 */
+    /** msgtype=audio 且 recognition 非空。 */
     static String parseAudioContent(String msgType, JsonNode content) {
         if (msgType == null || !msgType.trim().equalsIgnoreCase("audio")) {
             return null;
@@ -302,7 +302,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
     record FileContent(String messageType, String fileName, String downloadCode) {
     }
 
-    /** 对照 {@code parseFileContent}：只认 file/picture；图片不带 fileName（服务端补扩展名）。 */
+    /** 只认 file/picture；图片不带 fileName（服务端补扩展名）。 */
     static FileContent parseFileContent(String msgType, JsonNode content) {
         String messageType;
         switch (msgType == null ? "" : msgType) {
@@ -326,7 +326,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         return new FileContent(messageType, fileName, downloadCode);
     }
 
-    /** 对照 {@code applyRichText}：有图 → 图片消息（取首图），否则文本；多图附提示。 */
+    /** 有图 → 图片消息（取首图），否则文本；多图附提示。 */
     static void applyRichText(IncomingMessage incoming, RichText rich, String msgId,
                               String robotCode) {
         incoming.content = rich.text;
@@ -348,7 +348,6 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 {@code appendDroppedPictureHint}。 */
     static String appendDroppedPictureHint(String text, int pictureCount) {
         String hint = String.format("（该消息共 %d 张图片，当前仅处理第一张）", pictureCount);
         if (text == null || text.trim().isEmpty()) {
@@ -357,7 +356,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         return text + "\n" + hint;
     }
 
-    /** 对照 {@code defaultFileName}：图片用 {@code <msgId>.png}，其余回落 msgId。 */
+    /** 图片用 {@code <msgId>.png}，其余回落 msgId。 */
     static String defaultFileName(String messageType, String fileName, String msgId) {
         if (fileName != null && !fileName.isEmpty()) {
             return fileName;
@@ -370,7 +369,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
 
     // ── 下载 ────────────────────────────────────────────────────────────────
 
-    /** 对照 {@code DownloadFile}：downloadCode → 临时 URL → 白名单/SSRF 校验 → 字节。 */
+    /** downloadCode → 临时 URL → 白名单/SSRF 校验 → 字节。 */
     @Override
     public DownloadedFile downloadFile(IncomingMessage msg) throws Exception {
         String downloadCode = msg.fileKey == null ? "" : msg.fileKey;
@@ -407,7 +406,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
                 msg.fileName == null ? "" : msg.fileName);
     }
 
-    /** 对照 {@code defaultValidateFileDownloadURL}：宿主机白名单放行，其余走 SSRF 校验。 */
+    /** 宿主机白名单放行，其余走 SSRF 校验。 */
     void validateFileDownloadUrl(String rawUrl) {
         if (isAllowedDownloadHost(rawUrl)) {
             return;
@@ -417,7 +416,6 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 {@code isAllowedDingTalkDownloadHost}。 */
     static boolean isAllowedDownloadHost(String rawUrl) {
         String host;
         try {
@@ -439,7 +437,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
 
     // ── 发送 ────────────────────────────────────────────────────────────────
 
-    /** 对照 {@code SendReply}：sessionWebhook 优先，否则 OpenAPI。 */
+    /** sessionWebhook 优先，否则 OpenAPI。 */
     @Override
     public void sendReply(IncomingMessage incoming, ReplyMessage reply) throws Exception {
         String content = ThinkDisplay.formatIMDisplayContent(
@@ -453,7 +451,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         replyViaOpenApi(incoming, content);
     }
 
-    /** 对照 {@code replyViaSessionWebhook}：markdown 直发（先过 SSRF 校验）。 */
+    /** markdown 直发（先过 SSRF 校验）。 */
     void replyViaSessionWebhook(String webhookUrl, String content) throws Exception {
         if (ssrfGuard != null) {
             try {
@@ -485,7 +483,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 {@code replyViaOpenAPI}：群 groupMessages/send，私聊 oToMessages/batchSend。 */
+    /** 群 groupMessages/send，私聊 oToMessages/batchSend。 */
     void replyViaOpenApi(IncomingMessage incoming, String content) throws Exception {
         String accessToken = getAccessToken();
         ObjectNode msgParam = MAPPER.createObjectNode();
@@ -523,7 +521,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         }
     }
 
-    /** 对照 {@code getAccessToken}：缓存留 5 分钟余量。 */
+    /** 缓存留 5 分钟余量。 */
     String getAccessToken() throws Exception {
         synchronized (tokenLock) {
             if (!token.isEmpty() && Instant.now().isBefore(tokenExpiresAt)) {
@@ -561,7 +559,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
 
     // ── AI 卡片与流式 ───────────────────────────────────────────────────────
 
-    /** 对照 {@code dingtalkAPI}：带 token 的通用调用（非 200 抛）。 */
+    /** 带 token 的通用调用（非 200 抛）。 */
     byte[] dingtalkApi(String method, String path, Object body) throws Exception {
         String accessToken = getAccessToken();
         HttpRequest request = HttpRequest.newBuilder(URI.create(apiBaseUrl + path))
@@ -581,7 +579,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         return respBody;
     }
 
-    /** 对照 {@code createAndDeliverCard}：outTrackId 即流 ID 之外的卡片句柄。 */
+    /** outTrackId 即流 ID 之外的卡片句柄。 */
     String createAndDeliverCard(IncomingMessage incoming) throws Exception {
         String outTrackId = UUID.randomUUID().toString();
 
@@ -624,7 +622,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         return outTrackId;
     }
 
-    /** 对照 {@code streamingUpdateCard}：PUT /v1.0/card/streaming（isFull 恒 true）。 */
+    /** PUT /v1.0/card/streaming（isFull 恒 true）。 */
     void streamingUpdateCard(String outTrackId, String content, boolean isFinalize)
             throws Exception {
         ObjectNode body = MAPPER.createObjectNode();
@@ -638,7 +636,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         dingtalkApi("PUT", "/v1.0/card/streaming", body);
     }
 
-    /** 对照 {@code purgeOrphans}（Go 是 ticker，这里是惰性）。 */
+    /** 惰性回收：清掉超过 TTL 的孤儿流。 */
     static void purgeOrphans() {
         long cutoff = System.currentTimeMillis() - STREAM_ORPHAN_TTL_MS;
         STREAMS.entrySet().removeIf(e -> e.getValue().createdAt < cutoff);
@@ -655,7 +653,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
         StreamState state = new StreamState();
         state.sessionWebhook = sessionWebhook;
 
-        // 配了卡片模板才建 AI 卡片；建卡失败退回 sessionWebhook 整段回复（照 Go 只警告）
+        // 配了卡片模板才建 AI 卡片；建卡失败退回 sessionWebhook 整段回复（只警告）
         if (!cardTemplateId.isEmpty()) {
             try {
                 state.outTrackId = createAndDeliverCard(incoming);
@@ -736,7 +734,7 @@ public class DingtalkAdapter implements AdapterInterfaces.Adapter,
             sessionWebhook = state.sessionWebhook;
         }
 
-        // 有卡片 → 定稿卡片；否则退回 sessionWebhook 整段发；再没有就走 OpenAPI（照 Go 都只警告）
+        // 有卡片 → 定稿卡片；否则退回 sessionWebhook 整段发；再没有就走 OpenAPI（都只警告）
         try {
             if (!outTrackId.isEmpty()) {
                 streamingUpdateCard(outTrackId, fullContent, true);

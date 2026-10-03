@@ -15,25 +15,24 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.pipeline.ChunkTypes;
 
 /**
- * references.go 的模型上下文装配（对照 chat_pipeline/references.go 全文）：
- * 把检索结果里的位置 ID 换成请求内 model 句柄。
+ * 模型上下文装配：把检索结果里的位置 ID 换成请求内 model 句柄。
  *
- * <h2>流程（实录组 references ×5 钉住）</h2>
+ * <h2>流程</h2>
  * prepareMessagesWithHistory 渲染基础消息 → 系统提示词尾接 Registry.ProtocolPrompt →
  * MergeResult 有内容时把知识行/web 行分别组装成两条 ModelToolResult（display_type=
  * search_results / web_search_results）注入消息：优先替换消息里现存的 RenderedContexts
  * 文本，替换失败则前置到最后一条消息。
  *
  * <p>FAQ 优先时 orderedPipelineReferences 把 FAQ 结果排到前面注册（句柄序 = 引用序）。
- * Registry（4.6a）承担句柄表/协议提示词/工具结果渲染的全部字节面。</p>
+ * Registry 承担句柄表/协议提示词/工具结果渲染的全部字节面。</p>
  */
 public final class ReferencesSupport {
 
     private ReferencesSupport() {}
 
     /**
-     * 对照 prepareMessagesWithModelContext：返回 (消息, Registry)。
-     * citationsEnabled nil 视为开启（Registry 的构造参数语义）。
+     * 返回消息与 Registry 的组装结果。
+     * citationsEnabled 为 null 视为开启（Registry 的构造参数语义）。
      */
     public static Assembly prepareMessagesWithModelContext(ChatManage chatManage) {
         boolean citationsEnabled = chatManage == null || chatManage.citationsEnabled();
@@ -80,7 +79,7 @@ public final class ReferencesSupport {
             row.put("content", getEnrichedPassageForChat(result));
             knowledgeRows.add(row);
         }
-        // Java 的 SearchResult 默认 null 字段在 Go 侧是 ""（Registry 按非空契约读取）
+        // SearchResult 字段默认可为 null，Registry 按非空契约读取，这里补齐空串
         for (SearchResult r : knowledgeResults) {
             if (r.getKnowledgeBaseId() == null) {
                 r.setKnowledgeBaseId("");
@@ -128,10 +127,10 @@ public final class ReferencesSupport {
         return new Assembly(messages, registry);
     }
 
-    /** (messages, registry) 双返回（对照 Go 的双值返回）。 */
+    /** (messages, registry) 组装结果。 */
     public record Assembly(List<ChatMessage> messages, Registry registry) {}
 
-    /** 对照 TrimRight(s, " \t\r\n")。 */
+    /** 去除尾部空白（空格/制表/回车/换行）。 */
     static String trimRightWhitespace(String s) {
         if (s == null) {
             return "";
@@ -148,7 +147,6 @@ public final class ReferencesSupport {
         return s.substring(0, end);
     }
 
-    /** 对照 isPipelineWebReference。 */
     static boolean isPipelineWebReference(SearchResult result) {
         if (result == null) {
             return false;
@@ -157,7 +155,7 @@ public final class ReferencesSupport {
                 || "web_search".equalsIgnoreCase(result.getKnowledgeSource());
     }
 
-    /** 对照 orderedPipelineReferences：FAQ 优先时 FAQ 结果先注册。 */
+    /** 引用排序：FAQ 优先开启时 FAQ 结果排前。 */
     static List<SearchResult> orderedPipelineReferences(ChatManage chatManage) {
         if (chatManage == null) {
             return null;
@@ -179,7 +177,7 @@ public final class ReferencesSupport {
         return ordered;
     }
 
-    /** 对照 firstPipelineTitle。 */
+    /** 标题取值：知识标题优先，空则回落文件名。 */
     static String firstPipelineTitle(SearchResult result) {
         if (result == null) {
             return "";
@@ -189,7 +187,7 @@ public final class ReferencesSupport {
         }
         return result.getKnowledgeFilename();
     }
-    /** 对照 getEnrichedPassageForChat：内容 + 图片信息合并（委托 knowledge.support）。 */
+    /** 内容 + 图片信息合并（委托 knowledge.support）。 */
     public static String getEnrichedPassageForChat(SearchResult result) {
         if (result.getContent().isEmpty() && result.getImageInfo().isEmpty()) {
             return "";

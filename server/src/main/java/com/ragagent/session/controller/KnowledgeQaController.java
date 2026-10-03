@@ -34,8 +34,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 
 /**
- * chat 三入口（对照 Go internal/handler/session/qa.go 全文 + stream.go 的
- * handleAgentEventsForSSE + quick_answer_timeline.go + helpers.go 的 handler 侧）。
+ * chat 三入口。
  *
  * <h2>三个端点</h2>
  * <ul>
@@ -44,7 +43,7 @@ import jakarta.servlet.http.HttpServletResponse;
  *   <li>POST /api/v1/knowledge-search — SearchKnowledge（无 LLM 总结检索）</li>
  * </ul>
  *
- * <h2>关键时序（Go 逐条对照，SSE 时序最高危）</h2>
+ * <h2>关键时序（SSE 时序最高危）</h2>
  * <ol>
  *   <li>agent 模式先 rejectIfOtherAgentRunLive（409）→ Emit(agent.query)；</li>
  *   <li>persistTurnMessages 先建 user/assistant 行；</li>
@@ -57,13 +56,13 @@ import jakarta.servlet.http.HttpServletResponse;
  *
  * <h2>已备案差异</h2>
  * <ul>
- *   <li>共享 agent 解析（W5α2 已收口）：resolveAgent 共享优先、source==0 才回落 own；
+ *   <li>共享 agent 解析：resolveAgent 共享优先、source==0 才回落 own；
  *       GetSharedAgentForTenant 的 ApplyBuiltinAgentLocalization 只覆盖
  *       name/description/avatar（QA 消费 config/tenant，不进字节契约），随 agent.management 装配层
  *       统一补齐；access.WithSharedAgent 的 KB grant 机制（检索授权收窄）随检索面
  *       专项收口——Java 检索租户已取 agentRow.tenantId（等价执行范围）。</li>
  *   <li>图片上传/附件的存储写入与 VLM 分析：saveImageAttachments 的对象存储写入
- *       在 dev（本地盘）与 Go 行为一致；VLM 分析 emit-only 形态保留。</li>
+ *       在 dev（本地盘）下同样生效；VLM 分析 emit-only 形态保留。</li>
  *   <li>临时附件的 ResolveForPrompt 内容选择（等待/跳过的事件形态保留，内容解析
  *       seam 随附件管线收口）。</li>
  * </ul>
@@ -74,22 +73,22 @@ public class KnowledgeQaController {
 
     private final SessionService sessionService;
 
-    /** 执行/落库簇（§14.9c 刀 6b）。 */
+    /** 执行/落库簇。 */
     private final QaTurnExecutor executor;
 
     /** 租户服务（A3-3 接线；原 @Autowired 字段，改构造注入保持可选语义）。 */
     private final com.ragagent.auth.service.TenantService tenantService;
 
-    /** 附件解析簇（§14.9c 刀 6a）。 */
+    /** 附件解析簇。 */
     private final QaAttachmentResolver attachmentResolver;
 
-    /** SSE 编排簇（§14.9c 刀 5）。 */
+    /** SSE 编排簇。 */
     private final QaSseOrchestrator sseOrchestrator;
 
-    /** 收尾簇（§14.9c 刀 7）。 */
+    /** 收尾簇。 */
     private final QaTurnFinalizer turnFinalizer;
 
-    /** 请求解析主体（§14.9c 刀 4b）。 */
+    /** 请求解析主体。 */
     private final QaRequestParser qaRequestParser;
     private final MessageService messageService;
     private final StreamManager streamManager;
@@ -129,7 +128,7 @@ public class KnowledgeQaController {
         this.emitter = emitter;
         this.sseFrameWriter = sseFrameWriter;
         // 两个端口按 ObjectProvider 取（A3-3 起 StorageBackendResolver 有生产实现）；
-        // 缺 bean 时 Rewriter 按 Go 的 nil 分支降级（handle 模式同形）
+        // 缺 bean 时 Rewriter 按未装配分支降级（handle 模式同形）
         this.fileService = fileService.getIfAvailable();
         this.storageBackendResolver = storageBackendResolver.getIfAvailable();
         this.memoryExtraction = memoryExtraction.getIfAvailable();
@@ -143,7 +142,7 @@ public class KnowledgeQaController {
                 this.attachmentResolver, this.tenantService);
 }
 
-    // ── 端点（qa.go L790-964） ───────────────────────────────────────────────
+    // ── 端点 ──────────────────────────────────────────────────────────────────
 
     @PostMapping("/api/v1/knowledge-chat/{session_id}")
     public void knowledgeQA(@PathVariable("session_id") String rawSessionId,
@@ -185,7 +184,7 @@ public class KnowledgeQaController {
     public List<SearchResult> searchKnowledge(@RequestBody(required = false) String rawBody) {
         SearchKnowledgeRequest request = QaRequestBinder.bindSearchRequest(rawBody);
         if (request.query.isEmpty()) {
-            // Go 的手动分支被 binding:required 拦截（不可达），保留对应物
+            // 空 query 已被绑定校验拦截，此分支仅兜底
             throw BizException.badRequest("Query content cannot be empty");
         }
 
@@ -224,18 +223,18 @@ public class KnowledgeQaController {
     // ── ShouldBindJSON 对应物（Go binding:required 文案逐字对齐） ─────────────
 
 
-    // ── parseQARequest（qa.go L126-429） ─────────────────────────────────────
+    // ── parseQARequest ────────────────────────────────────────────────────────
 
     record ParsedRequest(QaRequestContext reqCtx, CreateKnowledgeQARequest request) {}
 
 
-    /** 共享/自有 agent 解析（Go qa.go 的 resolveAgent；与附件上传入口共用同一组件）。 */
+    /** 共享/自有 agent 解析（与附件上传入口共用同一组件）。 */
     @org.springframework.beans.factory.annotation.Autowired
     private AgentResolver agentResolverField;
 
     /**
      * 读者租户实体（A3-3 接线）——供 Rewriter 解析"引用不带 provider scheme 时的租户默认
-     * provider"。此前恒传 null，等价于 Go 在 ctx 无租户时的降级（引用一律保留成 handle）；
+     * provider"。取不到租户实体时引用一律保留成 handle（降级形态）；
      * 现在按 TenantContext 的 id 取实体，与 {@code SystemController} /
      * {@code HybridSearchService} 同一写法。
      */
@@ -262,23 +261,11 @@ public class KnowledgeQaController {
     }
 
 
-    // ── executeQA（qa.go L1069-1324） ────────────────────────────────────────
+    // ── executeQA ─────────────────────────────────────────────────────────────
 
 
     // 曾有的 errorEventText（剥 BizException 取 appError().message()）已删除：
     // 其前提被线上 A/B 推翻（W5γ5.12），现统一走 BizException.wireText，理由见上面的调用点注释。
-
-
-    // ── persistTurnMessages / rollback（qa.go L978-1047） ────────────────────
-
-
-    // ── setupSSEStream（qa.go L659-775） ─────────────────────────────────────
-
-
-    // ── handleAgentEventsForSSE（stream.go L330-474） ─────────────────────────
-
-
-    // ── quick answer timeline（quick_answer_timeline.go 全文） ────────────────
 
 
     static AgentStep ensureQuickAnswerStep(Message msg) {
@@ -303,7 +290,7 @@ public class KnowledgeQaController {
         step.setReasoningContent(QaSupport.orEmpty(step.getReasoningContent()) + content);
     }
 
-    // ── 附件 / 完成 / 状态（qa.go L1417-1768） ───────────────────────────────
+    // ── 附件 / 完成 / 状态 ────────────────────────────────────────────────────
 
 
     /** 对照 secutils.GetMaxFileSize 的 dev 缺省（100MB 上传闸门同形）。 */

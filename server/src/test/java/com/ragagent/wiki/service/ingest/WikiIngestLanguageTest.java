@@ -20,11 +20,10 @@ import com.ragagent.common.wiki.WikiLanguageSupport;
 import com.ragagent.common.wiki.GoStrings;
 
 /**
- * 语言持久化与 prompt 渲染的对等测试（对照 Go
- * internal/application/service/wiki_ingest_language_test.go，134 行，用例逐条翻译）。
+ * 语言持久化与 prompt 渲染的测试。
  *
- * <p>Go 的 {@code ctx} 语言 → Java 的 {@link WikiLanguageSupport#setCurrentLocale}
- * （线程本地），语义一一对应：入队时落定 locale，下游 worker 从 op 载荷读。</p>
+ * <p>请求作用域的语言由 {@link WikiLanguageSupport#setCurrentLocale}
+ * （线程本地）承载：入队时落定 locale，下游 worker 从 op 载荷读。</p>
  */
 class WikiIngestLanguageTest {
 
@@ -35,7 +34,7 @@ class WikiIngestLanguageTest {
         WikiLanguageSupport.clearCurrentLocale();
     }
 
-    // ── TestNewWikiIngestPendingOpPersistsResolvedLanguage（Go L18-44） ──
+    // ── 待办 op 的语言持久化 ──
 
     @Test
     @DisplayName("TestNewWikiIngestPendingOpPersistsResolvedLanguage：请求 locale 被保留")
@@ -71,7 +70,7 @@ class WikiIngestLanguageTest {
         assertThat(op.getLanguage()).isNotEmpty();
     }
 
-    // ── TestResolveLanguageNameRecoversLegacyPendingOp（Go L49-57） ──
+    // ── 旧行的语言恢复 ──
 
     @Test
     @DisplayName("TestResolveLanguageNameRecoversLegacyPendingOp：语言字段为空的旧行仍产出本地化页面")
@@ -100,14 +99,14 @@ class WikiIngestLanguageTest {
             "de-DE, German",
             "es-ES, Spanish",
             "pt-BR, Portuguese",
-            // 未知 locale 原样透传（Go 的 default 分支）
+            // 未知 locale 原样透传
             "xx-YY, xx-YY"
     })
     void localeNameMapping(String locale, String want) {
         assertThat(WikiLanguageSupport.localeName(locale)).isEqualTo(want);
     }
 
-    // ── TestResolveSlugUpdateLanguage（Go L59-98） ──
+    // ── SlugUpdate 语言解析 ──
 
     @Test
     @DisplayName("TestResolveSlugUpdateLanguage：4 个子用例逐条对照")

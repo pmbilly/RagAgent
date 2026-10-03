@@ -33,7 +33,7 @@ public class Knowledge {
     private String id;
     private Long tenantId;
     private String knowledgeBaseId;
-    /** 无列映射标签 关联回填；阶段 3 不回填 → null */
+    /** 无列映射标签 关联回填；不回填 → 恒 null */
     @TableField(exist = false)
     private List<JsonNode> tags;
     private String type;

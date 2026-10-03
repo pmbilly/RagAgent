@@ -13,14 +13,11 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 /**
- * {@code memory_doc_affinity} 的仓储（对照 Go internal/application/repository/memory.go
- * L838-976 的 {@code BumpDocAffinity} / {@code DocAffinity} / {@code TopDocAffinity} /
- * {@code DocAffinityByID} / {@code ListFamiliarDocs} / {@code DeleteDocAffinity} /
- * {@code DeleteAllDocAffinity}）。
+ * {@code memory_doc_affinity} 的仓储。
  *
  * <p>唯一约束 {@code idx_mem_affinity_scope (tenant_id, subject_id, knowledge_id)}。</p>
  *
- * <p><b>一处刻意的照抄</b>：{@code BumpDocAffinity} 的 UPDATE 里
+ * <p><b>一处刻意的行为</b>：{@code bump} 的 UPDATE 里
  * {@code title} 与 {@code knowledge_base_id} 是**条件写**——只有传进来的值非空才覆盖。
  * 这是为了不让一次没带标题的引用把已有标题冲成空串。</p>
  */
@@ -51,7 +48,7 @@ public interface MemoryDocAffinityMapper extends BaseMapper<MemoryDocAffinity> {
      * 对照 {@code BumpDocAffinity} 的 UPDATE。
      *
      * <p>{@code title} / {@code knowledge_base_id} 走 {@code <if>}：
-     * Go 只在非空时才把它们放进 map，空值就保持原样。</p>
+     * 只在非空时才写入，空值就保持原样。</p>
      */
     @Update("<script>"
             + "UPDATE memory_doc_affinity SET hits = hits + 1, last_used_at = #{now}, updated_at = #{now}"

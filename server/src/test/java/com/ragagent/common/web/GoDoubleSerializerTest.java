@@ -10,18 +10,14 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * {@link GoDoubleSerializer} 的语料测试——<b>期望值全部是 Go 实录</b>。
+ * {@link GoDoubleSerializer} 的语料测试——<b>期望值逐字钉死输出格式</b>。
  *
- * <p>做法：写一个与 Go 侧同形的结构体（{@code struct{ V float64 `json:"v"` }}），
- * 用 {@code encoding/json} 打印每个语料值，把输出原样抄进下面的表。
- * 这样测的不是"我认为 Go 会这么格式化"，而是"Go 确实这么输出"。</p>
- *
- * <p><b>为什么不用属性/随机测试</b>：两语言的分歧集中在少数构型（整数尾 {@code .0}、
+ * <p><b>为什么不用属性/随机测试</b>：输出格式的分歧集中在少数构型（整数尾 {@code .0}、
  * 指数写法、次正规数），随机采样撞不到；精选语料逐条钉住更有效。</p>
  */
 class GoDoubleSerializerTest {
 
-    /** 语料（值 → Go 的 {@code {"v":<这里>}} 实录）。 */
+    /** 语料（值 → 输出 {@code {"v":<这里>}}）。 */
     static Stream<Arguments> goCorpus() {
         return Stream.of(
                 // ── 'f' 形态：整数值不带 .0 ──────────────────────────────
@@ -72,10 +68,7 @@ class GoDoubleSerializerTest {
     }
 
     /**
-     * 负零：Go 在**运行期**取负（{@code v := 0.0; -v}）时输出 {@code -0}。
-     *
-     * <p>注意不能用 Go 的字面量 {@code -0.0} 录制——那是无类型常量 {@code 0}，
-     * 编译期就把符号丢了，录出来是 {@code 0}。这条以运行期语义为准。</p>
+     * 负零：运行期为 {@code -0.0} 时输出 {@code -0}。
      */
     @Test
     void formatsNegativeZeroLikeGo() {

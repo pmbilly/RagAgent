@@ -17,16 +17,16 @@ import com.ragagent.session.domain.MessageSuggestionSetNotFoundException;
 import org.springframework.stereotype.Component;
 
 /**
- * 追问建议仓储（对照 Go internal/application/repository/message_suggestion.go）。
+ * 追问建议仓储。
  *
- * <h2>GORM 隐式行为 → Java 的等效清单（约定 §3）</h2>
+ * <h2>落库隐式行为清单</h2>
  * <ol>
  *   <li><b>Create 钩子</b>：ID 为空时才生成 UUID、nil 的 questions 置空切片
  *       → {@link #acquireGeneration} 里调 {@code normalizeForInsert()}。</li>
- *   <li><b>Updates(map)</b>（Go L108-117）：Go 用 map 绕开零值省略，保证
+ *   <li><b>失败/抑制收尾的落库</b>：逐列写（绕开零值跳过），保证
  *       {@code suppression_reason}/{@code error_code} 会被**写成空串**、
- *       {@code generated_at} 会被**清成 NULL**。Java 用字符串列名的 UpdateWrapper 逐列写，
- *       同一语义（不能用 lambda 形式，jsonb 列要显式带 typeHandler）。</li>
+ *       {@code generated_at} 会被**清成 NULL**。用字符串列名的 UpdateWrapper，
+ *       不能用 lambda 形式（jsonb 列要显式带 typeHandler）。</li>
  *   <li><b>无软删除列</b>：本表没有 {@code DeletedAt}，两处 Delete 是**硬删**——
  *       与 sessions/messages 的软删不同，别套用。</li>
  *   <li><b>唯一索引</b>：{@code AcquireGeneration} 的"插入或什么都不做"依赖
@@ -36,7 +36,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class MessageSuggestionRepository {
 
-    /** 对照 Go 的 {@code leaseUntil := now.Add(3 * time.Minute)}。 */
+    /** 生成租约时长。 */
     private static final Duration LEASE_TTL = Duration.ofMinutes(3);
 
     private static final String QUESTIONS_HANDLER =
@@ -59,7 +59,7 @@ public class MessageSuggestionRepository {
         }
     }
 
-    /** 对照 Go {@code GetByCacheKey}（L22-41）：五元组命中；零行抛错。 */
+    /** 五元组命中；零行抛错。 */
     public MessageSuggestionSet getByCacheKey(long tenantId, String assistantMessageId,
             String placement, String configHash, String locale) {
         MessageSuggestionSet set = mapper.selectOne(new LambdaQueryWrapper<MessageSuggestionSet>()
@@ -74,7 +74,6 @@ public class MessageSuggestionRepository {
         return set;
     }
 
-    /** 对照 Go {@code GetByID}（L43-57）。 */
     public MessageSuggestionSet getById(long tenantId, String sessionId, String id) {
         MessageSuggestionSet set = mapper.selectOne(new LambdaQueryWrapper<MessageSuggestionSet>()
                 .eq(MessageSuggestionSet::getId, id)
@@ -87,7 +86,7 @@ public class MessageSuggestionRepository {
     }
 
     /**
-     * 抢占某条消息的生成权（对照 Go {@code AcquireGeneration}，L59-136）。
+     * 抢占某条消息的生成权。
      *
      * <p>返回值第二项 {@code acquired} 表示"这次是否真的由本方开始生成"：
      * 已有 ready/suppressed 的结果（且未要求重新生成）会直接复用，
@@ -157,10 +156,9 @@ public class MessageSuggestionRepository {
     }
 
     /**
-     * 对照 Go {@code Save}（L138-143）。
+     * 保存结果：先 UPDATE，零行则 INSERT。
      *
-     * <p>GORM 的 {@code Save} 对带主键的对象是"先 UPDATE，零行则 INSERT"。
-     * 这里照做——注意不是 upsert，语义上有细微差别（并发下的插入冲突仍会报错）。</p>
+     * <p>注意不是 upsert，语义上有细微差别（并发下的插入冲突仍会报错）。</p>
      */
     public void save(MessageSuggestionSet set) {
         if (set == null) {
@@ -186,13 +184,12 @@ public class MessageSuggestionRepository {
         }
     }
 
-    /** 对照 Go {@code CreateEvent}（L145-150）。 */
     public void createEvent(MessageSuggestionEvent event) {
         event.setCreatedAt(OffsetDateTime.now());
         mapper.insertEvent(event);
     }
 
-    /** 对照 Go {@code DeleteByMessageID}（L152-161）——**硬删**（本表无软删列）。 */
+    /** **硬删**（本表无软删列）。 */
     public void deleteByMessageId(long tenantId, String sessionId, String messageId) {
         mapper.delete(new LambdaQueryWrapper<MessageSuggestionSet>()
                 .eq(MessageSuggestionSet::getTenantId, tenantId)
@@ -200,7 +197,7 @@ public class MessageSuggestionRepository {
                 .eq(MessageSuggestionSet::getAssistantMessageId, messageId));
     }
 
-    /** 对照 Go {@code DeleteBySessionID}（L163-171）——**硬删**。 */
+    /** **硬删**。 */
     public void deleteBySessionId(long tenantId, String sessionId) {
         mapper.delete(new LambdaQueryWrapper<MessageSuggestionSet>()
                 .eq(MessageSuggestionSet::getTenantId, tenantId)

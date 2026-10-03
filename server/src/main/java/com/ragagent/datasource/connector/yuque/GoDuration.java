@@ -3,7 +3,7 @@ package com.ragagent.datasource.connector.yuque;
 import java.time.Duration;
 
 /**
- * Go {@code time.ParseDuration} 的最小忠实复刻。
+ * 按 Go 标准库 {@code time.ParseDuration} 语义实现的时长解析器。
  *
  * <h2>为什么需要它</h2>
  * <p>语雀的 {@code parseRetryAfter} 做的是
@@ -11,23 +11,22 @@ import java.time.Duration;
  * {@code "abc"} → {@code "abcs"} 解析失败 → 回落到退避；{@code "1s"} → {@code "1ss"}
  * 失败 → 同样回落；{@code "0.5"} → {@code "0.5s"} 成功 → 500ms。</p>
  * <p>直接拿 {@code Long.parseLong} 或者"非数字就当整数秒"糊过去，会在这三种输入上
- * 得出与 Go 不同的结果——而 {@code Retry-After} 是<em>对端</em>可控的输入。</p>
+ * 得出与参照语义不同的结果——而 {@code Retry-After} 是<em>对端</em>可控的输入。</p>
  *
  * <h2>覆盖面</h2>
- * <p>支持 Go 文法 {@code [-+]?([0-9]*(\.[0-9]*)?[unit])+}，单位表
- * {@code ns/us/µs/μs/ms/s/m/h}，含 Go 的溢出判定（{@code "9223372036854775807s"}
- * 在 Go 里是 invalid，因为乘 1e9 越界）。期望值全部来自 Go 实录，
- * 见 {@code GoDurationTest}。</p>
+ * <p>支持文法 {@code [-+]?([0-9]*(\.[0-9]*)?[unit])+}，单位表
+ * {@code ns/us/µs/μs/ms/s/m/h}，含溢出判定（{@code "9223372036854775807s"}
+ * 无效：乘 1e9 越界）。期望值见 {@code GoDurationTest}。</p>
  *
- * <p>非法输入抛 {@link IllegalArgumentException}，消息与 Go 的
- * {@code time: invalid duration "..."} 同形。</p>
+ * <p>非法输入抛 {@link IllegalArgumentException}，消息为
+ * {@code time: invalid duration "..."}。</p>
  */
 final class GoDuration {
 
     private GoDuration() {
     }
 
-    /** 单位 → 纳秒。token 是 Go 的 {@code leadingInt} 之后允许出现的前缀集。 */
+    /** 单位 → 纳秒。token 是整数部分之后允许出现的前缀集。 */
     private static long unitScale(String unit) {
         switch (unit) {
             case "ns": return 1L;
@@ -43,14 +42,14 @@ final class GoDuration {
     }
 
     /**
-     * 对照 Go 的"消费单位"那一段：单位是**连续到下一个数字或小数点为止**的整段。
+     * 消费单位：单位是**连续到下一个数字或小数点为止**的整段。
      *
-     * <p>这一点影响错误文案（Go 对 {@code "1ss"} 报的是
+     * <p>这一点影响错误文案（对 {@code "1ss"} 报的是
      * {@code unknown unit "ss"}，不是消费一个 {@code 's'} 之后再报语法错），
      * 而文案又决定了它是"解析失败 → 回落退避"还是"解析成功 → 用这个值"，
-     * 所以照抄成整段消费，而不是逐个前缀试探。</p>
+     * 所以按整段消费，而不是逐个前缀试探。</p>
      *
-     * @return 单位长度；0 表示"没有单位"（Go 的 missing unit）
+     * @return 单位长度；0 表示"没有单位"
      */
     private static int unitLength(String s) {
         int i = 0;
@@ -61,9 +60,9 @@ final class GoDuration {
     }
 
     /**
-     * 对照 Go {@code time.ParseDuration}。
+     * 解析时长字符串（如 {@code "300ms"}、{@code "1.5h"}、{@code "-2s"}）。
      *
-     * @throws IllegalArgumentException 文法错误或数值溢出（= Go 返回 error 的那两条路径）
+     * @throws IllegalArgumentException 文法错误或数值溢出
      */
     static Duration parse(String orig) {
         String s = orig == null ? "" : orig;
@@ -136,13 +135,13 @@ final class GoDuration {
             s = s.substring(unitLen);
 
             if (value > Long.MAX_VALUE / scale) {
-                throw invalid(orig); // 对照 Go 的溢出判定
+                throw invalid(orig); // 溢出判定
             }
             value *= scale;
 
             // ── 小数部分 ──
             if (!post.isEmpty()) {
-                // Go 用 float64 算：v += int64(float64(f) * (float64(unit)/scale10))
+                // 小数部分按浮点计算（舍入语义是契约的一部分）：
                 double f = 0;
                 double scale10 = 1;
                 for (int k = 0; k < post.length(); k++) {

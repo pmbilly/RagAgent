@@ -22,11 +22,9 @@ import com.ragagent.retrieval.engine.RetrieveEngineRepository;
 import com.ragagent.vectorstore.domain.IndexConfig;
 
 /**
- * Apache Doris 检索引擎仓储——对照 Go {@code repository/retriever/doris/} 全包
- * （repository.go 699 + schema.go 310 + streamload.go 508 + compat.go 228 + query.go 252 +
- * move.go 41，约 2,040 行非测试）。
+ * Apache Doris 检索引擎仓储。
  *
- * <h2>通信通道（照 Go 注释）</h2>
+ * <h2>通信通道</h2>
  * <ul>
  *   <li>读写主链路：MySQL 协议（FE 默认 9030）→ {@link DorisSqlExecutor}；</li>
  *   <li>Stream Load：HTTP（FE 默认 8030）→ {@link DorisStreamLoadClient}（legacy 模式
@@ -39,18 +37,15 @@ import com.ragagent.vectorstore.domain.IndexConfig;
  *   <li>{@code inner_product_duplicate}：DUPLICATE KEY(id) + 单位化内积 +
  *       delete/insert 重写。</li>
  * </ul>
- * 模式在建表后不可互换；解析顺序 = 显式配置 → 既有表 DDL 探测 → 函数探针（照 compat.go）。
+ * 模式在建表后不可互换；解析顺序 = 显式配置 → 既有表 DDL 探测 → 函数探针。
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现说明</h2>
  * <ul>
- *   <li>Go 的 {@code initializedTables sync.Map} 对应 {@link ConcurrentHashMap}；
- *       {@code sync.Once}（结果含错误都只算一次）对应双检锁 + 结果缓存。</li>
- *   <li>Go 的分组遍历（{@code map[int][]...}）无序；本仓用 {@link TreeMap} 按维度升序，
- *       结果确定。</li>
- *   <li>legacy 批量更新的 partial update body：Go 的 {@code map[string]any} 由
- *       {@code json.Marshal} 按键字母序输出；本仓显式用 {@link TreeMap} 对齐同一序。</li>
- *   <li>keywords 的截断 {@code all = all[:TopK]} 在 TopK ≤ 0 时 Go 会 panic（负下标）；
- *       本仓 clamp 到 0（防御性偏离，不改变正数 TopK 的语义）。</li>
+ *   <li>已建表登记用 {@link ConcurrentHashMap}；兼容模式解析（结果含错误都只算一次）
+ *       用双检锁 + 结果缓存。</li>
+ *   <li>分组遍历用 {@link TreeMap} 按维度升序，结果确定。</li>
+ *   <li>legacy 批量更新的 partial update body 用 {@link TreeMap} 保证按键字母序输出。</li>
+ *   <li>keywords 结果截断在 TopK ≤ 0 时 clamp 到 0（防御，不改变正数 TopK 的语义）。</li>
  *   <li>Stream Load 的 Expect 头与 301/302/303 行为见 {@link DorisStreamLoadClient} 类注释。</li>
  * </ul>
  */
@@ -60,18 +55,18 @@ public class DorisRetrieveRepository
 
     private static final Logger log = LoggerFactory.getLogger(DorisRetrieveRepository.class);
 
-    /** 对照 {@code defaultTableBaseName}。 */
+    /** 表名缺省前缀。 */
     public static final String DEFAULT_TABLE_BASE_NAME = "weknora_embeddings";
-    /** 对照 {@code envDorisTablePrefix}。 */
+    /** 表名前缀的配置键。 */
     public static final String ENV_DORIS_TABLE_PREFIX = "DORIS_TABLE_PREFIX";
 
-    /** 对照 {@code schema.go} 的缺省桶/副本。 */
+    /** 建表缺省桶/副本数。 */
     static final int DEFAULT_BUCKETS_NUM = 10;
     static final int DEFAULT_REPLICATION_NUM = 1;
-    /** 对照 {@code annReadyTimeout / annReadyPoll}。 */
+    /** ANN 索引就绪等待的超时与轮询间隔。 */
     static final long ANN_READY_TIMEOUT_MS = 30_000L;
     static final long ANN_READY_POLL_MS = 1_000L;
-    /** 对照 CopyIndices 的 {@code const pageSize = 64}。 */
+    /** CopyIndices 的分页大小。 */
     static final int COPY_PAGE_SIZE = 64;
 
     final DorisSqlExecutor sql;
@@ -82,14 +77,14 @@ public class DorisRetrieveRepository
     final int replicationNum;
     final DorisCompatMode compatModeRequested;
 
-    /** 对照 {@code compatResolveOnce}+两个结果字段：结果（含错误）只解析一次。 */
+    /** 兼容模式解析结果（含错误）只解析一次。 */
     volatile DorisAdminOps.CompatResolution compatResolution;
 
     final DorisSearchOps searchOps;
     final DorisWriteOps writeOps;
     final DorisAdminOps adminOps;
 
-    /** 对照 {@code initializedTables sync.Map}：dim -> true（已确保建过表）。 */
+    /** 已确保建过表的维度（dim -> true）。 */
     final ConcurrentHashMap<Integer, Boolean> initializedTables = new ConcurrentHashMap<>();
 
     public DorisRetrieveRepository(DorisSqlExecutor sql, DorisStreamLoadClient streamLoad,
@@ -109,8 +104,8 @@ public class DorisRetrieveRepository
     }
 
     /**
-     * 对照 {@code NewDorisRetrieveEngineRepository} + {@code createDorisEngine}：从连接配置
-     * 建执行器与 Stream Load 客户端，并落 Go 的四条构造日志。
+     * 从连接配置
+     * 建执行器与 Stream Load 客户端，并落构造日志。
      */
     public static DorisRetrieveRepository create(String addr, String httpBase, String username,
                                                  String password, String database,
@@ -141,7 +136,7 @@ public class DorisRetrieveRepository
         return repo;
     }
 
-    /** 对照 Go {@code hostFromAddr}（engine_factory.go）：从 "host:port" 拆出 host。 */
+    /** 从 "host:port" 拆出 host。 */
     public static String hostFromAddr(String addr) {
         if (addr == null) {
             return "";
@@ -150,7 +145,7 @@ public class DorisRetrieveRepository
         return i > 0 ? addr.substring(0, i) : addr;
     }
 
-    /** 对照 {@code types.ResolveCollectionName(indexCfg, DORIS_TABLE_PREFIX, default)}。 */
+    /** 表名解析：collectionPrefix > collectionName > env 前缀 > 缺省。 */
     static String resolveCollectionName(IndexConfig indexCfg) {
         if (indexCfg != null) {
             if (indexCfg.collectionPrefix != null && !indexCfg.collectionPrefix.isEmpty()) {
@@ -184,7 +179,7 @@ public class DorisRetrieveRepository
         return List.of(EngineTypes.RETRIEVER_KEYWORDS, EngineTypes.RETRIEVER_VECTOR);
     }
 
-    /** 对照 {@code EstimateStorageSize}（按内积副本模式的单位化行计）。 */
+    /** 存储体量估算（按内积副本模式的单位化行计）。 */
     @Override
     public long estimateStorageSize(List<IndexInfo> indexInfoList, Map<String, Object> params) {
         if (indexInfoList == null) {
@@ -202,7 +197,7 @@ public class DorisRetrieveRepository
     // ── 写入 ────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 {@code BatchSave}：按维度分组；DUPLICATE KEY 表上用 delete + insert 保持
+     * 批量写入：按维度分组；DUPLICATE KEY 表上用 delete + insert 保持
      * "按 id 替换"语义；空向量跳过（WARN）、非有限值拒收。
      */
     // ── 删除 ────────────────────────────────────────────────────────────────
@@ -218,11 +213,11 @@ public class DorisRetrieveRepository
     // ── 复制与批量更新 ──────────────────────────────────────────────────────
 
     /**
-     * 对照 {@code CopyIndices}（与 Qdrant 实现完全镜像）：分页扫描源表 → chunk_id /
+     * 复制索引（与 Qdrant 实现同构）：分页扫描源表 → chunk_id /
      * knowledge_id 映射改写 → SourceID 三态改写 → 新 UUID 主键写回同一张表。
      */
-    /** 对照 {@code BatchUpdateChunkEnabledStatus}：按模式分派 partial update / 整行重写。 */
-    /** 对照 {@code BatchUpdateChunkTagID}。 */
+    /** 按 ChunkID 批量更新启用状态：按模式分派 partial update / 整行重写。 */
+    /** 按 ChunkID 批量更新标签。 */
     // ── 迁移（KnowledgeIndexMover） ────────────────────────────────────────
 
     @Override
@@ -284,7 +279,7 @@ public class DorisRetrieveRepository
 
 
 
-    /** 对照 {@code getTableName}：{@code <base>_<dim>}。 */
+    /** 表名：{@code <base>_<dim>}。 */
     String getTableName(int dimension) {
         return tableBaseName + "_" + dimension;
     }
@@ -309,7 +304,7 @@ public class DorisRetrieveRepository
     // ── 行映射与辅助 ───────────────────────────────────────────────────────
 
     /**
-     * 对照 {@code toDorisVectorEmbedding}：embedding 从
+     * 行映射：embedding 从
      * {@code additionalParams["embedding"]} 的 {@code Map<String, float[]>} 按 SourceID 取；
      * 非 legacy 模式先单位化。
      */
@@ -347,7 +342,7 @@ public class DorisRetrieveRepository
         return emb;
     }
 
-    /** 对照 {@code scanCopyRows}：embedding 列是 {@code ARRAY<FLOAT>} 的字面量字符串。 */
+    /** 复制行扫描：embedding 列是 {@code ARRAY<FLOAT>} 的字面量字符串。 */
     static DorisVectorEmbedding scanCopyRow(DorisSqlExecutor.Row row) throws SQLException {
         DorisVectorEmbedding out = new DorisVectorEmbedding();
         out.id = row.string(0);
@@ -367,7 +362,7 @@ public class DorisRetrieveRepository
         return out;
     }
 
-    /** Go 的 {@code %w} 形态：错误文本取底层 message（为空时取类名）。 */
+    /** 错误文本取底层 message（为空时取类名）。 */
     static String message(Throwable t) {
         if (t == null) {
             return "";
@@ -375,7 +370,7 @@ public class DorisRetrieveRepository
         return t.getMessage() == null ? t.toString() : t.getMessage();
     }
 
-    // ── test-connection 探针（照 vectorstore_healthcheck.go testDorisConnection） ──
+    // ── test-connection 探针 ────────────────────────────────────────────────
 
     /**
      * 连通性探针：MySQL 协议连接（database 空则用 information_schema）+ Ping 语义 +
@@ -406,7 +401,7 @@ public class DorisRetrieveRepository
     }
 
     /**
-     * 对照 Go 的剥前缀逻辑（testDorisConnection L323-326）：{@code @@version} 形如
+     * 版本号剥前缀：{@code @@version} 形如
      * {@code "5.7.99 Doris-4.1.0"}——{@code "Doris-"} 之后才是真实版本号。
      */
     static String stripDorisVersionPrefix(String version) {

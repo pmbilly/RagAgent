@@ -14,28 +14,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 有界、按用户限额的 QA 请求队列 + 固定 worker 池（对照 Go internal/im/qaqueue.go
- * 全文，波 5 W5γ1 翻译）。Java 用虚拟线程做 worker（锁/条件与 Go 的 sync.Cond 同构）。
+ * 有界、按用户限额的 QA 请求队列 + 固定 worker 池（虚拟线程 worker，锁/条件协调）。
  *
- * <p><b>Redis 面（备案）</b>：Go 的 redis 可 nil——nil 时每用户限额只在本实例生效、
- * 无跨实例全局闸门（qaqueue.go L81-88 注释原文语义）。按波 5 纪律「Redis 一律先落
- * 进程内存形态」，本类只实现 Go 的 redis==nil 分支；全局 per-user 计数与全局闸门
- * （RedisKeyQueueUser/RedisKeyGlobalGate 的 Lua CAS）留接缝 {@link RedisPort}，
+ * <p><b>Redis 面（备案）</b>：未接 Redis 时每用户限额只在本实例生效、
+ * 无跨实例全局闸门；全局 per-user 计数与全局闸门
+ * 留接缝 {@link RedisPort}，
  * 多实例部署时接入。</p>
  */
 public final class QaQueue {
 
     private static final Logger log = LoggerFactory.getLogger(QaQueue.class);
 
-    /** 队列里最多排队数（qaqueue.go L17）。 */
+    /** 队列里最多排队数。 */
     public static final int DEFAULT_MAX_QUEUE_SIZE = 50;
-    /** 单用户最多排队数（L20）。 */
+    /** 单用户最多排队数。 */
     public static final int DEFAULT_MAX_PER_USER = 3;
-    /** 默认并发 worker 数（L21）。 */
+    /** 默认并发 worker 数。 */
     public static final int DEFAULT_WORKERS = 5;
-    /** 请求在队列里最多等这么久（L23）。 */
+    /** 请求在队列里最多等这么久。 */
     public static final long QUEUE_TIMEOUT_SECONDS = 60;
-    /** 指标日志间隔（L388）。 */
+    /** 指标日志间隔。 */
     private static final long METRICS_LOG_INTERVAL_SECONDS = 30;
 
     /** 可选的 Redis 计数面（跨实例部署接入；单实例传 null）。 */
@@ -47,14 +45,14 @@ public final class QaQueue {
         void decr(String key);
     }
 
-    /** 排队的 QA 请求（对照 Go {@code im.qaRequest}，qaqueue.go L36-52）。γ2 填业务字段。 */
+    /** 排队的 QA 请求。 */
     public static final class QaRequest {
         final String userKey;
         final long enqueuedAtNanos = System.nanoTime();
         final AtomicBoolean cancelled = new AtomicBoolean(false);
         public final IncomingMessage msg;
 
-        /** 业务束（γ2 的 ImService.QaTask；队列层不解释）。 */
+        /** 业务束（ImService.QaTask；队列层不解释）。 */
         private Object attach;
 
         public QaRequest(String userKey, IncomingMessage msg) {
@@ -76,7 +74,7 @@ public final class QaQueue {
             return userKey;
         }
 
-        /** 对照 req.ctx.Err()：取消即超时/剔除。 */
+        /** 取消即超时/剔除。 */
         public boolean isCancelled() {
             return cancelled.get();
         }
@@ -86,7 +84,7 @@ public final class QaQueue {
         }
     }
 
-    /** 可观测队列状态（对照 Go {@code im.QueueMetrics}，qaqueue.go L55-68）。 */
+    /** 可观测队列状态。 */
     public record QueueMetrics(int depth, long activeWorkers, long totalEnqueued,
             long totalProcessed, long totalRejected, long totalTimeout) {
     }
@@ -98,13 +96,13 @@ public final class QaQueue {
     private final int maxSize;
     private final int maxPerUser;
     private final int workers;
-    /** userKey → 排队数（redis==nil 分支的本地计数）。 */
+    /** userKey → 排队数（未接 Redis 时的本地计数）。 */
     private final Map<String, Integer> perUser = new HashMap<>();
     private boolean closed;
 
     private final RedisPort redis;
 
-    // 指标（对照 Go atomic 计数器，qaqueue.go L91-95）。
+    // 指标（atomic 计数器）。
     private final AtomicLong activeWorkers = new AtomicLong();
     private final AtomicLong totalEnqueued = new AtomicLong();
     private final AtomicLong totalProcessed = new AtomicLong();
@@ -112,7 +110,7 @@ public final class QaQueue {
     private final AtomicLong totalTimeout = new AtomicLong();
 
     private final java.util.function.Consumer<QaRequest> handler;
-    /** 超时兜底回复的送达通道（对照 Go 的 req.adapter.SendReply；γ2 接适配器）。 */
+    /** 超时兜底回复的送达通道。 */
     private final java.util.function.BiConsumer<QaRequest, ReplyMessage> replySink;
     private final List<Thread> workerThreads = new ArrayList<>();
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -134,7 +132,7 @@ public final class QaQueue {
         this.replySink = replySink;
     }
 
-    /** 启动 worker 线程（对照 Start；metricsLoop 的 30s 周期日志随 Stop 一并退出）。 */
+    /** 启动 worker 线程；指标周期日志随 stop 一并退出。 */
     public synchronized void start() {
         if (!started.compareAndSet(false, true)) {
             return;
@@ -147,7 +145,7 @@ public final class QaQueue {
         }
     }
 
-    /** 通知所有 worker 在排空后退出（对照 Stop）。 */
+    /** 通知所有 worker 在排空后退出。 */
     public void stop() {
         mu.lock();
         try {
@@ -159,11 +157,10 @@ public final class QaQueue {
     }
 
     /**
-     * 入队。返回 0 基位置；队满或超每用户限额抛 {@link RejectedException}
-     * （对照 Go 的 error 返回）。
+     * 入队。返回 0 基位置；队满或超每用户限额抛 {@link RejectedException}。
      */
     public int enqueue(QaRequest req) {
-        // 本地（redis==nil）每用户限额在锁内查——Go 的 redis==nil 分支。
+        // 本地（无 Redis）每用户限额在锁内查。
         mu.lock();
         try {
             if (closed) {
@@ -189,7 +186,7 @@ public final class QaQueue {
         }
     }
 
-    /** 按 userKey 取消并移除排队请求；有命中返回 true（对照 Remove）。 */
+    /** 按 userKey 取消并移除排队请求；有命中返回 true。 */
     public boolean remove(String userKey) {
         mu.lock();
         try {
@@ -247,7 +244,7 @@ public final class QaQueue {
                     try {
                         replySink.accept(req, new ReplyMessage("您的消息等待超时，请重新发送。", false, true));
                     } catch (RuntimeException e) {
-                        // Go 的 _ = SendReply：错误吞掉
+                        // 兜底回复发送失败：吞掉（超时路径已无可为）
                     }
                 }
                 req.cancel();

@@ -10,8 +10,7 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.agent.domain.AgentState;
 
 /**
- * 回归锚点（2026-09-25 install E2E 抓回）：{@code llmContext} 传 null 必须按 Go 的
- * nil slice 语义当空历史处理——安装器的 installer run 正是这样调的，旧实现在入口日志
+ * 回归锚点：{@code llmContext} 传 null 必须当空历史处理——安装器的 installer run 正是这样调的，旧实现在入口日志
  * 就 NPE（{@code Cannot invoke "java.util.List.size()" because "llmContext" is null}），
  * 导致真实 LLM 安装第一次就失败。
  */

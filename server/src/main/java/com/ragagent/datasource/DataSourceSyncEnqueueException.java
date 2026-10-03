@@ -1,11 +1,10 @@
 package com.ragagent.datasource;
 
 /**
- * 同步任务投递失败（对照 Go 的 {@code err != nil && err != asynq.ErrTaskIDConflict} 分支）。
+ * 同步任务投递失败。
  *
  * <p>调度器捕获它之后会把 sync_log 置为 {@code failed}、写下
- * {@code "enqueue failed: <getMessage()>"}，与 Go 的
- * {@code fmt.Sprintf("enqueue failed: %v", err)} 逐字对齐。</p>
+ * {@code "enqueue failed: <getMessage()>"}。</p>
  *
  * <p>为什么不复用 {@link ConnectorException}：这是<b>队列</b>的失败，不是连接器/外部 API 的失败，
  * 而 service 层对 {@code ConnectorException.InvalidCredentials} 有特殊处理

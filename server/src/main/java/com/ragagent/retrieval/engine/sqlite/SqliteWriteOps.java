@@ -28,7 +28,7 @@ final class SqliteWriteOps {
         this.service = service;
     }
 
-    // ── 写入（照 Save/BatchSave：INSERT OR IGNORE + FTS + 向量） ───────────
+    // ── 写入（INSERT OR IGNORE + FTS + 向量） ──────────────────────────────
 
     void save(IndexInfo indexInfo, Map<String, Object> params) throws Exception {
         batchSave(List.of(indexInfo), params);
@@ -72,7 +72,7 @@ final class SqliteWriteOps {
         }
     }
 
-    /** 行模型（照 {@code sqliteEmbedding}）。 */
+    /** 行模型。 */
     static final class Row {
 
         long id;
@@ -87,7 +87,7 @@ final class SqliteWriteOps {
         boolean isEnabled = true;
     }
 
-    /** 照 {@code toSQLiteEmbedding}：content 过 CleanInvalidUTF8；is_enabled 恒有值。 */
+    /** content 过 CleanInvalidUTF8；is_enabled 恒有值。 */
     static Row toRow(IndexInfo info, int dimension) {
         Row row = new Row();
         row.sourceId = info.sourceId == null ? "" : info.sourceId;
@@ -102,7 +102,7 @@ final class SqliteWriteOps {
         return row;
     }
 
-    /** 照 {@code extractEmbedding}：params["embedding"] 是 sourceID→向量的表。 */
+    /** params["embedding"] 是 sourceID→向量的表。 */
     static float[] extractEmbedding(Map<String, Object> params, String sourceId) {
         if (params == null) {
             return new float[0];
@@ -125,7 +125,7 @@ final class SqliteWriteOps {
         return new float[0];
     }
 
-    /** 照 GORM 的 {@code OnConflict DoNothing}：唯一索引冲突 → 忽略并返回 0。 */
+    /** INSERT OR IGNORE 语义：唯一索引冲突 → 忽略并返回 0。 */
     long insertIgnore(Connection conn, Row row) throws SQLException {
         String sql = "INSERT OR IGNORE INTO " + SqliteRetrieveRepository.TABLE_EMBEDDINGS + "(created_at, updated_at,"
                 + " source_id, source_type, chunk_id, knowledge_id, knowledge_base_id, tag_id,"
@@ -159,7 +159,7 @@ final class SqliteWriteOps {
         ps.setInt(9, row.isEnabled ? 1 : 0);
     }
 
-    /** 照 {@code syncFTS5Insert}：内容先过二元切分再进 FTS5。 */
+    /** 内容先过二元切分再进 FTS5。 */
     void syncFtsInsert(Connection conn, long id, Row row) throws SQLException {
         if (id == 0) {
             return;
@@ -189,7 +189,7 @@ final class SqliteWriteOps {
         }
     }
 
-    // ── 删除（照 Go：先查行 → 删向量/FTS → 删元数据） ──────────────────────
+    // ── 删除（先查行 → 删向量/FTS → 删元数据） ─────────────────────────────
 
     void deleteByChunkIdList(List<String> chunkIdList, int dimension, String knowledgeType)
             throws Exception {
@@ -242,7 +242,7 @@ final class SqliteWriteOps {
         return rows;
     }
 
-    /** 照 {@code deleteRowsAndVecs}：只动"已建向量表"的维度，再删 FTS 行。 */
+    /** 只动"已建向量表"的维度，再删 FTS 行。 */
     void deleteRowsAndVecs(Connection conn, List<Row> rows) throws SQLException {
         for (Row row : rows) {
             if (row.dimension > 0 && service.vecTables.containsKey(row.dimension)) {
@@ -262,7 +262,7 @@ final class SqliteWriteOps {
         }
     }
 
-    // ── 批量更新（逐 chunk UPDATE 元数据，照 Go） ──────────────────────────
+    // ── 批量更新（逐 chunk UPDATE 元数据） ─────────────────────────────────
 
     void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap)
             throws Exception {
@@ -295,7 +295,7 @@ final class SqliteWriteOps {
         }
     }
 
-    // ── 拷贝（照 Go：逐 chunk 读源行 → 新 UUID SourceID → 复制 FTS/向量） ──
+    // ── 拷贝（逐 chunk 读源行 → 新 UUID SourceID → 复制 FTS/向量） ─────────
 
     void copyIndices(String sourceKnowledgeBaseId,
                             Map<String, String> sourceToTargetKbIdMap,
@@ -371,7 +371,7 @@ final class SqliteWriteOps {
         }
     }
 
-    /** 照 {@code copyVec}：向量行整行复制（同一维度表内）。 */
+    /** 向量行整行复制（同一维度表内）。 */
     void copyVec(Connection conn, long srcId, long dstId, int dim) throws SQLException {
         if (!service.vecTables.containsKey(dim)) {
             return;

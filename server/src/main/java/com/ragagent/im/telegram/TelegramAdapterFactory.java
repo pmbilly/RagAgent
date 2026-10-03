@@ -12,11 +12,10 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.service.ImService;
 
 /**
- * Telegram 渠道工厂（对照 Go {@code internal/im/telegram/factory.go}）。
+ * Telegram 渠道工厂。
  *
  * <p>凭据取 {@code bot_token}（+ webhook 模式下的 {@code secret_token}），
- * 模式由 {@code channel.mode} 决定、缺省 {@code websocket}（长轮询，照 Go 的
- * {@code ResolveMode(channel, "websocket")}）：</p>
+ * 模式由 {@code channel.mode} 决定、缺省 {@code websocket}（长轮询）：</p>
  * <ul>
  *   <li>{@code webhook} → 只出站（回调由 HTTP 面驱动），stop 为 null；</li>
  *   <li>{@code websocket} → 起守护线程跑 {@link TelegramLongPollingClient}，

@@ -5,8 +5,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 图片 URL 结构（对照 Go chat.ImageURL）。
- * 字段序 = Go 声明序：url 恒输出，detail omitempty。
+ * 图片 URL 结构。
+ * JSON 字段序 = 声明序：url 恒输出，detail 为空时省略。
  */
 @JsonPropertyOrder({"url", "detail"})
 public class ImageUrl {

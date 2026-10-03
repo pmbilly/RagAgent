@@ -7,12 +7,12 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * auth_tokens 表实体（对照 Go types/user.go AuthToken）。
+ * auth_tokens 表实体。
  *
- * GORM 隐式行为清单：
- * - 无软删除列（Go struct 无 DeletedAt）→ 查询不加 deleted_at 条件
+ * 落库行为清单：
+ * - 无软删除列 → 查询不加 deleted_at 条件
  * - is_revoked 默认 false；id 为 app 生成 UUID（varchar(36)）
- * - created_at/updated_at 由 DB DEFAULT 填充（Go 显式赋值 time.Now()，等价）
+ * - created_at/updated_at 由 DB DEFAULT 填充（应用侧显式赋值等价）
  */
 @TableName("auth_tokens")
 public class AuthToken {

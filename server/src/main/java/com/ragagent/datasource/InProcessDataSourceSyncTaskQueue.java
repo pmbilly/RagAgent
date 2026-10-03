@@ -32,11 +32,10 @@ import com.ragagent.datasource.domain.DataSourceSyncPayload;
  * </ol>
  *
  * <h2>⚠️ 多实例差异（必须知道）</h2>
- * <p>去重集合只存在于<b>单个 JVM</b> 内。Go 的 asynq 是 Redis 支撑的，多副本时
- * 同一个 TaskID 全局只入队一次。多副本部署下本实现表现为：<b>每个副本各自都会
+ * <p>去重集合只存在于<b>单个 JVM</b> 内。多副本部署下本实现表现为：<b>每个副本各自都会
  * 触发一次同步</b>——调度器第 1 层（{@code hasRunningSync}）只能挡住"同一副本上的重叠"，
  * 挡不住跨副本。</p>
- * <p>这与 §9 里 asynq → 进程内队列的既有取舍同族（memory / wiki 都这样）。
+ * <p>这与 memory / wiki 的进程内队列取舍同族。
  * 要恢复跨实例语义，换一个 Redis/MQ 实现即可——端口就是为此留的。</p>
  *
  * <h2>去重窗口</h2>
@@ -53,7 +52,7 @@ public class InProcessDataSourceSyncTaskQueue implements DataSourceSyncTaskQueue
 
     private static final Logger log = LoggerFactory.getLogger(InProcessDataSourceSyncTaskQueue.class);
 
-    /** 对照 Go {@code types.TypeDataSourceSync}：任务观测的 span/根名。 */
+    /** 任务观测的 span/根名。 */
     static final String TASK_TYPE_DATASOURCE_SYNC = "datasource:sync";
 
     private final ObjectProvider<DataSourceSyncHandler> handlerProvider;
@@ -95,7 +94,7 @@ public class InProcessDataSourceSyncTaskQueue implements DataSourceSyncTaskQueue
         } catch (RejectedExecutionException e) {
             inflightTaskIds.remove(taskId);
             // 执行器已关停（应用正在下线）：把失败报给调用方，
-            // 让它把 sync_log 落成 failed + "enqueue failed: ..."（与 Go 一致）
+            // 让它把 sync_log 落成 failed + "enqueue failed: ..."
             throw new DataSourceSyncEnqueueException("sync queue is shut down", e);
         }
         return Outcome.ENQUEUED;
@@ -148,10 +147,10 @@ public class InProcessDataSourceSyncTaskQueue implements DataSourceSyncTaskQueue
             return true;
         }
 
-        // 独立线程执行，这样超时能靠中断取消（对照 Go 的 asynq.Timeout 取消 ctx）
+        // 独立线程执行，这样超时能靠中断取消
         Future<?> future;
         try {
-            // C 批：任务侧观测（对照 Go 的 AsynqMiddleware）——在 worker 线程上续接上游
+            // 任务侧观测：在 worker 线程上续接上游
             // trace（无则开独立根），处理体包在 asynq.<type> span 内
             future = worker.submit(() -> {
                 try (com.ragagent.tracing.langfuse.LangfuseTaskScope scope =

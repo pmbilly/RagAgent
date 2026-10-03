@@ -4,8 +4,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 从 IM 回调解析出的统一消息（对照 Go {@code im.IncomingMessage}，internal/im/
- * adapter.go L48-103）。适配器负责把各平台载荷装进这个形状；γ2 的管线只认它。
+ * 从 IM 回调解析出的统一消息。适配器负责把各平台载荷装进这个形状；
+ * 服务端管线只认它。
  */
 public final class IncomingMessage {
 
@@ -32,7 +32,7 @@ public final class IncomingMessage {
     /** 文件大小（字节；文件消息，可选）。 */
     public long fileSize;
     /**
-     * 平台线程标识（adapter.go L71-79）：
+     * 平台线程标识：
      * Slack=thread_ts（首条消息用自身 ts）、Mattermost=root_id（首条用 post_id）、
      * Feishu/Lark=root_id（首条用 message_id）、Telegram=message_thread_id（仅
      * Forum Topics）。WeCom/DingTalk 无线程支持为空。thread 模式下首条消息以自身
@@ -53,7 +53,7 @@ public final class IncomingMessage {
     }
 
     /**
-     * 引用/回复消息（对照 Go {@code im.QuotedMessage}，adapter.go L89-103）。
+     * 引用/回复消息。
      * NonTextType：引用消息没有可提取文本时记录原始类型（image/file/video）——
      * 用于生成 LLM 指令而非内容占位符（占位符会诱发幻觉）。
      */

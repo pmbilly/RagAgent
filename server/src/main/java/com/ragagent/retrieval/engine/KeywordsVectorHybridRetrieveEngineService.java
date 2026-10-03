@@ -20,11 +20,10 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 
 /**
- * 关键词/向量混合检索引擎服务——对照 Go
- * {@code internal/application/service/retriever/keywords_vector_hybrid_indexer.go}（383 行，
- * 即 {@code NewKVHybridRetrieveEngine} 返回的 {@code KeywordsVectorHybridRetrieveEngineService}）。
+ * 关键词/向量混合检索引擎服务：对 {@link RetrieveEngineRepository} 做"嵌入 + 分批落库"的
+ * 薄封装，其余能力纯转发给仓库。
  *
- * <h2>照抄点</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>骨架：持 {@code indexRepository} + {@code engineType}；{@code Retrieve} / {@code Support} /
  *       三类删除 / {@code CopyIndices} / 两类批量更新<b>纯转发</b>；{@code Index}/{@code BatchIndex}
@@ -35,7 +34,7 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
  *   <li>批量嵌入带指数退避（{@code batchEmbedWithBackoff}）：最多 5 次，底延迟 200ms、每次翻倍
  *       （200/400/800/1600）——失败在<b>第 5 次</b>后把最后错误抛出</li>
  *   <li>分批：向量路每批 <b>40</b>、并发上限 <b>5</b>（批数 ≤ 5 时不设上限、全并发）；
- *       非向量路每批 <b>10</b>、同样 ≤ 5 全并发/否则限 5（照 Go 的四条 concurrentBatchSave*）</li>
+ *       非向量路每批 <b>10</b>、同样 ≤ 5 全并发/否则限 5</li>
  *   <li>嵌入映射一律以 <b>SourceID</b> 为键（{@code Index}/{@code BatchIndex}/{@code EstimateStorageSize}
  *       与 {@code ToDBVectorEmbedding} 的查表语义一致）</li>
  *   <li>迁移能力探测（{@code ValidateKnowledgeIndexMove}）：仓库未挂
@@ -43,18 +42,17 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
  *       {@code retriever <engine> does not support moving indices}</li>
  * </ul>
  *
- * <h2>修复（有意偏离 Go，见台账 §0.-18 类）</h2>
- * <p>{@code EstimateStorageSize} 的占位向量，Go 以 {@code ChunkID} 为键而查表按 {@code SourceID}
- * → 生成问题（{@code <chunk>-<qid>}）估不到向量字节；本仓改为按 SourceID 为键（与 ①③ 同法）。</p>
+ * <h2>有意修正</h2>
+ * <p>{@code EstimateStorageSize} 的占位向量按 <b>SourceID</b> 为键，与查表口径一致——
+ * 生成问题（{@code <chunk>-<qid>}）也能估到向量字节。</p>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现说明</h2>
  * <ul>
- *   <li>并发用 Java 21 虚拟线程执行器 + {@code Semaphore}（对应 Go 的 errgroup + 信道信号量）；
- *       首批失败即取消其余任务（errgroup 语义）</li>
- *   <li>Go 的 {@code utils.ChunkSlice} → 本类内 {@code chunkSlice}（同语义：末批可短）</li>
+ *   <li>并发用 Java 21 虚拟线程执行器 + {@code Semaphore}；
+ *       首批失败即取消其余任务</li>
+ *   <li>分批工具为本类内 {@code chunkSlice}（末批可短）</li>
  *   <li>嵌入口直接用全仓统一的 {@link com.ragagent.embedding.Embedder}
- *       （照 Go：{@code interfaces.RetrieveEngineService} 收的就是同一个
- *       {@code embedding.Embedder}，不再为检索引擎单独造薄口）</li>
+ *       （不为检索引擎单独造薄口）</li>
  * </ul>
  */
 public class KeywordsVectorHybridRetrieveEngineService
@@ -64,18 +62,18 @@ public class KeywordsVectorHybridRetrieveEngineService
     private static final Logger log =
             LoggerFactory.getLogger(KeywordsVectorHybridRetrieveEngineService.class);
 
-    /** 对照 {@code safetyMaxChars}。 */
+    /** 嵌入前内容截断上限（码点数）。 */
     public static final int SAFETY_MAX_CHARS = 20000;
-    /** 对照 {@code embedRetryAttempts} / {@code embedRetryBaseDelay}。 */
+    /** 批量嵌入重试次数与底延迟（指数退避）。 */
     static final int EMBED_RETRY_ATTEMPTS = 5;
     static final long EMBED_RETRY_BASE_DELAY_MS = 200L;
-    /** 对照 {@code batchSize := 40}（向量路）与 {@code ChunkSlice(indexInfoList, 10)}（非向量路）。 */
+    /** 分批大小：向量路 40、非向量路 10。 */
     static final int VECTOR_BATCH_SIZE = 40;
     static final int PLAIN_BATCH_SIZE = 10;
-    /** 对照 {@code const maxConcurrency = 5}。 */
+    /** 分批落库的并发上限。 */
     static final int MAX_CONCURRENCY = 5;
 
-    /** 对照 Go {@code embeddingImagePayloadPatterns}（4 条，含内联 (?is)/(?i) 标志）。 */
+    /** 内联图片载荷识别正则（4 条，含内联 (?is)/(?i) 标志）。 */
     static final List<Pattern> EMBEDDING_IMAGE_PAYLOAD_PATTERNS = List.of(
             Pattern.compile("(?is)<img\\b[^>]*\\bsrc=[\"']\\s*data:image/[a-z0-9.+-]+;base64,[^\"']+[\"'][^>]*>"),
             Pattern.compile("(?is)!\\[[^\\]]*\\]\\(\\s*data:image/[a-z0-9.+-]+;base64,[^)]+\\)"),
@@ -91,7 +89,7 @@ public class KeywordsVectorHybridRetrieveEngineService
         this(indexRepository, engineType, EMBED_RETRY_BASE_DELAY_MS);
     }
 
-    /** 供测试注入底延迟（Go 为包级常量；这里留测试口，行为同默认值 200ms）。 */
+    /** 供测试注入底延迟（默认同 {@link #EMBED_RETRY_BASE_DELAY_MS}）。 */
     KeywordsVectorHybridRetrieveEngineService(RetrieveEngineRepository indexRepository,
                                               String engineType, long embedRetryBaseDelayMs) {
         this.indexRepository = indexRepository;
@@ -99,19 +97,19 @@ public class KeywordsVectorHybridRetrieveEngineService
         this.embedRetryBaseDelayMs = embedRetryBaseDelayMs;
     }
 
-    /** 对照 {@code EngineType}。 */
+    /** 引擎类型标识。 */
     @Override
     public String engineType() {
         return engineType;
     }
 
-    /** 对照 {@code Support}。 */
+    /** 该引擎支持的检索类型。 */
     @Override
     public List<String> support() {
         return indexRepository.support();
     }
 
-    /** 对照 {@code Retrieve}：纯转发。 */
+    /** 纯转发。 */
     @Override
     public List<RetrieveResult> retrieve(RetrieveParams params) throws Exception {
         return indexRepository.retrieve(params);
@@ -119,7 +117,7 @@ public class KeywordsVectorHybridRetrieveEngineService
 
     // ── 索引 ────────────────────────────────────────────────────────────────
 
-    /** 对照 {@code Index}：按需嵌入（向量路）后交给 {@code Save}。 */
+    /** 按需嵌入（向量路）后交给 {@code save}。 */
     @Override
     public void index(Embedder embedder, IndexInfo indexInfo, List<String> retrieverTypes)
             throws Exception {
@@ -133,7 +131,7 @@ public class KeywordsVectorHybridRetrieveEngineService
         indexRepository.save(indexInfo, params);
     }
 
-    /** 对照 {@code BatchIndex}：向量路分批 40、非向量路分批 10；批数 ≤5 全并发。 */
+    /** 向量路分批 40、非向量路分批 10；批数 ≤5 全并发。 */
     @Override
     public void batchIndex(Embedder embedder, List<IndexInfo> indexInfoList,
                            List<String> retrieverTypes) throws Exception {
@@ -162,7 +160,7 @@ public class KeywordsVectorHybridRetrieveEngineService
         }
     }
 
-    /** 对照 {@code batchEmbedWithBackoff}：5 次、200ms 起步翻倍；末次失败即抛最后错误。 */
+    /** 嵌入重试：5 次、200ms 起步翻倍；末次失败即抛最后错误。 */
     List<float[]> batchEmbedWithBackoff(Embedder embedder, List<String> contentList)
             throws Exception {
         long delay = embedRetryBaseDelayMs;
@@ -185,7 +183,7 @@ public class KeywordsVectorHybridRetrieveEngineService
         throw lastError;
     }
 
-    /** 对照 {@code sanitizeForEmbedding}：仅含 base64 时跑正则；按码点截断到 20000。 */
+    /** 仅含 base64 时跑正则；按码点截断到 20000。 */
     static String sanitizeForEmbedding(String content) {
         String sanitized = content == null ? "" : content;
         if (sanitized.contains("base64,")) {
@@ -210,7 +208,7 @@ public class KeywordsVectorHybridRetrieveEngineService
         return chunks;
     }
 
-    /** 对照 {@code concurrentBatchSave}：无上限并发，逐批嵌入映射按 SourceID。 */
+    /** 无上限并发，逐批嵌入映射按 SourceID。 */
     void concurrentBatchSave(List<List<IndexInfo>> chunks, List<float[]> embeddings,
                              int batchSize) throws Exception {
         runConcurrently(chunks.size(), 0, i -> {
@@ -225,7 +223,7 @@ public class KeywordsVectorHybridRetrieveEngineService
         });
     }
 
-    /** 对照 {@code boundedConcurrentBatchSave}。 */
+    /** 有界并发。 */
     void boundedConcurrentBatchSave(List<List<IndexInfo>> chunks, List<float[]> embeddings,
                                     int batchSize, int maxConcurrency) throws Exception {
         runConcurrently(chunks.size(), maxConcurrency, i -> {
@@ -240,13 +238,13 @@ public class KeywordsVectorHybridRetrieveEngineService
         });
     }
 
-    /** 对照 {@code concurrentBatchSaveNoEmbedding}。 */
+    /** 无上限并发、无嵌入。 */
     void concurrentBatchSaveNoEmbedding(List<List<IndexInfo>> chunks) throws Exception {
         runConcurrently(chunks.size(), 0, i -> indexRepository.batchSave(chunks.get(i),
                 new LinkedHashMap<>()));
     }
 
-    /** 对照 {@code boundedConcurrentBatchSaveNoEmbedding}。 */
+    /** 有界并发、无嵌入。 */
     void boundedConcurrentBatchSaveNoEmbedding(List<List<IndexInfo>> chunks, int maxConcurrency)
             throws Exception {
         runConcurrently(chunks.size(), maxConcurrency, i -> indexRepository.batchSave(chunks.get(i),
@@ -328,10 +326,10 @@ public class KeywordsVectorHybridRetrieveEngineService
     }
 
     /**
-     * 对照 {@code EstimateStorageSize}：向量路用"维度大小的占位向量"估算。
+     * 存储估算：向量路用"维度大小的占位向量"估算。
      *
-     * <p><b>修复（有意偏离 Go）</b>：Go 以 {@code ChunkID} 为键，而 {@code ToDBVectorEmbedding}
-     * 按 {@code SourceID} 查表 → 生成问题估不到向量；这里按 SourceID 为键。</p>
+     * <p>向量映射以 {@code SourceID} 为键（与 {@code ToDBVectorEmbedding} 的查表口径一致，
+     * 生成问题也能估到向量）。</p>
      */
     @Override
     public long estimateStorageSize(Embedder embedder, List<IndexInfo> indexInfoList,
@@ -369,7 +367,7 @@ public class KeywordsVectorHybridRetrieveEngineService
         indexRepository.batchUpdateChunkTagID(chunkTagMap);
     }
 
-    /** 对照 {@code ValidateKnowledgeIndexMove}：仓库未挂迁移子口即报错。 */
+    /** 仓库未挂迁移子口即报错。 */
     @Override
     public void validateKnowledgeIndexMove() {
         if (!(indexRepository instanceof RetrieveEngineRepository.KnowledgeIndexMover)) {
@@ -378,7 +376,7 @@ public class KeywordsVectorHybridRetrieveEngineService
         }
     }
 
-    /** 对照 {@code MoveKnowledgeIndices}：先校验再转发。 */
+    /** 先校验再转发。 */
     @Override
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
                                      List<String> chunkIds, int dimension, String knowledgeType)

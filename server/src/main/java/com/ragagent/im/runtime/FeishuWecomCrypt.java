@@ -11,20 +11,19 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * feishu / wecom 的 AES 加密验签族（确定性核心，波 5 W5γ3 翻译）。
+ * feishu / wecom 的 AES 加密验签族（确定性核心）。
  *
  * <ul>
- *   <li>feishu decrypt（对照 internal/im/feishu/adapter.go L1305-1350）：
+ *   <li>feishu decrypt：
  *       AES-256-CBC，key = SHA-256(encrypt_key)，IV = 密文前 16 字节，PKCS#7 校验去除。</li>
- *   <li>wecom verifySignature（webhook_adapter.go L437-450）：
+ *   <li>wecom verifySignature：
  *       SHA1(sort(token,timestamp,nonce,encrypt) 拼接) hex，常时比较。</li>
- *   <li>wecom decrypt（webhook_adapter.go L452-490）：AES-256-CBC，key =
+ *   <li>wecom decrypt：AES-256-CBC，key =
  *       Base64 解码的 43 字符 EncodingAESKey（32 字节），IV = key 前 16 字节，
  *       PKCS#7；信封 = 16B random + 4B 大端消息长 + 消息 + receiveid。</li>
  * </ul>
  *
- * <p>字节契约：feishu_ciphertext/wecom_ciphertext/wecom_signature 录自独立 Go
- * 程序（contracts/w5g3b-im-crypt.tsv）。</p>
+ * <p>字节契约由测试 fixture（{@code contracts/w5g3b-im-crypt.tsv}）钉住。</p>
  */
 public final class FeishuWecomCrypt {
 
@@ -99,7 +98,7 @@ public final class FeishuWecomCrypt {
 
     /**
      * wecom verifySignature：SHA1(sort(token,timestamp,nonce,encrypt) 串接)，
-     * hex 小写，常时比较（Go hmac.Equal）。
+     * hex 小写，常时比较。
      */
     public static boolean wecomVerifySignature(String token, String timestamp, String nonce,
             String encrypt, String signature) {
@@ -112,13 +111,13 @@ public final class FeishuWecomCrypt {
 
     /**
      * wecom decrypt + 信封拆解：返回消息体（信封 = 16B random + 4B 大端长 +
-     * 消息 + receiveid；Go 侧解密后按 [16:20] 长度切消息）。
+     * 消息 + receiveid；按 [16:20] 的 4 字节取消息长度）。
      */
     public static String wecomDecryptMessage(String aesKeyBase64, String encryptedBase64)
             throws CryptException {
         byte[] aesKey;
         try {
-            // 43 字符 EncodingAESKey + "=" 后解码 32 字节（adapter L108 原文）
+            // 43 字符 EncodingAESKey + "=" 后解码 32 字节
             aesKey = Base64.getDecoder().decode(aesKeyBase64 + "=");
         } catch (IllegalArgumentException e) {
             throw new CryptException("decode encoding_aes_key: " + e.getMessage());
@@ -179,7 +178,7 @@ public final class FeishuWecomCrypt {
         return r == 0 && ab.length == bb.length;
     }
 
-    /** 解密/验签失败（Go 的 error 返回；message 对照 Go 原文）。 */
+    /** 解密/验签失败。 */
     public static final class CryptException extends Exception {
         public CryptException(String message) {
             super(message);

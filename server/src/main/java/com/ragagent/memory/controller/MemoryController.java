@@ -37,17 +37,16 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 长期记忆的 HTTP 层（对照 Go {@code internal/handler/memory.go} 全文，
- * 路由对照 {@code internal/router/routes_memory.go} 的 16 条）。
+ * 长期记忆的 HTTP 层。
  *
  * <h2>为什么所有端点都没有 subject 参数</h2>
  * <p>每一条路由操作的都是从请求上下文里推导出来的记忆空间，所以没有任何端点接受
  * subject id。这是刻意的：它把"改个 id 能不能读到别人的记忆"这一整类缺陷
- * <b>从根上消掉</b>，而不是靠每条路由各自做一次所有权判定
- * （Go handler 的类注释原文）。Java 侧同理——{@code MemoryScopes.resolve()}
+ * <b>从根上消掉</b>，而不是靠每条路由各自做一次所有权判定。
+ * {@code MemoryScopes.resolve()}
  * 只读 {@code TenantContext} / principal，不读任何请求参数。</p>
  *
- * <h2>响应形态：契约换锚后（2026-10-01，§14.9k M1）</h2>
+ * <h2>响应形态</h2>
  * <p>成功响应不再包 {@code {"data":…,"success":true}} 信封；JSON 字段名＝Java 字段名
  * （camelCase，见 {@code docs/knowledge-api-contract-v1.md} §1.1）。逐类形态：</p>
  * <ul>
@@ -57,10 +56,10 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>创建条目 → <b>201</b> + 裸条目（§1.15）；删除 / 拒绝 → <b>204</b>（§1.13）；</li>
  *   <li>Export 保持下载语义：{@code {items, total, truncated}} + {@code Content-Disposition}。</li>
  * </ul>
- * <p>{@code Clear} 是同步删除，按 §1.13 返 204——旧 Go 的 {@code {"removed":N}} 计数随信封一并退役；
+ * <p>{@code Clear} 是同步删除，按 §1.13 返 204——{@code {"removed":N}} 计数随信封一并退役；
  * 前端不再展示条数（如需恢复，须先改标准）。</p>
  *
- * <h2>请求形态：标准 DTO 绑定（§1.10 / §1.23，2026-10-01 M3）</h2>
+ * <h2>请求形态：标准 DTO 绑定（§1.10 / §1.23）</h2>
  * <p>三个带体的端点用 {@code memory/dto} 里的 record 绑定 + {@code @Valid}，
  * 不再手写 {@code rawBody} 解析；错误由全局处理器统一给（都是 400 信封）：</p>
  * <pre>
@@ -68,13 +67,13 @@ import org.springframework.web.bind.annotation.RestController;
  *   畸形 JSON            → details "请求体格式不正确"
  *   字段类型错           → details "&lt;字段&gt;: 类型不正确"
  *   缺 enabled / 显式 null → details "enabled: 不能为空"（DTO 上的 @NotNull）
- *   未知字段             → <b>忽略</b>（Spring Boot 的 mapper 关掉了 FAIL_ON_UNKNOWN，
- *                          与 Go 的 encoding/json 同款——多带一个字段不该让整条请求失败）
+ *   未知字段             → <b>忽略</b>（Spring Boot 的 mapper 关掉了 FAIL_ON_UNKNOWN——
+ *                          多带一个字段不该让整条请求失败）
  * </pre>
  * <p>缺省语义：条目端点的 {@code kind}/{@code content}/{@code importance} 缺失或显式
  * {@code null} 都按零值（{@code orEmpty} / {@code orZero}），"内容是否为空"仍由服务层判。</p>
  *
- * <h2>错误形态：AppError 信封，逐条对照 Go 的 {@code fail()}</h2>
+ * <h2>错误形态：AppError 信封</h2>
  * <pre>
  *   NoScope          → 401 {"code":1001,…,"message":"no principal in request"}
  *   ItemNotFound     → 404 {"code":1003,…,"message":"memory not found"}
@@ -84,7 +83,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   其余（含 PreviouslyForgotten / EmptyContent）→ 500 + message(handler 传的) + details=err.Error()
  * </pre>
  * <p>{@code PreviouslyForgotten} 与 {@code EmptyContent} <b>刻意不在</b> switch 里——
- * 已对运行中的 Go dev server 实测（2026-09-18）：</p>
+ * 已实测钉住（2026-09-18）：</p>
  * <pre>
  *   POST /memory/items {"content":"   "}
  *   → 500 {"error":{"code":1007,"details":"memory: empty content",
@@ -122,7 +121,7 @@ public class MemoryController {
 
     // ══════════════════════════ 设置 ══════════════════════════
 
-    /** 对照 Go {@code GetSettings}（L39-47）。换锚后响应是裸 {@link MemorySettings}（camelCase）。 */
+    /** 响应是裸 {@link MemorySettings}（camelCase）。 */
     @GetMapping("/api/v1/memory/settings")
     public MemorySettings getSettings() {
         try {
@@ -133,7 +132,7 @@ public class MemoryController {
     }
 
     /**
-     * 对照 Go {@code UpdateSettings}（L63-84）。
+     * 更新调用者的记忆开关。
      *
      * <p>两处 400 的门槛顺序有语义：先"请求体能不能解析"（框架的绑定错误），
      * 再"enabled 在不在"（DTO 上的 {@code @NotNull}）——{@code {"enabled":null}}
@@ -152,13 +151,13 @@ public class MemoryController {
     // ══════════════════════════ 条目 ══════════════════════════
 
     /**
-     * 对照 Go {@code ListItems}（L97-119）。
+     * 列出记忆条目（分页）。
      *
-     * <p>{@code status} 的白名单校验发生在<b>解析分页之前</b>，顺序照抄：
+     * <p>{@code status} 的白名单校验发生在<b>解析分页之前</b>：
      * 非法 status 一律 400，哪怕 limit 也是垃圾。</p>
      *
      * <p>空仓库输出 {@code "items":[]}（<b>不是</b> {@code null}）——与 Export 的空
-     * {@code items:null} 仍是两种形态，别统一（那是 Go 两条路径的既有差别）。</p>
+     * {@code items:null} 仍是两种形态，别统一（两条路径的既有差别）。</p>
      */
     @GetMapping("/api/v1/memory/items")
     public MemoryListResponse<MemoryItem> listItems(
@@ -180,7 +179,7 @@ public class MemoryController {
     }
 
     /**
-     * 对照 Go 的状态白名单：空串 + 四个状态常量，其余一律 {@code unsupported status}。
+     * 状态白名单：空串 + 四个状态常量，其余一律 {@code unsupported status}。
      */
     private static boolean isSupportedStatus(String status) {
         if (status == null) {
@@ -193,7 +192,7 @@ public class MemoryController {
                 || MemoryKinds.STATUS_PENDING.equals(status);
     }
 
-    /** 对照 Go {@code CreateItem}（L262-275）。换锚后：<b>201</b> + 裸条目（§1.15）。 */
+    /** 创建条目：<b>201</b> + 裸条目（§1.15）。 */
     @PostMapping("/api/v1/memory/items")
     public ResponseEntity<MemoryItem> createItem(@RequestBody @Valid CreateMemoryItemRequest req) {
         MemoryItem item;
@@ -206,7 +205,7 @@ public class MemoryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(item);
     }
 
-    /** 对照 Go {@code UpdateItem}（L293-306）。换锚后：200 + 裸条目。 */
+    /** 编辑条目：200 + 裸条目。 */
     @PutMapping("/api/v1/memory/items/{id}")
     public MemoryItem updateItem(
             @PathVariable("id") String id,
@@ -218,7 +217,7 @@ public class MemoryController {
         }
     }
 
-    /** 对照 Go {@code DeleteItem}（L317-324）。换锚后：<b>204</b>（§1.13）。 */
+    /** 永久删除条目：<b>204</b>（§1.13）。 */
     @DeleteMapping("/api/v1/memory/items/{id}")
     public ResponseEntity<Void> deleteItem(@PathVariable("id") String id) {
         try {
@@ -229,7 +228,7 @@ public class MemoryController {
         return ResponseEntity.noContent().build();
     }
 
-    /** 对照 Go {@code ConfirmItem}（L338-346）。换锚后：200 + 裸条目。 */
+    /** 接受一条待确认的推断条目：200 + 裸条目。 */
     @PostMapping("/api/v1/memory/items/{id}/confirm")
     public MemoryItem confirmItem(@PathVariable("id") String id) {
         try {
@@ -240,9 +239,9 @@ public class MemoryController {
     }
 
     /**
-     * 对照 Go {@code RejectItem}（L357-364）。
+     * 拒绝一条推断条目。
      *
-     * <p>拒绝就是删除（Go 的 service 侧如此），响应随 DeleteItem：<b>204</b>。</p>
+     * <p>拒绝就是删除，响应随 DeleteItem：<b>204</b>。</p>
      */
     @PostMapping("/api/v1/memory/items/{id}/reject")
     public ResponseEntity<Void> rejectItem(@PathVariable("id") String id) {
@@ -255,13 +254,13 @@ public class MemoryController {
     }
 
     /**
-     * 对照 Go {@code Clear}（L374-382）。
+     * 一次性清空调用者记忆空间里的一切。
      *
      * <p>注意是 {@code DELETE /memory/items}（集合本身），
      * 与 {@code DELETE /memory/items/{id}} 是两条不同的路由。</p>
      *
-     * <p>同步完成的一次性清空，按 §1.13 返 <b>204</b>：Go 的 {@code {"removed":N}}
-     * 计数是信封里的信息，换锚后不再下发（前端原样展示条数的 toast 一并去掉）。</p>
+     * <p>同步完成，按 §1.13 返 <b>204</b>：{@code {"removed":N}}
+     * 计数随信封一并退役，不再下发（前端原样展示条数的 toast 一并去掉）。</p>
      */
     @DeleteMapping("/api/v1/memory/items")
     public ResponseEntity<Void> clear() {
@@ -275,7 +274,7 @@ public class MemoryController {
 
     // ══════════════════════════ 主题 ══════════════════════════
 
-    /** 对照 Go {@code ListTopics}（L151-164）。换锚后：{@code {items,page,pageSize,total}}。 */
+    /** 列出话题计数：{@code {items,page,pageSize,total}}。 */
     @GetMapping("/api/v1/memory/topics")
     public MemoryListResponse<MemoryTopicView> listTopics(
             @RequestParam(value = "limit", required = false) String limit,
@@ -291,7 +290,7 @@ public class MemoryController {
     }
 
     /**
-     * 对照 Go {@code PromoteTopic}（L175-183）。
+     * 提升一个话题为记忆条目。
      *
      * <p>它是"动作"而不是创建端点：动的是主题、产出的是那条新记忆，
      * 故按 §2.1 的单资源形态返 200 + 裸条目（不套 §1.15 的 201）。</p>
@@ -305,7 +304,7 @@ public class MemoryController {
         }
     }
 
-    /** 对照 Go {@code DeleteTopic}（L194-201）。换锚后：<b>204</b>。 */
+    /** 停止跟踪一个主体：<b>204</b>。 */
     @DeleteMapping("/api/v1/memory/topics/{id}")
     public ResponseEntity<Void> deleteTopic(@PathVariable("id") String id) {
         try {
@@ -318,7 +317,7 @@ public class MemoryController {
 
     // ══════════════════════════ 文档亲和度 ══════════════════════════
 
-    /** 对照 Go {@code ListDocuments}（L213-226）。换锚后：{@code {items,page,pageSize,total}}。 */
+    /** 列出文档亲和度：{@code {items,page,pageSize,total}}。 */
     @GetMapping("/api/v1/memory/documents")
     public MemoryListResponse<MemoryDocView> listDocuments(
             @RequestParam(value = "limit", required = false) String limit,
@@ -333,7 +332,7 @@ public class MemoryController {
         return pageBody(page, paging);
     }
 
-    /** 对照 Go {@code DeleteDocument}（L237-244）。换锚后：<b>204</b>。 */
+    /** 删除一个文档检索信号：<b>204</b>。 */
     @DeleteMapping("/api/v1/memory/documents/{id}")
     public ResponseEntity<Void> deleteDocument(@PathVariable("id") String id) {
         try {
@@ -347,7 +346,7 @@ public class MemoryController {
     // ══════════════════════════ 导出 / 整理 ══════════════════════════
 
     /**
-     * 对照 Go {@code Export}（L392-427）。
+     * 导出调用者的全部记忆。
      *
      * <h2>它是快照，不是一页</h2>
      * <p>固定一页曾经被当作够用（理由是"那正好是一个工作区能配的最大容量"），
@@ -356,18 +355,16 @@ public class MemoryController {
      * 因此这里按 {@link #EXPORT_PAGE_SIZE} 走到 {@code len(page) < pageSize}
      * 或 {@code len(items) >= total} 或触到 {@link #EXPORT_MAX_ITEMS} 安全上限为止。</p>
      *
-     * <h2>换锚后的形态（§14.9k M1）</h2>
+     * <h2>响应形态</h2>
      * <ol>
      *   <li>体是裸 {@link com.ragagent.memory.dto.MemoryExportResponse}：
      *       {@code {items, total, truncated}}——旧的 {@code {"data":…,"success":true}} 信封退役。</li>
      *   <li>⚠️ <b>空仓库的 {@code items} 仍是 {@code null} 而不是 {@code []}</b>——
-     *       Go 是 {@code var items []*types.MemoryItem} 且只在有行时才
-     *       {@code append}，nil slice 序列化成 {@code null}。这与
+     *       只在真的有行时才建列表。这与
      *       {@code GET /memory/items} 的 {@code []} <b>不同</b>，别统一
      *       （契约未要求把空导出改成空数组，保留既有语义）。</li>
-     *   <li>{@code Content-Disposition: attachment; filename="weknora-memories.json"}
-     *       ——Go 是 {@code c.Header(...)} + {@code c.JSON(200, ...)}，
-     *       所以 <b>Content-Type 仍是普通 JSON</b>（{@code application/json; charset=utf-8}），
+     *   <li>{@code Content-Disposition: attachment; filename="weknora-memories.json"}；
+     *       <b>Content-Type 仍是普通 JSON</b>（{@code application/json; charset=utf-8}），
      *       不是 {@code application/octet-stream}。实测确认。</li>
      * </ol>
      *
@@ -409,18 +406,18 @@ public class MemoryController {
                         "attachment; filename=\"weknora-memories.json\"")
                 // 用**原样的字符串**而不是 MediaType：MediaType.toString() 会把
                 // 分隔符后的空格去掉（`application/json;charset=utf-8`），
-                // 而 Go 的 `c.JSON` 写出来是 `application/json; charset=utf-8`。
+                // 而这里要写出的是 `application/json; charset=utf-8`（带空格）。
                 // 两者对 HTTP 语义等价，但本项目的验收手段是 diff 字节。
                 .header(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
                 .body(body);
     }
 
-    /** 对照 Go 的 {@code len(items)}：nil slice 长度为 0。 */
+    /** {@code null} 列表按长度 0 计。 */
     private static int itemCount(List<?> items) {
         return items == null ? 0 : items.size();
     }
 
-    /** 对照 Go {@code Consolidate}（L437-445）。换锚后：200 + 裸结果对象。 */
+    /** 立刻整理一次调用者的记忆仓库：200 + 裸结果对象。 */
     @PostMapping("/api/v1/memory/consolidate")
     public MemoryConsolidationResult consolidate() {
         try {
@@ -435,9 +432,8 @@ public class MemoryController {
     /**
      * {@code {items, page, pageSize, total}}——三个列表端点的响应（§2.1 分页形态）。
      *
-     * <p>{@code items} 直接透传 service 的 {@code Page.items()}：Go 侧
-     * {@code ListItems} 的 GORM {@code Find} 与 {@code ListTopics}/{@code ListDocuments}
-     * 的 {@code make(..., 0, n)} 都产出<b>非 nil</b>切片，空时是 {@code []}。</p>
+     * <p>{@code items} 直接透传 service 的 {@code Page.items()}：
+     * 空时是 {@code []} 而不是 {@code null}。</p>
      *
      * <p>{@code page} 由 offset/limit 换算（{@code offset / limit + 1}，整数除法），
      * {@code pageSize} 就是容错后的 limit——请求侧仍只有 limit/offset 两个参数。</p>
@@ -451,12 +447,12 @@ public class MemoryController {
     }
 
     /**
-     * 对照 Go {@code memoryListPaging}（L129-139）：{@code limit} 非法、≤0 或 &gt;200
+     * 容错分页：{@code limit} 非法、≤0 或 &gt;200
      * 一律归 50；{@code offset} 为负归 0。
      *
-     * <p>Go 用的是 {@code strconv.Atoi}——{@code "abc"} 解析失败时 limit 保持 0，
-     * 随即被 {@code <= 0} 归 50。溢出同理（Java 的 {@code Integer.parseInt} 抛
-     * {@code NumberFormatException}，此处按"解析失败"处理，语义一致）。</p>
+     * <p>解析失败（{@code "abc"}）时 limit 保持 0，
+     * 随即被 {@code <= 0} 归 50。溢出同理——{@code Integer.parseInt} 抛
+     * {@code NumberFormatException}，此处按"解析失败"处理，语义一致。</p>
      *
      * @return 长度为 2 的数组 {limit, offset}
      */
@@ -494,19 +490,19 @@ public class MemoryController {
     }
 
     /**
-     * 对照 Go {@code fail}（L449-465）：把 service 错误映射成 HTTP 响应。
+     * 把 service 错误映射成 HTTP 响应。
      *
      * <p>"条目不存在"与"条目属于别人"<b>刻意产生同一个 404</b>——
-     * 这样一个 id 无法被用来跨用户探测存在性（Go 的注释原文）。</p>
+     * 这样一个 id 无法被用来跨用户探测存在性。</p>
      *
      * <p>{@code PreviouslyForgotten} / {@code EmptyContent} <b>刻意不在</b>这张表里，
-     * 它们与一切未列出的异常一起落 500 + details——Go 的 {@code switch} 也是这么落的。
+     * 它们与一切未列出的异常一起落 500 + details。
      * 已实测钉住（见类注释）。</p>
      *
      * <p>⚠️ {@code createItem} / {@code promoteTopic} / {@code consolidateNow}
      * 在<b>没有主体</b>时抛的是 {@link MemoryScopeExceptions.Disabled}（400）而不是
      * {@code NoScope}（401）——因为 service 侧走的是 {@code enabledScope()} 的
-     * <b>布尔</b>判定，NoScope 在那里被吞成了"不许用记忆"。与 Go 逐条一致。</p>
+     * <b>布尔</b>判定，NoScope 在那里被吞成了"不许用记忆"。</p>
      */
     private BizException fail(RuntimeException err, String message) {
         if (err instanceof MemoryScopeExceptions.NoScope) {
@@ -524,7 +520,7 @@ public class MemoryController {
         if (err instanceof MemoryScopeExceptions.Disabled) {
             return new BizException(AppError.badRequest("memory is disabled"));
         }
-        // 对照 Go 的 default 分支：记日志，然后 500 + handler 传进来的 message + details=err.Error()
+        // 默认分支：记日志，然后 500 + handler 传进来的 message + details=err.getMessage()
         log.error("memory handler failure: {}", message, err);
         return new BizException(AppError.internal(message).withDetails(err.getMessage()));
     }

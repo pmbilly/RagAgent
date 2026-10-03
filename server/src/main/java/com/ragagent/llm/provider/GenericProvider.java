@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ragagent.common.error.BizException;
 
 /**
- * 对照 Go provider.GenericProvider（generic.go）：通用 OpenAI 兼容接口。
+ * 通用 OpenAI 兼容接口。
  * DefaultURLs 为空 map（需要用户自行配置填写），RequiresAuth=false（可能需要也可能不需要）。
  */
 public class GenericProvider implements Provider {

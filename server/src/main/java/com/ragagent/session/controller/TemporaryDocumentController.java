@@ -26,15 +26,14 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 会话附件（临时文档）HTTP 层（对照 Go handler/session/temporary_document.go，
- * 路由对照 routes_chat.go L61-65 的 5 条）。
+ * 会话附件（临时文档）HTTP 层。
  *
  * 响应形态（§2.1：裸对象，无 {"data","success"} 信封）：上传 202 裸 doc
  * （status=uploaded，解析异步）；列表/详情 200 裸对象/裸数组（详情查不到
  * 404 "Attachment not found"）；预览是文件字节流（filetransport 语义）；
  * 删除 204（幂等）。表单字段名＝Java 参数名（camelCase）。
  *
- * owner 范围（与 Go 注释一致）：上传/删除改会话内容 → 严格 owner 范围；
+ * owner 范围：上传/删除改会话内容 → 严格 owner 范围；
  * 列表/详情/预览是读 → 读可见性。
  */
 @RestController
@@ -44,7 +43,7 @@ public class TemporaryDocumentController {
 
     private final SessionService sessionService;
     private final TemporaryDocumentService temporaryDocuments;
-    /** 对照 Go handler 的 resolveAgent（qa.go；共享优先、source==0 才回落 own）。 */
+    /** agent 解析（共享优先、source==0 才回落 own）。 */
     private final com.ragagent.session.service.AgentResolver agentResolver;
 
     public TemporaryDocumentController(SessionService sessionService,
@@ -55,7 +54,7 @@ public class TemporaryDocumentController {
         this.agentResolver = agentResolver;
     }
 
-    /** 对照 Go UploadTemporaryDocument（L19-93）。agent 表单字段随波 5（见 service 注释）。 */
+    /** 上传附件（202 受理，解析异步）。 */
     @PostMapping("/api/v1/sessions/{session_id}/attachments")
     public ResponseEntity<TemporaryDocument> upload(
             @PathVariable("session_id") String sessionId,
@@ -64,7 +63,7 @@ public class TemporaryDocumentController {
             @RequestParam(value = "parserEngine", required = false) String parserEngine,
             jakarta.servlet.http.HttpServletRequest request) {
         String sid = LogSanitizer.sanitize(sessionId);
-        // Go 的 FormFile 先查请求是否 multipart：非 multipart 是固定原文（golden 实测）
+        // 请求不是 multipart 时固定原文拒收
         String contentType = request.getContentType() == null ? "" : request.getContentType();
         if (!contentType.toLowerCase(java.util.Locale.ROOT).startsWith("multipart/form-data")) {
             throw new BizException(AppError.badRequest(
@@ -81,8 +80,8 @@ public class TemporaryDocumentController {
             throw new BizException(AppError.badRequest(
                     "invalid attachment upload: http: no such file"));
         }
-        // 空 size 不在此拒——Go 的 FormFile 收 0 字节文件，由 service 的
-        // "file size must be between 1 byte and 50MB" 兜（golden 实测）
+        // 空 size 不在此拒——0 字节文件由 service 的
+        // "file size must be between 1 byte and 50MB" 兜底
         // agent_source_tenant_id / 共享 agent 分支随空间分享裁撤：只解析自有 agent
         var resolved = agentResolver.resolve(agentId, 0);
         var agent = resolved.row();
@@ -114,7 +113,6 @@ public class TemporaryDocumentController {
                 "invalid attachment upload: http: request body too large"));
     }
 
-    /** 对照 Go ListTemporaryDocuments（L95-108）。 */
     @GetMapping({"/api/v1/sessions/{id}/attachments", "/api/v1/sessions/{session_id}/attachments"})
     public ResponseEntity<List<TemporaryDocument>> list(
             @PathVariable(value = "id", required = false) String id,
@@ -136,7 +134,6 @@ public class TemporaryDocumentController {
         return ResponseEntity.ok(documents);
     }
 
-    /** 对照 Go GetTemporaryDocument（L110-127）。 */
     @GetMapping({"/api/v1/sessions/{id}/attachments/{attachment_id}",
             "/api/v1/sessions/{session_id}/attachments/{attachment_id}"})
     public ResponseEntity<TemporaryDocument> get(
@@ -164,8 +161,7 @@ public class TemporaryDocumentController {
     }
 
     /**
-     * 对照 Go PreviewTemporaryDocument（L129-158）+ filetransport.Serve：
-     * 错误分支逐字对照；成功路径的响应头按 filetransport 语义拼装。
+     * 错误分支文案固定；成功路径的响应头按 filetransport 语义拼装。
      */
     @GetMapping({"/api/v1/sessions/{id}/attachments/{attachment_id}/preview",
             "/api/v1/sessions/{session_id}/attachments/{attachment_id}/preview"})
@@ -214,7 +210,7 @@ public class TemporaryDocumentController {
         response.getOutputStream().write(opened.data());
     }
 
-    /** 对照 Go DeleteTemporaryDocument（L160-174）：204，幂等。 */
+    /** 删除附件：204，幂等。 */
     @DeleteMapping({"/api/v1/sessions/{id}/attachments/{attachment_id}",
             "/api/v1/sessions/{session_id}/attachments/{attachment_id}"})
     public ResponseEntity<Void> delete(
@@ -240,10 +236,9 @@ public class TemporaryDocumentController {
     // ── 辅助 ──────────────────────────────
 
     /**
-     * 对照 Go UploadTemporaryDocument 的 agent 门控与 options 组装（L52-83）：
+     * agent 门控与 options 组装：
      * supported_file_types 拒收 / 音频需 ASR / agent 级 parser engine 回落（显式 engine
-     * 为空或 auto 时）/ VLM 图片理解选项。租户级 parser 规则由 parse worker 兜底
-     * （照 Go 注释"Tenant-level rules remain the final fallback"）。
+     * 为空或 auto 时）/ VLM 图片理解选项。租户级 parser 规则由 parse worker 兜底。
      */
     private static TemporaryDocumentService.CreateOptions agentOptions(
             com.ragagent.agent.management.domain.CustomAgentEntity agent,
@@ -283,7 +278,7 @@ public class TemporaryDocumentController {
         return options;
     }
 
-    /** 对照 Go filepath.Ext + TrimPrefix(strings.ToLower(...), ".")（handler L54）。 */
+    /** 取小写扩展名（不带点）。 */
     private static String extNoDot(String fileName) {
         String name = fileName == null ? "" : fileName;
         int dot = name.lastIndexOf('.');
@@ -293,7 +288,7 @@ public class TemporaryDocumentController {
         return name.substring(dot + 1).toLowerCase(java.util.Locale.ROOT);
     }
 
-    /** 对照 Go isAudioExtension（L192-200）：含 aac，与 parse 的 audioFormats 不是同一张表。 */
+    /** 音频扩展名（含 aac；与解析管线的 audioFormats 不是同一张表）。 */
     private static boolean isAudioExtension(String ext) {
         return switch (ext) {
             case "mp3", "wav", "m4a", "flac", "ogg", "aac" -> true;
@@ -301,7 +296,7 @@ public class TemporaryDocumentController {
         };
     }
 
-    /** 对照 Go containsFileType（L183-191）：逐项去点小写后与 ext 比较。 */
+    /** 逐项去点小写后与 ext 比较。 */
     private static boolean containsFileType(List<String> supported, String ext) {
         for (String item : supported) {
             String normalized = item == null ? "" : item.trim().toLowerCase(java.util.Locale.ROOT);
@@ -347,7 +342,7 @@ public class TemporaryDocumentController {
         return BizException.internal(e.getMessage());
     }
 
-    /** 对照 Go mime.FormatMediaType：ASCII 安全字符集外的名字加引号。 */
+    /** Content-Disposition：ASCII 安全字符集外的名字加引号。 */
     private static String disposition(String fileName, boolean inline) {
         String base = fileName == null ? "" : fileName;
         String type = inline ? "inline" : "attachment";

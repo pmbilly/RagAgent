@@ -10,15 +10,15 @@ import org.junit.jupiter.api.Test;
 import com.ragagent.model.dto.ModelProviderDTO;
 
 /**
- * 目录一致性哨兵：把本包（运行时元数据，对照 Go internal/models/provider）与
- * com.ragagent.model.service.ProviderRegistry（HTTP 目录，数据由 golden 从 Go dev server 实录）
+ * 目录一致性哨兵：把本包（运行时元数据）与
+ * com.ragagent.model.service.ProviderRegistry（HTTP 目录，数据由 golden 钉住）
  * 逐字段比对。
  *
- * <p>两层都源自 Go 同一份 provider Info()，任何一侧漏改（新增厂商、改 DisplayName/Description/
- * 默认 URL/模型类型）都会在这里立刻暴露——这是翻译期最容易出现抄写漂移的地方。</p>
+ * <p>两层同源，任何一侧漏改（新增厂商、改 DisplayName/Description/
+ * 默认 URL/模型类型）都会在这里立刻暴露。</p>
  *
  * <p>两侧的差异是**表示层**而非数据：目录层用前端字符串（chat/embedding/rerank/vllm/asr），
- * 运行时层用 Go 的 ModelType 字面量（KnowledgeQA/...），通过
+ * 运行时层用 {@code ModelType} 枚举字面量（KnowledgeQA/...），通过
  * {@code com.ragagent.model.service.ProviderRegistry.toFrontend} 对齐。</p>
  */
 class ProviderCatalogParityTest {
@@ -36,7 +36,7 @@ class ProviderCatalogParityTest {
             assertEquals(dto.value(), info.name().value(), "第 " + i + " 个厂商的标识不一致");
             assertEquals(dto.label(), info.displayName(), info.name() + " 的 DisplayName 不一致");
             assertEquals(dto.description(), info.description(), info.name() + " 的 Description 不一致");
-            // 目录层的 modelTypes 是前端字符串（chat/embedding/...），运行时层是 Go 的 ModelType 字面量
+            // 目录层的 modelTypes 是前端字符串（chat/embedding/...），运行时层是 ModelType 枚举字面量
             assertEquals(dto.modelTypes(),
                     info.modelTypes().stream()
                             .map(t -> com.ragagent.model.service.ProviderRegistry.toFrontend(t.value()))

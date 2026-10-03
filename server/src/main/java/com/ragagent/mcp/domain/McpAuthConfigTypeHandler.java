@@ -14,26 +14,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * auth_config 的 jsonb TypeHandler（对照 Go MCPAuthConfig.Value()/Scan()，
- * internal/types/mcp.go:224-282）。
+ * auth_config 的 jsonb TypeHandler（写前加密、读时宽容解密）。
  *
  * **写路径**：拷贝一份再加密 api_key / token（**避免污染调用方内存对象**——
- * Go 注释明确说明：否则同一 *MCPAuthConfig 的后续读取会看到密文）。
- * SYSTEM_AES_KEY 缺失时明文落库（对照 Go `if key := utils.GetAESKey(); key != nil`）。
+ * 否则同一实例的后续读取会看到密文）。
+ * SYSTEM_AES_KEY 缺失时明文落库。
  *
  * **读路径**：宽容解密——历史明文行（无 `enc:v1:` 前缀）原样返回；密文解密失败
  * （密钥缺失/轮换）**静默置空并记日志**，不让密文泄漏成 API key。
- *
- * ⚠️ Go 的 Scan 注释声称"会以 Scan error 暴露"，但**实际代码走的是
- * DecryptStoredSecretLenient 的宽容路径**——以代码行为为准（Java 同样宽容）。
  */
 @MappedTypes(McpAuthConfig.class)
 public class McpAuthConfigTypeHandler extends BaseTypeHandler<McpAuthConfig> {
 
     private static final Logger log = LoggerFactory.getLogger(McpAuthConfigTypeHandler.class);
     /**
-     * 读路径容忍未知属性：Go 的 json.Unmarshal 默认**忽略**未知字段，Jackson 默认失败。
-     * 历史行/未来新增字段都不该让整行读不出来（阶段 3 的 jsonb 回读就栽在这上面）。
+     * 读路径容忍未知属性：Jackson 默认对未知字段报错。
+     * 历史行/未来新增字段都不该让整行读不出来。
      */
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);

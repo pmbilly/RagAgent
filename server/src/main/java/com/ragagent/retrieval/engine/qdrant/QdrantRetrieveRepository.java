@@ -25,36 +25,34 @@ import com.ragagent.retrieval.support.SearchTextUtil;
 import com.ragagent.vectorstore.domain.IndexConfig;
 
 /**
- * Qdrant 检索引擎仓储——对照 Go {@code repository/retriever/qdrant/} 全包
- * （repository.go 1009 + structs.go 33 + move.go 26，约 1,070 行非测试）。
+ * Qdrant 检索引擎仓储。
  *
- * <h2>协议口径（本仓的"协议决策"）</h2>
- * Go 走 {@code qdrant/go-client} 的 gRPC；本仓照 ES/OpenSearch 先例<b>自持 HTTP/JSON</b>
- * （REST），逐方法等价的端点映射见 {@link QdrantRestClient} 与各方法注释
- * （gRPC {@code Query} → REST {@code /points/search}、{@code Scroll} → {@code /points/scroll}、
+ * <h2>协议口径</h2>
+ * 本仓<b>自持 HTTP/JSON</b>（REST），逐方法等价的端点映射见 {@link QdrantRestClient} 与各方法注释
+ * （{@code Query} → REST {@code /points/search}、{@code Scroll} → {@code /points/scroll}、
  * {@code SetPayload} → {@code /points/payload}、{@code CreateFieldIndex} → {@code /index}）。
  *
- * <h2>语义要点（照 Go 注释）</h2>
+ * <h2>语义要点</h2>
  * <ul>
  *   <li><b>按维度分集合</b> {@code <base>_<dim>}；collection 名由
  *       {@code ResolveCollectionName(indexCfg, QDRANT_COLLECTION, "weknora_embeddings")} 决定；</li>
  *   <li>建集合时带 keyword 索引（chunk/knowledge/kb/source）+ bool 索引（is_enabled）+
  *       content 的 multilingual text 索引（lowercase=true）——索引创建失败只 WARN；</li>
  *   <li>点 ID 恒为新 UUID（Qdrant 不承载业务主键）；payload 字符串过
- *       {@link CleanInvalidUtf8}（NUL/非法编码单元丢弃，照 Go 的 newQdrantValueMap）；</li>
+ *       {@link CleanInvalidUtf8}（NUL/非法编码单元丢弃）；</li>
  *   <li>关键词检索是 {@code should(or) + content match text} 的 Scroll，跨集合合并后截 TopK、
  *       score 恒 1.0；单集合失败只 WARN 继续；</li>
- *   <li>批量按 100 分片 upsert（{@code batchSize = 100}）；CopyIndices 每页 64 并带向量回搬。</li>
+ *   <li>批量按 100 分片 upsert；CopyIndices 每页 64 并带向量回搬。</li>
  * </ul>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现说明</h2>
  * <ul>
- *   <li>传输 REST vs gRPC（语义等价面已逐条对齐；gRPC 专有字段不适用）；</li>
- *   <li>Go 的 Delete/Upsert/SetPayload(批量更新) 都不带 wait（异步默认）；本仓同样不传
- *       {@code wait=true}，只有 Move 的 SetPayload 带 wait（照 Go 的 {@code wait := true}）；</li>
+ *   <li>传输 REST（语义等价面已逐条对齐；gRPC 专有字段不适用）；</li>
+ *   <li>Delete/Upsert/SetPayload(批量更新) 都不带 {@code wait}（异步默认）；
+ *       只有 Move 的 SetPayload 带 {@code wait=true}；</li>
  *   <li>分词走本仓独有的 {@link SearchTextUtil#segmenter()} 接缝（jieba 默认降级为二字滑窗，
- *       与 Go 的 gojieba 词表不逐词一致——这是既有的文档化降级，Qdrant 驱动只是复用）；</li>
- *   <li>TopK ≤ 0 时 Go 的截断会 panic（负下标）；本仓 clamp 到 0（防御性偏离，正数语义不变）。</li>
+ *       与标准 jieba 词表不逐词一致——这是既有的文档化降级，Qdrant 驱动只是复用）；</li>
+ *   <li>TopK ≤ 0 时截断 clamp 到 0（防御性处理，正数语义不变）。</li>
  * </ul>
  */
 public class QdrantRetrieveRepository
@@ -63,9 +61,9 @@ public class QdrantRetrieveRepository
 
     private static final Logger log = LoggerFactory.getLogger(QdrantRetrieveRepository.class);
 
-    /** 对照 {@code defaultCollectionName}。 */
+    /** 缺省 collection 名。 */
     public static final String DEFAULT_COLLECTION_NAME = "weknora_embeddings";
-    /** 对照 {@code envQdrantCollection}。 */
+    /** collection 名环境键。 */
     public static final String ENV_QDRANT_COLLECTION = "QDRANT_COLLECTION";
 
     static final String FIELD_CONTENT = "content";
@@ -78,9 +76,9 @@ public class QdrantRetrieveRepository
     static final String FIELD_EMBEDDING = "embedding";
     static final String FIELD_IS_ENABLED = "is_enabled";
 
-    /** 对照 {@code const batchSize = 100}（BatchSave 分片）。 */
+    /** BatchSave 分片大小。 */
     static final int UPSERT_BATCH_SIZE = 100;
-    /** 对照 CopyIndices 的 {@code batchSize := uint32(64)}。 */
+    /** CopyIndices 分页大小。 */
     static final int COPY_PAGE_SIZE = 64;
 
     final QdrantRestClient client;
@@ -91,7 +89,7 @@ public class QdrantRetrieveRepository
     final QdrantSearchOps searchOps;
     final QdrantWriteOps writeOps;
 
-    /** 对照 {@code initializedCollections sync.Map}：dim -> true。 */
+    /** 已初始化集合表：dim -> true。 */
     private final ConcurrentHashMap<Integer, Boolean> initializedCollections =
             new ConcurrentHashMap<>();
 
@@ -106,7 +104,7 @@ public class QdrantRetrieveRepository
         this.writeOps = new QdrantWriteOps(this);
     }
 
-    /** 照 Go {@code NewQdrantRetrieveEngineRepository} + {@code createQdrantEngine} 的构造链。 */
+    /** 构造入口：建 client + 解析 collection 名。 */
     public static QdrantRetrieveRepository create(String host, int port, String apiKey,
                                                   boolean useTls, IndexConfig indexCfg,
                                                   SsrfGuard guard) {
@@ -122,7 +120,7 @@ public class QdrantRetrieveRepository
         return repo;
     }
 
-    /** 对照 {@code types.ResolveCollectionName(indexCfg, QDRANT_COLLECTION, default)}。 */
+    /** collection 名解析：indexCfg 前缀/名称 > env {@code QDRANT_COLLECTION} > 缺省。 */
     static String resolveCollectionName(IndexConfig indexCfg) {
         if (indexCfg != null) {
             if (indexCfg.collectionPrefix != null && !indexCfg.collectionPrefix.isEmpty()) {
@@ -156,7 +154,7 @@ public class QdrantRetrieveRepository
         return List.of(EngineTypes.RETRIEVER_KEYWORDS, EngineTypes.RETRIEVER_VECTOR);
     }
 
-    /** 对照 {@code EstimateStorageSize}（HNSW M=16；payload 不含 tag_id——照 Go 原文）。 */
+    /** 存储估算（HNSW M=16；payload 不含 tag_id）。 */
     @Override
     public long estimateStorageSize(List<IndexInfo> indexInfoList, Map<String, Object> params) {
         if (indexInfoList == null) {
@@ -170,7 +168,7 @@ public class QdrantRetrieveRepository
         return total;
     }
 
-    /** 对照 {@code calculateStorageSize}（Ref: qdrant-sizing-calculator）。 */
+    /** 单点存储估算（参照 qdrant-sizing-calculator）。 */
     static long calculateStorageSize(QdrantVectorEmbedding embedding) {
         long payload = 0;
         payload += utf8Length(embedding.content);
@@ -209,14 +207,14 @@ public class QdrantRetrieveRepository
         return bytes;
     }
 
-    // ── 集合管理（照 ensureCollection） ────────────────────────────────────
+    // ── 集合管理 ────────────────────────────────────────────────────────────
 
     String collectionName(int dimension) {
         return collectionBaseName + "_" + dimension;
     }
 
     /**
-     * 对照 {@code ensureCollection}：存在性探测（GET，404 视为不存在）→ 建集合
+     * 集合就绪：存在性探测（GET，404 视为不存在）→ 建集合
      * （size/distance=Cosine + 可选的 shard/replication）→ payload 索引（keyword×4 +
      * bool + text）；索引失败只 WARN；结果按维度缓存。
      */
@@ -281,8 +279,7 @@ public class QdrantRetrieveRepository
     }
 
 
-    /** 对照 {@code BatchSave}：按维度分组 → 每维 ensureCollection → 100 分片 upsert。 */
-    /** 对照 {@code newQdrantValueMap}：含 NUL/非法 UTF-8 的字符串先清理。 */
+    /** payload 字符串清理：含 NUL/非法 UTF-8 的先清理。 */
     static String sanitize(String value) {
         if (value == null) {
             return "";
@@ -341,7 +338,7 @@ public class QdrantRetrieveRepository
 
     // ── 检索 ────────────────────────────────────────────────────────────────
 
-    /** 对照 {@code ListCollections}（REST {@code GET /collections}）。 */
+    /** 列举集合（REST {@code GET /collections}）。 */
     List<String> listCollections() {
         JsonNode result = client.request("GET", "/collections", null);
         List<String> names = new ArrayList<>();
@@ -354,19 +351,19 @@ public class QdrantRetrieveRepository
         return names;
     }
 
-    /** 对照 Go 的集合名前缀过滤：严格长于 base 且以此为前缀。 */
+    /** 集合名前缀过滤：严格长于 base 且以此为前缀。 */
     boolean isPrefixed(String collection) {
         return collection.length() > collectionBaseName.length()
                 && collection.startsWith(collectionBaseName);
     }
 
     /**
-     * 对照 {@code tokenizeQuery}：{@code CutForSearch} → trim + 小写 →
+     * 查询分词：{@code CutForSearch} → trim + 小写 →
      * 丢弃单字符/重复 token（顺序保留）。
      *
-     * <p><b>降级口径</b>：gojieba 的 CutForSearch 对拉丁文本按词切分（空白自身也作词元，
-     * Go 侧靠 TrimSpace + 长度过滤丢弃）；本仓的 {@link SearchTextUtil} 降级分词器把
-     * 非 Han 连段整块返回，故这里对每个词元再按空白二次切分——净效果与 Go 一致
+     * <p><b>降级口径</b>：标准 jieba 的 CutForSearch 对拉丁文本按词切分（空白自身也作词元，
+     * 靠 trim + 长度过滤丢弃）；本仓的 {@link SearchTextUtil} 降级分词器把
+     * 非 Han 连段整块返回，故这里对每个词元再按空白二次切分——净效果与标准 jieba 一致
      * （英文单词成为独立 token）。真实分词器接入后此二次切分对其无副作用
      * （jieba 输出的词元本就不含空白）。</p>
      */
@@ -401,11 +398,8 @@ public class QdrantRetrieveRepository
 
 
 
-    /** 对照 {@code BatchUpdateChunkEnabledStatus}：按 true/false 分组 → 每集合两次 SetPayload。 */
-    /** 对照 {@code BatchUpdateChunkTagID}：按 tagID 分组 → 每集合逐组 SetPayload。 */
-
     /**
-     * 对照 {@code translateSourceID} 的三态：普通 chunk（SourceID==ChunkID）→ targetChunkID；
+     * SourceID 三态改写：普通 chunk（SourceID==ChunkID）→ targetChunkID；
      * 生成型问题（{@code "<chunkID>-<questionID>"}）→ 换前缀；其他 → 新 UUID。
      */
     static String translateSourceId(String originalSourceId, String sourceChunkId,
@@ -471,9 +465,9 @@ public class QdrantRetrieveRepository
     }
 
 
-    // ── move（照 move.go） ─────────────────────────────────────────────────
+    // ── move ────────────────────────────────────────────────────────────────
 
-    /** 对照 {@code MoveKnowledgeIndices}：SetPayload（wait=true）重写 kb_id 并清 tag_id。 */
+    /** SetPayload（wait=true）重写 kb_id 并清 tag_id。 */
     @Override
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
                                      List<String> chunkIds, int dimension, String knowledgeType)
@@ -496,7 +490,7 @@ public class QdrantRetrieveRepository
     // ── 行映射与辅助 ───────────────────────────────────────────────────────
 
     /**
-     * 对照 {@code toQdrantVectorEmbedding}：embedding 从 {@code additionalParams["embedding"]}
+     * IndexInfo → 行模型：embedding 从 {@code additionalParams["embedding"]}
      * 的 {@code Map<String, float[]>} 按 SourceID 取（缺失 → null，不单位化——Qdrant 用
      * Cosine 距离）；与 Doris 同款容错（List 形态也接受）。
      */
@@ -528,7 +522,7 @@ public class QdrantRetrieveRepository
         return row;
     }
 
-    // ── test-connection 探针（照 vectorstore_healthcheck.go testQdrantConnection） ──
+    // ── test-connection 探针 ────────────────────────────────────────────────
 
     /**
      * 连通性探针：REST {@code GET /}（等价 gRPC HealthCheck）返回 {@code version}；

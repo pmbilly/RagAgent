@@ -86,7 +86,7 @@ final class TencentVectorDbSearchOps {
     }
 
     /**
-     * 照 {@code KeywordsRetrieve}：客户端 BM25 查询向量 → 跨匹配集合 fullTextSearch；
+     * 关键词检索：客户端 BM25 查询向量 → 跨匹配集合 fullTextSearch；
      * 单集合失败只跳过，但全失败要报错（提示老集合缺 sparse 索引）；score 降序后截 limit。
      */
     List<RetrieveResult> keywordsRetrieve(RetrieveParams params) {
@@ -147,7 +147,7 @@ final class TencentVectorDbSearchOps {
         return retrieveResult(results, EngineTypes.RETRIEVER_KEYWORDS);
     }
 
-    /** 解析 search/fullTextSearch 的 {@code documents[0]}（照 Go 只取第一批）。 */
+    /** 解析 search/fullTextSearch 的 {@code documents[0]}（只取第一批）。 */
     static List<IndexWithScore> parseHits(JsonNode res, int matchType) {
         List<IndexWithScore> results = new ArrayList<>();
         JsonNode batches = res.path("documents");
@@ -166,7 +166,7 @@ final class TencentVectorDbSearchOps {
                 retrieverType));
     }
 
-    /** 照 {@code baseFilter}：is_enabled=1 恒在，其余按需 in/not in，空格 and 连接。 */
+    /** 基础过滤：is_enabled=1 恒在，其余按需 in/not in，空格 and 连接。 */
     static String baseFilter(RetrieveParams params) {
         List<String> conditions = new ArrayList<>();
         conditions.add(TencentVectorDbRetrieveRepository.FIELD_IS_ENABLED + "=1");

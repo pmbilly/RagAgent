@@ -13,13 +13,12 @@ import com.ragagent.datasource.ConnectorHttp;
 import com.ragagent.datasource.domain.DataSourceConfig;
 
 /**
- * 语雀专属配置（对照 Go {@code yuque.Config} + {@code parseYuqueConfig}，
- * yuque/types.go L32-84）。
+ * 语雀专属配置。
  *
- * <h2>{@code GetBaseURL()} 在 Go 里是方法</h2>
- * <p>Java 侧刻意不带 {@code get} 前缀（叫 {@code baseURL()}）并显式
+ * <h2>派生访问器不带 {@code get} 前缀</h2>
+ * <p>{@code baseURL()} 刻意不带 {@code get} 前缀并显式
  * {@code @JsonIgnore}——否则 Jackson 会凭空多吐一个 {@code baseURL} 键
- * （约定 §7.5 第 2 条，本项目复发率最高的那类错误）。</p>
+ * （这是本项目复发率最高的一类错误）。</p>
  *
  * <h2>企业/私有部署</h2>
  * <p>{@code base_url} 空 → {@code https://www.yuque.com}；缺 scheme 补
@@ -30,18 +29,16 @@ import com.ragagent.datasource.domain.DataSourceConfig;
  */
 public class YuqueConfig {
 
-    /** 对照 Go {@code yuque.DefaultBaseURL}。 */
+    /** 默认部署地址。 */
     public static final String DEFAULT_BASE_URL = "https://www.yuque.com";
 
     /**
-     * 与 Go 的 {@code json.Unmarshal} 对齐：忽略未知属性。
-     * Go 用 marshal/unmarshal 往返解析而不是逐字段类型断言，正是因为
-     * {@code base_url} 这类字段可选。
+     * 忽略未知属性（credentials 里的键只多不少，{@code base_url} 这类字段可选）。
      */
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    /** 对照 Go {@code api_token}：语雀设置页里的个人令牌，随 {@code X-Auth-Token} 头发送。 */
+    /** 语雀设置页里的个人令牌，随 {@code X-Auth-Token} 头发送。 */
     @JsonProperty("api_token")
     private String apiToken = "";
 
@@ -67,10 +64,10 @@ public class YuqueConfig {
     }
 
     /**
-     * 对照 Go {@code (*Config).GetBaseURL}：空 → 默认、缺 scheme 补
+     * 归一化后的基地址：空 → 默认、缺 scheme 补
      * {@code https://}、去尾斜杠。
      *
-     * <p>{@code @JsonIgnore} 必须有——Go 里它是方法，不参与 JSON。</p>
+     * <p>{@code @JsonIgnore} 必须有——否则会被 Jackson 当成属性多写一个键。</p>
      */
     @JsonIgnore
     public String baseURL() {
@@ -89,15 +86,15 @@ public class YuqueConfig {
     }
 
     /**
-     * 对照 Go {@code parseYuqueConfig}：解析并校验语雀配置。
+     * 解析并校验语雀配置。
      *
-     * <p>顺序逐条照抄：nil config → {@link ConnectorException.InvalidConfig}；
+     * <p>顺序：nil config → {@link ConnectorException.InvalidConfig}；
      * 反序列化失败 → {@code "parse yuque credentials: ..."}；{@code api_token}
      * 空白 → {@link ConnectorException.InvalidCredentials}；最后过 SSRF 策略。</p>
      *
      * <p><b>最后一步会真的解析 DNS</b>（除非命中白名单）。测试必须把
      * {@code base_url} 指向被放行的 stub server，不能留空回落到
-     * {@code https://www.yuque.com}（约定 §7.5 第 7 条）。</p>
+     * {@code https://www.yuque.com}。</p>
      */
     public static YuqueConfig parse(DataSourceConfig config) {
         if (config == null) {
@@ -122,7 +119,7 @@ public class YuqueConfig {
         return cfg;
     }
 
-    /** 对照 Go 的 {@code strings.TrimSpace(x) == ""}（含 U+00A0 / U+3000）。 */
+    /** 空白判定（含 U+00A0 / U+3000，比 {@code isBlank} 更严）。 */
     private static boolean isGoBlank(String s) {
         if (s == null) {
             return true;

@@ -10,8 +10,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * 追问建议的产品分析事件（对照 Go {@code types.MessageSuggestionEvent}，
- * internal/types/message_suggestion.go L110-119）。
+ * 追问建议的产品分析事件。
  *
  * <p>与安全审计日志**分开存**：这里只引用 question ID，不复制建议文案。</p>
  */
@@ -37,7 +36,7 @@ public class MessageSuggestionEvent {
 
     private String eventType = "";
 
-    /** 行为主体。**不进 JSON**（Go 的 {@code json:"-"}）。 */
+    /** 行为主体。**不进 JSON**。 */
     @TableField("actor_id")
     @JsonIgnore
     private String actorId = "";

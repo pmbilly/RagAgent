@@ -91,8 +91,7 @@ final class WikiStatsOps {
      * <p>参数校验顺序固定：mode → center（仅 ego）→ depth → limit → types。
      * depth / limit 的"非正整数"是 400，超上限则<b>静默夹紧</b>而不是报错。</p>
      *
-     * <p>"熟悉知识"叠加层（FamiliarKnowledgeIDs）无对应模块 → 传 null
-     * （等价原实现的空值分支）。</p>
+     * <p>"熟悉知识"叠加层（FamiliarKnowledgeIDs）无对应模块 → 传 null（空值分支）。</p>
      */
     ResponseEntity<?> getGraph(String kbId, HttpServletRequest request) {
         kbGuard.requireWikiKB(kbId, false);

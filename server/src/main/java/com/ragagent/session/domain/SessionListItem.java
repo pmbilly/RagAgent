@@ -8,19 +8,13 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
- * 列表里的一行会话 = 会话字段 + IM 来源字段（对照 Go {@code types.SessionListItem}，
- * internal/types/session.go L227-235）。
+ * 列表里的一行会话 = 会话字段 + IM 来源字段。
  *
  * <p><b>为什么这里把字段平铺，而不是继承 {@link Session} 或用 {@code @JsonUnwrapped}</b>：
- * Go 用的是**结构体内嵌 + 外层同名字段遮蔽</b>——{@code SessionListItem} 自己又声明了一个
- * {@code IMPlatform}，把内嵌 {@code Session} 的那个（{@code gorm:"-"}，本来就没有列）盖掉。
- * Go 的 encoding/json 按"深度浅者胜"解析，所以 {@code im_platform} **只出现一次**，
- * 位置在外层声明处（即 {@code deleted_at} 之后）。</p>
- *
- * <p>Java 侧若用继承或 {@code @JsonUnwrapped}，两个 {@code imPlatform} 会撞成重复键，
+ * 继承/展开会让两个 {@code imPlatform} 撞成重复键，
  * 且键序由 Jackson 的内部规则决定、不受控。而这是**响应体**（GET /sessions 的
- * {@code items} 数组元素），键序＝字段声明序才受控——所以保持平铺；显式的键序注解已在
- * §14.9l S1 换锚时退役（声明序即线格式顺序，键名＝Java 字段名）。</p>
+ * {@code items} 数组元素），键序＝字段声明序才受控——所以保持平铺
+ * （声明序即线格式顺序，键名＝Java 字段名）。</p>
  */
 @TableName(value = "sessions", autoResultMap = true)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -28,7 +22,7 @@ public class SessionListItem {
 
     private String id;
 
-    // Go 字符串零值语义：GORM 扫 NULL 列得 ""（恒输出的键不允许出 null）
+    // 字符串列扫出 NULL 时落 ""（恒输出的键不允许出 null）
     private String title = "";
 
     private String description = "";

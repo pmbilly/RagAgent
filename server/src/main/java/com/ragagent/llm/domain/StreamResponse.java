@@ -11,10 +11,10 @@ import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.llm.ResponseType;
 
 /**
- * 流式响应（对照 Go types.StreamResponse，internal/types/chat.go:292-304）。
+ * 流式响应。
  *
- * 字段序 = Go struct 声明序（struct 响应按声明序输出，见约定 §9）。
- * id/response_type/content/done 恒输出；其余 omitempty → NON_EMPTY。
+ * JSON 字段序 = 声明序。
+ * id/response_type/content/done 恒输出；其余为空时省略（NON_EMPTY）。
  *
  * 线上契约：这是 SSE 事件体的核心结构，`response_type` 取值见 {@link ResponseType}。
  */
@@ -33,12 +33,11 @@ public class StreamResponse {
     @JsonProperty("done")
     private boolean done;
     /**
-     * 检索引用（Go: {@code types.References = []*SearchResult}）。
+     * 检索引用（{@link SearchResult} 列表）。
      *
-     * <p>chat 包本身从不设置该字段，只有 SSE 契约层（{@code session.sse}）会填；
-     * 类型随检索模块落地而细化（阶段 5.2 步 1），不再是 {@code List<Object>} 透传。</p>
+     * <p>chat 包本身从不设置该字段，只有 SSE 契约层（{@code session.sse}）会填。</p>
      *
-     * <p>Go 带 omitempty：len 为 0 时整键省略（含"空但非 nil"的 slice）。</p>
+     * <p>为空时整键省略。</p>
      */
     @JsonProperty("knowledge_references")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -53,10 +52,10 @@ public class StreamResponse {
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private List<ToolCall> toolCalls;
     /**
-     * 附加数据。Go 是 {@code map[string]interface{}} + omitempty。
+     * 附加数据（map，为空时省略）。
      *
-     * <p>键序由 {@link GoMapSerializer} 递归对齐 Go 的编码器——产出方（chat / agent 引擎）
-     * 大多用 {@code LinkedHashMap} 按写入序，而 Go 恒按 key 排序；
+     * <p>键序由 {@link GoMapSerializer} 递归按字母序归一——产出方（chat / agent 引擎）
+     * 大多用 {@code LinkedHashMap} 按写入序；
      * 嵌套的 {@code arguments} 之类更是直接来自模型返回的 JSON，外层排不掉。</p>
      */
     @JsonProperty("data")

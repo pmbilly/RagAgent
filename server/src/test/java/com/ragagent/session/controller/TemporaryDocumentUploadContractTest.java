@@ -26,7 +26,7 @@ import com.ragagent.session.service.SessionService;
 import com.ragagent.session.service.TemporaryDocumentService;
 
 /**
- * 附件上传入口的 agent 语义验收（对照 Go UploadTemporaryDocument，L19-93）：
+ * 附件上传入口的 agent 语义验收：
  * agent 门控（supported_file_types、音频 ASR）/ parser_engine 绑定与
  * agent 级回落。共享 agent 与 agent_source_tenant_id 面随空间分享裁撤。
  */

@@ -32,12 +32,10 @@ import com.ragagent.datasource.domain.FetchedItem;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
- * 对照 Go {@code wiki/connector_stream_test.go} 与 {@code wiki/connector_convergence_test.go}。
+ * wiki 流式同步的核心不变式（Tencent/WeKnora#2136）：<b>抓取失败不推进游标</b>、
+ * <b>续跑会收敛</b>、<b>Emit 失败立刻中止</b>、<b>检查点按数量与时间两条规则触发</b>。
  *
- * <p>核心不变式（Tencent/WeKnora#2136）：<b>抓取失败不推进游标</b>、
- * <b>续跑会收敛</b>、<b>Emit 失败立刻中止</b>、<b>检查点按数量与时间两条规则触发</b>。</p>
- *
- * <p>Go 的 {@code context} 取消在 Java 侧是"handler 抛异常"——测试里的
+ * <p>"任务被取消"在 Java 侧表现为"handler 抛异常"——测试里的
  * {@link CancelAfterHandler} 就扮演 service 侧"灌入时发现任务已被取消"的角色。</p>
  */
 class WikiConnectorStreamTest {
@@ -82,7 +80,7 @@ class WikiConnectorStreamTest {
         WikiFixtures.hierarchyRoute(server, List.of(nodes), Map.of());
     }
 
-    /** 只返回 export create 失败的桩（对照 Go 的 {@code fakeFeishuFailingExport}）。 */
+    /** 只返回 export create 失败的桩。 */
     private void failingExportStub() {
         server.handle(WikiFixtures.EXPORT_CREATE_PATH, (ex, body) -> FeishuTestServer.sendJson(ex,
                 "{\"code\":1,\"msg\":\"export unavailable\"}"));
@@ -278,7 +276,7 @@ class WikiConnectorStreamTest {
     // 收敛（#2136 端到端证明）
     // ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go 的 {@code convergenceHandler}：记录已灌入/失败，并在第 N 次 Emit 抛异常。 */
+    /** 记录已灌入/失败，并在第 N 次 Emit 抛异常（模拟取消）。 */
     static final class CancelAfterHandler implements StreamHandler {
 
         final List<String> ingested = new ArrayList<>();

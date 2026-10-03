@@ -10,29 +10,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.memory.domain.MemoryScope;
 
 /**
- * 一次蒸馏任务的全部输入（对照 Go {@code types.MemoryExtractPayload}，
- * internal/types/task.go L264-278）。
+ * 一次蒸馏任务的全部输入。
  *
  * <h2>为什么所有东西都在负载里</h2>
- * <p>Go 的 asynq 与 Lite 执行器交给 handler 的是一个**裸 ctx**，
+ * <p>任务在新线程上跑，请求当时的上下文（{@code TenantContext} 等）一律为空——
  * 所以请求当时知道的、而负载没带的作用域，到任务真正运行时已经没了。
- * Java 侧的进程内队列同样在新线程上跑，{@code TenantContext} 一律为空——
- * 所以这个约束在 Java 里只会更紧，不会更松。</p>
+ * 所有需要的信息都必须随负载携带。</p>
  *
- * <h2>⚠️ 与 Go 的一处已知差异</h2>
+ * <h2>⚠️ 一处已知差异</h2>
  * <ol>
- *   <li><b>{@code language} 恒为空串</b>：Go 由 {@code types.LanguageNameFromContext(ctx)}
- *       填，Java 侧的语言上下文（{@code LanguageContextKey}）尚未翻译，
- *       因此没有来源。它只影响提示词语言，且只在这条内部链路上传递、不出响应，
- *       所以外部不可见。</li>
+ *   <li><b>{@code language} 恒为空串</b>：语言上下文（{@code LanguageContextKey}）
+ *       尚未接入这条链路，因此没有来源。它只影响提示词语言，且只在这条内部链路上传递、
+ *       不出响应，所以外部不可见。</li>
  * </ol>
- * <p>该差异在 §8 的模块日志里记过。</p>
  *
- * <p><b>langfuse 追踪载体（2026-09-24 C 批接线）</b>：Go 内嵌
- * {@code types.TracingContext}）。<b>B5 起</b>载体以嵌套对象 {@code tracing} 随负载携带
- * （Go 期是五个平铺的 {@code lf_*} 键；载具只在进程内队列流动、无外部消费者，故改形）。
- * 早期之所以平铺，是因为
- * Creator 参数），空值整键省略。worker 侧取 {@link #tracing()} 续接同一棵树。</p>
+ * <p><b>langfuse 追踪载体</b>：以嵌套对象 {@code tracing} 随负载携带（早期是五个平铺的
+ * {@code lf_*} 键；载具只在进程内队列流动、无外部消费者，故改形）。
+ * 空载体整键省略，worker 侧取 {@link #tracing()} 续接同一棵树。</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record MemoryExtractPayload(
@@ -42,11 +36,11 @@ public record MemoryExtractPayload(
         /** 结束触发那一轮的助手消息，用来界定抽取窗口，也是产出条目的来源。 */
         @JsonProperty("message_id") String messageId,
         /**
-         * {@code chat_model_id} 带 omitempty：空串时**省略键**（照抄 Go 的 tag）。
+         * {@code chat_model_id} 空串时**省略整个键**。
          *
          * <p>用 {@code NON_DEFAULT} 而不是 {@code NON_NULL}：字段在紧凑构造器里已经把
-         * null 归一成 {@code ""}，而 Go 的 {@code omitempty} 省略的是**空串**
-         * （§7.5 第 5 条）。{@code tenant_id} 没有 omitempty，所以 0 必须照常输出——
+         * null 归一成 {@code ""}，省略的是**空串**
+         * （§7.5 第 5 条）。{@code tenant_id} 是 0 时必须照常输出——
          * 这也是注解只加在这两个分量上、不放类头的原因。</p>
          */
         @JsonProperty("chat_model_id")
@@ -55,8 +49,8 @@ public record MemoryExtractPayload(
         @JsonProperty("language")
         @JsonInclude(JsonInclude.Include.NON_DEFAULT) String language,
         /**
-         * 观测载体（B5：嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
-         * 空载体经 {@code EmptyOmitFilter} 整键省略：未启用追踪时负载字节与平铺期逐字一致。
+         * 观测载体（嵌套键 {@code tracing}，五个 {@code lf_*} 组件收在里面）。
+         * 空载体经 {@code EmptyOmitFilter} 整键省略。
          */
         @JsonProperty("tracing")
         @JsonInclude(value = JsonInclude.Include.CUSTOM,
@@ -94,12 +88,12 @@ public record MemoryExtractPayload(
         return tracing == null ? com.ragagent.common.context.TracingContext.EMPTY : tracing;
     }
 
-    /** 对照 Go 的 {@code types.MemoryExtractPayload{}}：全零值，供"没有触发轮次"的调用点。 */
+    /** 全零值负载，供"没有触发轮次"的调用点。 */
     public static MemoryExtractPayload empty() {
         return new MemoryExtractPayload(0, "", "", "", "", "", null);
     }
 
-    /** 对照 Go 的 {@code json.Marshal(payload)}：负载以 JSON 形态进队列。 */
+    /** 负载以 JSON 形态进队列。 */
     public String toJson() {
         try {
             return MAPPER.writeValueAsString(this);
@@ -108,7 +102,7 @@ public record MemoryExtractPayload(
         }
     }
 
-    /** 对照 Go 的 {@code json.Unmarshal(task.Payload(), &payload)}。 */
+    /** 从队列里的 JSON 反序列化负载。 */
     public static MemoryExtractPayload fromJson(String json) {
         try {
             return MAPPER.readValue(json, MemoryExtractPayload.class);
@@ -117,7 +111,7 @@ public record MemoryExtractPayload(
         }
     }
 
-    /** 对照 Go 的 {@code MemoryScope{TenantID, SubjectID}} 重建 + {@code Valid()}。 */
+    /** 重建本负载的记忆 scope。 */
     public MemoryScope scope() {
         return new MemoryScope(tenantId, subjectId);
     }

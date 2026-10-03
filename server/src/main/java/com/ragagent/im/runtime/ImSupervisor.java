@@ -6,23 +6,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 长连接守护（对照 Go internal/im/supervisor.go 全文，波 5 W5γ1 逐行翻译）。
+ * 长连接守护。
  *
  * <p>部分 IM SDK（DingTalk/Feishu）把重连交给内部逻辑，长跑连接可能悄悄进入
  * "僵尸"态——连接对象活着但再也收不到消息。周期性重建把最坏中断限定在一个周期内。
- * RunSupervised 阻塞到 ctx 取消；取消时先经 stop 干净地拆除活动连接。</p>
+ * runSupervised 阻塞到取消标志置位；取消时先经 stop 干净地拆除活动连接。</p>
  */
 public final class ImSupervisor {
 
     private static final Logger log = LoggerFactory.getLogger(ImSupervisor.class);
 
-    /** 主动重建周期（supervisor.go L19）。 */
+    /** 主动重建周期。 */
     public static final Duration DEFAULT_RECYCLE_INTERVAL = Duration.ofHours(6);
-    /** 连接失败后的退避（supervisor.go L22）。 */
+    /** 连接失败后的退避。 */
     public static final Duration DEFAULT_RETRY_DELAY = Duration.ofSeconds(5);
 
     /**
-     * 守护循环（对照 RunSupervised）：cancel 标志被置位后退出。MaxConnAge 到点主动
+     * 守护循环：cancel 标志被置位后退出。MaxConnAge 到点主动
      * 重建；连接失败按退避重试。阻塞调用——在线程里跑。
      */
     public static void runSupervised(String name, Duration maxConnAge, Duration retryDelay,

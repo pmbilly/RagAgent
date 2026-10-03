@@ -7,7 +7,7 @@ package com.ragagent.agent.tools;
  * 多条记录"的工具做 max-min 公平（water-filling）分配：小于均份额的条目保全长并把富余让给大条目
  * ——批式结果因此按"削 biggest"退化而不是"整条丢弃"。</p>
  *
- * <p>行为实录：{@code (100,[10,20,30])→[10,20,30]}、{@code (90,[5,1000,1000])→[5,42,42]}、
+ * <p>行为示例：{@code (100,[10,20,30])→[10,20,30]}、{@code (90,[5,1000,1000])→[5,42,42]}、
  * {@code (1000,[700,20,5000,120])→[430,20,430,120]}、{@code (10,[100])→[10]}。</p>
  */
 public final class OutputBudgets {
@@ -16,7 +16,7 @@ public final class OutputBudgets {
     }
 
     /**
-     * @param total 总预算（runes）
+     * @param total 总预算（码点数）
      * @param sizes 各条目的全长
      * @return 每条目的 cap；cap ≤ size 且 sum ≤ total
      */

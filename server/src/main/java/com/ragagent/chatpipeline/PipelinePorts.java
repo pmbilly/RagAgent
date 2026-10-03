@@ -17,17 +17,16 @@ import com.ragagent.retrieval.graph.RetrieveGraphRepository;
 import com.ragagent.common.pipeline.SearchParams;
 
 /**
- * chat 管线消费面的窄 seam 接口集合（对照 Go {@code types/interfaces} 的对应接口，
- * 只收 chat_pipeline 实际调用的方法子集——波 4.5b/c 先例）。
+ * chat 管线消费面的窄 seam 接口集合，只收管线实际调用的方法子集。
  *
- * <h2>4.6d 装配要求</h2>
+ * <h2>装配要求</h2>
  * <p>每个接口需要一个 adapter（纯新增文件，不改既有 service）把现有 Java service
  * 适配进来：</p>
  * <ul>
- *   <li>{@link ModelService} → KnowledgeService/model 侧的模型工厂（GetChatModel/GetRerankModel）。</li>
- *   <li>{@link KnowledgeBaseService} → knowledge 域 HybridSearch 执行面（波 4.4 起的地基 +
- *       阶段 7 的向量/关键词执行）；GetQueryEmbedding / ResolveEmbeddingModelKeys /
- *       GetKnowledgeBase(s)ById(s)Only。</li>
+ *   <li>{@link ModelService} → KnowledgeService/model 侧的模型工厂（getChatModel/getRerankModel）。</li>
+ *   <li>{@link KnowledgeBaseService} → knowledge 域 HybridSearch 执行面（向量/关键词执行）；
+ *       getQueryEmbedding / resolveEmbeddingModelKeys /
+ *       getKnowledgeBase(s)ById(s)Only。</li>
  *   <li>{@link ChunkRepository} / {@link KnowledgeRepository} / {@link KnowledgeBaseRepository}
  *       → knowledge.mapper.ChunkRepository / KnowledgeService / KnowledgeBaseMapper。</li>
  *   <li>{@link MessageService} → session.service.MessageService（getImage/RenderedContent 更新
@@ -35,99 +34,87 @@ import com.ragagent.common.pipeline.SearchParams;
  *   <li>{@link MemoryService} → memory.service.MemoryService（recall/retrievalContextFor/
  *       documentAffinity 签名已对齐）。</li>
  *   <li>{@link WebSearchService} → websearch.service.WebSearchService.search。</li>
- *   <li>{@link RetrieveGraphRepository} → 图检索仓储（neo4j/图库面，尚未翻译）。</li>
+ *   <li>{@link RetrieveGraphRepository} → 图检索仓储（neo4j/图库面）。</li>
  *   <li>{@link TenantService} / {@link SessionService} / {@link WebSearchStateService} /
- *       {@link WebSearchProviderRepository}：占位接口——Go 侧同样只判 nil / 从不读方法
- *       （search.go 的 webSearchStateService/webSearchProviderRepo 同）。</li>
+ *       {@link WebSearchProviderRepository}：占位接口——管线只判空、从不调用其方法。</li>
  * </ul>
  *
- * <p>错误通道：Go 的 {@code (value, error)} 折叠为「返回值或抛 {@link PipelinePortException}」；
- * 与 4.5b/c 的接口 seam 一致。</p>
+ * <p>错误通道：失败一律抛 {@link PipelinePortException}，成功走返回值。</p>
  */
 public final class PipelinePorts {
 
     private PipelinePorts() {}
 
-    /** seam 调用失败通道（对照 Go 接口方法的 error 返回值）。 */
+    /** seam 调用失败通道。 */
     public static final class PipelinePortException extends RuntimeException {
         public PipelinePortException(String message) { super(message); }
         public PipelinePortException(String message, Throwable cause) { super(message, cause); }
     }
 
-    /** 对照 interfaces.ModelService 的 chat_pipeline 子集。 */
+    /** 模型面：chat 管线所需的方法子集。 */
     public interface ModelService {
-        /** 对照 GetChatModel。 */
         LlmChatClient getChatModel(String modelId);
-        /** 对照 GetRerankModel。 */
         com.ragagent.rerank.Reranker getRerankModel(String modelId);
     }
 
-    /** 对照 interfaces.KnowledgeBaseService 的 chat_pipeline 子集。 */
+    /** 知识库面：chat 管线所需的方法子集。 */
     public interface KnowledgeBaseService {
-        /** 对照 GetKnowledgeBaseByIDOnly（无租户过滤）。 */
+        /** 按 ID 直取（无租户过滤）。 */
         com.ragagent.knowledge.domain.KnowledgeBase getKnowledgeBaseByIdOnly(String id);
 
-        /** 对照 GetKnowledgeBasesByIDsOnly（批量、无租户过滤；缺失 ID 跳过）。 */
+        /** 批量直取（无租户过滤；缺失 ID 跳过）。 */
         List<com.ragagent.knowledge.domain.KnowledgeBase> getKnowledgeBasesByIdsOnly(List<String> ids);
 
-        /** 对照 HybridSearch。 */
         List<SearchResult> hybridSearch(String knowledgeBaseId, SearchParams params);
 
-        /** 对照 GetQueryEmbedding。 */
         float[] getQueryEmbedding(String kbId, String queryText);
 
-        /** 对照 ResolveEmbeddingModelKeys：KB ID → "模型名|endpoint"（解析失败缺键）。 */
+        /** KB ID → "模型名|endpoint"（解析失败的 KB 缺键）。 */
         Map<String, String> resolveEmbeddingModelKeys(List<String> kbIds);
     }
 
-    /** 对照 interfaces.KnowledgeService 的 chat_pipeline 子集。 */
+    /** 知识面：chat 管线所需的方法子集。 */
     public interface KnowledgeService {
-        /** 对照 GetKnowledgeByID（ctx 租户过滤——Java 侧 adapter 从 TenantContext 取）。 */
+        /** 按租户过滤取单条（adapter 从 TenantContext 取租户）。 */
         com.ragagent.knowledge.domain.Knowledge getKnowledgeById(String id);
 
-        /** 对照 GetKnowledgeBatch。 */
         List<com.ragagent.knowledge.domain.Knowledge> getKnowledgeBatch(long tenantId, List<String> ids);
 
-        /** 对照 GetKnowledgeBatchWithSharedAccess。 */
         List<com.ragagent.knowledge.domain.Knowledge> getKnowledgeBatchWithSharedAccess(long tenantId, List<String> ids);
     }
 
-    /** 对照 interfaces.ChunkRepository 的 chat_pipeline 子集。 */
+    /** chunk 面：chat 管线所需的方法子集。 */
     public interface ChunkRepository {
-        /** 对照 ListChunksByID。 */
         List<com.ragagent.knowledge.domain.Chunk> listChunksById(long tenantId, List<String> ids);
 
-        /** 对照 ListChunksByParentIDs（image_info 聚合用）。 */
+        /** image_info 聚合用。 */
         List<com.ragagent.knowledge.domain.Chunk> listChunksByParentIds(long tenantId, List<String> parentIds);
     }
 
-    /** 对照 interfaces.KnowledgeRepository 的 GetKnowledgeBatch。 */
+    /** 知识批量取仓储。 */
     public interface KnowledgeRepository {
         List<com.ragagent.knowledge.domain.Knowledge> getKnowledgeBatch(long tenantId, List<String> ids);
     }
 
-    /** 对照 interfaces.KnowledgeBaseRepository 的 GetKnowledgeBaseByIDs。 */
+    /** 知识库批量取仓储。 */
     public interface KnowledgeBaseRepository {
         List<com.ragagent.knowledge.domain.KnowledgeBase> getKnowledgeBaseByIDs(List<String> ids);
     }
 
-    /** 对照 interfaces.MessageService 的 chat_pipeline 子集。 */
+    /** 消息面：chat 管线所需的方法子集。 */
     public interface MessageService {
-        /** 对照 GetMessage。找不到返回 null（Go (nil, nil)）或抛异常。 */
+        /** 找不到返回 null 或抛异常。 */
         PipelineMessageView getMessage(String sessionId, String messageId);
 
-        /** 对照 GetRecentMessagesBySession。 */
         List<PipelineMessageView> getRecentMessagesBySession(String sessionId, int limit);
 
-        /** 对照 UpdateMessageImages。 */
         void updateMessageImages(String sessionId, String messageId,
                 List<PipelineMessageImageView> images);
 
-        /** 对照 UpdateMessageRenderedContent。 */
         void updateMessageRenderedContent(String sessionId, String messageId, String renderedContent);
     }
 
-    /** 对照 interfaces.MemoryService 的 chat_pipeline 子集（签名与 memory.service.MemoryService 已对齐）。 */
+    /** 记忆面端口（签名与 memory.service.MemoryService 对齐）。 */
     public interface MemoryService {
         MemoryRecall recall(String query);
 
@@ -136,54 +123,50 @@ public final class PipelinePorts {
         Map<String, Integer> documentAffinity(List<String> knowledgeIds);
     }
 
-    /** 对照 interfaces.WebSearchService 的 Search（providerID + 执行面配置）。 */
+    /** web 搜索执行（providerID + 执行面配置）。 */
     public interface WebSearch {
         List<WebSearchResult> search(String providerId, WebSearchService.WebSearchConfig config, String query);
     }
-    // ----- 占位接口（Go 侧同样只判 nil 或从不读方法） -----
+    // ----- 占位接口（管线只判空、从不调用方法） -----
 
-    /** 对照 interfaces.TenantService：search.go 只判 nil（web 检索启用性开关的装配凭证）。 */
-    /** 租户面端口——chat_pipeline 取 ctx 租户信息的最小子集。 */
+    /** 租户面端口——chat 管线取租户信息的最小子集。 */
     public interface TenantService {
 
         /**
-         * 对照 Go search.go 的 {@code types.TenantInfoFromContext(ctx)}：
          * 当前租户的 web 搜索配置（TenantContext 实时读取）；无租户上下文 → null
-         * （调用方走 EffectiveWebSearchConfig(nil) 的缺省分支）。default null =
-         * 2026-09-25 接线前的恒空接缝（未装配 port 的实现方行为不变）。
+         * （调用方按空配置走缺省合并分支）。default null 保持未装配 port 时的恒空行为。
          */
         default com.ragagent.auth.domain.tenantconfig.WebSearchConfig currentWebSearchConfig() {
             return null;
         }
     }
 
-    /** 对照 interfaces.SessionService：PluginSearch 存而不读（与 Go 一致）。 */
+    /** 占位：PluginSearch 存而不读。 */
     public interface SessionService {
     }
 
-    /** 对照 interfaces.ChunkService：merge 的父子解析依赖占位（当前与 Go 一致未消费）。 */
+    /** 占位：merge 的父子解析依赖预留，当前未消费。 */
     public interface ChunkService {
     }
 
-    /** 对照 interfaces.WebSearchStateService：存而不读（Go 当前也是注释掉的状态压缩路径）。 */
+    /** 占位：存而不读（状态压缩路径未启用）。 */
     public interface WebSearchStateService {
     }
 
-    /** 对照 interfaces.WebSearchProviderRepository：存而不读（同上）。 */
+    /** 占位：存而不读。 */
     public interface WebSearchProviderRepository {
     }
 
     /**
-     * DataAnalysis 插件的工具会话 seam（对照 Go 直接构造 tools.NewDataAnalysisTool +
-     * LoadFromKnowledge/Execute/Cleanup 三步）。实现侧（4.6d，可放 agent.tools 包内以
-     * 触达包私有 loadFromKnowledge）打包 KnowledgeLoader/Materializer/AnalysisDuckDb
-     * 三个 seam 与 *sql.DB 的对应物。
+     * DataAnalysis 插件的工具会话 seam（装载/执行/清理三步）。实现侧可放 agent.tools
+     * 包内以触达包私有 loadFromKnowledge，打包 KnowledgeLoader/Materializer/AnalysisDuckDb
+     * 三个 seam 与数据库连接句柄。
      */
     public interface DataAnalysisSessionFactory {
         DataAnalysisSession create(String sessionId);
     }
 
-    /** 一次数据装载/执行/清理会话（对照 DataAnalysisTool 的插件可见面）。 */
+    /** 一次数据装载/执行/清理会话（DataAnalysisTool 的插件可见面）。 */
     public interface DataAnalysisSession {
         com.ragagent.agent.tools.data.DataAnalysisTool.TableSchema loadFromKnowledge(
                 com.ragagent.agent.tools.data.DataAnalysisTool.KnowledgeData knowledge);

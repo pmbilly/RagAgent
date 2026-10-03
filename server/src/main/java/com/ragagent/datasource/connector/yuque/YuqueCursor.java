@@ -12,8 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 语雀的增量同步状态（对照 Go {@code yuque.yuqueCursor}，
- * yuque/types.go L209-214）。装进
+ * 语雀的增量同步状态。装进
  * {@link com.ragagent.datasource.domain.SyncCursor#getConnectorCursor()}、
  * 最终落在 {@code data_sources.last_sync_cursor} 这个 jsonb 列里。
  *
@@ -23,11 +22,11 @@ import com.ragagent.common.web.GoTimeSerializer;
  * 字符串相等比较，这样连"语雀改了时间格式"都不会误判为全员变更）。</p>
  *
  * <h2>内部形状</h2>
- * <p>不直接作响应体；JSON 形态只出现在 {@code last_sync_cursor} 列里，与 Go 逐键一致。</p>
+ * <p>不直接作响应体；JSON 形态只出现在 {@code last_sync_cursor} 列里，键名与既有数据逐键一致。</p>
  */
 public class YuqueCursor {
 
-    /** 与 Go 的 {@code json.Unmarshal} 对齐：容忍未知属性（游标承载历史数据）。 */
+    /** 容忍未知属性（游标承载历史数据）。 */
     private static final ObjectMapper MAPPER = JsonMappers.lenient()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -56,11 +55,10 @@ public class YuqueCursor {
     }
 
     /**
-     * 对照 Go 里 {@code json.Marshal(newCursor)} + {@code json.Unmarshal(..., &cursorMap)}
-     * 那两行：把有类型的游标摊成扁平 map。
+     * 把有类型的游标摊成扁平 map。
      *
      * <p>净效果（已在 {@code YuqueCursorTest} 钉住）：{@code last_sync_time} 是
-     * <b>RFC3339 字符串</b>（roundtrip 把 {@code time.Time} 变成 {@code string}），
+     * <b>RFC3339 字符串</b>，
      * {@code book_doc_times} 是嵌套字符串 map；后者为空时整个键不出现。</p>
      */
     public Map<String, Object> toConnectorCursor() {
@@ -70,11 +68,9 @@ public class YuqueCursor {
     }
 
     /**
-     * 对照 Go 的 {@code json.Marshal(cursor.ConnectorCursor)} +
-     * {@code json.Unmarshal(..., &p)}。
+     * 从扁平 map 还原游标。
      *
-     * <p><b>与 Go 的一处已知差异</b>：Go 用 {@code _ = json.Unmarshal(...)} 忽略错误，
-     * 形状不对的游标会留下**部分填充**的结构；Java 侧解析失败回 {@code null}
+     * <p>形状不对、解析失败时回 {@code null}
      * （等价于没有上一轮游标 → 退化成首次同步，只会多抓一次，不会漏数据）。</p>
      */
     public static YuqueCursor fromConnectorCursor(Map<String, Object> connectorCursor) {

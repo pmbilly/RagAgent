@@ -6,8 +6,7 @@ import java.util.Map;
 import java.util.LinkedHashMap;
 
 /**
- * 管线装配器与预设管线（对照 Go {@code types.PipelineBuilder / Pipeline}，
- * internal/types/chat_manage.go:287-353）。
+ * 管线装配器与预设管线。
  */
 public final class PipelineBuilder {
 
@@ -17,7 +16,7 @@ public final class PipelineBuilder {
         return new PipelineBuilder();
     }
 
-    /** 无条件追加（对照 Add）。 */
+    /** 无条件追加。 */
     public PipelineBuilder add(String... stages) {
         for (String s : stages) {
             this.stages.add(s);
@@ -25,7 +24,7 @@ public final class PipelineBuilder {
         return this;
     }
 
-    /** 条件追加（对照 AddIf）。 */
+    /** 条件追加。 */
     public PipelineBuilder addIf(boolean cond, String... stages) {
         if (cond) {
             return add(stages);
@@ -33,12 +32,12 @@ public final class PipelineBuilder {
         return this;
     }
 
-    /** 输出最终事件列表（对照 Build；builder 不复用）。 */
+    /** 输出最终事件列表（builder 不复用）。 */
     public List<String> build() {
         return new ArrayList<>(stages);
     }
 
-    /** 预设管线（对照 types.Pipeline；deprecated 别名 Pipline 不翻）。 */
+    /** 预设管线。 */
     public static Map<String, List<String>> presets() {
         Map<String, List<String>> p = new LinkedHashMap<>();
         p.put("chat", List.of(PipelineEventType.CHAT_COMPLETION));

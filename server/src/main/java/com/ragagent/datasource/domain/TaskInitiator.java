@@ -2,29 +2,26 @@ package com.ragagent.datasource.domain;
 
 
 /**
- * 提交异步任务的已认证调用方（对照 Go {@code types.TaskInitiator}，
- * internal/types/context_helpers.go L72-79）。
+ * 提交异步任务的已认证调用方。
  *
  * <p>worker 把它还原进自己的上下文，好让审计条目描述"是谁发起的"；
  * 调度器创建的任务则仍归于系统。</p>
  *
- * <h2>JSON 形状（§14.9q D3）</h2>
+ * <h2>JSON 形状</h2>
  * <pre>
  *   TaskInitiator.empty()                       → {"userId":"","role":""}
  *   TaskInitiator{"user-1","admin"}             → {"userId":"user-1","role":"admin"}
  * </pre>
- * <p>键名＝组件名；§1.6 后两键**恒输出**（旧 Go 的 omitempty 会让零值对象成为 {@code {}}）。</p>
+ * <p>键名＝组件名；两键**恒输出**。</p>
  *
  * <h2>⚠️ 放这个包是权宜，后续应提升</h2>
- * <p>Go 的 {@code TaskInitiator} 住在 {@code internal/types}，被
- * knowledge / tag / knowledge_faq_import / datasource 等多处使用。Java 侧目前只有
- * datasource 用它（其它模块尚未翻译），所以先落在本模块的 {@code domain} 下——
- * 它与 {@code com.ragagent.common.tenant.TenantRole} 一样是"跨模块公用类型"。
+ * <p>它是"跨模块公用类型"（与 {@code com.ragagent.common.tenant.TenantRole} 同类），
+ * 目前只有 datasource 用它，所以先落在本模块的 {@code domain} 下。
  * 等第二个模块需要它时，应提升到 {@code com.ragagent.common.context}
  * （与 {@code TenantContext} 同级），而不是各自复制一份。</p>
  *
  * <h2>为什么 {@code role} 是 {@code String} 而不是 {@code TenantRole} 枚举</h2>
- * <p>Go 的 {@code Role} 是具名类型 {@code TenantRole}（底层 string），JSON 上就是字符串。
+ * <p>{@code role} 的取值就是字符串（{@code TenantRole} 的字面量）。
  * 用枚举会把"未知/未来角色"逼进 {@code UNKNOWN("")} 分支并**悄悄改写**载荷字节
  * （非 {@code owner}/{@code admin}/… 的取值会变成空串），与"原样透传"的目标相反。
  * 取用方需要等级判定时自行 {@code TenantRole.fromString(...)}。</p>
@@ -43,18 +40,18 @@ public record TaskInitiator( String userId, String role) {
     }
 
     /**
-     * 对照 Go 的 {@code TaskInitiator{}}：全零值。
+     * 全零值。
      *
-     * <p>Go 的 {@code TaskInitiatorFromContext} 在"无用户"或"合成 API-Key 用户"时返回它
-     * ——合成的 Key 用户是服务身份、不是人，所以刻意留空，让活动流把它呈现为系统作业。</p>
+     * <p>上下文里"无用户"或主体是"合成 API-Key 用户"时用它
+     * ——合成 Key 用户是服务身份、不是人，所以刻意留空，让活动流把它呈现为系统作业。</p>
      */
     public static TaskInitiator empty() {
         return new TaskInitiator("", "");
     }
 
     /**
-     * 对照 Go {@code Apply} 的短路条件 {@code i.UserID == ""}：
-     * 空或历史载荷是 no-op，因此保留"系统任务"的兜底。
+     * 发起人是否为空（{@code userId} 为空串即"系统任务"兜底：
+     * 还原进上下文时是 no-op）。
      *
      * <p>刻意**不叫** {@code isEmpty()}（那会变成 JSON 属性，见类注释）。</p>
      */

@@ -8,9 +8,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * 聊天消息（对照 Go chat.Message，internal/models/chat/chat.go:79-96）。
+ * 聊天消息。
  *
- * 字段序 = Go 声明序；role/content 恒输出，其余 omitempty → NON_EMPTY。
+ * JSON 字段序 = 声明序；role/content 恒输出，其余为空时省略（NON_EMPTY）。
  */
 @JsonPropertyOrder({
         "role", "content", "multi_content", "name", "tool_call_id",
@@ -18,7 +18,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 })
 public class ChatMessage {
 
-    /** 引擎合成消息的标记（对照 Go MessageKind）。 */
+    /** 引擎合成消息的标记。 */
     public static final String KIND_COMPACTION_SUMMARY = "compaction_summary";
 
     /** 角色：system / user / assistant / tool */

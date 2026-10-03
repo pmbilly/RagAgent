@@ -23,8 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 
 /**
- * KV 配置分发协作者（对照 Go GetTenantKV/UpdateTenantKV L1304-1901，
- * 自 {@link TenantCatalogController} 机械搬出）：6 个 DB-backed key 的
+ * KV 配置分发协作者（自 {@link TenantCatalogController} 拆出）：6 个 DB-backed key 的
  * get/put、敏感 key 的 admin 门、jsonb 强类型解析与各配置段校验。
  * 持门面回引取 tenantService/ssrfGuard/storageAllowList/knowledgeProvisioner。
  */
@@ -36,7 +35,7 @@ final class TenantConfigOps {
         this.service = service;
     }
 
-    // ── KV 分发器（对照 GetTenantKV / UpdateTenantKV，L1304-1395） ──────────
+    // ── KV 分发器 ──────────────────────────────────────────────────────────
 
     public Object getTenantKV(@PathVariable String key,
                               jakarta.servlet.http.HttpServletRequest request) {
@@ -48,8 +47,8 @@ final class TenantConfigOps {
                         ? com.fasterxml.jackson.databind.node.NullNode.getInstance()
                         : ws;
             }
-            // 对照 GetPromptTemplates：config.yaml 模板 + Accept-Language 本地化
-            // （locale 解析 = middleware/language.go：env → Accept-Language 首 tag → zh-CN）
+            // config.yaml 模板 + Accept-Language 本地化
+            // （locale 解析：env → Accept-Language 首 tag → zh-CN）
             case "prompt-templates" ->
                     com.ragagent.agent.PromptTemplateCatalog.toJson(
                             com.ragagent.agent.PromptTemplateCatalog.load(),
@@ -79,8 +78,7 @@ final class TenantConfigOps {
     }
 
     /**
-     * 对照分发器前置的敏感 key 门（L1309-1315 / L1363-1369）+
-     * dto.CanViewIntegrationSecrets：角色 ≥ admin，或 API Key 具备
+     * 敏感 key 门：角色 ≥ admin，或 API Key 具备
      * full-access / manage_tenant_settings。
      */
     private void requireIntegrationSecretsIfSensitive(String key) {
@@ -107,7 +105,7 @@ final class TenantConfigOps {
         return scope.fullAccess() || scope.hasCapability(APIKeyCapability.MANAGE_TENANT_SETTINGS);
     }
 
-    /** 对照各子 handler 的 TenantInfoFromContext 检查：上下文无租户 → 400 */
+    /** 上下文无租户 → 400 */
     private Tenant requireContextTenant() {
         Long tenantId = TenantContext.currentTenantId();
         Tenant tenant = tenantId == null || tenantId == 0 ? null : service.tenantService.getTenantById(tenantId);
@@ -118,9 +116,9 @@ final class TenantConfigOps {
     }
 
     /**
-     * Jsonb 列 → 强类型（对照 GORM Scan 语义）：SQL NULL → null；
-     * jsonb 'null' → 已分配的零值对象（Go 对非 NULL 列先分配再 Unmarshal，
-     * "null" 落在零值 struct 上）；对象 → 按字段绑定。
+     * Jsonb 列 → 强类型：SQL NULL → null；
+     * jsonb 'null' → 零值对象（非 NULL 列先分配再反序列化，
+     * "null" 落在零值对象上）；对象 → 按字段绑定。
      */
     private static <T> T parseConfig(JsonNode node, Class<T> type) {
         if (node == null) {
@@ -404,7 +402,7 @@ final class TenantConfigOps {
         }
         if (cfg.getInterestThreshold() < 0
                 || cfg.getInterestThreshold() > MemoryConfig.MAX_MEMORY_INTEREST_THRESHOLD) {
-            // 下界文案写死 1（尽管校验允许 0）——Go 原文如此，换锚只改字段名
+            // 下界文案写死 1（尽管校验允许 0）——刻意保持既有文案
             throw new BizException(AppError.badRequest(
                     "interestThreshold must be between 1 and " + MemoryConfig.MAX_MEMORY_INTEREST_THRESHOLD));
         }

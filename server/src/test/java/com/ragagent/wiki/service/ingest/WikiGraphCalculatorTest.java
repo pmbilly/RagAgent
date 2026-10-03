@@ -15,15 +15,12 @@ import com.ragagent.wiki.domain.WikiPage;
 import org.junit.jupiter.api.Test;
 
 /**
- * 对照 Go internal/application/service/wiki_page_test.go L332-607
- * （{@code makeGraphFixture} + 7 个 {@code TestComputeGraphSubset_*}）。
- *
- * <p>这是本任务书点名的<b>保真优先项 #1</b>，逐分支对照。</p>
+ * Wiki 图谱计算的分支测试（合成 fixture + 7 个 compute 子场景，逐分支覆盖）。
  */
 class WikiGraphCalculatorTest {
 
     /**
-     * 对照 Go {@code makeGraphFixture}：一张小的合成 wiki。
+     * 一张小的合成 wiki。
      *
      * <pre>
      * 有向边：
@@ -89,7 +86,6 @@ class WikiGraphCalculatorTest {
     // ──────────────────────────── 测试 ────────────────────────────
 
     /**
-     * 对照 Go {@code TestComputeGraphSubset_OverviewTruncatesByLinkCount}：
      * overview 模式先返回最连通的节点，并在 Meta 里诚实地报告截断。
      * 4 万页规模下正是这条路径<b>绝不能</b>返回全图——上限是响应体积与
      * 前端渲染可承受的关键。
@@ -115,7 +111,6 @@ class WikiGraphCalculatorTest {
     }
 
     /**
-     * 对照 Go {@code TestComputeGraphSubset_MarksFamiliarSourcePages}：
      * source_refs 与用户熟悉文档集合相交的页面被点亮。
      */
     @Test
@@ -139,7 +134,6 @@ class WikiGraphCalculatorTest {
     }
 
     /**
-     * 对照 Go {@code TestComputeGraphSubset_OverviewUncapped}：
      * Limit&lt;=0 的逃生通道对内部调用方（wiki lint）依然有效。
      */
     @Test
@@ -152,7 +146,6 @@ class WikiGraphCalculatorTest {
     }
 
     /**
-     * 对照 Go {@code TestComputeGraphSubset_OverviewTypeFilter}：
      * 类型过滤作用于候选集合（不是事后过滤），所以 total 反映的是
      * 前端看到的「过滤感知」分母。
      */
@@ -170,7 +163,7 @@ class WikiGraphCalculatorTest {
     }
 
     /**
-     * 对照 Go {@code TestComputeGraphSubset_EgoDepth1}：depth=1 只返回中心 + 直接邻居，
+     * depth=1 只返回中心 + 直接邻居，
      * 不做任何传递跳。
      */
     @Test
@@ -189,7 +182,6 @@ class WikiGraphCalculatorTest {
     }
 
     /**
-     * 对照 Go {@code TestComputeGraphSubset_EgoDepth2ExpandsFrontier}：
      * 从 "a" 出发 depth=2 会经 hub 到达 b/c/d。
      */
     @Test
@@ -204,7 +196,6 @@ class WikiGraphCalculatorTest {
     }
 
     /**
-     * 对照 Go {@code TestComputeGraphSubset_EgoRejectsMissingCenter}：
      * 中心 slug 不存在时必须快速失败，而不是返回空图——空结果与
      * 「你的 wiki 里没有页面链到它」看起来一模一样，会掩盖真正的 bug。
      */
@@ -216,7 +207,7 @@ class WikiGraphCalculatorTest {
                 .hasMessage("ego center slug \"does-not-exist\" not found");
     }
 
-    /** 对照 Go：{@code req == nil} → {@code "wiki graph request is required"} */
+    /** 请求为 null → {@code "wiki graph request is required"} */
     @Test
     void rejectsNullRequest() {
         assertThatThrownBy(() -> WikiGraphCalculator.compute(makeGraphFixture(), null))
@@ -224,7 +215,7 @@ class WikiGraphCalculatorTest {
                 .hasMessage("wiki graph request is required");
     }
 
-    /** 对照 Go：ego 模式缺 center → {@code "ego graph requires a center slug"} */
+    /** ego 模式缺 center → {@code "ego graph requires a center slug"} */
     @Test
     void egoRequiresCenter() {
         assertThatThrownBy(() -> WikiGraphCalculator.compute(makeGraphFixture(), ego("", 1, 100)))
@@ -233,8 +224,7 @@ class WikiGraphCalculatorTest {
     }
 
     /**
-     * 节点顺序必须确定（link_count 降序、同分按 slug 升序）——Go 里上面的
-     * map 迭代是随机的，靠这次排序扳回来。
+     * 节点顺序必须确定（link_count 降序、同分按 slug 升序）。
      */
     @Test
     void nodeOrderIsDeterministic() {

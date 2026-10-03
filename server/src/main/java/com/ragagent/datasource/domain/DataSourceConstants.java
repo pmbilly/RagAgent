@@ -1,16 +1,13 @@
 package com.ragagent.datasource.domain;
 
 /**
- * 数据源相关的全部字符串常量（对照 Go {@code internal/types/datasource.go} 顶部的
- * 四组 {@code const} 块，L14-62）。
+ * 数据源相关的全部字符串常量。
  *
- * <p>Go 里它们是包级常量（{@code types.ConnectorTypeFeishu} 等），Java 侧集中到一个
- * 不可实例化的类里，命名逐字对应 Go 的标识符（大写下划线化），这样从 Go 代码过来
- * 找常量不需要猜。与 memory 模块的 {@code MemoryKinds} 是同一处置。</p>
+ * <p>集中到一个不可实例化的类里，与 memory 模块的 {@code MemoryKinds} 是同一处置。</p>
  *
  * <p><b>为什么不做成枚举</b>：这些值直接落库（{@code data_sources.type} /
  * {@code sync_mode} / {@code status} / {@code conflict_strategy}、
- * {@code sync_logs.status}），而 Go 侧是裸 string——未知取值（历史行、新连接器）
+ * {@code sync_logs.status}）且列是裸 string——未知取值（历史行、新连接器）
  * 必须能原样读写。枚举会逼出一个 {@code UNKNOWN} 分支并悄悄改写数据，
  * 与"逐字节一致"的目标相反。</p>
  */
@@ -73,33 +70,32 @@ public final class DataSourceConstants {
     public static final String SYNC_LOG_STATUS_FAILED = "failed";
     public static final String SYNC_LOG_STATUS_CANCELED = "canceled";
 
-    // ⚠️ {@code "pending"} **没有**常量——它只出现在 CancelPendingByDataSource 的
-    // 内联切片里（{ SyncLogStatusRunning, "pending" }），是一个从未被写入过的"半终态"取值。
-    // 照抄 Go，不为它造常量。
+    // ⚠️ {@code "pending"} **没有**常量——它只出现在"作废在途同步"的
+    // 内联取值列表里（{ running, "pending" }），是一个从未被写入过的"半终态"取值。
+    // 不为它造常量。
 
     // ── Conflict resolution strategies ─────────────────────────────────────
 
     public static final String CONFLICT_STRATEGY_OVERWRITE = "overwrite";
     public static final String CONFLICT_STRATEGY_SKIP = "skip";
 
-    // ── 非字符串常量（Go 里散落在 tag / 代码中的字面量） ────────────────────
+    // ── 非字符串常量 ────────────────────────────────────────────────────────
 
     /**
-     * {@code data_sources.sync_mode} 的 DDL/struct tag 默认值
-     * （{@code gorm:"default:'incremental'"}）。
+     * {@code data_sources.sync_mode} 的列默认值（{@code 'incremental'}）。
      */
     public static final String DEFAULT_SYNC_MODE = SYNC_MODE_INCREMENTAL;
 
-    /** {@code data_sources.status} 的默认值（{@code gorm:"default:'active'"}）。 */
+    /** {@code data_sources.status} 的列默认值（{@code 'active'}）。 */
     public static final String DEFAULT_STATUS = DATA_SOURCE_STATUS_ACTIVE;
 
     /** {@code data_sources.conflict_strategy} 的默认值。 */
     public static final String DEFAULT_CONFLICT_STRATEGY = CONFLICT_STRATEGY_OVERWRITE;
 
-    /** {@code data_sources.sync_deletions} 的默认值（{@code gorm:"default:true"}）。 */
+    /** {@code data_sources.sync_deletions} 的列默认值（{@code true}）。 */
     public static final boolean DEFAULT_SYNC_DELETIONS = true;
 
-    /** {@code data_sources.sync_log_retention_days} 的默认值（{@code gorm:"default:30"}）。 */
+    /** {@code data_sources.sync_log_retention_days} 的列默认值（{@code 30}）。 */
     public static final int DEFAULT_SYNC_LOG_RETENTION_DAYS = 30;
 
     /** {@code CleanupOldLogs} 在 {@code retentionDays <= 0} 时回落的 30 天。 */

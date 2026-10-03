@@ -1,8 +1,7 @@
 package com.ragagent.agent.modelcontext;
 
 /**
- * 流式安全的句柄解码（对照 Go internal/modelcontext/stream.go，全文移植）：
- * 共享的后缀扣留原语、建在其上的每空间解码器，以及按唯一安全顺序应用
+ * 流式安全的句柄解码：共享的后缀扣留原语、建在其上的每空间解码器，以及按唯一安全顺序应用
  * 全部阶段的组合公开 StreamDecoder。
  */
 public final class StreamDecoder {
@@ -77,7 +76,7 @@ public final class StreamDecoder {
     /**
      * 共享原语：永远不发半个模型句柄——每次 Feed 扣住可能在下个 provider 分块里
      * 长成句柄的尾部字节串，对已释放文本应用空间专属解码。flush 决定流结束时
-     * 仍被扣住的尾缀的去向（对照 streamHold）。
+     * 仍被扣住的尾缀的去向。
      */
     static final class StreamHold {
         private String pending = "";

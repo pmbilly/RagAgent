@@ -19,21 +19,20 @@ import com.ragagent.websearch.mapper.WebSearchProviderRepository;
 import com.ragagent.websearch.provider.WebSearchProviderRegistry;
 
 /**
- * 网络搜索执行服务（对照 Go {@code internal/application/service/web_search.go} 的
- * 执行链：Search / resolveProvider / filterBlacklist / matchesBlacklistRule /
- * ConvertWebSearchResults + CompressWithRAG 的纯辅助族）。
+ * 网络搜索执行服务（搜索执行链：search / resolveProvider / 黑名单过滤 /
+ * 结果转换 + RAG 压缩的纯辅助族）。
  *
- * <h2>与 Go 的结构对应</h2>
+ * <h2>结构要点</h2>
  * <ul>
- *   <li>timeout：配置面 {@code config.WebSearch.Timeout}（缺省 10s）——构造参数。</li>
+ *   <li>timeout：缺省 10s，构造参数注入。</li>
  *   <li>{@code resolveProvider}：providerID 路径从仓储取实体（合并 call-time 代理
- *       覆盖）→ 注册表创建；缺省回落 deprecated 的 config.Provider（Warnf 日志文案
- *       保留在注释级）；两者都空 → {@code no web search provider configured}。</li>
- *   <li>过滤分支：Filters.Country/Freshness 非空时先 Validate 再要求 provider 支持
- *       （断言失败 = {@code provider %s does not support country/freshness filters;
+ *       覆盖）→ 注册表创建；缺省回落 deprecated 的 config.Provider（warn 日志）；
+ *       两者都空 → {@code no web search provider configured}。</li>
+ *   <li>过滤分支：filters 的 country/freshness 非空时先校验再要求 provider 支持
+ *       （不支持 = {@code provider %s does not support country/freshness filters;
  *       omit them or select Brave}）。</li>
- *   <li>{@link #compressWithRag}：Go 签名里的 kbSvc/knowSvc 用端口接口注入
- *       （hybrid 检索与段落摄入随波 4.6/检索引擎接线；本批先落纯辅助族与骨架）。</li>
+ *   <li>{@link #compressWithRag}：kbSvc/knowSvc 依赖用端口接口注入
+ *       （hybrid 检索与段落摄入由检索引擎接线）。</li>
  * </ul>
  */
 @Service
@@ -57,9 +56,9 @@ public class WebSearchService {
     }
 
     /**
-     * 对照 {@code Search}：config 必填 → 解析 provider → 过滤分支 → 黑名单过滤。
-     * query 级超时由调用方（agent 引擎/管线）以 deadline 形式施加（Go 的
-     * context.WithTimeout 在 Java 无 ctx 对应物，见约定 §5）。
+     * 搜索入口：config 必填 → 解析 provider → 过滤分支 → 黑名单过滤。
+     * query 级超时由调用方（agent 引擎/管线）以 deadline 形式施加
+     * （本服务内部不设 query 级超时）。
      */
     public List<WebSearchResult> search(long tenantId, String providerId,
                                         WebSearchConfig config, String query) {
@@ -86,7 +85,7 @@ public class WebSearchService {
         return filterBlacklist(results, config.blacklist);
     }
 
-    /** 对照 resolveProvider。 */
+    /** resolveProvider：优先显式 providerId，回落默认 provider。 */
     private com.ragagent.websearch.provider.WebSearchProvider resolveProvider(
             long tenantId, String providerId, WebSearchConfig cfg) {
         if (providerId != null && !providerId.isEmpty()) {
@@ -103,7 +102,7 @@ public class WebSearchService {
                         + " (" + entity.getProvider() + "): " + e.getMessage());
             }
         }
-        // 兼容路径：deprecated 的 config.Provider（Go 有 Warnf 日志）
+        // 兼容路径：deprecated 的 config.Provider（warn 日志）
         if (cfg.provider != null && !cfg.provider.isEmpty()) {
             WebSearchProviderParams base = new WebSearchProviderParams();
             base.setApiKey(cfg.apiKey);
@@ -118,7 +117,7 @@ public class WebSearchService {
         throw new IllegalStateException("no web search provider configured");
     }
 
-    /** 对照 mergeProxyFromWebSearchConfig：cfg.ProxyURL 非空时 call-time 覆盖。 */
+    /** mergeProxyFromWebSearchConfig：cfg 的 proxyUrl 非空时调用期覆盖。 */
     static WebSearchProviderParams mergeProxyFromWebSearchConfig(WebSearchProviderParams base,
                                                                  WebSearchConfig cfg) {
         WebSearchProviderParams p = base == null ? new WebSearchProviderParams() : base;
@@ -131,7 +130,7 @@ public class WebSearchService {
         return p;
     }
 
-    /** 对照 filterBlacklist。 */
+    /** 黑名单过滤：URL 命中任一规则即弃。 */
     public static List<WebSearchResult> filterBlacklist(List<WebSearchResult> results,
                                                         List<String> blacklist) {
         if (blacklist == null || blacklist.isEmpty()) {
@@ -154,15 +153,14 @@ public class WebSearchService {
     }
 
     /**
-     * 对照 matchesBlacklistRule：`/.../` 是正则（Go regexp 语法；Java 的 RE2 差异
-     * 保留——非法正则告警后按不匹配）；否则 `*` → `.*` 全串锚定。
+     * 黑名单规则匹配：`/.../` 是正则（非法正则告警后按不匹配）；否则 `*` → `.*` 全串锚定。
      */
     static boolean matchesBlacklistRule(String url, String rule) {
         String u = url == null ? "" : url;
         if (rule.startsWith("/") && rule.endsWith("/") && rule.length() >= 2) {
             String pattern = rule.substring(1, rule.length() - 1);
             try {
-                // Go 的 regexp.MatchString 是**非锚定**子串匹配 → Matcher.find()
+                // `/.../` 形态是**非锚定**子串匹配 → Matcher.find()
                 return java.util.regex.Pattern.compile(toJavaRegex(pattern))
                         .matcher(u).find();
             } catch (RuntimeException e) {
@@ -178,24 +176,22 @@ public class WebSearchService {
     }
 
     /**
-     * Go regexp（RE2）与 java.util.regex 的转义差异：RE2 不支持的 Java 语法
-     * （如回溯引用 \1）会直接被 Go 判为编译错——这里传入前把 `\` 序列原样保留
-     * （Java 语义兼容的公共子集照抄）；非法时 matches 抛错 → false，对照 Go 的
-     * err 分支。
+     * `/.../` 内的正则原样透传：`\` 序列原样保留（仅支持各引擎语义兼容的
+     * 公共子集）；非法时 matches 抛错 → false。
      */
     private static String toJavaRegex(String pattern) {
         return pattern;
     }
 
-    /** 对照 ConvertWebSearchResults（service 层：seq = 下标）。 */
+    /** 结果转换（seq = 下标）。 */
     public static List<SearchResult> convertWebSearchResults(List<WebSearchResult> webResults) {
         return WebResultConverter.convert(webResults, idx -> idx);
     }
 
-    // ── CompressWithRAG 的纯辅助族（对照 web_search.go L262-374）──────────
+    // ── compressWithRag 的纯辅助族 ──────────
 
     /**
-     * 对照 selectReferencesRoundRobin：按 source URL 公平轮选至 limit 条。
+     * 按 source URL 公平轮选至 limit 条。
      * refs 的 URL 从 content 首行标记提取。
      */
     public static List<SearchResult> selectReferencesRoundRobin(List<WebSearchResult> raw,
@@ -242,7 +238,7 @@ public class WebSearchService {
         return out;
     }
 
-    /** 对照 consolidateReferencesByURL：按 URL 把选中引用合并回原始结果。 */
+    /** 按 URL 把选中引用合并回原始结果。 */
     public static List<WebSearchResult> consolidateReferencesByURL(List<WebSearchResult> raw,
                                                                    List<SearchResult> selected) {
         if (selected == null || selected.isEmpty()) {
@@ -275,7 +271,7 @@ public class WebSearchService {
         return out;
     }
 
-    /** 对照 extractSourceURLFromContent：首行 "[sourceUrl]: " 标记。 */
+    /** 首行 "[sourceUrl]: " 标记。 */
     public static String extractSourceUrlFromContent(String content) {
         if (content == null || content.isEmpty()) {
             return "";
@@ -292,7 +288,7 @@ public class WebSearchService {
         return "";
     }
 
-    /** 对照 stripMarker：剥掉首行标记避免重复。 */
+    /** 剥掉首行标记避免重复。 */
     public static String stripMarker(String content) {
         if (content == null) {
             return "";
@@ -308,8 +304,8 @@ public class WebSearchService {
     }
 
     /**
-     * 搜索配置（对照 Go {@code types.WebSearchConfig} 的执行面字段子集；
-     * jsonb 形状随 session 配置波次对齐，这里只承载执行所需）。
+     * 搜索配置（执行面字段子集；
+     * jsonb 形状以 session 配置为准，这里只承载执行所需）。
      */
     public static final class WebSearchConfig {
         public String provider = "";

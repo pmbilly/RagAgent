@@ -17,21 +17,19 @@ import org.apache.ibatis.type.JdbcType;
  * {@code tenant_api_keys} 的两个 jsonb 字符串数组列
  * （{@code knowledgeBaseIds} / {@code capabilities}）的 TypeHandler。
  *
- * <p>对照 Go {@code types.StringArray} 的 {@code driver.Valuer} / {@code sql.Scanner}
- * （internal/types/session.go L238-253）：
- * {@code Value()} 就是 {@code json.Marshal(c)}，{@code Scan()} 就是
- * {@code json.Unmarshal}（{@code value == nil} 时原地不动）。</p>
+ * <p>落库语义：写 = 列表序列化为 JSON 文本；读 = JSON 文本反序列化为列表
+ * （SQL NULL 原样返回 null）。</p>
  *
- * <p><b>与 wiki 的 {@code WikiStringListTypeHandler} 的关键差异——不要照抄它</b>：
+ * <p><b>与 wiki 的 {@code WikiStringListTypeHandler} 的关键差异——两处语义不同，勿混用</b>：
  * wiki 那些列把"空列表"也写成 SQL NULL，因为 golden 里它们恒为 NULL 且响应输出
- * {@code null}。这里的两个列在 Go 里**区分三态**，这个区别会直接体现在响应 JSON 上：</p>
+ * {@code null}。这里的两个列**区分三态**，这个区别会直接体现在响应 JSON 上：</p>
  * <ul>
- *   <li>{@code nil} 切片 → {@code json.Marshal} 得字面量 {@code null} → 响应
+ *   <li>null 列表 → 存字面量 {@code null} → 响应
  *       {@code "knowledgeBaseIds":null}（full-access Key 建出来就是这个形态：
- *       service 显式把 {@code KnowledgeBaseIDs} / {@code Capabilities} 置 nil）；</li>
- *   <li>空切片 {@code types.StringArray{}} → {@code []} → 响应
+ *       service 显式把 {@code KnowledgeBaseIDs} / {@code Capabilities} 置 null）；</li>
+ *   <li>空列表 → {@code []} → 响应
  *       {@code "knowledgeBaseIds":[]}（scoped Key 未指定白名单时的形态，
- *       repository L221 的 {@code normalizeAPIKeyIDs} 返回非 nil 空切片）；</li>
+ *       {@code TenantAPIKeyService.normalizeApiKeyIds} 返回非 null 空列表）；</li>
  *   <li>有值 → 数组。</li>
  * </ul>
  * 所以这里：**写路径对 null 写字面量 {@code null}（不是 SQL NULL——列是 NOT NULL），
@@ -43,7 +41,7 @@ import org.apache.ibatis.type.JdbcType;
  */
 public class APIKeyStringListTypeHandler extends BaseTypeHandler<List<String>> {
 
-    /** §9：jsonb 回读必须容忍未知属性（Go 的 json.Unmarshal 默认忽略未知字段）。 */
+    /** jsonb 回读必须容忍未知属性（FAIL_ON_UNKNOWN_PROPERTIES 关闭）。 */
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
@@ -83,8 +81,7 @@ public class APIKeyStringListTypeHandler extends BaseTypeHandler<List<String>> {
     }
 
     /**
-     * 对照 Go {@code StringArray.Value}：{@code json.Marshal} 的结果——
-     * null → 字面量 {@code null}；空列表 → {@code []}；否则数组。
+     * 编码：null → 字面量 {@code null}；空列表 → {@code []}；否则数组。
      */
     public static String encode(List<String> values) {
         try {
@@ -95,11 +92,9 @@ public class APIKeyStringListTypeHandler extends BaseTypeHandler<List<String>> {
     }
 
     /**
-     * 对照 Go {@code StringArray.Scan}：SQL NULL → null（Go 在 {@code value == nil}
-     * 时直接返回，指针保持 nil）；字面量 {@code null} → null；{@code []} → 空列表。
+     * 解码：SQL NULL → null；字面量 {@code null} → null；{@code []} → 空列表。
      *
-     * <p>单独暴露成静态方法，便于像 Go 的 Value/Scan 往返测试那样直接驱动，
-     * 不必绕过 JDBC。</p>
+     * <p>单独暴露成静态方法，便于直接驱动编解码往返测试，不必绕过 JDBC。</p>
      */
     public static List<String> decode(String json) {
         if (json == null || json.isEmpty()) {

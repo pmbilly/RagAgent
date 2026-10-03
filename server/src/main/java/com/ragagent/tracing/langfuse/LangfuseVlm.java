@@ -4,7 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * VLM 调用的 langfuse 装饰器（对照 Go internal/models/vlm/langfuse_wrapper.go）：
+ * VLM 调用的 langfuse 装饰器：
  * 每次 Predict 发一条 {@code vlm.predict} generation——**不上传图片字节**
  * （Langfuse 追踪面向文本；metadata 只含 image_count / image_bytes_total），
  * 输入为文本 prompt，用量按 prompt 与输出的码点数估算（VLM 不返回 usage）。
@@ -15,7 +15,7 @@ import java.util.Map;
  */
 public final class LangfuseVlm {
 
-    /** 待装饰的调用（Go VLM.Predict 的 {@code (imgBytes, prompt)} 面）。 */
+    /** 待装饰的调用（{@code (images, prompt)} → 文本结果）。 */
     @FunctionalInterface
     public interface PredictFn {
         String predict(byte[][] images, String prompt) throws Exception;
@@ -24,7 +24,7 @@ public final class LangfuseVlm {
     private LangfuseVlm() {
     }
 
-    /** 对照 wrapVLMLangfuse：未启用（或空实现）原样返回。 */
+    /** 未启用（或空实现）原样返回。 */
     public static PredictFn wrap(PredictFn inner, String modelName, String modelId) {
         if (inner == null || !LangfuseManager.get().enabled()) {
             return inner;
@@ -38,7 +38,7 @@ public final class LangfuseVlm {
             int totalImageSize = 0;
             if (images != null) {
                 for (byte[] b : images) {
-                    // 对照 len(b)：Go 的 nil 切片计 0
+                    // null 段计 0
                     totalImageSize += b == null ? 0 : b.length;
                 }
             }
@@ -63,7 +63,7 @@ public final class LangfuseVlm {
                 err = e.getMessage() == null ? e.toString() : e.getMessage();
                 throw e;
             } finally {
-                // 出错时 Go 的 result 是零值 ""（return "", err）
+                // 出错时 result 以空串参与收尾（generation 仍记录）
                 gen.finish(result == null ? "" : result,
                         LangfusePayloads.approxVlmUsage(prompt, result), err);
             }

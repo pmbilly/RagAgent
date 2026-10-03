@@ -32,14 +32,14 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li><b>raw JSON map 直出</b>：{@code {"message":...}}（UpdateIssueStatus / RebuildLinks）、
  *       {@code {"fixed":N,"message":...}}（AutoFix）、{@code {"pages":[...]}}（SearchPages）、
  *       {@code {"current_version":N,"error":...}}（UpdatePage 的乐观锁冲突）。
- *       原实现的 map 序列化按<b>键字母序</b>输出，故 Java 用 LinkedHashMap 按字母序插入。</li>
+ *       raw JSON map 按<b>键字母序</b>输出，用 LinkedHashMap 按字母序插入保证。</li>
  *   <li><b>裸数组</b>：ListIssues 的响应就是问题数组本身。</li>
  *   <li><b>handler 直接写的错误</b>：单键 map，形态是 {@code {"error":"..."}}，与全局错误信封
  *       {@code {"success":false,"error":{code,details,message}}} <b>不同</b>。
  *       21 个端点里除"KB 访问被拒"外全部走这一形态（见下）。</li>
  *   <li><b>守卫写的错误</b>：KB 访问拒绝走全局错误处理，形态是
  *       {@code {"success":false,"error":{...}}}。
- *       Java 侧对应 {@link BizException}（GlobalExceptionHandler 逐字节对齐原实现）。</li>
+ *       Java 侧对应 {@link BizException}，由 GlobalExceptionHandler 统一渲染。</li>
  * </ol>
  *
  * <p><b>⚠️ 错误文案的前缀</b>：KB 校验失败写出去的错误文案带
@@ -64,16 +64,14 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p><b>已知差异</b>：</p>
  * <ul>
- *   <li>图谱的"熟悉知识"叠加层（FamiliarKnowledgeIDs）无对应模块 → 该字段恒为 null
- *       （等价原实现的空值分支）。</li>
+ *   <li>图谱的"熟悉知识"叠加层（FamiliarKnowledgeIDs）无对应模块 → 该字段恒为 null。</li>
  *   <li>审计埋点由 {@link WikiActivityAudit} 接缝承接；实现 bean
- *       （{@code com.ragagent.audit.service.WikiActivityAuditRecorder}）已随审计模块
- *       翻译落地，缺失时才退化为 debug 日志。</li>
- *   <li>原实现的 nil 切片序列化成 {@code null}，Java 侧沿用既有 DTO/服务层的"空列表"归一
+ *       （{@code com.ragagent.audit.service.WikiActivityAuditRecorder}）由审计模块提供，
+ *       缺失时才退化为 debug 日志。</li>
+ *   <li>空结果统一走 DTO/服务层既有的"空列表"归一
  *       （ListIssues / SearchPages / ListPages 的空结果）。</li>
- *   <li>请求体 JSON 语法错误用 Jackson 的消息（与原实现的 JSON 库文案不同，
- *       约定 §9 阶段 1 已记录的同类差异）。</li>
- *   <li><b>写路径与原实现对齐</b>：跨租户 creator 查不到 → 透传，org-share 的
+ *   <li>请求体 JSON 语法错误用 Jackson 的消息。</li>
+ *   <li><b>写路径规则</b>：跨租户 creator 查不到 → 透传，org-share 的
  *       Editor 角色可写；共享 agent 分支对 Editor 不可达。同租户写仍走创建者/Admin+。</li>
  * </ul>
  *

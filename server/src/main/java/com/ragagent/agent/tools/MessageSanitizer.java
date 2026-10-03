@@ -48,7 +48,7 @@ public final class MessageSanitizer {
                 if (prev.getRole().equals(role) && !"tool".equals(prev.getRole())) {
                     // 与前一条合并。⚠️ 必须落成<b>新对象</b>：Java 列表持有共享
                     // 引用，就地 setContent 会把合并泄漏进调用方的消息列表（多轮场景
-                    // 下同一条用户消息被反复追加，引擎实录抓回）。
+                    // 下同一条用户消息会被反复追加）。
                     ChatMessage merged = shallowCopy(prev);
                     merged.setContent(prev.getContent() + "\n\n"
                             + (msg.getContent() == null ? "" : msg.getContent()));

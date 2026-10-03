@@ -11,8 +11,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * wiki_page_issues 表实体（表结构以 migrations/versioned/000037_wiki_and_indexing.up.sql
- * 第 2 段为准）。JSON 键为 snake（§11 登记边界，前端按此解析）。
+ * wiki_page_issues 表实体（表结构以 migrations/versioned/V1__baseline.sql 为准）。
+ * JSON 键为 snake（前端按此解析）。
  *
  * <p>针对某个 wiki 页面登记的问题记录，通常由 agent 或 linter 发现后落库待复核。</p>
  *
@@ -21,7 +21,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
  *   <li><b>软删除</b>：查询须显式 {@code deleted_at IS NULL}。</li>
  *   <li><b>无钩子</b>：ID 由调用方生成。</li>
  *   <li><b>默认值</b>：SQL 里 {@code status DEFAULT 'pending'}。
- *       Java 侧不复刻回写，由调用方显式赋值。</li>
+ *       Java 侧不做回写，由调用方显式赋值。</li>
  *   <li><b>问题列表排序</b>：{@code ORDER BY created_at DESC}。</li>
  *   <li><b>jsonb 列</b>：suspected_knowledge_ids（字符串数组）。注意 SQL 里该列
  *       <b>可空</b>（无 NOT NULL），读回空列表。</li>

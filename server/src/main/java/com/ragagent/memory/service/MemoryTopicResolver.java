@@ -22,8 +22,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 把一次抽取产出的标签映射到这个人**已经有**的主体上（对照 Go
- * {@code internal/application/service/memory/topic_resolve.go} 全文）。
+ * 把一次抽取产出的标签映射到这个人**已经有**的主体上。
  *
  * <h2>它解决的问题</h2>
  * <p>被要求给一个话题命名的模型不会两次给出同一个名字：这一次"门店排班管理"，
@@ -49,7 +48,7 @@ public class MemoryTopicResolver {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /**
-     * 对照 Go {@code topicFuzzyThreshold}：光靠二元组重合就判定两个标签是同一个主体的门槛。
+     * 光靠二元组重合就判定两个标签是同一个主体的门槛。
      *
      * <p>刻意定得高。把两个不是一回事的主题合并会污染"什么能变成记忆"的那个计数，
      * 而且发生的时候是**看不见**的。漏掉一次合并只是推迟一次提升，
@@ -58,7 +57,7 @@ public class MemoryTopicResolver {
     static final double TOPIC_FUZZY_THRESHOLD = 0.80;
 
     /**
-     * 对照 Go {@code topicCandidateLimit}：展示给裁决模型的既有主题上限。
+     * 展示给裁决模型的既有主题上限。
      * 一个人的主题列表很小，这是对病态账号的护栏，不是正常工作上限。
      */
     static final int TOPIC_CANDIDATE_LIMIT = 40;
@@ -72,24 +71,24 @@ public class MemoryTopicResolver {
     }
 
     /**
-     * 对照 Go {@code topicResolution}：一个表层说法最终落到了哪里。
+     * 一个表层说法最终落到了哪里。
      *
-     * <p>可变类：Go 是三处就地赋值（{@code Canonical} / {@code Tier} / {@code MergedLabel}），
-     * Java 照抄能让 {@code resolveTopics} 的分支结构逐行对应。</p>
+     * <p>可变类：解析过程对 {@code canonical} / {@code tier} / {@code mergedLabel}
+     * 三处就地赋值。</p>
      */
     public static final class Resolution {
         /**
          * 这个标签归属的既有主题；{@code null} 表示它确实是一个新主体。
          *
-         * <p>包级可见（对照 Go：它是一个未导出字段，包内谁都能读写）。</p>
+         * <p>包级可见，包内谁都能读写。</p>
          */
         MemoryTopicStat canonical;
         /**
          * 模型**实际**说的那个说法；与规范标签不同时会被记成别名。
          *
          * <p><b>它不是 final</b>：{@code collapseNewTopicsWithinRun} 会把它改写成同一次运行里
-         * 更早出现的那个等价说法（Go 的 {@code resolutions[i].Surface = resolutions[j].Surface}），
-         * 而改写结果决定了最终记进 {@code BumpTopic} 的别名是哪一个。</p>
+         * 更早出现的那个等价说法，
+         * 而改写结果决定了最终记进别名列表的是哪一个。</p>
          */
         private String surface;
         /** 是哪条规则判定的，供日志与"断言没走到昂贵那一层"的测试使用。包级可见，同 {@link #canonical}。 */
@@ -120,19 +119,19 @@ public class MemoryTopicResolver {
             return mergedLabel;
         }
 
-        /** 对照 Go 的 {@code resolutions[i].Surface = resolutions[j].Surface}。 */
+        /** 改写表层说法。 */
         void setSurface(String value) {
             this.surface = value;
         }
 
-        /** 对照 Go 的 {@code resolutionTier}：没判过就是 {@code "new"}。 */
+        /** 没判过就是 {@code "new"}。 */
         public String tierOrNew() {
             return tier.isEmpty() ? "new" : tier;
         }
     }
 
     /**
-     * 对照 Go {@code resolveTopics}：把一次抽取运行产出的标签映射到这个人已有的主体上。
+     * 把一次抽取运行产出的标签映射到这个人已有的主体上。
      */
     public List<Resolution> resolveTopics(MemoryScope scope, String modelId, List<String> surfaces,
                                           MemoryRunBudget budget) {
@@ -186,7 +185,7 @@ public class MemoryTopicResolver {
     }
 
     /**
-     * 对照 Go {@code matchTopicExactly}：第 1 层——归一化后的标签，
+     * 第 1 层——归一化后的标签，
      * 或者任何一个此前已经被解析到这个主题上的措辞。
      */
     static MemoryTopicStat matchTopicExactly(String surface, List<MemoryTopicStat> existing) {
@@ -206,7 +205,7 @@ public class MemoryTopicResolver {
     }
 
     /**
-     * 对照 Go {@code matchTopicLoosely}：第 2 层——很高的汉字二元组重合，
+     * 第 2 层——很高的汉字二元组重合，
      * 而且只在标签足够具体、重合度才有意义时才做。
      */
     static MemoryTopicStat matchTopicLoosely(String surface, List<MemoryTopicStat> existing) {
@@ -232,7 +231,7 @@ public class MemoryTopicResolver {
     }
 
     /**
-     * 对照 Go {@code collapseNewTopicsWithinRun}：把一次运行里彼此近似的新标签
+     * 把一次运行里彼此近似的新标签
      * 指到同一个表层说法上，这样它们变成一行而不是两行。
      */
     static void collapseNewTopicsWithinRun(List<Resolution> resolutions) {
@@ -254,9 +253,9 @@ public class MemoryTopicResolver {
     }
 
     /**
-     * 对照 Go {@code topicAdjudicationPrompt}。
+     * 话题裁决的提示词。
      *
-     * <p>逐字照抄：这段提示词是"合并错一次就悄悄污染计数"的唯一防线，
+     * <p>这段提示词是"合并错一次就悄悄污染计数"的唯一防线，
      * 措辞的松紧会直接改变线上行为。</p>
      */
     static final String TOPIC_ADJUDICATION_PROMPT = """
@@ -287,7 +286,7 @@ public class MemoryTopicResolver {
             只输出 JSON：
             {"resolutions":[{"index":<新说法的序号>,"same_as":<已有主题的序号，没有则 null>,"label":<更好的名字，没有则 null>}]}""";
 
-    /** 对照 Go {@code topicAdjudicationSchema}。 */
+    /** 话题裁决的响应 schema。 */
     static final String TOPIC_ADJUDICATION_SCHEMA = """
             {
               "type": "object",
@@ -309,7 +308,7 @@ public class MemoryTopicResolver {
             }""";
 
     /**
-     * 对照 Go {@code adjudicateTopics}：第 3 层——问模型，什么都没匹配上的那些标签
+     * 第 3 层——问模型，什么都没匹配上的那些标签
      * 是不是真的是新主体。
      *
      * <p>它对一次抽取运行里**全部**未解析的标签只跑一次，而不是每个标签跑一次：
@@ -434,7 +433,7 @@ public class MemoryTopicResolver {
         }
     }
 
-    /** 对照 Go 里那个匿名的 {@code struct{Index, SameAs, Label}}。 */
+    /** 裁决输出里的一条解析（index / sameAs / label）。 */
     private static final class IndexedResolution {
         int index;
         boolean hasSameAs;

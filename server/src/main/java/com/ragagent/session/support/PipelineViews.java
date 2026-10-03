@@ -18,7 +18,7 @@ import com.ragagent.session.domain.UsedMemory;
  * <p>跨域端口两端只认载荷：出域（实体 → 载荷）在端口实现与调用点做，回写
  * （载荷 → 实体）也在会话侧收敛到本类，避免同一份字段映射散落多处。</p>
  *
- * <p>空值语义照抄实体：列表为 null 时映射结果也是 null（消费方本来就按 null 判空）。</p>
+ * <p>空值语义与实体一致：列表为 null 时映射结果也是 null（消费方本来就按 null 判空）。</p>
  */
 public final class PipelineViews {
 

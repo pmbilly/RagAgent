@@ -1,25 +1,24 @@
 package com.ragagent.chatpipeline.plugin;
 
 /**
- * 插件执行错误（对照 Go {@code chatpipeline.PluginError} 与包级预定义错误，chat_pipeline.go:80-140）。
+ * 插件执行错误。
  *
- * <h2>身份语义（实录钉住）</h2>
- * <p>Go 侧预定义错误是<b>包级单例指针</b>，管线多处用 {@code stageErr == ErrSearchNothing}
- * 做<b>指针比较</b>（progress.go 的 EndRetrievalProgress、search_parallel 的任务结果分派）。
- * Java 侧同样用<b>同一实例</b>（public static final 字段）+ 引用比较（{@code ==}）；
- * {@link #withError} 按 Go 的 {@code clone+WithError} 返回<b>新实例</b>，不污染单例。</p>
+ * <h2>身份语义</h2>
+ * <p>预定义错误是<b>单例</b>（public static final 字段），管线多处用
+ * {@code stageErr == SEARCH_NOTHING} 做<b>引用比较</b>
+ * （检索进度窗口关闭判定、并行检索任务的结果分派）。
+ * {@link #withError} 返回<b>新实例</b>，不污染单例。</p>
  *
- * <h2>Go 双通道折叠备案</h2>
- * <p>Go 的 {@code Err string}（原始 error）在 Java 侧是 {@code cause}（Throwable）；
- * 折叠语义同波 4.5a 备案——单返回通道。</p>
+ * <h2>单通道错误</h2>
+ * <p>底层错误统一放 {@code err}（Throwable）；失败不经双返回通道。</p>
  */
 public final class PluginError {
 
-    /** 原始错误（Go 的 Err error；可为 null）。 */
+    /** 底层错误（可为 null）。 */
     public final Throwable err;
-    /** 人类可读描述（Go 的 Description）。 */
+    /** 人类可读描述。 */
     public final String description;
-    /** 错误类型标识（Go 的 ErrorType）。 */
+    /** 错误类型标识。 */
     public final String errorType;
 
     public PluginError(Throwable err, String description, String errorType) {
@@ -28,7 +27,7 @@ public final class PluginError {
         this.errorType = errorType == null ? "" : errorType;
     }
 
-    // ----- 预定义错误（对照 chat_pipeline.go:88-125；恒同一实例） -----
+    // ----- 预定义错误（恒同一实例） -----
 
     public static final PluginError SEARCH_NOTHING =
             new PluginError(null, "No relevant content found", "search_nothing");
@@ -49,7 +48,7 @@ public final class PluginError {
     public static final PluginError GET_HISTORY =
             new PluginError(null, "Failed to get conversation history", "get_history_failed");
 
-    /** 对照 clone + WithError：附错误并返回<b>新实例</b>（单例不被改写）。 */
+    /** 附错误并返回<b>新实例</b>（单例不被改写）。 */
     public PluginError withError(Throwable cause) {
         return new PluginError(cause, this.description, this.errorType);
     }

@@ -290,8 +290,7 @@ class JsonContractRoundTripTest {
      * <p>键名即 Java 字段名（camelCase，落库格式 §2 第 11 条）；
      * {@code WikiIngestPayload} 的五个 {@code lf_*} 追踪键是平铺载具的冻结面
      * （见 §14.6 边界清单）。任何 {@code isXxx()}/{@code getXxx()} 派生方法都必须
-     * {@code @JsonIgnore}（约定 §9 复发率最高的坑），否则整列回读会抛
-     * {@code UnrecognizedPropertyException}。</p>
+     * {@code @JsonIgnore}，否则整列回读会抛 {@code UnrecognizedPropertyException}。</p>
      */
     @Test
     void wikiBatchPayloadsRoundTrip() {
@@ -386,7 +385,7 @@ class JsonContractRoundTripTest {
 
     @Test
     void memorySettingsSliceRoundTrips() {
-        // 波 0 第 1 步：memory 的 settings 切片。MemoryConfig 是 tenants 上的 jsonb，
+        // memory 的 settings 切片。MemoryConfig 是 tenants 上的 jsonb，
         // 其余四个是响应体。注意 vector_recall/retrieval_conditioning 是**三态** Boolean——
         // 往返必须保留 null 与显式 false 的区别。
         MemoryConfig c = new MemoryConfig();
@@ -441,8 +440,8 @@ class JsonContractRoundTripTest {
     @Test
     void searchResultRoundTrips() {
         // 检索结果：既是 SSE references 事件的载荷，也是 messages.knowledge_references 的元素。
-        // 两个 json:"-" 的内部字段（ContentRevision/ContentRewritten）必须 @JsonIgnore——
-        // 否则会被写进 jsonb 再回读，正是 §9 记的那个复发坑。
+        // 两个不序列化的内部字段（ContentRevision/ContentRewritten）必须 @JsonIgnore——
+        // 否则会被写进 jsonb 再回读。
         SearchResult sr = new SearchResult();
         sr.setId("chunk-1");
         sr.setContent("hello");
@@ -474,7 +473,7 @@ class JsonContractRoundTripTest {
     @Test
     void agentStepTypesRoundTrip() {
         // agent_steps 列的组成类型。三个派生访问器（getObservations / getExecutionName /
-        // getExecutionArgs）在 Go 里都是方法，漏 @JsonIgnore 会把整列写坏——往返断言是防线。
+        // getExecutionArgs）漏 @JsonIgnore 会把整列写坏——往返断言是防线。
         ToolCallTarget target = new ToolCallTarget();
         target.setName("svc.tool");
         target.setArgs(Map.of("k", "v"));
@@ -508,13 +507,13 @@ class JsonContractRoundTripTest {
         step.setIntermediateAnswer(true);
         step.setReasoningContent("rc");
         step.setToolCalls(List.of(call));
-        // 时间必须显式给：Go 的零值时间会输出 year-1 字面量，而**裸 STRICT mapper
+        // 时间必须显式给：未赋值的时间字段会输出 year-1 字面量，而**裸 STRICT mapper
         // 读不回它**——本类型的两个时间方法自带的序列化器能覆盖，但断言用真实值更稳。
         step.setTimestamp(java.time.OffsetDateTime.now());
         assertRoundTrips(step, AgentStep.class, "types.AgentStep ← AgentStep");
     }
 
-    /** 零值时间也必须能往返（Go 的值类型语义，输出 year-1 字面量而非 null）。 */
+    /** 时间未赋值也必须能往返（输出 year-1 字面量而非 null）。 */
     @Test
     void agentStepZeroTimeRoundTrips() {
         assertRoundTrips(new AgentStep(), AgentStep.class, "types.AgentStep（零值）← AgentStep");
@@ -522,8 +521,8 @@ class JsonContractRoundTripTest {
 
     @Test
     void streamResponseRoundTrips() {
-        // SSE 事件体：id/response_type/content/done 恒输出，其余 omitempty。
-        // data 的键序由 GoMapSerializer 递归对齐 Go——往返必须幂等。
+        // SSE 事件体：id/response_type/content/done 恒输出，其余空值省略。
+        // data 的键序由 GoMapSerializer 递归确定——往返必须幂等。
         StreamResponse r = StreamResponse.of(ResponseType.REFERENCES, "", false);
         r.setId("req-1");
         r.setSessionId("sess-1");
@@ -551,10 +550,9 @@ class JsonContractRoundTripTest {
     /**
      * API Key 契约实体。三类风险各钉一条：
      * <ol>
-     *   <li>{@code TenantAPIKey.isPlatform()} / {@code tenantIdValue()} 在 Go 里是
-     *       <b>方法</b>——漏 {@code @JsonIgnore} 会把 {@code "platform":true} 写进
-     *       序列化结果（约定 §9 复发率最高的坑）；</li>
-     *   <li>{@code key_hash} 的 Go tag 是 {@code json:"-"}，必须双向忽略；</li>
+     *   <li>{@code TenantAPIKey.isPlatform()} / {@code tenantIdValue()} 是派生访问器——
+     *       漏 {@code @JsonIgnore} 会把 {@code "platform":true} 写进序列化结果；</li>
+     *   <li>{@code keyHash} 不进 JSON，必须双向忽略；</li>
      *   <li>响应体 {@code TenantAPIKeyResponse} 的蛇形键名与
      *       {@code TenantAPIKeyCreateResponse} 的 token 末位。</li>
      * </ol>
@@ -591,7 +589,7 @@ class JsonContractRoundTripTest {
     /**
      * 审计契约实体。三类风险各钉一条：
      * <ol>
-     *   <li>{@code AuditLog} 的 15 个键<b>无 omitempty</b>——键名必须逐字对齐 Go tag
+     *   <li>{@code AuditLog} 的 15 个键<b>恒输出</b>——键名必须逐字对齐线格式
      *       （{@code actor_user_id} / {@code target_user_id} / {@code request_method} …
      *       最易漏的是 {@code scope_type}/{@code scope_id}，它们是迁移 000073 才加的）；</li>
      *   <li>它<b>同时是</b> jsonb 列的宿主：{@code details} 走 PgJsonTypeHandler，
@@ -626,7 +624,7 @@ class JsonContractRoundTripTest {
         assertRoundTrips(entry, AuditLog.class,
                 "types.AuditLog ← AuditLog（jsonb details + 15 个无 omitempty 的键）");
 
-        // details 省略（nil）也要能往返：Go 侧 nil RawMessage 输出 null / 由库默认补 '{}'。
+        // details 为 null 也要能往返：输出 null / 由库默认补 '{}'。
         AuditLog bare = new AuditLog();
         bare.setTenantId(0L);
         bare.setAction(AuditAction.SYSTEM_SETTING_CHANGED);
@@ -637,26 +635,25 @@ class JsonContractRoundTripTest {
                 AuditLogListResponse.of(List.of(entry)),
                 AuditLogListResponse.class,
                 "handler.auditLogListResponse ← AuditLogListResponse");
-        // 空页：next_cursor=0 且 data 归一为 []（Go 侧为 null，见类注释的已知差异）
+        // 空页：next_cursor=0 且 data 归一为 []
         assertRoundTrips(
                 AuditLogListResponse.of(List.of()),
                 AuditLogListResponse.class,
                 "handler.auditLogListResponse ← AuditLogListResponse（空页）");
     }
 
-    // ── 流事件（落 Redis；Go 与 Java **共用同一批键**，本文件里唯一不是 jsonb/HTTP 的契约） ──
+    // ── 流事件（落 Redis；读写两端**共用同一批键**，本文件里唯一不是 jsonb/HTTP 的契约） ──
 
     /**
      * {@code interfaces.StreamEvent} 与 {@code liveRunPayload}。
      *
-     * <p>它们不落 jsonb、也不作 HTTP 响应体，但**跨语言共享**：Go 与 Java 两个实现
-     * 读写同一批 Redis 键，且 {@code ClearLiveRun} / {@code UpdateSteerEventData}
-     * 都在原始字节上做 CAS。键名或零值语义一变，跨语言的 CAS 就会静默失效——
+     * <p>它们不落 jsonb、也不作 HTTP 响应体，但**跨实现共享**：读写两端
+     * 共用同一批 Redis 键，且 {@code ClearLiveRun} / {@code UpdateSteerEventData}
+     * 都在原始字节上做 CAS。键名或零值语义一变，CAS 就会静默失效——
      * 所以同样纳入这道防线。</p>
      *
      * <p>timestamp 留空：本工具用的是**裸** ObjectMapper（未注册 JSR-310），
-     * 非空值会在这里炸；其真实字节形状由 {@code com.ragagent.stream.StreamJsonTest}
-     * 对着 Go 的实录钉住。</p>
+     * 非空值会在这里炸；其真实字节形状由 {@code com.ragagent.stream.StreamJsonTest} 钉住。</p>
      */
     @Test
     void streamEventContractsRoundTrip() {
@@ -669,7 +666,7 @@ class JsonContractRoundTripTest {
         assertRoundTrips(event, StreamEvent.class,
                 "interfaces.StreamEvent ← StreamEvent（Redis 流事件，data/usage 为 omitempty）");
 
-        // 空 data/usage 也要能往返：Go 侧 omitempty 省略后仍须幂等
+        // 空 data/usage 也要能往返：省略这些键后仍须幂等
         assertRoundTrips(new StreamEvent("e-2", ResponseType.STEER, "", false), StreamEvent.class,
                 "interfaces.StreamEvent ← StreamEvent（省略 data/usage）");
 
@@ -677,14 +674,14 @@ class JsonContractRoundTripTest {
                 "stream.liveRunPayload ← LiveRunPayload");
     }
 
-    // ── 会话 / 消息（阶段 5） ──────────────────────────────────────────────
+    // ── 会话 / 消息 ──────────────────────────────────────────────────────
 
     /**
-     * {@code types.Session} 与它落 jsonb 的两个伴生类型。
+     * {@code Session} 与它落 jsonb 的两个伴生类型。
      *
      * <p>风险点：{@code last_request_state} 复用**遗留的 {@code agent_config} 列**，
-     * 且 {@code Session} 的响应形态是**裸 struct**（GET /sessions/{id} 直接把它塞进
-     * {@code data}）——所以键序是 Go struct 声明序，不是字母序。</p>
+     * 且 {@code Session} 的响应形态是**裸对象**（GET /sessions/{id} 直接把它塞进
+     * {@code data}）——所以键序是 DTO 声明序，不是字母序。</p>
      *
      * <p>时间字段留空：本工具用的是**裸** ObjectMapper（未注册 JSR-310）。</p>
      */
@@ -745,7 +742,7 @@ class JsonContractRoundTripTest {
 
     @Test
     void mentionedItemRoundTrips() {
-        // 八个键**全部无 omitempty**：未用的字段要输出空串而不是省略
+        // 八个键**全部恒输出**：未用的字段要输出空串而不是省略
         MentionedItem item = new MentionedItem();
         item.setId("kb-1");
         item.setName("产品手册");
@@ -762,15 +759,15 @@ class JsonContractRoundTripTest {
     }
 
     /**
-     * {@code types.Message} 及其 jsonb 子类型（阶段 5）。
+     * {@code Message} 及其 jsonb 子类型。
      *
      * <p>三类风险各钉一条：</p>
      * <ol>
-     *   <li>{@code MessageAttachment.url} 是 {@code json:"-"}——响应与落库**都不该带**
+     *   <li>{@code MessageAttachment.url} 不进 JSON——响应与落库**都不该带**
      *       （内部存储句柄外泄 = 可跨会话下载的引用）；</li>
      *   <li>{@code MessageAttachment.isTruncated} 与 {@code Message.isCompleted}/{@code isFallback}
-     *       是「字段名不能带 is 前缀」的那类坑（见 §9）；</li>
-     *   <li>{@code Message.executionContext} 也是 {@code json:"-"}，但它**要落库**——
+     *       是「字段名不能带 is 前缀」的那类坑；</li>
+     *   <li>{@code Message.executionContext} 同样不进响应，但它**要落库**——
      *       所以子结构 {@link MessageExecutionContext} 必须能往返。</li>
      * </ol>
      * <p>时间字段留空：本工具用的是裸 ObjectMapper（未注册 JSR-310）。</p>
@@ -843,13 +840,12 @@ class JsonContractRoundTripTest {
      *   <li><b>落 jsonb 的</b>：{@code DataSource.config} / {@code last_sync_cursor} /
      *       {@code last_sync_result} 是"原样透传"的列，经 {@code PgJsonTypeHandler}
      *       读写——键名漏蛇形或漏 {@code @JsonIgnore} 会让整列读不回来
-     *       （§7.5 第 2、3 条，复发率最高的一条）；</li>
+     *       （复发率最高的一条）；</li>
      *   <li><b>作响应体的</b>：{@code SyncLog} / {@code Resource} /
      *       {@code DataSourceResponse} 都是裸实体出参，多一个键就是线上多发一个键；</li>
      *   <li><b>领域对象的派生访问器</b>：{@code DataSourceConfig.isMultimodalEnabled()}
-     *       在 Go 里是 {@code json:"-"} 的运行期字段（不落库、不进响应），漏标会让
-     *       {@code config} 列多出一个 {@code multimodalEnabled}，回读时因未知属性直接炸
-     *       ——本断言就是那道防线。</li>
+     *       不落库、不进响应，漏标会让 {@code config} 列多出一个 {@code multimodalEnabled}，
+     *       回读时因未知属性直接炸——本断言就是那道防线。</li>
      * </ol>
      */
     @Test
@@ -860,7 +856,7 @@ class JsonContractRoundTripTest {
         cfg.setResourceIds(List.of("r1", "r2"));
         cfg.setSettings(new java.util.LinkedHashMap<>(Map.of("feed_urls", "http://f")));
         cfg.setCredentials(new java.util.LinkedHashMap<>(Map.of("auth_headers", "X-Token: t")));
-        cfg.setMultimodalEnabled(true); // json:"-"（本行是它的防线）
+        cfg.setMultimodalEnabled(true); // 不进 JSON（本行是它的防线）
         assertRoundTrips(cfg, DataSourceConfig.class,
                 "types.DataSourceConfig ← DataSourceConfig（multimodal_enabled 不出现）");
 
@@ -966,8 +962,8 @@ class JsonContractRoundTripTest {
 
     @Test
     void chunkRevisionRoundTrips() {
-        // chunk 模块（波 2）：响应体（ListChunkRevisions 的 data 元素），字段序 = Go 声明序。
-        // is_enabled 是 false 也要恒输出（Go 无 omitempty）——字段名刻意不取 isEnabled。
+        // chunk 模块：响应体（ListChunkRevisions 的 data 元素），字段序 = DTO 声明序。
+        // is_enabled 是 false 也要恒输出——字段名刻意不取 isEnabled。
         ChunkRevision r = new ChunkRevision();
         r.setId(java.util.UUID.randomUUID().toString());
         r.setTenantId(10002L);
@@ -986,8 +982,8 @@ class JsonContractRoundTripTest {
 
     @Test
     void documentChunkMetadataRoundTrips() {
-        // chunks.metadata（jsonb）的文档形状：generated_questions 空→省略（slice omitempty）、
-        // generated_questions_revision 0→省略（int omitempty）、content_revision 非 nil 的 0 要输出（*int）。
+        // chunks.metadata（jsonb）的文档形状：generated_questions 空→省略、
+        // generated_questions_revision 0→省略、content_revision 非 null 的 0 要输出。
         DocumentChunkMetadata meta = new DocumentChunkMetadata();
         meta.setGeneratedQuestions(java.util.List.of(
                 new GeneratedQuestion("q-1", "问题？", 3),
@@ -1003,8 +999,8 @@ class JsonContractRoundTripTest {
 
     @Test
     void knowledgeTaskDtosRoundTrip() {
-        // 波 2 第三批的响应体（move/copy 的任务面）。进度对象是响应契约（不落 jsonb）：
-        // 字段恒输出（Go 无 omitempty），isTerminal() 派生访问器必须 @JsonIgnore（§7.5 第 2 条）。
+        // move/copy 任务面的响应体。进度对象是响应契约（不落 jsonb）：
+        // 字段恒输出，isTerminal() 派生访问器必须 @JsonIgnore。
         var move = new KnowledgeMoveProgress(
                 "kg_move_10002_1704628851692_a1b2c3d4_kb789", "kb-src", "kb-dst",
                 "completed", 100, 3, 3, 0, "Moved 3/3 knowledge items", "", 0, 1789767737L);
@@ -1036,9 +1032,9 @@ class JsonContractRoundTripTest {
 
     @Test
     void chunkRoundTrips() {
-        // Chunk 起作响应体（chunk 模块波 2）：字段序 = Go struct 声明序。
-        // source_content / context_header 是 json:"-"（@JsonIgnore）；is_enabled 恒输出；
-        // 三个 json 列空 → null（对照 types.JSON.MarshalJSON 的 len==0 → "null"）。
+        // Chunk 作响应体：字段序 = DTO 声明序。
+        // source_content / context_header 不进 JSON（@JsonIgnore）；is_enabled 恒输出；
+        // 三个 json 列空 → null。
         Chunk chunk = new Chunk();
         chunk.setId(java.util.UUID.randomUUID().toString());
         chunk.setSeqId(42L);
@@ -1073,8 +1069,8 @@ class JsonContractRoundTripTest {
 
     @Test
     void faqDtosRoundTrip() {
-        // FAQ 模块（波 2 第四批）。FaqChunkMetadata 落 chunks.metadata（jsonb）+其余是
-        // 响应契约；omitempty 逐字段 NON_DEFAULT（无 omitempty 的 id/index/error 等恒输出）。
+        // FAQ 模块。FaqChunkMetadata 落 chunks.metadata（jsonb）+其余是
+        // 响应契约；零值字段省略（id/index/error 等恒输出）。
         var meta = new FaqChunkMetadata();
         meta.standardQuestion = "怎么 绑定 手机？";
         meta.similarQuestions = List.of("如何绑定手机");
@@ -1097,7 +1093,7 @@ class JsonContractRoundTripTest {
                 "faq", new FaqEntry.FaqMatch(0.87, 1, "如何绑定"));
         assertRoundTrips(entry, FaqEntry.class, "types.FAQEntry ← FaqEntry");
 
-        // 导出面：id 无 omitempty（0 恒输出，golden 实录）
+        // 导出面：id=0 恒输出
         var exportEntry = new FaqExportEntry(0L, "", "问题", null, null, List.of("答案"),
                 "all", true, false);
         assertRoundTrips(exportEntry, FaqExportEntry.class,
@@ -1153,7 +1149,7 @@ class JsonContractRoundTripTest {
 
     @Test
     void infraConfigRoundTrips() {
-        // 波 2 第五批：基础设施配置三组的 jsonb/响应体类型（§7.5 第 3 条）
+        // 基础设施配置三组的 jsonb/响应体类型
         var wspParams = new com.ragagent.websearch.domain.WebSearchProviderParams();
         wspParams.setApiKey("sk-1");
         wspParams.setEngineId("eng-1");
@@ -1220,12 +1216,12 @@ class JsonContractRoundTripTest {
                 "types.StorageBackendConfig ← storage.dto.StorageConfig（全字段 omitempty）");
     }
 
-    // ── 波 2 收官批（系统管理端 + 评估） ──────────────────────────────────
+    // ── 系统管理端 + 评估 ────────────────────────────────────────────────
 
     @Test
     void systemSettingRoundTrips() {
         // system_settings 行直接作响应体（裸行，无信封）+ value 落 jsonb。
-        // enum/lastModifiedByName 是 gorm:"-"（TableField(exist=false)）+ omitempty。
+        // enum/lastModifiedByName 不落库（@TableField(exist = false)）且空值省略。
         var row = new com.ragagent.system.domain.SystemSetting();
         row.setId(1L);
         row.setKey("tenant.max_owned_per_user");
@@ -1271,7 +1267,7 @@ class JsonContractRoundTripTest {
                 "evaluation.dto.EvaluationDetail（metric 显式 null + thinking null）");
     }
 
-    // ── 波 2 扫尾批 1（auth 注册族响应体） ─────────────────────────────────
+    // ── auth 注册族响应体 ────────────────────────────────────────────────
 
     @Test
     void authRegisterContractsRoundTrip() {
@@ -1310,7 +1306,7 @@ class JsonContractRoundTripTest {
                 "auth.dto.InvitationLookupResponse（tenantName 显式 null）");
     }
 
-    // ── 波 2 扫尾批 2（OIDC 端点响应体） ───────────────────────────────────
+    // ── OIDC 端点响应体 ──────────────────────────────────────────────────
 
     @Test
     void authOidcContractsRoundTrip() {
@@ -1336,7 +1332,7 @@ class JsonContractRoundTripTest {
                 "auth.dto.OidcAuthUrlResponse（全 null）");
     }
 
-    // ── 波 2 扫尾批 3（租户 KV 配置类型族，落 tenants 表 jsonb 列） ─────────
+    // ── 租户 KV 配置类型族（落 tenants 表 jsonb 列） ────────────────────────
 
     @Test
     void tenantKvConfigsRoundTrip() {

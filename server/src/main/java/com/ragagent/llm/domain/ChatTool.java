@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * 工具定义（对照 Go chat.Tool）。字段序 = Go 声明序，两者均恒输出。
+ * 工具定义。JSON 字段序 = 声明序，两者均恒输出。
  */
 @JsonPropertyOrder({"type", "function"})
 public class ChatTool {

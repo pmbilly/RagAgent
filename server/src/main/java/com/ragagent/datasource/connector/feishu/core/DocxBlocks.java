@@ -12,18 +12,18 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 飞书 docx 块结构（对照 Go {@code core/blocks.go} 的类型定义与纯函数段）。
+ * 飞书 docx 块结构的类型定义与配套纯函数。
  *
  * <h2>⚠️ 内部 API 形状，不是契约</h2>
  * <p>这些类型只在"解析 blocks API 的响应并渲染 Markdown"这条链路上存在：
  * 从不落 jsonb、从不进 HTTP 响应。所以不做本项目的契约治理
- * （约定 §7.5 第 3 条：Map 序列化器 / {@code @JsonIgnore} / 往返测试条目都不需要）。
- * 键名仍照抄飞书的线上协议。</p>
+ * （Map 序列化器 / {@code @JsonIgnore} / 往返测试条目都不需要）。
+ * 键名与飞书线上协议保持一致。</p>
  *
  * <h2>为什么 {@link DocxBlock} 是可变类而不是 record</h2>
  * <p>它有 20 个字段、且文本按类型分散在 {@code text}/{@code heading1..9}/{@code bullet}
- * … 上——与 Go 的结构体逐字段对应。record 的 20 参构造器会让测试完全无法阅读，
- * 故照抄 Go 的"可变结构体 + 按需赋值"。其余小结构用 record。</p>
+ * … 上。record 的 20 参构造器会让测试完全无法阅读，
+ * 故采用"可变类 + 按需赋值"。其余小结构用 record。</p>
  */
 public final class DocxBlocks {
 
@@ -53,26 +53,26 @@ public final class DocxBlocks {
     public static final int BLOCK_TYPE_TABLE_CELL = 32;
 
     /**
-     * 对照 Go {@code maxDocumentBlocks}：单文档贡献的 block 数上限，
+     * 单文档贡献的 block 数上限，
      * 防病态/对抗性文档。远高于任何真实飞书文档。
      */
     public static final int MAX_DOCUMENT_BLOCKS = 50000;
 
     /**
-     * 对照 Go {@code maxTableRows}：内嵌表格最多渲染多少行，保护分块器不被
+     * 内嵌表格最多渲染多少行，保护分块器不被
      * 超大表格拖垮。超过则截断，并由调用方补一句说明。
      */
     public static final int MAX_TABLE_ROWS = 500;
 
     /**
-     * 对照 Go {@code bitableFieldTypeDateTime}：多维表格里"日期/日期时间"列的字段类型。
+     * 多维表格里"日期/日期时间"列的字段类型。
      *
      * <p>它的单元格值是裸的 Unix <b>毫秒数</b>，不做类型感知格式化就会渲染成
      * 13 位整数而不是可读日期。</p>
      */
     public static final int BITABLE_FIELD_TYPE_DATE_TIME = 5;
 
-    /** 对照 Go {@code maxBitableFieldPageSize}：列字段接口的每页上限（100）。 */
+    /** 列字段接口的每页上限（100）。 */
     public static final int MAX_BITABLE_FIELD_PAGE_SIZE = 100;
 
     private DocxBlocks() {
@@ -82,17 +82,16 @@ public final class DocxBlocks {
     // 块载荷
     // ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code TextRun}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record TextRun(@JsonProperty("content") String content) {
     }
 
-    /** 对照 Go {@code TextElement}：一个内联 run。 */
+    /** 一个内联 run。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record TextElement(@JsonProperty("text_run") TextRun textRun) {
     }
 
-    /** 对照 Go {@code BlockText}：所有带文本的块的公共载荷。 */
+    /** 所有带文本的块的公共载荷。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BlockText(@JsonProperty("elements") List<TextElement> elements) {
 
@@ -101,7 +100,7 @@ public final class DocxBlocks {
             return new BlockText(List.of(new TextElement(new TextRun(content))));
         }
 
-        /** 对照 Go {@code plainText}：把所有 run 的 content 拼起来。 */
+        /** 把所有 run 的 content 拼起来。 */
         public String plainText() {
             if (elements == null) {
                 return "";
@@ -116,24 +115,24 @@ public final class DocxBlocks {
         }
     }
 
-    /** 对照 Go {@code BlockTokenRef}：sheet/bitable/image 三种块的共同形状。 */
+    /** sheet/bitable/image 三种块的共同形状。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BlockTokenRef(@JsonProperty("token") String token) {
     }
 
-    /** 对照 Go {@code BlockFileRef}：文件块载荷（附件 token + 名字）。 */
+    /** 文件块载荷（附件 token + 名字）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BlockFileRef(
             @JsonProperty("token") String token,
             @JsonProperty("name") String name) {
     }
 
-    /** 对照 Go {@code BlockTableProperty}：表格网格形状。 */
+    /** 表格网格形状。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BlockTableProperty(@JsonProperty("column_size") int columnSize) {
     }
 
-    /** 对照 Go {@code BlockTable}：单元格 block id 列表 + 网格属性。 */
+    /** 单元格 block id 列表 + 网格属性。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BlockTable(
             @JsonProperty("cells") List<String> cells,
@@ -141,7 +140,7 @@ public final class DocxBlocks {
     }
 
     /**
-     * 对照 Go {@code DocxBlock}：blocks API 返回的扁平数组里的一个节点。
+     * blocks API 返回的扁平数组里的一个节点。
      *
      * <p>扁平的、<b>先序</b>排列；层级只通过 {@code children} / {@code parent_id} 表达，
      * 表格单元格是容器（它自己的文本在子块里）。</p>
@@ -240,7 +239,7 @@ public final class DocxBlocks {
          *
          * <p>docx 把文本存在<b>与类型同名</b>的字段里（bullet → {@code bullet}），
          * 所以这里按 block_type 放到正确的字段——写在 {@code text} 上会让
-         * {@code textBearingField} 取不到（Go 的测试也是按字段名构造的）。</p>
+         * {@code textBearingField} 取不到。</p>
          */
         public static DocxBlock text(String blockId, int blockType, String content) {
             DocxBlock b = of(blockId, blockType);
@@ -485,7 +484,6 @@ public final class DocxBlocks {
     // blocks API 响应
     // ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code DocxBlocksData}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DocxBlocksData(
             @JsonProperty("items") List<DocxBlock> items,
@@ -493,7 +491,7 @@ public final class DocxBlocks {
             @JsonProperty("page_token") String pageToken) {
     }
 
-    /** 对照 Go {@code DocxBlocksResponse}：{@code GET .../documents/:id/blocks} 的响应。 */
+    /** {@code GET .../documents/:id/blocks} 的响应。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DocxBlocksResponse(
             @JsonProperty("code") int code,
@@ -505,17 +503,15 @@ public final class DocxBlocks {
     // sheets-v2 取值
     // ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code sheetValueRange}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SheetValueRange(@JsonProperty("values") List<List<Object>> values) {
     }
 
-    /** 对照 Go {@code sheetValuesData}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SheetValuesData(@JsonProperty("valueRange") SheetValueRange valueRange) {
     }
 
-    /** 对照 Go {@code sheetValuesResponse}：sheets-v2 取值接口的响应。 */
+    /** sheets-v2 取值接口的响应。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SheetValuesResponse(
             @JsonProperty("code") int code,
@@ -527,7 +523,7 @@ public final class DocxBlocks {
     // bitable-v1 字段与记录
     // ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code bitableColumn}：一列的渲染所需信息。 */
+    /** 一列的渲染所需信息。 */
     public record BitableColumn(String name, int fieldType, String dateFormatter) {
         public BitableColumn {
             name = name == null ? "" : name;
@@ -535,13 +531,11 @@ public final class DocxBlocks {
         }
     }
 
-    /** 对照 Go {@code bitableFieldProperty}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BitableFieldProperty(
             @JsonProperty("date_formatter") String dateFormatter) {
     }
 
-    /** 对照 Go {@code bitableField}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BitableField(
             @JsonProperty("field_name") String fieldName,
@@ -549,7 +543,6 @@ public final class DocxBlocks {
             @JsonProperty("property") BitableFieldProperty property) {
     }
 
-    /** 对照 Go {@code bitableFieldsData}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BitableFieldsData(
             @JsonProperty("has_more") boolean hasMore,
@@ -557,7 +550,6 @@ public final class DocxBlocks {
             @JsonProperty("items") List<BitableField> items) {
     }
 
-    /** 对照 Go {@code bitableFieldsResponse}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BitableFieldsResponse(
             @JsonProperty("code") int code,
@@ -565,12 +557,10 @@ public final class DocxBlocks {
             @JsonProperty("data") BitableFieldsData data) {
     }
 
-    /** 对照 Go {@code bitableRecord}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BitableRecord(@JsonProperty("fields") Map<String, Object> fields) {
     }
 
-    /** 对照 Go {@code bitableRecordsData}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BitableRecordsData(
             @JsonProperty("has_more") boolean hasMore,
@@ -578,7 +568,6 @@ public final class DocxBlocks {
             @JsonProperty("items") List<BitableRecord> items) {
     }
 
-    /** 对照 Go {@code bitableRecordsResponse}。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BitableRecordsResponse(
             @JsonProperty("code") int code,
@@ -587,15 +576,15 @@ public final class DocxBlocks {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 纯函数（blocks.go L205-315）
+    // 纯函数
     // ──────────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code capRows} 的双返回值。 */
+    /** {@link #capRows} 的返回值。 */
     public record Capped<T>(List<T> rows, boolean truncated) {
     }
 
     /**
-     * 对照 Go {@code capRows}：把行数限到 {@link #MAX_TABLE_ROWS}，并报告是否截断了。
+     * 把行数限到 {@link #MAX_TABLE_ROWS}，并报告是否截断了。
      * 泛型化是为了让 sheet（{@code [][]any}）与 bitable（{@code [][]string}）
      * 共用同一条截断规则，而不是各写一份。
      */
@@ -609,7 +598,7 @@ public final class DocxBlocks {
         return new Capped<>(rows, false);
     }
 
-    /** 对照 Go {@code stringifyMatrix}：把任意单元格值渲染成字符串；nil → {@code ""}。 */
+    /** 把任意单元格值渲染成字符串；null → {@code ""}。 */
     public static List<List<String>> stringifyMatrix(List<List<Object>> in) {
         List<List<String>> out = new ArrayList<>();
         if (in == null) {
@@ -628,12 +617,12 @@ public final class DocxBlocks {
     }
 
     /**
-     * 对照 Go {@code cellToString}：把单个 JSON 单元格值渲染成字符串；nil → {@code ""}。
+     * 把单个 JSON 单元格值渲染成字符串；null → {@code ""}。
      *
-     * <p>浮点走 Go 的 {@code strconv.FormatFloat(t, 'f', -1, 64)}：<b>'f' 格式 + 最短表示</b>，
+     * <p>浮点输出采用<b>'f' 格式 + 最短表示</b>，
      * 即"没有指数、整数值不补 .0"。Java 的 {@code Double.toString} 会给出 {@code 1.0E21}
      * 这种形态，所以这里用 {@code BigDecimal(Double.toString(d)).toPlainString()}——
-     * {@code Double.toString} 与 Go 一样是最短可往返表示，{@code toPlainString} 消掉指数，
+     * {@code Double.toString} 是最短可往返表示，{@code toPlainString} 消掉指数，
      * 再去掉多余的 {@code .0}。</p>
      */
     public static String cellToString(Object v) {
@@ -650,14 +639,14 @@ public final class DocxBlocks {
             return b ? "true" : "false";
         }
         if (v instanceof Number n) {
-            // Jackson 通常给 Integer/Long/BigInteger；Go 的 JSON 数字一律是 float64，
-            // 但 Java 侧按整型解析时直接输出其十进制即可（值相同）。
+            // Jackson 通常给 Integer/Long/BigInteger，
+            // 此时直接输出其十进制形式即可。
             return n.toString();
         }
         return String.valueOf(v);
     }
 
-    /** 对照 Go {@code strconv.FormatFloat(d, 'f', -1, 64)}。 */
+    /** 按 'f' 格式 + 最短表示渲染双精度浮点：无指数，整数值不补 .0。 */
     static String formatGoFloatF(double d) {
         if (Double.isNaN(d)) {
             return "NaN";
@@ -673,7 +662,7 @@ public final class DocxBlocks {
     }
 
     /**
-     * 对照 Go {@code dateFormatterHasTime}：飞书的 date_formatter 是不是带时间部分。
+     * 判断飞书的 date_formatter 是否带时间部分。
      *
      * <p>飞书的 formatter 是 Java 风格的：{@code 'H'/'h'} 是小时、<b>小写</b> {@code 'm'}
      * 是分钟、<b>大写</b> {@code 'M'} 是月——所以"有时间"当且仅当串里含小时符号或
@@ -687,12 +676,12 @@ public final class DocxBlocks {
     }
 
     /**
-     * 对照 Go {@code bitableFieldCell}：渲染一个多维表格单元格。
+     * 渲染一个多维表格单元格。
      *
      * <p>日期列带的是 Unix <b>毫秒</b>的 UTC 瞬时；用户看到的日历日期是"该瞬时在表格
      * 时区下"的日期，所以要用 {@code loc} 渲染（用 UTC 会把日期挪一天，例如 GMT+8 的
      * {@code "2024-04-01"} 会显示成 {@code "2024-03-31 16:00:00"}）。
-     * 只有日期的 formatter 输出 {@code 2006-01-02}；带时间的 formatter 再加 {@code 15:04}。
+     * 只有日期的 formatter 输出 {@code yyyy-MM-dd}；带时间的 formatter 再加 {@code HH:mm}。
      * 其它类型一律落到 {@link #bitableCellToString}。</p>
      */
     public static String bitableFieldCell(Object v, BitableColumn col, ZoneId loc) {
@@ -713,7 +702,7 @@ public final class DocxBlocks {
     }
 
     /**
-     * 对照 Go {@code bitableCellToString}：把多维表格字段值（可能是文本段数组、
+     * 把多维表格字段值（可能是文本段数组、
      * 人员/链接对象、附件/多选数组）渲染成可读字符串给 RAG 用。
      */
     public static String bitableCellToString(Object v) {

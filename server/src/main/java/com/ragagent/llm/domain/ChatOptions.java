@@ -9,10 +9,10 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * 聊天选项（对照 Go chat.ChatOptions，internal/models/chat/chat.go:28-52）。
+ * 聊天选项。
  *
- * 字段序 = Go 声明序。恒输出键（无 omitempty）包括 thinking——Go 是 *bool，
- * nil 会输出 "thinking":null，故 Java 用 Boolean + ALWAYS 包含。
+ * JSON 字段序 = 声明序。恒输出键包括 thinking——Boolean 为 null 时输出
+ * "thinking":null，故用 ALWAYS 包含。
  */
 @JsonPropertyOrder({
         "temperature", "top_p", "seed", "max_tokens", "max_completion_tokens",
@@ -67,7 +67,7 @@ public class ChatOptions {
     @JsonIgnore
     private CacheRetention cacheRetention;
 
-    /** 补全预算：MaxCompletionTokens 优先，否则 MaxTokens（对照 Go CompletionBudget）。 */
+    /** 补全预算：MaxCompletionTokens 优先，否则 MaxTokens。 */
     public int completionBudget() {
         return maxCompletionTokens > 0 ? maxCompletionTokens : maxTokens;
     }

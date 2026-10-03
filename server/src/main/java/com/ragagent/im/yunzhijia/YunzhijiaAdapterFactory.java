@@ -11,7 +11,7 @@ import com.ragagent.im.runtime.IncomingMessage;
 import com.ragagent.im.service.ImService;
 
 /**
- * 云之家渠道工厂——对照 Go {@code internal/im/yunzhijia/factory.go} L14-77。
+ * 云之家渠道工厂。
  *
  * <p>凭据：{@code send_msg_url}（<b>必填</b>）、{@code secret}（配了才验签）、
  * {@code app_id}/{@code app_secret}（下载换 token 用）、
@@ -83,7 +83,7 @@ public class YunzhijiaAdapterFactory implements ImService.AdapterFactory {
         }
     }
 
-    /** 对照 {@code positiveIntCredential}：数字或数字字符串且 > 0 才用，否则回落。 */
+    /** 数字或数字字符串且 > 0 才用，否则回落。 */
     static int positiveIntCredential(Map<String, Object> creds, String key, int fallback) {
         Object value = creds == null ? null : creds.get(key);
         if (value instanceof Number number) {

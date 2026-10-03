@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 对照 Go provider.WeKnoraCloudProvider（weknoracloud.go）。
+ * WeKnoraCloud。
  * 四个模型类型共用同一硬编码入口 URL（路径由各实现拼接）。
  */
 public class WeKnoraCloudProvider implements Provider {
@@ -25,11 +25,11 @@ public class WeKnoraCloudProvider implements Provider {
     }
 
     /**
-     * 对照 Go (*WeKnoraCloudProvider).ValidateConfig：AppID/AppSecret 通过专用初始化接口
-     * 写入，此处仅做结构校验（该字段当前实际承载上游 API Key）——即恒返回 nil，什么都不校验。
+     * AppID/AppSecret 通过专用初始化接口写入，此处仅做结构校验
+     * （该字段当前实际承载上游 API Key）——即恒通过，什么都不校验。
      */
     @Override
     public void validateConfig(Config config) {
-        // 与 Go 一致：无条件通过
+        // 无条件通过
     }
 }

@@ -27,11 +27,9 @@ import com.ragagent.common.security.SsrfGuard;
 import com.ragagent.im.runtime.IncomingMessage;
 
 /**
- * 飞书 / Lark 长连接（websocket）客户端——对照 Go {@code internal/im/feishu/longconn.go}
- * 及其背后的官方 Go SDK {@code oapi-sdk-go/v3/ws}（逐字描自 {@code ws/client.go} +
- * {@code ws/model.go}）。
+ * 飞书 / Lark 长连接（websocket）客户端（协议对齐官方 oapi-sdk-go/v3 的 ws 模块）。
  *
- * <h2>协议（照 SDK）</h2>
+ * <h2>协议（官方 SDK）</h2>
  * <ol>
  *   <li><b>取接入点</b>：{@code POST {domain}/callback/ws/endpoint}，体 {@code {AppID, AppSecret}}，
  *       头 {@code locale: zh}；响应 {@code {code, msg, data:{URL, ClientConfig}}}——
@@ -40,25 +38,24 @@ import com.ragagent.im.runtime.IncomingMessage;
  *       （秒）；</li>
  *   <li><b>连 WS</b>：直连该 URL（{@code device_id} / {@code service_id} 从查询串取，
  *       {@code service_id} 进 ping 帧）；非 101 时按 {@code Handshake-Status}/
- *       {@code Handshake-Autherrcode} 头判错（照 {@code parseErr}）；</li>
+ *       {@code Handshake-Autherrcode} 头判错；</li>
  *   <li><b>帧</b>：二进制消息 = {@link LarkFrame}（pbbp2）；
  *       {@code method=0} 控制帧（{@code type=pong}，payload 可带新 {@code ClientConfig}）、
  *       {@code method=1} 数据帧（{@code type=event/card} + {@code sum/seq/message_id/trace_id}）；</li>
- *   <li><b>心跳</b>：每 {@code PingInterval} 秒发控制帧 {@code {type:ping, service:<sid>}}
- *       （照 {@code NewPingFrame}）；</li>
- *   <li><b>分片</b>：{@code sum>1} 时按 {@code message_id} 攒片（TTL 5 秒，照 {@code combine}）；</li>
+ *   <li><b>心跳</b>：每 {@code PingInterval} 秒发控制帧 {@code {type:ping, service:<sid>}}；</li>
+ *   <li><b>分片</b>：{@code sum>1} 时按 {@code message_id} 攒片（TTL 5 秒）；</li>
  *   <li><b>回执</b>：事件处理完把<b>同一个帧</b>回写，payload = {@code {"code":200|500}}，
- *       并追加 {@code biz_rt}（处理毫秒数，照 {@code handleDataFrame}）；</li>
+ *       并追加 {@code biz_rt}（处理毫秒数）；</li>
  *   <li><b>重连</b>：默认 {@code ReconnectCount=-1}（无限）、{@code ReconnectInterval=120s}、
  *       {@code ReconnectNonce=30}（首次重连前随机抖动 ≤30s）、{@code PingInterval=120s}
- *       （都是 SDK 的 {@code NewClient} 默认值，服务端可在接入点响应里覆盖）。</li>
+ *       （均为缺省值，服务端可在接入点响应里覆盖）。</li>
  * </ol>
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现差异（备案）</h2>
  * <ul>
  *   <li>接入点返回的 WS 地址做 <b>wss + SSRF 校验</b>（SDK 只做 scheme 解析；本仓长连接一贯校验）；</li>
- *   <li>事件 → 统一消息走 {@link LarkEventConverter}（与 Go 的 {@code convertEvent} 同一语义）；
- *       事件 JSON 与 webhook 回调同形，但长连接分支**不设 threadId**、post **取首图**（照 Go）。</li>
+ *   <li>事件 → 统一消息走 {@link LarkEventConverter}（与 webhook 的解析同一语义）；
+ *       事件 JSON 与 webhook 回调同形，但长连接分支**不设 threadId**、post **取首图**。</li>
  * </ul>
  */
 public class FeishuLongConnClient {
@@ -127,7 +124,7 @@ public class FeishuLongConnClient {
                 .build();
     }
 
-    /** 分片缓冲（照 {@code combine} 的 [][]byte + 5 秒 TTL）。 */
+    /** 分片缓冲（5 秒 TTL）。 */
     private static final class ChunkBuffer {
         final byte[][] parts;
         long updatedAt = System.currentTimeMillis();
@@ -152,7 +149,7 @@ public class FeishuLongConnClient {
             if (stopped.get()) {
                 return;
             }
-            // 首次重连随机抖动（照 SDK 的 ReconnectNonce，单位秒；取不到就跳过）
+            // 首次重连随机抖动（对应 ReconnectNonce，单位秒；取不到就跳过）
             if (reconnectNonce > 0) {
                 Thread.sleep((long) (Math.random() * reconnectNonce * 1000L));
             }
@@ -213,7 +210,7 @@ public class FeishuLongConnClient {
         closeSocket();
     }
 
-    /** 对照 {@code connect} 之后的 {@code pingLoop}。 */
+    /** 心跳循环（连接建立后启动）。 */
     private void startPingLoop() {
         Thread previous = pingThread;
         if (previous != null) {
@@ -276,7 +273,7 @@ public class FeishuLongConnClient {
 
     // ── 接入点 ──────────────────────────────────────────────────────────────
 
-    /** 对照 {@code getConnURL}：POST {domain}/callback/ws/endpoint（locale: zh）。 */
+    /** POST {domain}/callback/ws/endpoint（locale: zh）。 */
     String fetchConnUrl() throws Exception {
         ObjectNode body = MAPPER.createObjectNode();
         body.put("AppID", appId);
@@ -296,7 +293,7 @@ public class FeishuLongConnClient {
         return parseEndpointResponse(response.body());
     }
 
-    /** 解析接入点响应（照 {@code EndpointResp} 的 code 分支 + {@code configure}）。 */
+    /** 解析接入点响应（code 分支 + 参数覆盖）。 */
     String parseEndpointResponse(byte[] raw) throws Exception {
         JsonNode node = MAPPER.readTree(raw == null ? new byte[0] : raw);
         int code = node.path("code").asInt(0);
@@ -316,7 +313,7 @@ public class FeishuLongConnClient {
         return url;
     }
 
-    /** 对照 {@code configure}：服务端可覆盖重连与心跳参数（秒）。 */
+    /** 服务端可覆盖重连与心跳参数（秒）。 */
     void configure(JsonNode config) {
         if (config.hasNonNull("ReconnectCount")) {
             reconnectCount = config.path("ReconnectCount").asInt();
@@ -370,12 +367,12 @@ public class FeishuLongConnClient {
             case LarkFrame.METHOD_CONTROL -> handleControlFrame(frame);
             case LarkFrame.METHOD_DATA -> handleDataFrame(frame);
             default -> {
-                // 未知 method：忽略（照 SDK）
+                // 未知 method：忽略
             }
         }
     }
 
-    /** 对照 {@code handleControlFrame}：pong 的 payload 可带新的 ClientConfig。 */
+    /** pong 的 payload 可带新的 ClientConfig。 */
     void handleControlFrame(LarkFrame frame) {
         if (!TYPE_PONG.equals(frame.header(HEADER_TYPE))) {
             return;
@@ -390,7 +387,7 @@ public class FeishuLongConnClient {
         }
     }
 
-    /** 对照 {@code handleDataFrame}：分片合包 → 事件转换 → 同帧回执（带 biz_rt）。 */
+    /** 分片合包 → 事件转换 → 同帧回执（带 biz_rt）。 */
     void handleDataFrame(LarkFrame frame) {
         int sum = frame.intHeader(HEADER_SUM);
         int seq = frame.intHeader(HEADER_SEQ);
@@ -406,7 +403,7 @@ public class FeishuLongConnClient {
         }
 
         if (!TYPE_EVENT.equals(type)) {
-            // card 帧照 Go 直接忽略（不走事件分发）
+            // card 帧直接忽略（不走事件分发）
             return;
         }
 
@@ -429,7 +426,7 @@ public class FeishuLongConnClient {
         ackSink.send(ack.encode());
     }
 
-    /** 对照 {@code combine}：按 message_id 攒片，齐了拼起来并清缓存。 */
+    /** 按 message_id 攒片，齐了拼起来并清缓存。 */
     byte[] combine(String messageId, int sum, int seq, byte[] data) {
         purgeChunks();
         ChunkBuffer buffer = chunks.get(messageId);

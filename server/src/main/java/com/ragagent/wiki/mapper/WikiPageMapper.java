@@ -21,16 +21,16 @@ import org.apache.ibatis.annotations.Update;
 /**
  * wiki_pages 仓储语句（{@link WikiPageRepository} 的配套 SQL）。
  *
- * <p>原 ORM 隐式行为清单（约定 §3）：</p>
+ * <p>落库隐式行为清单：</p>
  * <ul>
- *   <li><b>软删除</b>：原实现给每条读写自动加 {@code deleted_at IS NULL} 过滤——
- *       本接口<b>每条 SQL 显式写出</b>（§9：不用 @TableLogic）。</li>
+ *   <li><b>软删除</b>：本接口每条读写 SQL <b>显式写出</b> {@code deleted_at IS NULL}
+ *       过滤（不用 @TableLogic）。</li>
  *   <li><b>默认排序</b>：{@code listByType → updated_at DESC}、
  *       {@code listAll → page_type ASC, title ASC}、
  *       {@code listPagesCursor → id ASC}、{@code listRevisions → version DESC}、
  *       {@code listIssues → created_at DESC}。全部显式出现在 SQL 里。</li>
- *   <li><b>零值省略</b>：原实现用 map 更新绕开零值省略，Java 用「显式列 SET」
- *       达到同样效果——见 {@link #updateWithVersion} / {@link #updateMeta} /
+ *   <li><b>零值省略</b>：更新走「显式列 SET」绕开零值省略
+ *       ——见 {@link #updateWithVersion} / {@link #updateMeta} /
  *       {@link #updateAutoLinkedContent}。</li>
  *   <li><b>jsonb 列</b>：字符串数组走 {@link WikiStringListTypeHandler}，
  *       page_metadata 走 {@link PgJsonTypeHandler}。</li>
@@ -170,7 +170,7 @@ public interface WikiPageMapper extends BaseMapper<WikiPage> {
 
     /**
      * 页面列表查询。过滤条件与 {@link #countList} <b>必须逐条保持同步</b>
-     * （原实现复用同一个查询构造器，Java 侧拆成两条语句，改一处必须改两处）。
+     * （这里拆成两条语句，改一处必须改两处）。
      *
      * @param pageTypes          已切分好的类型列表（空 = 不过滤）
      * @param categoryPathEncoded 非空时按目录路径精确过滤；编码格式 = Jackson 紧凑 JSON 数组
@@ -515,12 +515,10 @@ public interface WikiPageMapper extends BaseMapper<WikiPage> {
      * 统计没有入链的页面，<b>排除归档页</b>，
      * 并排除 index 页（它天然是根页面）。
      *
-     * <p>入链为空的判定：原实现分方言写成
-     * {@code (in_links IS NULL OR json_array_length(in_links) = 0)}（SQLite）与
-     * {@code (in_links IS NULL OR in_links = '[]'::JSONB)}（PG）。Java 统一写成
+     * <p>入链为空的判定统一写成
      * {@code (in_links IS NULL OR CAST(in_links AS VARCHAR) = '[]')}：
-     * PG 下 jsonb → varchar 对空数组给出 {@code []}，与原实现的 jsonb 相等判定结果一致
-     * （jsonb 字面量 {@code null} 两边都不算空）；H2 下该 CAST 是恒等变换，
+     * PG 下 jsonb → varchar 对空数组给出 {@code []}，与按 jsonb 相等判定的结果一致
+     * （jsonb 字面量 {@code null} 不算空）；H2 下该 CAST 是恒等变换，
      * 而 {@link WikiStringListTypeHandler} 对空列表写出的正是 {@code []}。</p>
      */
     @Select("SELECT COUNT(*) FROM wiki_pages WHERE knowledge_base_id = #{kbId} "
@@ -608,7 +606,7 @@ public interface WikiPageMapper extends BaseMapper<WikiPage> {
                           @Param("postgres") boolean postgres,
                           @Param("limit") int limit);
 
-    /** 依赖 pg_trgm 三元组相似度；非 PG 方言下原实现同样跑不起来 */
+    /** 依赖 pg_trgm 三元组相似度；非 PG 方言下跑不起来 */
     @ResultMap("wikiPageLiteResult")
     @Select("<script>SELECT slug, title, page_type, status, aliases, out_links, "
             + "similarity(lower(title), #{query}) AS sim FROM wiki_pages "

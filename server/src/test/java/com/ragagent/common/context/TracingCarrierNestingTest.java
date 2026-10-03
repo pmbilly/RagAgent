@@ -17,10 +17,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * 追踪载体形状（B5）：四个域的队列载荷统一为**嵌套 {@code tracing} 键**，
+ * 追踪载体形状：四个域的队列载荷统一为**嵌套 {@code tracing} 键**，
  * 空载体整键省略（未启用追踪时字节与平铺期一致）。
  *
- * <p>这层测试是 B5 的验收依据：载荷形状没有契约金片（任务载荷只在进程内队列流动、不出响应），
+ * <p>载荷形状没有契约金片（任务载荷只在进程内队列流动、不出响应），
  * 全靠这里钉住——回环（非空载体原样往返）+ 字节稳定（空载体不新增任何键）。</p>
  */
 class TracingCarrierNestingTest {
@@ -71,7 +71,7 @@ class TracingCarrierNestingTest {
     @Test
     @DisplayName("空载体：wiki/memory/datasource 整键省略；知识域按模块约定输出空对象")
     void emptyCarrierIsHandled() throws Exception {
-        // 知识域约定「字段一律显式输出」→ tracing:{}；其余三域为字节稳定整键省略（B5）
+        // 知识域约定「字段一律显式输出」→ tracing:{}；其余三域为字节稳定整键省略
         List<String> explicitOutput = List.of("extractChunk", "questionBatch");
 
         for (Map.Entry<String, Object> e : samples(TracingContext.EMPTY).entrySet()) {

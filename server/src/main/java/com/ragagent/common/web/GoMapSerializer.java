@@ -17,8 +17,8 @@ import com.fasterxml.jackson.databind.SerializerProvider;
  * 让 {@code Map} 的输出键序与 Go 的 {@code encoding/json} 一致：<b>按键排序，且递归到嵌套的 map 与数组</b>。
  *
  * <h2>为什么需要它</h2>
- * <p>Go 的 {@code json.Marshal} 对 {@code map} 恒按 key 排序（{@code struct} 才按声明序）。
- * 约定 §9 已记录这条，项目此前的做法是「手工按字母序 {@code put}」——
+ * <p>目标格式（{@code json.Marshal}）对 {@code map} 恒按 key 排序（{@code struct} 才按声明序）。
+ * 「手工按字母序 {@code put}」对<b>一层</b>的 map 有效，对<b>从外部解析出来的嵌套 map</b> 无效：
  * 对<b>一层</b>的 map 有效，对<b>从外部解析出来的嵌套 map</b> 无效：
  * 例如 {@code tool_call.data.arguments} 是模型返回的 JSON 参数，其键序由模型决定，
  * 代码里再怎么排外层也管不到它。</p>
@@ -27,7 +27,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
  * 因此也让上层的「手工排序」退化成无害的防御性写法。</p>
  *
  * <h2>键序：按 UTF-8 字节，不是 Java 的 {@code String.compareTo}</h2>
- * <p>Go 的字符串比较是<b>逐字节</b>（UTF-8）。Java 的 {@code String.compareTo} 比的是
+ * <p>目标格式的字符串比较是<b>逐字节</b>（UTF-8）。Java 的 {@code String.compareTo} 比的是
  * UTF-16 code unit，两者只在「BMP 的 U+E000–U+FFFF」与「增补平面（U+10000 起）」
  * 混排时不同。JSON 键基本都是 ASCII，但既然要做到逐字节一致，就用
  * {@link #GO_KEY_ORDER} 直接比 UTF-8 字节——ASCII 下与自然序完全相同。</p>
@@ -39,13 +39,13 @@ import com.fasterxml.jackson.databind.SerializerProvider;
  *       那时选中的是按<b>运行时类型</b>（{@link TreeMap}）查到的普通 Map 序列化器，
  *       而本序列化器绑在<b>属性</b>上。</li>
  *   <li>只影响 {@code java.util.Map}。{@code ObjectNode}（jsonb 回读路径）有自己既定的
- *       键序约定（PG 的 jsonb 规范化序），<b>不要</b>套到这里来——那会打破阶段 3 的 golden。</li>
+ *       键序约定（PG 的 jsonb 规范化序），<b>不要</b>套到这里来——那会打破既定的 golden 用例。</li>
  * </ul>
  */
 public class GoMapSerializer extends JsonSerializer<Map<String, Object>> {
 
     /**
-     * Go 的字符串序：逐 UTF-8 字节比较，短者在前。
+     * 字符串序：逐 UTF-8 字节比较，短者在前。
      */
     public static final Comparator<String> GO_KEY_ORDER = (a, b) -> {
         byte[] x = a.getBytes(StandardCharsets.UTF_8);
@@ -65,7 +65,7 @@ public class GoMapSerializer extends JsonSerializer<Map<String, Object>> {
      *
      * <p>踩坑：{@code JsonSerializer.isEmpty} 的默认实现<b>只看 {@code value == null}</b>——
      * 一旦字段挂上自定义序列化器，Jackson 就不再调用 {@code MapSerializer.isEmpty} 去判"空容器"，
-     * 于是 Go 的 {@code omitempty}（len==0 省略）会退化成"空 map 也输出 {@code {}}"。
+     * 于是 {@code omitempty}（len==0 省略）语义会退化成"空 map 也输出 {@code {}}"。
      * 由 {@code StreamResponseBuilderTest.omitsEmptyDataMap} 钉住。</p>
      */
     @Override
@@ -93,7 +93,7 @@ public class GoMapSerializer extends JsonSerializer<Map<String, Object>> {
         if (value instanceof Map<?, ?> map) {
             TreeMap<String, Object> sorted = new TreeMap<>(GO_KEY_ORDER);
             for (Map.Entry<?, ?> entry : map.entrySet()) {
-                // Go 的 map[string]X 里键必然是字符串；非字符串键在 Go 侧就构造不出来。
+                // 键必然是字符串（非字符串键不是合法输入）。
                 sorted.put(String.valueOf(entry.getKey()), sortDeep(entry.getValue()));
             }
             return sorted;

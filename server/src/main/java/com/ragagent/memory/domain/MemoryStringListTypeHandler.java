@@ -17,24 +17,24 @@ import org.apache.ibatis.type.JdbcType;
  * memory 模块两个「JSON 字符串数组」列的处理器：
  * {@code memory_subjects.pending_sessions} 与 {@code memory_topic_stats.aliases}。
  *
- * <p><b>为什么共用一个类</b>：两个 Go 类型的 {@code Value()}/{@code Scan()} 语义逐条相同，
- * 抄两遍只会让两处漂移。</p>
+ * <p><b>为什么共用一个类</b>：两列的读写语义逐条相同，
+ * 写两遍只会让两处漂移。</p>
  *
- * <h2>写路径（Go {@code MemoryPendingSessions.Value} / {@code MemoryTopicAliases.Value}）</h2>
+ * <h2>写路径</h2>
  * <pre>
- *   nil / 空    → "[]"      ← 实测确认：nil 与空切片**都**写 {@code []}，不是 SQL NULL
+ *   null / 空   → "[]"      ← null 与空列表**都**写 {@code []}，不是 SQL NULL
  *   ["a","b"]  → "[\"a\",\"b\"]"
  * </pre>
  * <p>所以这里空列表也写 {@code []}——与 wiki 那套「空列表写 SQL NULL」的处置**相反**，
  * 别套用（§9「jsonb 字符串数组列的 NULL 语义」）。</p>
  *
- * <h2>读路径（Go {@code Scan}）</h2>
+ * <h2>读路径</h2>
  * <ul>
- *   <li>SQL NULL 或空字节 → {@code nil}（Java 侧回 {@code null}）；</li>
- *   <li>{@code []} → **非 nil 的空切片**，即 Java 的空 {@link ArrayList}
- *       （实测：{@code json.Unmarshal("[]", &slice)} 会 MakeSlice，所以不是 nil）。</li>
+ *   <li>SQL NULL 或空字节 → 回 {@code null}；</li>
+ *   <li>{@code []} → **非 null 的空列表**，即 Java 的空 {@link ArrayList}
+ *       （{@code "[]"} 反序列化出来的是空列表，不是 null）。</li>
  * </ul>
- * <p>这条差异是真实可见的：{@code EnsureSubject} 插入后立刻重读，返回给上层的
+ * <p>这条差异是真实可见的：{@code ensureSubject} 插入后立刻重读，返回给上层的
  * {@code pending_sessions} 因此是 {@code []} 而不是 {@code null}。</p>
  *
  * <h2>回读用的 ObjectMapper</h2>

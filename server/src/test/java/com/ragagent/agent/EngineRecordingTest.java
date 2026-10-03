@@ -4,14 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
 import com.ragagent.agent.domain.AgentState;
-import com.ragagent.agent.domain.AgentStep;
 import com.ragagent.agent.domain.ToolCall;
-import com.ragagent.agent.tools.ToolRegistry;
 import com.ragagent.event.EventBus;
 import com.ragagent.event.EventJson;
 import com.ragagent.llm.domain.ChatMessage;
@@ -20,8 +17,8 @@ import com.ragagent.llm.domain.StreamResponse;
 import com.ragagent.llm.domain.TokenUsage;
 
 /**
- * 波 4.6b 实录回放：Java 引擎用与 Go 探针同款脚本驱动，事件序列 / AgentState 快照 /
- * mockChat 收到的消息与选项 / steer 注入路径与 Go 实录（{@link GoRecording46B}）逐字节对拍。
+ * 引擎录制回放：Java 引擎用同一脚本驱动，事件序列 / AgentState 快照 /
+ * stub 收到的消息与选项 / steer 注入路径与 {@link GoRecording46B} 的录制常量逐字节比对。
  *
  * <p>掩码约定见 {@link Engine46bStubSupport}。LLM 全走 stub（纪律：真实 LLM 链路零测试）；
  * 全部纯单测，无 @SpringBootTest。</p>
@@ -262,7 +259,7 @@ class EngineRecordingTest {
             ToolCall got = engine.runToolCall(tc, 0, 0, 1, "sess-1", "msg-1", null);
             String groupPrefix = "R_RUN_TOOL_CALL_ARGS_" + c.name().toUpperCase(java.util.Locale.ROOT);
             if ("unrepairable".equals(c.name())) {
-                // 已知通道差异（备案⑲）：Go 的 json.Unmarshal 错误文案（
+                // 已知通道差异：参数解析的历史错误文案（
                 // "invalid character '{' looking for beginning of object key string"）
                 // 与 Jackson 不同——只锁静态骨架（前缀 + 两段固定提示）与结构。
                 String gotJson = toolCallJson(got);
@@ -534,7 +531,7 @@ class EngineRecordingTest {
         return resp;
     }
 
-    /** Go compaction.Settings 的字段序 JSON（无 json tag → 键为 Go 字段名）。 */
+    /** 历史线格式的 settings JSON（键为旧字段名）。 */
     private static String settingsJson(com.ragagent.agent.compaction.CompactionSettings s) {
         return "{\"Enabled\":" + s.enabled()
                 + ",\"MaxContextTokens\":" + s.maxContextTokens()

@@ -43,10 +43,10 @@ final class DataSourceSyncExecutor {
     }
 
     /**
-     * 对照 Go {@code processSyncStreaming}（L1044-1122）：边抓边灌、按页落检查点。
+     * 流式路径：边抓边灌、按页落检查点。
      *
      * <p>租户与自动标签必须在<b>开始抓取之前</b>备好，因为流是"到一条灌一条"。
-     * 中途抓取失败时进度已经落在 {@code ds.LastSyncCursor} 上，Asynq 的重试会从那里续跑
+     * 中途抓取失败时进度已经落在 {@code ds.lastSyncCursor} 上，队列的重试会从那里续跑
      * ——所以这里<b>不能</b>把 cursor 清掉。</p>
      */
     private void processSyncStreaming(StreamingConnector sc, DataSource ds, SyncLog syncLog,
@@ -65,7 +65,7 @@ final class DataSourceSyncExecutor {
 
         boolean forceFull = payload.forceFull()
                 || DataSourceConstants.SYNC_MODE_FULL.equals(ds.getSyncMode());
-        // ⚠️ 已知差异：进程内队列拿不到 asynq.GetRetryCount → attempt 恒 0
+        // ⚠️ 已知差异：进程内队列拿不到重试计数 → attempt 恒 0
         // （等价于"用户手动全量同步的第一次尝试"：丢掉 cursor、重抓全部）。
         int attempt = 0;
         SyncCursor startCursor;
@@ -128,16 +128,15 @@ final class DataSourceSyncExecutor {
                 result.getUpdated(), result.getDeleted(), result.getSkipped(), result.getFailed());
     }
 
-    /** 一次抓取的三样产出（对照 Go 的三返回值 {@code (items, cursor, err)}）。 */
+    /** 一次抓取的三样产出（items / nextCursor / error，外加 warnings）。 */
     private record FetchOutcome(List<FetchedItem> items, SyncCursor nextCursor,
                                 RuntimeException error, List<String> warnings) {
     }
 
     /**
-     * 批量抓取，并把 Go 的三返回值语义在 Java 的异常模型里还原。
+     * 批量抓取，把"结果与错误同时有效"的语义装进这个 record。
      *
-     * <p>判定顺序<b>照抄 Go 调用点的两条 {@code catch}</b>：先
-     * {@link ConnectorException.PartialFetch}（部分成功——结果在异常对象上，
+     * <p>判定顺序：先 {@link ConnectorException.PartialFetch}（部分成功——结果在异常对象上，
      * 由 {@code RssFetchState} 带出来），再把 {@code RssFetchState} 当兜底
      * （全部 feed 失败——items 恒空，但 cursor 仍然值得落库）。
      * 剩下的一律算抓取失败。</p>
@@ -155,7 +154,7 @@ final class DataSourceSyncExecutor {
             SyncCursor next = r == null ? null : r.cursor();
             return new FetchOutcome(items, next, null, warnings);
         } catch (ConnectorException.PartialFetch partial) {
-            // 部分成功：Go 在这一支上把 fetchErr 清成 nil、details 记成 warning
+            // 部分成功：error 置 null、details 记成 warning
             warnings.addAll(partial.getDetails());
             if (partial instanceof com.ragagent.datasource.connector.rss.RssFetchState state) {
                 return new FetchOutcome(state.items(), state.cursor(), null, warnings);
@@ -163,7 +162,7 @@ final class DataSourceSyncExecutor {
             return new FetchOutcome(null, null, null, warnings);
         } catch (RuntimeException e) {
             // 「全部失败」也是 RssFetchState（items 恒 null、cursor 可能有值）——
-            // Go 在 err != nil 分支上照样先落 cursor 再记失败。
+            // 失败分支上照样先把 cursor 带回去，由调用方落库后再记失败。
             SyncCursor next = e instanceof com.ragagent.datasource.connector.rss.RssFetchState state
                     ? state.cursor() : null;
             return new FetchOutcome(null, next, e, warnings);
@@ -171,7 +170,7 @@ final class DataSourceSyncExecutor {
     }
 
     /**
-     * 对照 Go {@code streamStartCursor}（L981-986）：决定流式抓取从哪个 cursor 续。
+     * 决定流式抓取从哪个 cursor 续。
      *
      * <p>用户手动触发的全量同步在<b>第一次尝试</b>时丢掉 cursor（每条都重抓）；
      * 重试的全量同步与所有增量同步都从上次落下的检查点续跑——这样一次超时的运行
@@ -184,7 +183,7 @@ final class DataSourceSyncExecutor {
         return safeParseCursor(ds);
     }
 
-    /** 对照 Go 的 {@code cursor, _ := ds.ParseSyncCursor()}：解析失败当作"没有 cursor"。 */
+    /** 解析 cursor；解析失败当作"没有 cursor"。 */
     private static SyncCursor safeParseCursor(DataSource ds) {
         try {
             return ds.parseSyncCursor();
@@ -194,7 +193,7 @@ final class DataSourceSyncExecutor {
     }
 
     /**
-     * 对照 Go {@code streamSyncHandler}（L991-1039）：把流式抓取接到知识库灌入上。
+     * 把流式抓取接到知识库灌入上。
      *
      * <p>{@code emit} 一条就灌一条（内存被限制在单条），{@code checkpoint} 在页边界
      * 把 cursor 与"到目前为止的计数"落库——UI 因此能看到一个长同步的中途进度，
@@ -217,7 +216,7 @@ final class DataSourceSyncExecutor {
             this.syncLog = syncLog;
         }
 
-        /** 对照 Go {@code Emit}：被中断即中止整条流；单条灌入失败<b>不</b>中止。 */
+        /** 被中断即中止整条流；单条灌入失败<b>不</b>中止。 */
         @Override
         public void emit(FetchedItem item) {
             if (Thread.currentThread().isInterrupted()) {
@@ -227,7 +226,7 @@ final class DataSourceSyncExecutor {
             svc.itemOps.applyFetchedItem(ds, item, tagIds, result, true);
         }
 
-        /** 对照 Go {@code Checkpoint}：cursor 落库 + 进度镜像进 sync_log（尽力而为）。 */
+        /** cursor 落库 + 进度镜像进 sync_log（尽力而为）。 */
         @Override
         public void checkpoint(SyncCursor cursor) {
             if (cursor == null) {
@@ -252,22 +251,21 @@ final class DataSourceSyncExecutor {
     }
 
     /**
-     * 对照 Go {@code ProcessSync}（L590-804）：队列里那个 {@code datasource:sync} 任务的
-     * 真正实现。
+     * 队列里那个 {@code datasource:sync} 任务的真正实现。
      *
      * <h2>取消语义</h2>
-     * <p>Go 靠 {@code ctx} 取消让连接器停止抓取。Java 侧靠<b>线程中断</b>——
-     * 队列在超时时 {@code Future.cancel(true)}，于是这里在循环与 {@link #applyFetchedItem}
-     * 的边界上检查 {@link Thread#isInterrupted()}（对照 Go 的 {@code ctx.Err()}）。</p>
+     * <p>取消靠<b>线程中断</b>——队列在超时时 {@code Future.cancel(true)}，
+     * 这里在循环与 {@link #applyFetchedItem}
+     * 的边界上检查 {@link Thread#isInterrupted()}。</p>
      *
      * <h2>失败路径全部只记日志、不上抛</h2>
-     * <p>除了"抓取失败"与"全部条目都失败"这两条 Go 显式 {@code return err} 的路径，
+     * <p>除了"抓取失败"与"全部条目都失败"这两条显式上抛的路径，
      * 其余（数据源被删、同步日志缺失、知识库被删、租户查不到）都是<b>把日志标成
-     * canceled/failed 后正常返回</b>——重试没有意义。这与 Go 逐条对应。</p>
+     * canceled/failed 后正常返回</b>——重试没有意义。</p>
      */
     void handle(DataSourceSyncPayload payload) {
-        // 对照 Go 的 payload.Initiator.Apply(ctx) + withKBActivityTask(ctx, taskID, trigger)。
-        // ⚠️ asynq 的 GetTaskID 在进程内队列里拿不到 → task_id 缺席（已记入类注释）。
+        // 发起人空串 = 系统任务；审计 details 带上 trigger。
+        // ⚠️ 进程内队列拿不到任务 ID → task_id 缺席（已记入类注释）。
         DataSourceSupport.ActivityTask activityTask = new DataSourceSupport.ActivityTask("", payload.trigger());
 
         log.info("[datasource] processing data source sync: ds={} syncLog={}",
@@ -283,7 +281,7 @@ final class DataSourceSyncExecutor {
             try {
                 syncLog = service.syncLogRepo.findById(payload.syncLogId());
             } catch (RuntimeException ignored) {
-                // 对照 Go 的 `if syncLog, slErr := ...; slErr == nil && syncLog != nil`
+                // 日志查不到就不改状态，安静返回
             }
             if (syncLog != null) {
                 syncLog.setStatus(DataSourceConstants.SYNC_LOG_STATUS_CANCELED);
@@ -313,7 +311,7 @@ final class DataSourceSyncExecutor {
             return;
         }
         if (!Objects.equals(kb.getTenantId(), ds.getTenantId())) {
-            // 对照 Go 的 access.WithKBTaskWrite 失败 → asynq.SkipRetry（不再重试）
+            // KB 归属不符是确定性失败：上抛让队列不再重试
             throw new DataSourceException(DataSourceService.ERR_KB_CHANGE_FORBIDDEN
                     + ": data source KB does not belong to its tenant");
         }
@@ -344,12 +342,9 @@ final class DataSourceSyncExecutor {
             config = null;
         }
         if (config == null) {
-            // ⚠️ 已知差异（路径实际不可达）：Go 在这一行之后**无条件**执行
-            // `config.MultimodalEnabled = kb.IsMultimodalEnabled()`，config 为 nil 时它
-            // 会 panic（被 asynq 的 Recover 接住 → 任务失败重试）。Java 侧把同一个
-            // 情形折叠成普通失败分支，避免在虚拟线程里抛 NPE。
-            // 该路径经 HTTP 不可达：CreateDataSource 会先把空配置交给连接器校验，
+            // ⚠️ 该路径经 HTTP 不可达：CreateDataSource 会先把空配置交给连接器校验，
             // 而各连接器的 Validate 都拒绝 nil 配置（错误文案正是 "invalid configuration"）。
+            // 折叠成普通失败分支，避免在虚拟线程里抛 NPE。
             log.error("[datasource] failed to parse config: config is empty");
             syncLog.setStatus(DataSourceConstants.SYNC_LOG_STATUS_FAILED);
             syncLog.setFinishedAt(OffsetDateTime.now(ZoneOffset.UTC));
@@ -373,12 +368,12 @@ final class DataSourceSyncExecutor {
 
         // ── 批量路径 ────────────────────────────────────────────────────────
         //
-        // ⚠️ 与 Go 的一处结构性差异：Go 的抓取返回三元组 (items, cursor, err)，
-        // 部分失败时三者同时有效，调用方先取结果再看错误类型。Java 的异常会中断返回，
-        // 所以连接器把"仍然有效的结果"挂在异常上（RSS 的接缝：PartialFetchException
-        // 实现 RssFetchState）。这里必须先 **catch (PartialFetch)**、从 state 里取回
+        // ⚠️ 结构性差异：连接器的"结果与错误同时有效"无法用异常直接表达
+        // （异常会中断返回），所以连接器把"仍然有效的结果"挂在异常上
+        // （RSS 的接缝：PartialFetchException 实现 RssFetchState）。
+        // 这里必须先 **catch (PartialFetch)**、从 state 里取回
         // items/cursor，再把 details 记成"部分同步"——顺序反了就会把一部分成功的
-        // 运行记成整体失败，而 Go 那边是 partial。
+        // 运行记成整体失败。
         FetchOutcome fetched;
         if (payload.forceFull() || DataSourceConstants.SYNC_MODE_FULL.equals(ds.getSyncMode())) {
             fetched = fetch(connector, config, safeParseCursor(ds), true);
@@ -436,15 +431,14 @@ final class DataSourceSyncExecutor {
             service.support.bestEffortUpdate(ds);
             throw new DataSourceException("tenant not found");
         }
-        // 对照 Go 的 ctx = WithValue(TenantInfoContextKey, tenant)：Java 侧tenant
-        // 作为参数传给知识库写入路径（KnowledgeBridge 显式收租户），不放 ThreadLocal。
+        // tenant 作为参数传给知识库写入路径（KnowledgeBridge 显式收租户），不放 ThreadLocal。
 
         List<String> autoTagIds = service.support.resolveAutoTagIds(ds);
 
         if (items != null) {
             for (FetchedItem item : items) {
                 if (Thread.currentThread().isInterrupted()) {
-                    break; // 对照 Go 的 ctx.Err() 中止
+                    break; // 被要求取消：中止灌入
                 }
                 service.itemOps.applyFetchedItem(ds, item, autoTagIds, result, true);
             }

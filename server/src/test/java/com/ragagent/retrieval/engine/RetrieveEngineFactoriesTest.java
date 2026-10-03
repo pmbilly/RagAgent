@@ -22,19 +22,17 @@ import com.ragagent.retrieval.engine.RetrievalEngineTestSupport.FakeEngineServic
 import com.ragagent.retrieval.engine.RetrievalEngineTestSupport.FakeOwnership;
 
 /**
- * 工厂函数（W5γ4.5）对照 Go {@code service/retriever/factory_test.go}（457 行）：
- * {@code CreateRetrieveEngineForKB} / {@code CreateRetrieveEngineFromPayload} /
- * {@code VerifyBinding} 的全部哨兵分支 + 取消/超时不被折成 store 判定。
+ * 工厂函数：{@code createForKb} / {@code createFromPayload} /
+ * {@code verifyBinding} 的全部哨兵分支 + 取消/超时不被折成 store 判定。
  *
- * <p>与 Go 的差异：Go 用 {@code ctx} 传 TenantInfo（未绑定路径）与取消；本仓按约定 §1
- * 把"当前租户的有效引擎"显式传入（{@code null} = ctx 里没有 TenantInfo），取消用
+ * <p>「当前租户的有效引擎」显式传入（{@code null} = 未绑定租户），取消用
  * {@code CancellationException} 表达（与 {@code ImFormat.isCanceledOrDeadline} 同约定）。</p>
  */
 class RetrieveEngineFactoriesTest {
 
     private static final String STORE_A = "store-A";
 
-    /** 对照 {@code registryWithStores}：byStoreID + byEngineType 两张表都可预置。 */
+    /** 预置 byStoreID + byEngineType 两张表的注册表。 */
     private static EngineRegistry registry(List<FakeEngineService> stores,
                                            List<FakeEngineService> engineTypes) {
         EngineRegistry registry = new EngineRegistry(null, null);

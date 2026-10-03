@@ -7,19 +7,18 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 /**
- * 云之家出站端点校验与 WS 地址推导——对照 Go {@code internal/im/yunzhijia/url.go} L13-103。
+ * 云之家出站端点校验与 WS 地址推导。
  *
- * <h2>照抄点</h2>
+ * <h2>行为要点</h2>
  * <ul>
  *   <li>{@link #validateEndpointUrl}：scheme 必须等值（忽略大小写）、不得带 userinfo、
  *       主机必须是非空 <b>DNS 名</b>（{@code localhost}/{@code *.localhost}/IP 字面量一律拒）、
  *       且必须落在允许后缀内（后缀去首尾点、小写；空后缀直接拒）；</li>
  *   <li>{@link #deriveWebSocketUrl}：从 send_msg_url 取 {@code yzjtoken}（缺失报错），
  *       拼成 {@code wss://<host>/xuntong/websocket?yzjtoken=<token>}；</li>
- *   <li>{@link #isPublicIp}：出站前的 SSRF 判定（Go 走共享 {@code ipclass.IsPublic}；
- *       Java 侧按同一姿态自持实现——loopback/私网/链路本地/组播/ULA/CGNAT/未指定一律非公网）；
- *       {@link #resolvePublicAddress} 对应 Go 的 {@code safeDialContext}：解析后逐个校验，
- *       全为公网才放行（Java 的 HttpClient 无自定义拨号口，等价做法是连接前解析校验，已备案）。</li>
+ *   <li>{@link #isPublicIp}：出站前的 SSRF 判定——loopback/私网/链路本地/组播/ULA/CGNAT/
+ *       未指定一律非公网；{@link #resolvePublicAddress} 解析后逐个校验，全为公网才放行
+ *       （HttpClient 无自定义拨号口，等价做法是连接前解析校验）。</li>
  * </ul>
  */
 public final class YunzhijiaUrl {
@@ -27,7 +26,7 @@ public final class YunzhijiaUrl {
     private YunzhijiaUrl() {
     }
 
-    /** 对照 {@code validateEndpointURL}；失败抛 {@link IllegalArgumentException}（文案照 Go）。 */
+    /** 校验失败抛 {@link IllegalArgumentException}。 */
     public static URI validateEndpointUrl(String rawUrl, String requiredScheme,
                                           String allowedHostSuffix) {
         URI uri;
@@ -71,7 +70,6 @@ public final class YunzhijiaUrl {
         return uri;
     }
 
-    /** 对照 {@code deriveWebSocketURL}。 */
     public static String deriveWebSocketUrl(String sendMsgUrl, String allowedHostSuffix) {
         URI uri;
         try {
@@ -115,7 +113,7 @@ public final class YunzhijiaUrl {
         return value.matches("\\d{1,3}(\\.\\d{1,3}){3}");
     }
 
-    /** 对照 {@code isPublicIP}：非公网（含 CGNAT/ULA/IPv4 映射）一律 false。 */
+    /** 非公网（含 CGNAT/ULA/IPv4 映射）一律 false。 */
     public static boolean isPublicIp(InetAddress address) {
         if (address == null) {
             return false;
@@ -178,7 +176,7 @@ public final class YunzhijiaUrl {
         return true;
     }
 
-    /** 对照 {@code safeDialContext}：解析主机并逐个校验为公网地址。 */
+    /** 解析主机并逐个校验为公网地址。 */
     public static InetAddress[] resolvePublicAddress(String host) throws Exception {
         InetAddress[] addresses = InetAddress.getAllByName(host);
         if (addresses.length == 0) {

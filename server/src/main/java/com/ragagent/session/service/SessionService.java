@@ -38,12 +38,8 @@ import com.ragagent.session.mapper.MessageSuggestionRepository;
 import com.ragagent.session.mapper.SessionRepository;
 
 /**
- * 会话的**最小读路径**（对照 Go {@code internal/application/service/session.go}
- * 的 {@code GetSession} / {@code GetOwnedSession} / {@code GetSessionByID}
- * 与 {@code loadSessionForRead}）。
- *
- * <p>本阶段（5.2 步 3）只落 {@code continue-stream} 需要的那几个读方法；
- * 会话 CRUD 的其余部分随各自的端点补。</p>
+ * 会话 service：读路径（{@link #getSession(String)} / {@link #getOwnedSession(String)} /
+ * {@link #getSessionById(long, String)} 与 {@code loadSessionForRead}）与写方法。
  *
  * <h2>读路径为什么有两条</h2>
  * <ul>
@@ -88,10 +84,10 @@ public class SessionService {
         this.webSearchTempKbState = webSearchTempKbState;
     }
 
-    // ── Go 的包级辅助 ──────────────────────────────────────────────────────
+    // ── 包级辅助 ──────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code sessionUserIDForLookup}（message.go L70-76）：共享 agent 流水线
+     * 共享 agent 流水线
      * 先解析出会话属主租户时，保持那次内部查询是**租户范围**的（返回空 owner）。
      */
     public static String sessionUserIDForLookup() {
@@ -102,7 +98,6 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code runtimeMayBypassAdminConsoleRead}（L28-54）：
      * owner 范围内的非管理员调用方，什么情况下仍可打开一条渠道托管会话。
      *
      * <p>管理员走的是 {@link #loadSessionForRead} 里的 {@code getById} 回退，
@@ -136,7 +131,7 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code loadSessionForRead}（L57-95）：在调用方的按用户范围下加载会话，
+     * 在调用方的按用户范围下加载会话，
      * 并带一条 Admin+ 回退——让管理员能从 Web 控制台读租户的渠道会话。
      */
     static Session loadSessionForRead(SessionRepository repo, long tenantId, String ownerId, String sessionId) {
@@ -196,7 +191,7 @@ public class SessionService {
 
     // ── 读方法 ─────────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code GetSession}（L210-249）。 */
+    /** 读会话详情：Admin+ 可回退读渠道托管会话；IM 来源尽力回填。 */
     public Session getSession(String id) {
         if (id == null || id.isEmpty()) {
             throw new IllegalArgumentException("session id is required");
@@ -220,7 +215,7 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code GetOwnedSession}（L253-261）：严格在调用方 owner 范围内加载。
+     * 严格在调用方 owner 范围内加载。
      * 与 {@link #getSession(String)} 不同，它**不做** Admin+ 的 API-Key 读回退，
      * 所以写/变更端点是正确的选择。
      */
@@ -231,7 +226,7 @@ public class SessionService {
         return sessionRepository.get(requireTenantId(), SessionOwnerIds.currentSessionOwnerId(), id);
     }
 
-    /** 对照 Go {@code GetSessionByID}（L263-273）：按租户 + id 加载，**不做 user 范围**。 */
+    /** 按租户 + id 加载，**不做 user 范围**。 */
     public Session getSessionById(long tenantId, String id) {
         if (id == null || id.isEmpty()) {
             throw new IllegalArgumentException("session id is required");
@@ -242,12 +237,12 @@ public class SessionService {
         return sessionRepository.getById(tenantId, id);
     }
 
-    // ── 写方法（波 1 G1，对照 Go session.go 各写方法） ─────────────────────
+    // ── 写方法 ─────────────────────
 
     /**
-     * 对照 Go {@code CreateSession}（L188-207）：校验租户后落库。
+     * 校验租户后落库。
      *
-     * <p>Go 的校验失败返回普通 error，handler 包成 500 Internal（不是 400）——
+     * <p>校验失败落 500 Internal（不是 400）——
      * 实际到不了这里（Auth 中间件已保证租户存在），但形态要保持一致。</p>
      */
     public Session createSession(Session session) {
@@ -259,7 +254,7 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code ListSessions}（L331-369）：带 keyword/source/agent_id 过滤的分页列表。
+     * 带 keyword/source/agent_id 过滤的分页列表。
      *
      * <p>渠道来源筛选（api / embed / IM 平台）是**租户级管理员视图**：要求 Admin+，
      * 且命中时**丢掉按人裁剪**（Drop per-user owner scope）。其余来源保持调用方
@@ -270,9 +265,8 @@ public class SessionService {
         String userId;
         if (Session.listSourceRequiresAdmin(query.source())) {
             if (!TenantRole.fromString(TenantContext.currentRole()).hasPermission(TenantRole.ADMIN)) {
-                // ⚠️ 不是 403：Go 的 handler 把这个 ForbiddenError 包进
-                // NewInternalServerError(err.Error())，而 AppError.Error() 的形态是
-                // "error code: 1002, error message: …" —— golden 实测是 500 + 该文案。
+                // ⚠️ 不是 403：这里落 500 Internal，文案固定为
+                // "error code: 1002, error message: …"。
                 throw new BizException(AppError.internal(
                         "error code: 1002, error message: listing channel sessions requires tenant admin or owner role"));
             }
@@ -284,7 +278,7 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code SetSessionPinned}（L398-410）。
+     * 置顶 / 取消置顶。
      *
      * @return 受影响行数；0 = 会话不存在或不可见（handler 据此回 404）
      */
@@ -297,20 +291,17 @@ public class SessionService {
         return sessionRepository.setPinned(tenantId, userId, sessionId, pinned);
     }
 
-    /**
-     * 对照 Go {@code UpdateSession}（L412-442）：**写路径用 owner 范围严格加载**
-     * （{@code repo.Get}，不是 loadSessionForRead——管理员能读但**不得改**），
-     * 然后 sanitize description 再更新（只写 title/description/updated_at）。
-     */
-    /**
-     * 对照 Go UpdateSessionLastRequestState（session.go 的输入条状态写入）。
-     * 波 4.6d 补（KnowledgeQaController 的异步 UI memo 用）。
-     */
+    /** 更新输入条状态（KnowledgeQaController 的异步 UI memo 用）。 */
     public void updateSessionLastRequestState(String sessionId, com.ragagent.session.domain.SessionLastRequestState state) {
         long tenantId = TenantContext.currentTenantId() == null ? 0 : TenantContext.currentTenantId();
         sessionRepository.updateLastRequestState(tenantId, sessionUserIDForLookup(), sessionId, state);
     }
 
+    /**
+     * **写路径用 owner 范围严格加载**
+     * （不是 loadSessionForRead——管理员能读但**不得改**），
+     * sanitize description 后更新（只写 title/description/updated_at）。
+     */
     public void updateSession(Session session) {
         if (session.getId() == null || session.getId().isEmpty()) {
             throw new BizException(AppError.internal("session id is required"));
@@ -323,7 +314,7 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code DeleteSession}（L471-538）：先严格范围加载（404 门槛），
+     * 先严格范围加载（404 门槛），
      * 再做三件套清理（知识 / 临时 KB / 建议 / sandbox），最后软删。
      */
     public void deleteSession(String id) {
@@ -344,7 +335,7 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code BatchDeleteSessions}（L540-609）：先筛出**可见**的 id
+     * 先筛出**可见**的 id
      * （逐个 {@code repo.Get}，不可见的静默跳过），全部不可见 → 404；
      * 清理与删除都只对可见集合做。
      */
@@ -383,8 +374,8 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code DeleteAllSessions}（L611-668）：列出当前范围的全部会话做清理，
-     * 再整体软删 + 删建议。列表失败**不阻断**删除（Go 的 Warnf + 继续走）。
+     * 列出当前范围的全部会话做清理，
+     * 再整体软删 + 删建议。列表失败**不阻断**删除（记 warn 后继续）。
      */
     public void deleteAllSessions() {
         long tenantId = requireTenantId();
@@ -421,9 +412,8 @@ public class SessionService {
      * Go DeleteSession / BatchDeleteSessions 共用的「每会话清理」三件套
      * （知识 / 临时 KB / sandbox；建议删除在软删之后）。
      *
-     * <p><b>已知差异（对照 Go）</b>：知识清理 Go 在 goroutine 里异步做（且走
-     * cleanup-scope 授权），这里同步尽力而为——HTTP 响应不受影响，但删除请求会等
-     * 知识清完才返回。临时 KB 清理（{@code DeleteWebSearchTempKBState}）失败被吞，
+     * <p><b>已知差异</b>：知识清理是同步尽力而为——删除请求会等
+     * 知识清完才返回，HTTP 契约不变。临时 KB 清理（{@code DeleteWebSearchTempKBState}）失败被吞，
      * 无 HTTP 可见差异。</p>
      */
     private void cleanupSessionResources(long tenantId, String sessionId) {
@@ -448,7 +438,7 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code GenerateTitle}（session.go L749-861 全量，2026-09-23 走查批接线）：
+     * 生成会话标题：
      * 标题已存在 → 直接返回；messages 为空时回库取第一条 user 消息（查不到 →
      * 500 "record not found"）；modelID 缺省找第一台 KnowledgeQA 模型 → GetChatModel
      * → system=GenerateSessionTitlePrompt（language 占位渲染）+ user=消息内容 →
@@ -468,7 +458,7 @@ public class SessionService {
         if (messages == null || messages.isEmpty()) {
             message = messageRepository.getFirstMessageOfUser(session.getId());
             if (message == null) {
-                // Go：GetFirstMessageOfUser 的 gorm.ErrRecordNotFound 原文
+                // 文案固定为 "record not found"
                 throw new BizException(AppError.internal("record not found"));
             }
         } else {
@@ -502,7 +492,7 @@ public class SessionService {
 
         LlmChatClient chatModel;
         try {
-            // 对照 Go L812：GetChatModel 失败原样返回（handler → 500 原文）
+            // 模型工厂失败 → 500，文案取异常原文
             chatModel = modelRuntimeFactory.getChatModel(modelId);
         } catch (BizException e) {
             throw e;
@@ -542,16 +532,16 @@ public class SessionService {
         return session.getTitle();
     }
 
-    /** 对照 Go maxSessionTitleRunes（session.go L727-731）= 100。 */
+    /** 标题最大码点数。 */
     private static final int MAX_SESSION_TITLE_RUNES = 100;
 
-    /** sanitizeGeneratedTitle 的返回对（Go 的多返回值元组）。 */
+    /** sanitizeGeneratedTitle 的返回对。 */
     private record GeneratedTitle(String title, boolean truncated) {
     }
 
     /**
-     * 对照 Go sanitizeGeneratedTitle（session.go L738-745）：剥
-     * {@code "<think>\n\n</think>"} 前缀 → Go TrimSpace → 超 100 码点按码点截断 + 再 trim。
+     * 剥
+     * {@code "<think>\n\n</think>"} 前缀 → 完整 Unicode 空白集 trim → 超 100 码点按码点截断 + 再 trim。
      */
     private static GeneratedTitle sanitizeGeneratedTitle(String raw) {
         String text = raw;
@@ -567,7 +557,7 @@ public class SessionService {
                 title.substring(0, title.offsetByCodePoints(0, MAX_SESSION_TITLE_RUNES))), true);
     }
 
-    /** Go strings.TrimSpace（unicode.IsSpace 全集；Java strip() 缺 U+0085/U+00A0）。 */
+    /** 按完整 Unicode 空白集 trim（Java strip() 缺 U+0085/U+00A0）。 */
     private static String goTrimSpace(String s) {
         int start = 0;
         int end = s.length();
@@ -589,8 +579,8 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go GenerateTitleAsync（session.go L863-937，2026-09-23 走查批接线）：
-     * 捕获租户/请求 ID → 虚拟线程（bgCtx 语义：不依赖已结束的 HTTP 请求上下文）→
+     * 异步生成标题：
+     * 捕获租户/请求 ID → 虚拟线程（不依赖已结束的 HTTP 请求上下文）→
      * title 已存在跳过 → {@link #generateTitle}（首条 user 消息 = userQuery）→
      * emit {@code session_title} 事件（AgentStreamBridge 转发 SSE，前端据此更新标题）。
      */
@@ -637,8 +627,8 @@ public class SessionService {
     }
 
     /**
-     * 对照 Go {@code types.MustTenantIDFromContext}：上下文中没有租户是**编程错误**，
-     * Go 直接 panic。Java 侧同样不该悄悄降级成"无租户查询"——那会跨租户泄漏。
+     * 上下文中没有租户是**编程错误**，
+     * 不该悄悄降级成"无租户查询"——那会跨租户泄漏。
      */
     private static long requireTenantId() {
         Long tenantId = TenantContext.currentTenantId();

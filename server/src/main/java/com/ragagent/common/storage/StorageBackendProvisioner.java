@@ -17,7 +17,7 @@ public interface StorageBackendProvisioner {
      * 为租户落一行 env 快照的默认只读后端，返回其 id。
      *
      * <p>无法确定默认 provider 时抛 {@link IllegalStateException}
-     * （对照 Go 的 {@code "no supported default storage backend is configured"}）；
+     * （消息固定为 {@code "no supported default storage backend is configured"}）；
      * 调用方负责租户行回滚。</p>
      */
     String provisionForTenant(long tenantId);

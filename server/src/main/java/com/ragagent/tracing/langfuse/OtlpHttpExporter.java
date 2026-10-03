@@ -23,15 +23,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * OTLP/HTTP 导出器（对照 Go internal/tracing/langfuse/exporter.go + otlptracehttp）：
+ * OTLP/HTTP 导出器：
  * POST {@code {host}/api/public/otel/v1/traces}，protobuf 体，Basic 认证，
  * {@code x-langfuse-ingestion-version: 4}（LiteFuse/Langfuse v3 直写门，
  * 缺失时服务端 400 "requires Python SDK >= 4.0.0"）+ SDK 标识头。
  *
- * <p>resource/scope 装配照 Go manager.go：resource = service.name=weknora +
+ * <p>resource/scope 装配：resource = service.name=weknora +
  * langfuse.public.key [+environment/release]；scope = langfuse-sdk/4.0.0 +
  * 属性 public_key。Span 侧：INTERNAL kind、hex→bytes 的 id、属性全为 string、
- * RecordError → exception 事件、错误 → Status{ERROR}。</p>
+ * 异常记录 → exception 事件、错误 → Status{ERROR}。</p>
  */
 final class OtlpHttpExporter {
 
@@ -47,7 +47,7 @@ final class OtlpHttpExporter {
                 .build();
     }
 
-    /** 对照 newExporter 的端点拼接（host 去尾斜杠）。 */
+    /** OTLP 端点拼接（host 去尾斜杠）。 */
     String endpoint() {
         String host = cfg.host() == null ? "" : cfg.host();
         while (host.endsWith("/")) {
@@ -88,7 +88,7 @@ final class OtlpHttpExporter {
                 + (text.isEmpty() ? "" : " body=" + text));
     }
 
-    /** 组装 ExportTraceServiceRequest（resource + scope + spans），照 Go manager 的 resource/scope 装配。 */
+    /** 组装 ExportTraceServiceRequest（resource + scope + spans，装配规则见类注释）。 */
     ExportTraceServiceRequest buildRequest(List<RecordedSpan> spans) {
         Resource.Builder resource = Resource.newBuilder()
                 .addAttributes(stringAttr("service.name", LangfuseAttributes.SERVICE_NAME))

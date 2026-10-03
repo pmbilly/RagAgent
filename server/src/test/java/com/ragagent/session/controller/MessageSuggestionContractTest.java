@@ -28,22 +28,21 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 追问建议 HTTP 层的契约测试（波 1 G3：Ensure / Get / RecordEvent，对照 Go
- * {@code internal/handler/message_suggestion.go} 与 routes_chat.go L89-91）。
+ * 追问建议 HTTP 层的契约测试（Ensure / Get / RecordEvent）。
  *
- * <h2>期望值来源：Go 实录</h2>
+ * <h2>期望值来源：录制 golden</h2>
  * <p>golden 脚本 {@code scripts/record-suggestion-golden.sh}：会话与消息经 API/psql 造，
  * 一条 ready 集合用 SQL 直插（生成路径依赖 LLM，非确定性——降级说明见
  * {@code MessageSuggestionService} 类注释）。</p>
  *
  * <h2>golden 钉住的契约</h2>
  * <ul>
- *   <li>writeError 的子串分派：gorm 404 → "suggestions not found"（消息不存在也落这）、
+ *   <li>writeError 的子串分派：not found 类 → "suggestions not found"（消息不存在也落这）、
  *       会话 404 → "session not found"、业务 400 靠子串、其余 500 固定文案；</li>
- *   <li>Ensure 空 body 合法（Go 只看 ContentLength），畸形 JSON → 400 固定文案
+ *   <li>Ensure 空 body 合法（只看 ContentLength，不解析），畸形 JSON → 400 固定文案
  *       "invalid request body"；</li>
  *   <li>未配置 follow-ups → suppress("disabled")，questions=[]、generated_at 有值、
- *       error_code/model_id/agent_id 的空值省略形态与 Go 一致；</li>
+ *       error_code/model_id/agent_id 空值时整键省略；</li>
  *   <li>RecordEvent 成功 204 无体；各失败分支的固定文案。</li>
  * </ul>
  */
@@ -186,7 +185,7 @@ class MessageSuggestionContractTest {
         assertEquals(mask(golden("sug-ensure-again.json")), mask(raw(again)));
     }
 
-    /** 空 JSON {} 与空 body 语义相同（Go 只看 ContentLength）。 */
+    /** 空 JSON {} 与空 body 语义相同（只看 ContentLength，不解析）。 */
     @Test
     void ensureWithEmptyObjectMatchesGo() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/messages/" + A1
@@ -211,7 +210,7 @@ class MessageSuggestionContractTest {
         assertEquals(golden("sug-ensure-user-msg.json"), raw(r));
     }
 
-    /** 消息不存在：gorm NotFound 分支 → "suggestions not found"。 */
+    /** 消息不存在：not found 分支 → "suggestions not found"。 */
     @Test
     void ensureUnknownMessageIsSuggestionsNotFound() throws Exception {
         MvcResult r = perform(jsonBody(post("/api/v1/sessions/" + sid + "/messages/"
@@ -344,7 +343,7 @@ class MessageSuggestionContractTest {
         return builder.contentType("application/json").content(body);
     }
 
-    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake，§9）。 */
+    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake）。 */
     private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
 

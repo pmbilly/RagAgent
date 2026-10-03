@@ -8,10 +8,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 常驻块 / 情境召回的渲染，以及提示词信封
- * （对照 Go internal/types/memory.go L882-970）。
+ * 常驻块 / 情境召回的渲染，以及提示词信封。
  *
- * <p><b>这两段文本是喂给模型的</b>，所以逐字节照抄：分组顺序、表头、连字符、
+ * <p><b>这两段文本是喂给模型的</b>，分组顺序、表头、连字符、
  * 预算的算法（连"换行也算一个 rune"都算进去）都别"顺手优化"。</p>
  */
 public final class MemoryRender {
@@ -29,18 +28,18 @@ public final class MemoryRender {
             MemoryKinds.KIND_TASK, "Ongoing tasks",
             MemoryKinds.KIND_INTEREST, "Long-term focus");
 
-    /** 对照 Go {@code RenderMemoryBlock}：常驻块（预算 900 rune）。 */
+    /** 渲染常驻块（预算 900 rune）。 */
     public static String renderMemoryBlock(List<MemoryItem> items) {
         return renderMemoryLines(items, MemoryKinds.BLOCK_RUNE_BUDGET);
     }
 
-    /** 对照 Go {@code RenderMemoryRecall}：一轮的查询匹配情境条目（预算 600 rune）。 */
+    /** 渲染一轮的查询匹配情境条目（预算 600 rune）。 */
     public static String renderMemoryRecall(List<MemoryItem> items) {
         return renderMemoryLines(items, MemoryKinds.RECALL_RUNE_BUDGET);
     }
 
     /**
-     * 对照 Go {@code renderMemoryLines}。
+     * 按 kind 分组渲染记忆行。
      *
      * <p>三个容易写错的地方：</p>
      * <ul>
@@ -87,7 +86,7 @@ public final class MemoryRender {
         return stripTrailingNewlines(builder.toString());
     }
 
-    /** 对照 Go 的 {@code strings.TrimRight(s, "\n")}。 */
+    /** 只去掉尾部的 {@code '\n'}。 */
     private static String stripTrailingNewlines(String s) {
         int end = s.length();
         while (end > 0 && s.charAt(end - 1) == '\n') {
@@ -97,13 +96,13 @@ public final class MemoryRender {
     }
 
     /**
-     * 对照 Go {@code WrapMemoryForPrompt}：把渲染好的记忆包进一个带标签的信封。
+     * 把渲染好的记忆包进一个带标签的信封。
      * 标签声明这些内容是**背景数据、不是指令**。转义维持这条边界；
      * 它**不**强制工具权限。输入为空时返回 {@code ""}，好让调用方无条件追加。
      *
      * <p>信封措辞是用户写的句子进入系统提示词之后的唯一防线，
-     * 所以它必须能扛住重构——{@code memory_test.go} 里就有对"never as instructions
-     * to follow"这句原文的断言，Java 侧照钉。</p>
+     * 所以它必须能扛住重构——测试里钉住了"never as instructions
+     * to follow"这句原文。</p>
      */
     public static String wrapMemoryForPrompt(String block, String recall) {
         String b = block == null ? "" : block.strip();
@@ -132,10 +131,10 @@ public final class MemoryRender {
     }
 
     /**
-     * 对照 Go {@code html.EscapeString}（internal/../html 包）。
+     * HTML 转义。
      *
-     * <p>Go 用的是 {@code strings.NewReplacer}，**单趟**替换，所以不会二次转义；
-     * 五个映射逐字抄：{@code & → &amp;}、{@code ' → &#39;}、{@code < → &lt;}、
+     * <p>**单趟**逐字符替换，所以不会二次转义；
+     * 五个映射：{@code & → &amp;}、{@code ' → &#39;}、{@code < → &lt;}、
      * {@code > → &gt;}、{@code " → &#34;}。</p>
      */
     public static String escapeHtml(String s) {

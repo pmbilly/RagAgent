@@ -20,33 +20,27 @@ import com.ragagent.retrieval.engine.EngineTypes.RetrieveParams;
 import com.ragagent.retrieval.engine.EngineTypes.RetrieveResult;
 
 /**
- * postgres 引擎仓库的引擎口适配器——对照 Go
- * {@code internal/application/repository/retriever/postgres/repository.go}（699 行）
- * 的 {@code RetrieveEngineRepository} 实现面。
- *
- * <p>接线批第 3/4 步（2026-09-25）：让 postgres 以引擎身份进入注册表
+ * postgres 引擎仓库的引擎口适配器——让 postgres 以引擎身份进入注册表
  * （env-store，{@code RETRIEVE_DRIVER} 含 {@code postgres} 时由
  * {@code RetrievalEngineWiringConfig} 注册），读路径委托既有
- * {@link PgVectorRetrieveRepository}（golden/A-B 锁定的 SQL 逐字件），写路径委托
+ * {@link PgVectorRetrieveRepository}（SQL 由契约测试锁定），写路径委托
  * {@link VectorStoreService}（ON CONFLICT DO NOTHING / MERGE 双方言件）——
- * 行为与既有直连路径逐字节一致，不复制 SQL。</p>
+ * 行为与既有直连路径逐字节一致，不复制 SQL。
  *
- * <h2>与 Go 的差异（备案）</h2>
+ * <h2>实现说明</h2>
  * <ul>
- *   <li><b>Save 的冲突语义</b>：Go 的 {@code Save} 是裸 {@code Create}（冲突即报错）；
- *       本仓统一走 {@code saveIndexRows}（PG ON CONFLICT DO NOTHING / H2 MERGE，
- *       与 BatchSave 一致）。生产链路对 postgres 只走 BatchIndex（KV 服务分批），
+ *   <li><b>Save 的冲突语义</b>：统一走 {@code saveIndexRows}（PG ON CONFLICT DO NOTHING /
+ *       H2 MERGE，与 BatchSave 一致）。生产链路对 postgres 只走 BatchIndex（KV 服务分批），
  *       单条 Save 无调用方，冲突不可达。</li>
- *   <li>{@code toDBVectorEmbedding} 的 {@code common.CleanInvalidUTF8} 在 Java 侧是
- *       no-op（String 恒为合法 UTF-16；Go 防的是数据库层烂字节）。</li>
- *   <li><b>CopyIndices 不复制 is_enabled</b>（照 GORM）：Go 的目标行未设 IsEnabled →
- *       零值 false 被 default:true tag 省略 → DB 默认 true 生效。本仓 INSERT 显式省略
- *       该列，同一结果。chunk/knowledge 映射缺失时跳过该行（照 Go 的 WARN+continue）；
- *       SourceID 三态改写（本块 / 生成问题 {@code <chunk>-<qid>} / 兜底新 UUID）照抄。</li>
+ *   <li>{@code toDBVectorEmbedding} 的 {@code CleanInvalidUtf8} 在 Java 侧是
+ *       no-op（String 恒为合法 UTF-16）。</li>
+ *   <li><b>CopyIndices 不复制 is_enabled</b>：目标行 INSERT 显式省略该列 →
+ *       DB 默认 true 生效。chunk/knowledge 映射缺失时跳过该行（记 WARN 继续）；
+ *       SourceID 三态改写（本块 / 生成问题 {@code <chunk>-<qid>} / 兜底新 UUID）。</li>
  *   <li>{@code additionalParams} 的 {@code embedding}（按 SourceID）与
- *       {@code chunk_enabled}（按 ChunkID）两键的取值语义照 structs.go。</li>
+ *       {@code chunk_enabled}（按 ChunkID）两键决定取值。</li>
  *   <li>检索命中按 {@code fromDBVectorEmbeddingWithScore} 的字段集映射
- *       （IsEnabled 不拷，零值 false——Go 同）。</li>
+ *       （IsEnabled 不拷，保持缺省 false）。</li>
  * </ul>
  */
 public class PgVectorEngineRepository
@@ -54,7 +48,7 @@ public class PgVectorEngineRepository
 
     private static final Logger log = LoggerFactory.getLogger(PgVectorEngineRepository.class);
 
-    /** 对照 CopyIndices 的 {@code batchSize := 500}（分页深取）。 */
+    /** CopyIndices 的分页批大小。 */
     static final int COPY_BATCH_SIZE = 500;
 
     private final PgVectorRetrieveRepository readRepo;
@@ -81,7 +75,7 @@ public class PgVectorEngineRepository
         return EngineTypes.ENGINE_POSTGRES;
     }
 
-    /** 对照 {@code Support}：keywords + vector。 */
+    /** 支持 keywords + vector。 */
     @Override
     public List<String> support() {
         return List.of(EngineTypes.RETRIEVER_KEYWORDS, EngineTypes.RETRIEVER_VECTOR);
@@ -95,7 +89,7 @@ public class PgVectorEngineRepository
         batchSave(one, params);
     }
 
-    /** 对照 {@code BatchSave}：toDBVectorEmbedding 逐行映射后批量落库（冲突不覆盖）。 */
+    /** 逐行映射后批量落库（冲突不覆盖）。 */
     @Override
     public void batchSave(List<IndexInfo> indexInfoList, Map<String, Object> params) throws Exception {
         Map<String, float[]> embeddings = embeddingMap(params);
@@ -116,9 +110,9 @@ public class PgVectorEngineRepository
     }
 
     /**
-     * 对照 {@code EstimateStorageSize} → {@code calculateIndexStorageSize}：
+     * 存储估算：
      * content 字节 + 维度×2（halfvec）+ 200 元数据开销 + 2×向量字节（HNSW 开销）。
-     * 维度按<b>SourceID</b> 查 embedding 表（§0.-18 ④ 的修复口径）。
+     * 维度按<b>SourceID</b> 查 embedding 表。
      */
     @Override
     public long estimateStorageSize(List<IndexInfo> indexInfoList, Map<String, Object> params) {
@@ -157,7 +151,7 @@ public class PgVectorEngineRepository
 
     // ── 复制 / 批量更新 ─────────────────────────────────────────────────────
 
-    /** 对照 {@code CopyIndices}（repository.go L486-620）：批 500 分页 + 三态 SourceID 改写。 */
+    /** 批 500 分页深取 + 三态 SourceID 改写。 */
     @Override
     public void copyIndices(String sourceKnowledgeBaseId, Map<String, String> sourceToTargetKbIdMap,
                             Map<String, String> sourceToTargetChunkIdMap, String targetKnowledgeBaseId,
@@ -230,7 +224,7 @@ public class PgVectorEngineRepository
         log.info("[Postgres] Index copying completed, total copied: {}", totalCopied);
     }
 
-    /** 对照 GORM Create 的列集：is_enabled 省略（default:true → DB 默认 true，见类注释）。 */
+    /** INSERT 列集不含 is_enabled：落库走 DB 默认 true（见类注释）。 */
     private long insertCopyBatch(List<CopyRow> targets, String targetKnowledgeBaseId) {
         Timestamp now = Timestamp.from(Instant.now());
         String sql = postgres
@@ -269,13 +263,13 @@ public class PgVectorEngineRepository
                 + " FROM embeddings WHERE knowledge_base_id = ? LIMIT ? OFFSET ?";
     }
 
-    /** 对照 {@code BatchUpdateChunkEnabledStatus}。 */
+    /** 按 ChunkID 批量更新 chunk 启用状态。 */
     @Override
     public void batchUpdateChunkEnabledStatus(Map<String, Boolean> chunkStatusMap) throws Exception {
         writeSvc.batchUpdateChunkEnabledStatus(chunkStatusMap);
     }
 
-    /** 对照 {@code BatchUpdateChunkTagID}。 */
+    /** 按 ChunkID 批量更新 chunk 标签。 */
     @Override
     public void batchUpdateChunkTagID(Map<String, String> chunkTagMap) throws Exception {
         writeSvc.batchUpdateChunkTagId(chunkTagMap);
@@ -284,7 +278,7 @@ public class PgVectorEngineRepository
     // ── 检索 ────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 {@code Retrieve}（repository.go L142-160）：按 RetrieverType 分派；
+     * 按 retrieverType 分派到关键词/向量检索；
      * 未知类型报 {@code invalid retriever type}。
      */
     @Override
@@ -329,11 +323,11 @@ public class PgVectorEngineRepository
         return out;
     }
 
-    // ── 迁移（move.go，16 行） ──────────────────────────────────────────────
+    // ── 迁移 ────────────────────────────────────────────────────────────────
 
     /**
-     * 对照 {@code MoveKnowledgeIndices}（move.go）：改写 knowledge_base_id 并清空 tag_id。
-     * ES 侧忽略的 chunkIDs/dimension/knowledgeType 本仓同忽略。
+     * 迁移：改写 knowledge_base_id 并清空 tag_id。
+     * ES 侧忽略的 chunkIDs/dimension/knowledgeType 本实现同忽略。
      */
     @Override
     public void moveKnowledgeIndices(String sourceKb, String targetKb, String knowledgeId,
@@ -343,7 +337,7 @@ public class PgVectorEngineRepository
                 + "WHERE knowledge_base_id = ? AND knowledge_id = ?", targetKb, sourceKb, knowledgeId);
     }
 
-    // ── additionalParams 取值（照 structs.go 的两键语义） ───────────────────
+    // ── additionalParams 取值（embedding 按 SourceID / chunk_enabled 按 ChunkID） ──
 
     @SuppressWarnings("unchecked")
     private static Map<String, float[]> embeddingMap(Map<String, Object> params) {

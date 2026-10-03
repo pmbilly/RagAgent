@@ -20,8 +20,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * 文件代理面共享处理器（收尾批 W5c）——对照 Go
- * {@code internal/router/files.go} 的 handler 段全文移植：
+ * 文件代理面共享处理器：
  *
  * <ul>
  *   <li>{@code newFileServeHandler} → {@link #serveTenantFiles}（GET /files，
@@ -52,7 +51,7 @@ public class FileProxyService {
     private final ResourceCatalogService catalog;
     private final FileContentService globalFileService;
 
-    /** 对照 Go 的 LOCAL_STORAGE_BASE_DIR env（经 Spring 属性带 env 缺省，测试期可注入）。 */
+    /** 本地存储根目录（{@code LOCAL_STORAGE_BASE_DIR}，经 Spring 属性带 env 缺省，测试期可注入）。 */
     private final String localBaseDir;
     private final String absDir;
 
@@ -74,10 +73,10 @@ public class FileProxyService {
         return globalFileService;
     }
 
-    // ── files.go 共享小件 ───────────────────────────────────────────────────
+    // ── 共享小件 ────────────────────────────────────────────────────────────
 
     /**
-     * 对照 Go {@code requireFilePathQuery}：file_path 必填（trim 后）、禁 ".."。
+     * file_path 必填（trim 后）、禁 ".."。
      * 失败时 400 已写、返回 null。
      */
     public static String requireFilePathQuery(HttpServletRequest request, HttpServletResponse response)
@@ -102,7 +101,6 @@ public class FileProxyService {
 
     // ── GET /files ──────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code newFileServeHandler} 的 handler 体。 */
     public void serveTenantFiles(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String filePath = requireFilePathQuery(request, response);
         if (filePath == null) {
@@ -175,7 +173,7 @@ public class FileProxyService {
 
     // ── GET+HEAD /api/v1/files/presigned ────────────────────────────────────
 
-    /** 对照 Go {@code presignedFileHandler}（GET/HEAD 共用）。 */
+    /** GET/HEAD 共用。 */
     public void servePresigned(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String filePath = trimToEmpty(request.getParameter("file_path"));
         String tenantIdStr = trimToEmpty(request.getParameter("tenant_id"));
@@ -230,8 +228,8 @@ public class FileProxyService {
             return;
         }
         var safe = com.ragagent.common.web.ContentTypeByFilename.safe(filePath);
-        // ⚠️ Go 的 presigned 调 streamStoredFile **不带 filename**（varargs 空）——
-        // Content-Type 从路径派生，Content-Disposition 落成裸 "inline"/"attachment"。
+        // ⚠️ 此处不带 filename——Content-Type 从路径派生，Content-Disposition 落成
+        // 裸 "inline"/"attachment"。
         streamStoredFile(response, request, opened, "", safe.contentType(), safe.inline(),
                 "public, max-age=86400");
     }
@@ -239,9 +237,9 @@ public class FileProxyService {
     // ── GET /api/v1/files/presigned-preview（Admin 诊断）────────────────────
 
     /**
-     * 对照 Go {@code servePresignedPreview} 的 handler 体。API-Key 主体的拒绝
+     * API-Key 主体的拒绝
      * （DenyAPIKeyPrincipal）在控制器里先行；Admin 角色门由 RbacInterceptor 承担
-     * （Go 的 RequireRole 对 API-Key 主体短路——Java 拦截器同款，见其 apiKey 分支）。
+     * （对 API-Key 主体短路，见其 apiKey 分支）。
      */
     public void presignedPreview(HttpServletRequest request, HttpServletResponse response,
             Tenant tenant) throws IOException {
@@ -290,7 +288,7 @@ public class FileProxyService {
 
     // ── GET+HEAD /r/{token}（capability URL）────────────────────────────────
 
-    /** 对照 Go {@code serveResourceGrants} 的 handler 体（无鉴权，自证令牌）。 */
+    /** 无鉴权，短时令牌自证。 */
     public void serveResourceGrant(String token, HttpServletRequest request,
             HttpServletResponse response) throws IOException {
         StoredResource resource = catalog.resolveAccessGrant(token).orElse(null);
@@ -336,7 +334,7 @@ public class FileProxyService {
     // ── KB / 消息 scoped 共用出口 ───────────────────────────────────────────
 
     /**
-     * 对照 Go {@code serveAuthorizedFile}：存储消费授权后的定位符；租户查不到 → 404、
+     * 存储消费授权后的定位符；租户查不到 → 404、
      * 解析失败 → 400、对象缺失 → 404；成功以 private, no-store 直出
      * （Content-Type/inline 由 filename 在 Serve 内派生，无 ContentType 选项）。
      */
@@ -374,7 +372,7 @@ public class FileProxyService {
                 new FileTransport.Options(file.filename(), false, "", "", "private, no-store", 0));
     }
 
-    /** 对照 Go {@code fileAccessError}：授权三态的响应映射；true=已写响应。 */
+    /** 授权三态的响应映射；true=已写响应。 */
     public static boolean fileAccessError(HttpServletResponse response, FileAccessException e)
             throws IOException {
         switch (e.kind()) {
@@ -389,7 +387,7 @@ public class FileProxyService {
 
     // ── 响应写出小件 ────────────────────────────────────────────────────────
 
-    /** 对照 Go {@code streamStoredFile} → filetransport.Serve。 */
+    /** 按派生参数直出已打开的存储对象。 */
     private static void streamStoredFile(HttpServletResponse response, HttpServletRequest request,
             FileTransport.OpenedFile opened, String filename, String contentType, boolean inline,
             String cacheControl) throws IOException {
@@ -397,14 +395,11 @@ public class FileProxyService {
                 new FileTransport.Options(filename, !inline, contentType, "", cacheControl, 0));
     }
 
-    /** 对照 Go {@code c.Status(n)}：只写状态，无体无 Content-Type。 */
     /**
-     * 对照 Go {@code c.Status(status)}（**空体**）。
+     * 只写状态码（**空体**，无 Content-Type）。
      * ⚠️ 只 setStatus 不够：Tomcat 的 ErrorReportValve 会在响应未提交且状态 ≥400 时
-     * 补默认错误体（"404 Not Found" 字样，Spring Boot 的 showReport=false 形态）——
-     * W5d 的 embed/files 404 golden 抓回这个偏差（W5c 的 missing-file 场景无扩展名、
-     * 当时 ab 循环漏比对，同一偏差潜伏未曝）。setContentLength(0)+flush 提交空响应
-     * 后阀门跳过，与 Go 的空体逐字节一致。
+     * 补默认错误体（"404 Not Found" 字样，Spring Boot 的 showReport=false 形态）。
+     * setContentLength(0)+flush 提交空响应后阀门跳过，保证响应体为空。
      */
     public static void plainStatus(HttpServletResponse response, int status) {
         response.setStatus(status);
@@ -412,11 +407,11 @@ public class FileProxyService {
         try {
             response.flushBuffer();
         } catch (IOException ignored) {
-            // 连接已断（对照 Go：写不出去也无处可达）
+            // 连接已断，写不出去也无处可达
         }
     }
 
-    /** 对照 Go {@code c.JSON(status, gin.H{"error": msg})}。 */
+    /** 错误信封：{@code {"error": msg}}。 */
     public static void writeErrorJson(HttpServletResponse response, int status, String message)
             throws IOException {
         Map<String, Object> body = new LinkedHashMap<>();

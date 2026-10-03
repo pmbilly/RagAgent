@@ -9,15 +9,15 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * <p>序列化纪律（必须逐字段一致，服务端按 JSON-RPC 严格解析）：</p>
  * <ul>
  *   <li>{@code jsonrpc} 恒为 {@code "2.0"}；</li>
- *   <li>{@code id} 恒输出（Go 的 RequestId 支持数字与字符串两种形态，
+ *   <li>{@code id} 恒输出（支持数字与字符串两种形态，
  *       数字 ID 与 SDK 客户端自增 ID 对应，字符串 ID 用于 raw 调用——见
  *       {@code DefaultMcpClient#listRawTools} 的 {@code "weknora-tools-<uuid>"}）；</li>
- *   <li>{@code params} 带 omitempty：null 时整个键省略（Go 的 {@code json:"params,omitempty"}）。</li>
+ *   <li>{@code params} 为 null 时整个键省略（omitempty 语义）。</li>
  * </ul>
  */
 public final class JsonRpcRequest {
 
-    /** 对照 Go mcp.JSONRPC_VERSION。 */
+    /** JSON-RPC 协议版本。 */
     public static final String JSONRPC_VERSION = "2.0";
 
     private final Object id;
@@ -42,7 +42,7 @@ public final class JsonRpcRequest {
         return params;
     }
 
-    /** 按 Go 的字段序/omitempty 语义构造线上 JSON：jsonrpc, id, method, params。 */
+    /** 按固定字段序构造线上 JSON：jsonrpc, id, method, params。 */
     public ObjectNode toJson(ObjectMapper mapper) {
         ObjectNode node = mapper.createObjectNode();
         node.put("jsonrpc", JSONRPC_VERSION);

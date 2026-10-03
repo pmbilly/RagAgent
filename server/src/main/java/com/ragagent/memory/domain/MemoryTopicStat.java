@@ -14,17 +14,16 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 一个话题被这个人问过多少次
- * （对照 Go {@code types.MemoryTopicStat}，internal/types/memory.go L707-724）。
+ * 一个话题被这个人问过多少次。
  *
  * <p>单次提问是噪声；同一个主题出现在几个不同会话里才是信号。先计数、到阈值再提升，
  * 是 MemoryOS 让兴趣跟踪不被每一个路过的问题塞满的方式，也是一个知识库问题
  * 能够产生记忆、却不必每次都产生记忆的原因。</p>
  *
- * <h2>GORM 隐式行为清单（约定 §3）</h2>
+ * <h2>落库隐式行为清单（约定 §3）</h2>
  * <ol>
  *   <li><b>自动时间戳</b>：{@code created_at}/{@code updated_at} 走字段名约定，
- *       Go 显式写；{@code last_seen_at} 由仓库层显式赋值（
+ *       落库时显式写；{@code last_seen_at} 由仓库层显式赋值（
  *       {@code BumpTopic} 的 INSERT 里就带 {@code now}），{@code promoted_at} 显式写。</li>
  *   <li><b>钩子</b>：无。</li>
  *   <li><b>关联预加载</b>：无。</li>
@@ -34,14 +33,14 @@ import com.ragagent.common.web.GoTimeSerializer;
  *   <li><b>唯一索引</b>：{@code idx_mem_topic_scope (tenant_id, subject_id, normalized_key)}
  *       ——模型 tag 与迁移**都**声明了，{@code ON CONFLICT} 的靶子就是它。</li>
  *   <li><b>DEFAULT 列</b>：{@code topic}（{@code default:''}）、{@code hits}（{@code default:0}）
- *       带字面量 default tag → GORM 实测仍显式写入。
+ *       带字面量 default tag → 落库时仍显式写入。
  *       ⚠️ {@code aliases} 的 DDL 是 {@code NOT NULL DEFAULT '[]'}，
- *       而 Go 的 {@code Value()} 对 nil 也返回 {@code "[]"}（**从不** NULL）→
+ *       而写入端对 null 也输出 {@code "[]"}（**从不** NULL）→
  *       策略取 {@code ALWAYS}，字段默认空列表，绝不能写出 NULL（会违 NOT NULL）。</li>
  * </ol>
  *
  * <h2>JSON 形态</h2>
- * <p>本类型**不是**响应体（handler 回的是 {@link MemoryTopicView}），但键按 Go struct 声明序：
+ * <p>本类型**不是**响应体（handler 回的是 {@link MemoryTopicView}），但键序按字段声明序：
  * </p>
  * <pre>
  *   MemoryTopicStat{} →
@@ -101,7 +100,7 @@ public class MemoryTopicStat {
     public void setTopic(String v) { topic = v == null ? "" : v; }
 
     /**
-     * {@code null} 是 Go 里的合法状态（响应输出 {@code null}），**不**归一成空列表——
+     * {@code null} 是合法状态（响应输出 {@code null}），**不**归一成空列表——
      * 归一化只发生在投影函数 {@link MemoryTopicView#fromStat} 里。
      */
     public List<String> getAliases() { return aliases; }
@@ -131,9 +130,9 @@ public class MemoryTopicStat {
     }
 
     /**
-     * 对照 Go {@code MemoryTopicAliases.Has}：某个表层说法是否已经归到这个主题。
+     * 某个表层说法是否已经归到这个主题。
      *
-     * <p><b>它不是字段</b>（Go 里是方法）。方法名是 {@code hasAlias} 而不是
+     * <p><b>它不是字段</b>，是派生方法。方法名是 {@code hasAlias} 而不是
      * {@code isAlias}/{@code getAlias}，所以 Jackson 不会把它当属性——
      * 这正是 §7.5 第 2 条那个坑的规避方式：**别给它起 get/is 前缀的名字**。
      * 它也不落库（没有对应列）。</p>

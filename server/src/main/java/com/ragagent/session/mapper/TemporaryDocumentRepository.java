@@ -9,10 +9,10 @@ import com.ragagent.session.domain.TemporaryDocument;
 import org.springframework.stereotype.Component;
 
 /**
- * 会话附件仓储（对照 Go internal/application/repository/temporary_document.go）。
+ * 会话附件仓储。
  *
- * 注意：GetScoped / GetByID 查不到时 Go 返回 (nil, nil)——**不是错误**；
- * handler 层据 nil 判 404。Java 对应返回 null。
+ * 注意：getScoped / getById 查不到时返回 null——**不是错误**；
+ * 调用方据 null 判 404。
  */
 @Component
 public class TemporaryDocumentRepository {
@@ -28,7 +28,7 @@ public class TemporaryDocumentRepository {
         return document;
     }
 
-    /** 对照 Go GetByID：无租户/会话条件（parse worker 用），查不到返回 null。 */
+    /** 按 id 取（无会话条件，parse worker 用），查不到返回 null。 */
     public TemporaryDocument getById(long tenantId, String documentId) {
         return mapper.selectOne(new LambdaQueryWrapper<TemporaryDocument>()
                 .eq(TemporaryDocument::getTenantId, tenantId)
@@ -36,7 +36,7 @@ public class TemporaryDocumentRepository {
                 .isNull(TemporaryDocument::getDeletedAt));
     }
 
-    /** 对照 Go GetScoped：租户 + 会话 + id 三重范围，查不到返回 null。 */
+    /** 租户 + 会话 + id 三重范围，查不到返回 null。 */
     public TemporaryDocument getScoped(long tenantId, String sessionId, String documentId) {
         return mapper.selectOne(new LambdaQueryWrapper<TemporaryDocument>()
                 .eq(TemporaryDocument::getTenantId, tenantId)
@@ -45,7 +45,7 @@ public class TemporaryDocumentRepository {
                 .isNull(TemporaryDocument::getDeletedAt));
     }
 
-    /** 对照 Go ListScoped：created_at ASC。 */
+    /** created_at ASC。 */
     public List<TemporaryDocument> listScoped(long tenantId, String sessionId) {
         return mapper.selectList(new LambdaQueryWrapper<TemporaryDocument>()
                 .eq(TemporaryDocument::getTenantId, tenantId)
@@ -54,7 +54,7 @@ public class TemporaryDocumentRepository {
                 .orderByAsc(TemporaryDocument::getCreatedAt));
     }
 
-    /** 对照 Go MarkProcessing：status/started_at/error_message 三列。 */
+    /** 置 processing：status/started_at/error_message 三列。 */
     public void markProcessing(long tenantId, String documentId, OffsetDateTime startedAt) {
         mapper.update(null, new LambdaUpdateWrapper<TemporaryDocument>()
                 .eq(TemporaryDocument::getTenantId, tenantId)
@@ -65,7 +65,7 @@ public class TemporaryDocumentRepository {
                 .set(TemporaryDocument::getErrorMessage, ""));
     }
 
-    /** 对照 Go MarkReady：终态九列。 */
+    /** 置 ready：终态九列。 */
     public void markReady(long tenantId, String documentId, String content, String chunks,
             String imageRefs, String metadata, int tokenCount, int chunkCount,
             OffsetDateTime readyAt) {
@@ -85,7 +85,7 @@ public class TemporaryDocumentRepository {
                 .set(TemporaryDocument::getErrorMessage, ""));
     }
 
-    /** 对照 Go MarkFailed。 */
+    /** 置 failed。 */
     public void markFailed(long tenantId, String documentId, String message) {
         mapper.update(null, new LambdaUpdateWrapper<TemporaryDocument>()
                 .eq(TemporaryDocument::getTenantId, tenantId)
@@ -94,7 +94,7 @@ public class TemporaryDocumentRepository {
                 .set(TemporaryDocument::getErrorMessage, message));
     }
 
-    /** 对照 Go ListExpired（temporary_document.go L73-77）：expires_at <= before，按时间升序。 */
+    /** expires_at <= before，按时间升序。 */
     public List<TemporaryDocument> listExpired(OffsetDateTime before, int limit) {
         return mapper.selectList(new LambdaQueryWrapper<TemporaryDocument>()
                 .le(TemporaryDocument::getExpiresAt, before)
@@ -104,7 +104,7 @@ public class TemporaryDocumentRepository {
                 .last("LIMIT " + limit));
     }
 
-    /** 对照 Go DeleteScoped：软删（gorm DeletedAt）——此前是物理 DELETE，行直接消失。 */
+    /** 软删（置 deleted_at）。 */
     public void deleteScoped(long tenantId, String sessionId, String documentId) {
         mapper.update(null, new LambdaUpdateWrapper<TemporaryDocument>()
                 .eq(TemporaryDocument::getTenantId, tenantId)

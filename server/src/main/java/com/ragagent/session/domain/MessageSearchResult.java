@@ -4,10 +4,9 @@ import java.util.List;
 
 
 /**
- * 消息搜索的响应体（对照 Go {@code types.MessageSearchResult}，types/message.go L552-558）。
+ * 消息搜索的响应体。
  *
- * <p>{@code items} 恒输出数组（Go 的 {@code groupByRequestID} 用 {@code make(..., 0, …)}
- * 构造，空结果也是 {@code []} 不是 {@code null}）。</p>
+ * <p>{@code items} 恒输出数组（空结果也是 {@code []} 不是 {@code null}）。</p>
  */
 public class MessageSearchResult {
 

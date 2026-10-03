@@ -27,10 +27,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 波 1 G6 契约测试（产物 3 条 + generate_title + stop）。golden：record-g6-golden.sh。
+ * 产物 3 条 + generate_title + stop 的契约测试。golden：record-g6-golden.sh。
  * 关键契约：stop 错误是纯字符串信封 {"error":"..."}；dev 租户无 KnowledgeQA 模型
  * → title 空 messages 回库后 500 "no KnowledgeQA model available..."；
- * download 的 access 层未翻译恒落 "artifact not accessible"（与 Go catalog miss 一致）。
+ * download 的 access 层恒落固定文案 "artifact not accessible"（目录查不到的历史措辞）。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -182,7 +182,7 @@ class SessionG6ContractTest {
 
     // ════════════════ 产物下载 ════════════════
 
-    /** 资源目录查不到（Java：access 层未翻译恒落此分支）→ 404 固定文案。 */
+    /** 资源目录查不到（access 层恒落此分支）→ 404 固定文案。 */
     @Test
     void downloadInaccessibleMatchesGo() throws Exception {
         MvcResult r = perform(get("/api/v1/sessions/" + sid + "/messages/" + A1
@@ -353,7 +353,7 @@ class SessionG6ContractTest {
         return builder.contentType("application/json").content(body);
     }
 
-    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake，§9）。 */
+    /** 按**原始字节**取响应体（MockMvc 默认 ISO-8859-1 会让中文变成 mojibake）。 */
     private static final com.fasterxml.jackson.databind.ObjectMapper RAW_SEMANTIC_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
 

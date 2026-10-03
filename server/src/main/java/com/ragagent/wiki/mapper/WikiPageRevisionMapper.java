@@ -17,7 +17,7 @@ import org.apache.ibatis.annotations.Update;
 /**
  * wiki_page_revisions 仓储语句。
  *
- * <p>原 ORM 隐式行为清单（约定 §3）：</p>
+ * <p>落库隐式行为清单：</p>
  * <ul>
  *   <li><b>无软删除</b>：本表没有 deleted_at 列，删除都是硬删。</li>
  *   <li><b>列表投影</b>：{@link #listRevisions} 刻意不 SELECT content

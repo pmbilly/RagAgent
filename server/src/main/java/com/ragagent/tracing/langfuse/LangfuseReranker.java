@@ -8,7 +8,7 @@ import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.Reranker;
 
 /**
- * rerank 客户端的 langfuse 装饰器（对照 Go internal/models/rerank/langfuse_wrapper.go）：
+ * rerank 客户端的 langfuse 装饰器：
  * Rerank 发一条 generation；用量按 query + 各文档的「码点数/4 + 1」估算
  * （vendor 多按千文档计费，估算是给成本面板的比例信号）。由
  * {@code ModelRuntimeFactory.getRerankModel} 装配。
@@ -21,7 +21,7 @@ public final class LangfuseReranker implements Reranker {
         this.inner = inner;
     }
 
-    /** 对照 wrapRerankerLangfuse：未启用/空客户端原样返回。 */
+    /** 未启用/空客户端原样返回。 */
     public static Reranker wrap(Reranker reranker) {
         if (reranker == null || !LangfuseManager.get().enabled()) {
             return reranker;

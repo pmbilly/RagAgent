@@ -10,10 +10,9 @@ import com.ragagent.mcp.protocol.McpContext;
 
 /**
  * 由 {@link OAuthRepository} 支撑的 token 存储，作用域钉死在一个
- * (tenant, principal, service) 三元组上（对照 Go internal/mcp/oauth_tokenstore.go:18-23 的
- * {@code dbTokenStore}）。
+ * (tenant, principal, service) 三元组上。
  *
- * <p>mcp-go 的 OAuth handler 在授权成功或刷新成功后会调 {@code SaveToken}；
+ * <p>OAuth handler 在授权成功或刷新成功后会调 {@code SaveToken}；
  * 而运行期的 MCP 传输拿到的是 {@link ManagedTokenStore} 包装——
  * 这样刷新决策留在 WeKnora 自己协调的生命周期里，而不是落到依赖库手里。</p>
  */
@@ -24,7 +23,7 @@ public class DbTokenStore implements OAuthTokenStore {
     protected final TenantContext.Principal principal;
     protected final String serviceId;
 
-    /** 对照 Go {@code newDBTokenStore}：构造期就归一化 principal。 */
+    /** 构造期就归一化 principal。 */
     public DbTokenStore(OAuthRepository repo, long tenantId, TenantContext.Principal principal,
                         String serviceId) {
         this.repo = repo;
@@ -34,12 +33,10 @@ public class DbTokenStore implements OAuthTokenStore {
     }
 
     /**
-     * 对照 Go {@code GetToken}：未授权抛 {@link OAuthNoTokenException}
-     * （Go：{@code transport.ErrNoToken}）。
+     * 未授权时抛 {@link OAuthNoTokenException}。
      */
     @Override
     public OAuthToken getToken(McpContext ctx) {
-        // 对照 Go 的 `if err := ctx.Err(); err != nil { return nil, err }`
         ctx.throwIfCancelled();
         McpOAuthToken row = repo.getTokenForPrincipal(tenantId, principal, serviceId);
         if (row == null || isBlank(row.getAccessToken())) {
@@ -50,7 +47,7 @@ public class DbTokenStore implements OAuthTokenStore {
     }
 
     /**
-     * 对照 Go {@code SaveToken}：access_token 缺失直接报错（不落一行空 token）；
+     * access_token 缺失直接报错（不落一行空 token）；
      * token_type 缺省补 "Bearer"；只给 expires_in 时折算成绝对时刻。
      */
     @Override
