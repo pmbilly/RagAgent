@@ -4,16 +4,12 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
@@ -24,10 +20,8 @@ import com.ragagent.common.web.ZeroTimeSerializer;
  *   <li><b>map 键按字母序</b>：{@code ORDER_MAP_ENTRIES_BY_KEYS}。payload 的
  *       {@code extra}/{@code arguments}/{@code data}/{@code args} 装的是任意 JSON，
  *       序列化时键恒按字母序输出。</li>
- *   <li><b>浮点整数不补 {@code .0}</b>：{@link GoDoubleSerializer} 注册为 Double/Float 的
- *       序列化器，整数值输出 {@code "n":2} 而非 Jackson 默认的 {@code 2.0}
- *       （这些 map 会经 toolApprovalDataToMap 进 SSE 帧，差异对外可见）。
- *       只注册在<b>本 mapper</b>，不碰全局 HTTP mapper，避免污染。</li>
+ *   <li><b>浮点走 Jackson 默认</b>（2026-10-03 B50：`GoDoubleSerializer` 退役）——
+ *       整数值输出 {@code "n":2.0}（原 Go 形态为 {@code 2}）；JSON 数值语义相同。</li>
  *   <li><b>时间 RFC3339Nano</b>：OffsetDateTime 转 JVM 默认时区后 ISO 输出（与
  *       {@code config.JacksonConfig} 一致）；零值时间输出
  *       {@code "0001-01-01T00:00:00Z"}（{@link ZeroTimeSerializer}，如 CommandOutputData
@@ -43,16 +37,6 @@ public final class EventJson {
     private static final ObjectMapper MAPPER = build();
 
     private static ObjectMapper build() {
-        SimpleModule goNumbers = new SimpleModule();
-        goNumbers.addSerializer(Double.class, new GoDoubleSerializer());
-        goNumbers.addSerializer(Float.class, new JsonSerializer<Float>() {
-            @Override
-            public void serialize(Float value, JsonGenerator gen, SerializerProvider serializers)
-                    throws IOException {
-                gen.writeRawValue(GoDoubleSerializer.format(value.doubleValue()));
-            }
-        });
-
         SimpleModule goTime = new SimpleModule();
         goTime.addSerializer(OffsetDateTime.class, new ZeroTimeSerializer());
 
@@ -61,7 +45,6 @@ public final class EventJson {
                 // ZeroTimeSerializer：常规时间转 JVM 默认时区 + RFC3339Nano，零值输出 year-1 字面量。
                 // 只此一份——若再叠一个普通 OffsetDateTime 序列化器会后注册者胜、丢掉零值分支。
                 .addModule(goTime)
-                .addModule(goNumbers)
                 .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)

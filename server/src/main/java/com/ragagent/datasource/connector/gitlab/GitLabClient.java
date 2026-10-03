@@ -22,7 +22,7 @@ import com.ragagent.common.text.Whitespace;
  * <p>本类及其全部嵌套类型（{@link Project} / {@link TreeEntry} / {@link Comparison} /
  * {@link FileDetail}）<b>只</b>用于反序列化 GitLab 的响应。它们不落 jsonb、也从不进
  * HTTP 响应体，所以<b>不需要</b> {@code @JsonIgnore} 派生访问器、
- * 也不挂 {@code DataSourceMapSerializer} / {@code GoDoubleSerializer}
+ * 也不挂 {@code DataSourceMapSerializer}（B50 起浮点走 Jackson 默认）
  * （那套只约束会落库或作响应体的类型）。字段名一律按 GitLab 的
  * {@code snake_case} 用 {@code @JsonProperty} 显式标出——这里是<b>外部协议</b>的字段名，
  * 不是本项目的 JSON 契约。</p>

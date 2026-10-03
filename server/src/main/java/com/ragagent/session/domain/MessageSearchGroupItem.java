@@ -2,7 +2,6 @@ package com.ragagent.session.domain;
 
 import java.time.OffsetDateTime;
 
-import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
  * 搜索结果里的合并 Q&amp;A 对。

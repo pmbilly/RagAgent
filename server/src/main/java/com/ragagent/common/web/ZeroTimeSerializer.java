@@ -40,7 +40,7 @@ public class ZeroTimeSerializer extends JsonSerializer<OffsetDateTime> {
     public static final Instant GO_ZERO_TIME = Instant.parse("0001-01-01T00:00:00Z");
 
     /** 零值的字面输出。 */
-    public static final String GO_ZERO_TIME_LITERAL = "0001-01-01T00:00:00Z";
+    public static final String ZERO_TIME_LITERAL = "0001-01-01T00:00:00Z";
 
     /**
      * 零值时间的 Java 表示——供字段**默认值**使用。
@@ -62,7 +62,7 @@ public class ZeroTimeSerializer extends JsonSerializer<OffsetDateTime> {
     public void serialize(OffsetDateTime value, JsonGenerator gen, SerializerProvider serializers)
             throws IOException {
         if (isZeroValue(value)) {
-            gen.writeString(GO_ZERO_TIME_LITERAL);
+            gen.writeString(ZERO_TIME_LITERAL);
             return;
         }
         gen.writeString(value.atZoneSameInstant(targetZone()).toOffsetDateTime()

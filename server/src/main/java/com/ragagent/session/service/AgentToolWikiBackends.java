@@ -255,7 +255,7 @@ final class AgentToolWikiBackends {
      */
     static String goTimeText(java.time.OffsetDateTime value) {
         if (ZeroTimeSerializer.isZeroValue(value)) {
-            return ZeroTimeSerializer.GO_ZERO_TIME_LITERAL;
+            return ZeroTimeSerializer.ZERO_TIME_LITERAL;
         }
         String s = value.atZoneSameInstant(java.time.ZoneOffset.UTC).toOffsetDateTime()
                 .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME);

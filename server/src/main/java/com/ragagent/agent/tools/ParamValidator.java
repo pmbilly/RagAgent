@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
  * 通用参数校验。
@@ -222,7 +221,7 @@ public final class ParamValidator {
 
     /** 浮点文本（'g' 最短形态：1 → "1"、0.5 → "0.5"）。 */
     private static String goValue(double d) {
-        return GoDoubleSerializer.format(d);
+        return Double.toString(d);
     }
 
     /**

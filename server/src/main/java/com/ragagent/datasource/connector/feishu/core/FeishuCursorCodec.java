@@ -131,7 +131,7 @@ public final class FeishuCursorCodec {
      */
     static String formatGoTime(OffsetDateTime value) {
         if (ZeroTimeSerializer.isZeroValue(value)) {
-            return ZeroTimeSerializer.GO_ZERO_TIME_LITERAL;
+            return ZeroTimeSerializer.ZERO_TIME_LITERAL;
         }
         OffsetDateTime local = value.atZoneSameInstant(ZoneId.systemDefault()).toOffsetDateTime();
         return local.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);

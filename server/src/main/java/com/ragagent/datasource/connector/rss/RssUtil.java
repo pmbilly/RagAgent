@@ -255,11 +255,11 @@ final class RssUtil {
      * （{@code feedSignalFingerprint} 就是这么判的）。
      */
     static boolean isZeroTime(OffsetDateTime t) {
-        return t == null || GO_ZERO_INSTANT.equals(t.toInstant());
+        return t == null || ZERO_INSTANT.equals(t.toInstant());
     }
 
     /** 零值时间的瞬时（{@code 0001-01-01T00:00:00Z}，即"没有时间"哨兵）。 */
-    static final java.time.Instant GO_ZERO_INSTANT =
+    static final java.time.Instant ZERO_INSTANT =
             java.time.Instant.parse("0001-01-01T00:00:00Z");
 
     static String formatRfc3339OrEmpty(OffsetDateTime t) {

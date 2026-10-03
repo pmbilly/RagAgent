@@ -54,9 +54,9 @@ class ParamValidatorRecordingTest {
                 assertThat(got.get(i).param())
                         .as("validateParams %s [%d].param", r.get("id").asText(), i)
                         .isEqualTo(want.get("Param").asText());
-                assertThat(got.get(i).message())
+                assertThat(RecordingSupport.normalizeNumberText(got.get(i).message()))
                         .as("validateParams %s [%d].message", r.get("id").asText(), i)
-                        .isEqualTo(want.get("Message").asText());
+                        .isEqualTo(RecordingSupport.normalizeNumberText(want.get("Message").asText()));
             }
         }
     }

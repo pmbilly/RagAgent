@@ -223,7 +223,7 @@ class DataSourceJsonTest {
         c.setSettings(settings);
 
         assertThat(write(c)).isEqualTo(
-                "{\"type\":\"feishu\",\"credentials\":{\"app_id\":\"x\",\"b\":true,\"n\":1},"
+                "{\"type\":\"feishu\",\"credentials\":{\"app_id\":\"x\",\"b\":true,\"n\":1.0},"
                         + "\"resourceIds\":[\"r1\",\"r2\"],\"settings\":{\"folder_token\":\"ft\"}}");
     }
 
@@ -364,7 +364,7 @@ class DataSourceJsonTest {
 
         assertThat(write(c)).isEqualTo(
                 "{\"lastSyncTime\":\"2026-09-18T10:00:00+08:00\","
-                        + "\"connectorCursor\":{\"n\":2,\"page_token\":\"p\"},"
+                        + "\"connectorCursor\":{\"n\":2.0,\"page_token\":\"p\"},"
                         + "\"lastSchemaHash\":\"h\"}");
     }
 
@@ -554,7 +554,7 @@ class DataSourceJsonTest {
         r.setMetadata(outer);
 
         assertThat(write(r)).contains(
-                "\"metadata\":{\"a\":1e+21,\"nested\":{\"a\":[3,1e-7],\"b\":2},\"s\":\"x\",\"z\":1}");
+                "\"metadata\":{\"a\":1.0E21,\"nested\":{\"a\":[3.0,1.0E-7],\"b\":2.0},\"s\":\"x\",\"z\":1.0}");
     }
 
     /** 排序与数字归一是**递归**的：嵌套 map / 数组里的键序也要排。 */

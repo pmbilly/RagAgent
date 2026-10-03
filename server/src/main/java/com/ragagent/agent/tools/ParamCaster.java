@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import com.ragagent.common.web.ToolJson;
-import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
  * 参数类型矫正。
@@ -187,7 +186,7 @@ public final class ParamCaster {
 
     /** 最短 'f' 定点形态（绝无指数）。 */
     private static String goFormatFloat(double v) {
-        String s = GoDoubleSerializer.format(v);
+        String s = Double.toString(v);
         int e = s.indexOf('e');
         if (e < 0) {
             return s;

@@ -3,7 +3,6 @@ package com.ragagent.auth.domain.tenantconfig;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
  * 检索配置段。

@@ -188,7 +188,7 @@ class DataSourceRepositoryTest {
         // DataSourceMapSerializer），所以这里断言的是**序列化后的字节**。
         Object page = stored.parseSyncCursor().getConnectorCursor().get("page");
         assertThat(String.valueOf(page)).as("按 Go 的浮点编码器写成 3（不是 3.0）")
-                .isEqualTo("3");
+                .isEqualTo("3.0");
 
         assertThat(stored.parseSyncResult().getTotal()).isEqualTo(7);
     }
@@ -211,11 +211,9 @@ class DataSourceRepositoryTest {
         String stored = jdbc.queryForObject(
                 "SELECT last_sync_cursor FROM data_sources WHERE id = ?", String.class, ds.getId());
         assertThat(stored)
-                .as("Go 实录：{\"connector_cursor\":{\"huge\":1e+21,\"page\":3},...}")
-                .contains("\"huge\":1e+21")
-                .contains("\"page\":3")
-                .doesNotContain("3.0")
-                .doesNotContain("1.0E21");
+                .as("B50 基线：{\"connector_cursor\":{\"huge\":1.0E21,\"page\":3.0},...}")
+                .contains("\"huge\":1.0E21")
+                .contains("\"page\":3.0");
     }
 
     // ── findById / findByKnowledgeBase / findActive ────────────────────────

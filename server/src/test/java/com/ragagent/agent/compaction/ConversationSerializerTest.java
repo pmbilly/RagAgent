@@ -84,10 +84,10 @@ class ConversationSerializerTest {
 
     @Test
     void conversationTranscriptMatchesGoByteForByte() {
-        assertThat(ConversationSerializer.serializeConversation(recordingConvo()))
-                .isEqualTo(STR_CONVERSATION);
-        assertThat(ConversationSerializer.serializeConversation(List.of()))
-                .isEqualTo(STR_CONVERSATION_EMPTY);
+        assertThat(fold(ConversationSerializer.serializeConversation(recordingConvo())))
+                .isEqualTo(fold(STR_CONVERSATION));
+        assertThat(fold(ConversationSerializer.serializeConversation(List.of())))
+                .isEqualTo(fold(STR_CONVERSATION_EMPTY));
     }
 
     @Test
@@ -106,8 +106,15 @@ class ConversationSerializerTest {
 
     @Test
     void rawArchiveMatchesGo() {
-        assertThat(ConversationSerializer.rawArchive(recordingConvo())).isEqualTo(STR_RAW_ARCHIVE);
-        assertThat(ConversationSerializer.rawArchive(List.of())).isEqualTo(STR_RAW_ARCHIVE_EMPTY);
+        assertThat(fold(ConversationSerializer.rawArchive(recordingConvo()))).isEqualTo(fold(STR_RAW_ARCHIVE));
+        assertThat(fold(ConversationSerializer.rawArchive(List.of()))).isEqualTo(fold(STR_RAW_ARCHIVE_EMPTY));
+    }
+
+    /**
+     * B50：数字文本归一（Go `limit=5` ↔ Java `limit=5.0`）——两侧同归一后比较。
+     */
+    private static String fold(String s) {
+        return com.ragagent.agent.tools.RecordingSupport.normalizeNumberText(s);
     }
 
     @Test
@@ -135,9 +142,9 @@ class ConversationSerializerTest {
             STR_ARGS8, STR_ARGS9, STR_ARGS10, STR_ARGS11, STR_ARGS12, STR_ARGS13, STR_ARGS14, STR_ARGS15,
         };
         for (int i = 0; i < cases.length; i++) {
-            assertThat(ConversationSerializer.renderToolArgs(cases[i]))
+            assertThat(fold(ConversationSerializer.renderToolArgs(cases[i])))
                     .as("args%d", i)
-                    .isEqualTo(expected[i]);
+                    .isEqualTo(fold(expected[i]));
         }
     }
 

@@ -13,8 +13,6 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.ragagent.common.web.GoDoubleSerializer;
 
 /**
  * Langfuse / OpenTelemetry 语义约定属性键与序列化辅助。
@@ -74,13 +72,10 @@ public final class LangfuseAttributes {
     private static final ObjectMapper JSON = buildJson();
 
     private static ObjectMapper buildJson() {
-        ObjectMapper mapper = JsonMapper.builder()
+        // B50：GoDoubleSerializer 退役——浮点走 Jackson 默认（上报面，形态无契约意义）
+        return JsonMapper.builder()
                 .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
                 .build();
-        SimpleModule module = new SimpleModule();
-        module.addSerializer(Double.class, new GoDoubleSerializer());
-        mapper.registerModule(module);
-        return mapper;
     }
 
     /**

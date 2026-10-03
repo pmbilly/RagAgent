@@ -9,12 +9,11 @@ import java.util.Map;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializable;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.SortedMapSerializer;
 
 /**
  * {@link SortedMapSerializer} 的 datasource 版本：在"按键排序且递归"之上，**再把嵌套的
- * {@code Double} 按统一浮点格式（{@link GoDoubleSerializer}）输出**。
+ * {@code Double} 按 {@code Double.toString} 语义输出（B50 前为 GoDoubleSerializer 的 Go 浮点形态）。
  *
  * <h2>为什么不能直接用 {@code SortedMapSerializer}</h2>
  * <p>{@code SortedMapSerializer} 只重排键序，值<b>原样</b>交给 Jackson。而本模块的 map 字段
@@ -37,7 +36,7 @@ import com.ragagent.common.web.SortedMapSerializer;
  *
  * <h2>归一的手段</h2>
  * <p>把 {@code Double}/{@code Float} 换成实现了 {@link JsonSerializable} 的
- * {@link GoNumber}。{@code sortDeep} 对非 Map/Collection 的值原样透传，而 Jackson 对
+ * {@link RawNumber}。{@code sortDeep} 对非 Map/Collection 的值原样透传，而 Jackson 对
  * 实现 {@code JsonSerializable} 的对象会调它自己的 {@code serialize}——
  * 于是嵌套在任意深度的数字都能走同一套编码器。用 {@code writeRawValue} 而不是
  * {@code writeNumber} 是因为 {@code 1e+21} 这类输出不是合法的 Java 数字字面量写法，
@@ -52,7 +51,7 @@ public class DataSourceMapSerializer extends SortedMapSerializer {
             gen.writeNull();
             return;
         }
-        // 先归一（Double → GoNumber），再交给父类的 sortDeep 排序。
+        // 先归一（Double → RawNumber），再交给父类的 sortDeep 排序。
         // 顺序不能反：sortDeep 会把 map 换成 TreeMap，之后仍然要递归一遍值。
         gen.writeObject(sortDeep(normalize(value)));
     }
@@ -60,10 +59,10 @@ public class DataSourceMapSerializer extends SortedMapSerializer {
     /** 递归把数字包成 Go 形态；map / 集合的容器结构原样保留（排序交给 {@code sortDeep}）。 */
     private static Object normalize(Object value) {
         if (value instanceof Double d) {
-            return new GoNumber(GoDoubleSerializer.format(d));
+            return new RawNumber(Double.toString(d));
         }
         if (value instanceof Float f) {
-            return new GoNumber(GoDoubleSerializer.format(f.doubleValue()));
+            return new RawNumber(Double.toString(f.doubleValue()));
         }
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> out = new LinkedHashMap<>();
@@ -88,11 +87,11 @@ public class DataSourceMapSerializer extends SortedMapSerializer {
      * <p>{@code JsonSerializable} 是 Jackson 自带的钩子：实现它的对象无论出现在
      * 多深的位置都会被调 {@link #serialize}，不需要额外注册。</p>
      */
-    static final class GoNumber implements JsonSerializable {
+    static final class RawNumber implements JsonSerializable {
 
         private final String text;
 
-        GoNumber(String text) {
+        RawNumber(String text) {
             this.text = text;
         }
 

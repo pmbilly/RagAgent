@@ -195,9 +195,9 @@ class ToolRegistryRecordingTest {
         JsonNode r = RecordingSupport.rec(field(constant));
         ToolResult got = reg.executeTool(name, args);
         // B40 基线重建：两侧经 ContractJson.deep 归一（转义形态不再构成断言目标）。
-        assertThat(ContractJson.deep(goJson(got)))
+        assertThat(ContractJson.deep(RecordingSupport.normalizeNumberText(goJson(got))))
                 .as("executeTool %s (%s)", name, r.get("id").asText())
-                .isEqualTo(ContractJson.deep(r.get("result").asText()));
+                .isEqualTo(ContractJson.deep(RecordingSupport.normalizeNumberText(r.get("result").asText())));
     }
 
     private static String field(String name) {

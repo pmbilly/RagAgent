@@ -15,7 +15,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.common.error.AppError;
 import com.ragagent.common.error.BizException;
-import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.GoJsonBindError;
 import com.ragagent.llm.ollama.OllamaService;
 
@@ -124,7 +123,7 @@ public final class OllamaManageService {
         if (available) {
             ObjectNode data = MAPPER.createObjectNode();
             data.put("modelName", modelName);
-            data.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(GoDoubleSerializer.format(100.0)));
+            data.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(Double.toString(100.0)));
             data.put("status", "completed");
             data.put("message", "模型已存在");
             return ResponseEntity.ok(data);
@@ -134,7 +133,7 @@ public final class OllamaManageService {
             // 幂等：已有进行中的任务 → 裸任务对象原样返回（§2.1）
             ObjectNode data = MAPPER.createObjectNode();
             data.put("modelName", existing.modelName);
-            data.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(GoDoubleSerializer.format(existing.progress)));
+            data.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(Double.toString(existing.progress)));
             data.put("status", existing.status);
             data.put("taskId", existing.id);
             return ResponseEntity.ok(data);
@@ -144,7 +143,7 @@ public final class OllamaManageService {
         Thread.ofVirtual().start(() -> downloadModelAsync(taskId, modelName));
         ObjectNode data = MAPPER.createObjectNode();
         data.put("modelName", modelName);
-        data.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(GoDoubleSerializer.format(0.0)));
+        data.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(Double.toString(0.0)));
         data.put("status", "pending");
         data.put("taskId", taskId);
         data.put("message", "模型下载任务已创建");
@@ -188,7 +187,7 @@ public final class OllamaManageService {
         n.put("id", task.id);
         n.put("modelName", task.modelName);
         n.put("status", task.status);
-        n.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(GoDoubleSerializer.format(task.progress)));
+        n.putRawValue("progress", new com.fasterxml.jackson.databind.util.RawValue(Double.toString(task.progress)));
         n.put("message", task.message);
         n.put("startTime", ModelConnectivityTestService.goTime(task.startTime));
         if (task.endTime != null) {

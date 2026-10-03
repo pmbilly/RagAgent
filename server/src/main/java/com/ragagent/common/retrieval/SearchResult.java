@@ -7,7 +7,6 @@ import java.util.TreeMap;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.common.web.SortedMapSerializer;
 
 /**

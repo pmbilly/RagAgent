@@ -6,7 +6,6 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.common.web.GoDoubleSerializer;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ToolCall;
 
@@ -204,7 +203,7 @@ public final class ConversationSerializer {
                 // 越界数字按解析失败处理
                 throw new GoMarshalException();
             }
-            sb.append(GoDoubleSerializer.format(d));
+            sb.append(Double.toString(d));
             return;
         }
         if (node.isBoolean()) {

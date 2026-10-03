@@ -267,7 +267,7 @@ public final class DocChunkSupport {
             return b.toString();
         }
         if (v instanceof Double d) {
-            return com.ragagent.common.web.GoDoubleSerializer.format(d);
+            return Double.toString(d);
         }
         if (v instanceof Integer || v instanceof Long) {
             return v.toString();

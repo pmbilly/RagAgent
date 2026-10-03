@@ -213,7 +213,7 @@ final class Engine46bStubSupport {
                     .append(jsonStr(o == null || o.getPromptCacheKey() == null ? ""
                             : o.getPromptCacheKey()));
             sb.append(",\"temperature\":").append(o == null ? 0
-                    : goDouble(o.getTemperature()));
+                    : doubleText(o.getTemperature()));
             sb.append(",\"thinking\":").append(o == null || o.getThinking() == null
                     ? "null" : o.getThinking());
             sb.append(",\"tool_choice\":").append(jsonStr(o == null || o.getToolChoice() == null
@@ -232,9 +232,9 @@ final class Engine46bStubSupport {
         return mask(sb.append(']').toString());
     }
 
-    /** Go float64 的 json 形态（测试温度值用 GoDoubleSerializer 语义）。 */
-    private static String goDouble(double v) {
-        return com.ragagent.common.web.GoDoubleSerializer.format(v);
+    /** float64 的 JSON 形态（B50：GoDoubleSerializer 退役后即 Double.toString）。 */
+    private static String doubleText(double v) {
+        return Double.toString(v);
     }
 
     // ------------------------------------------------------------------

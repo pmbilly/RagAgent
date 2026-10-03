@@ -13,6 +13,34 @@ public final class RecordingSupport {
     public static final ObjectMapper PLAIN = new ObjectMapper();
 
     /**
+     * B50：数字文本归一——把文本里的数字 token 统一成 Java {@code Double.toString} 形态
+     * （Go 侧 {@code 1 / 1e+21 / 1e-7} ↔ Java 侧 {@code 1.0 / 1.0E21 / 1.0E-7}；
+     * 大整数两侧同转）。两侧同归一后比较；非数字文本不受影响。
+     */
+    public static String normalizeNumberText(String text) {
+        if (text == null) {
+            return null;
+        }
+        java.util.regex.Matcher m = NUMBER_TOKEN.matcher(text);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String token = m.group();
+            try {
+                m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(
+                        Double.toString(Double.parseDouble(token))));
+            } catch (NumberFormatException e) {
+                m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(token));
+            }
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    /** 数字 token：前后不得是单词字符/点/反斜杠（避免误伤 `\\u003c` 的转义序列与标识符）。 */
+    private static final java.util.regex.Pattern NUMBER_TOKEN =
+            java.util.regex.Pattern.compile("(?<![\\w.\\\\])-?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?(?![\\w.])");
+
+    /**
      * 实录文本里的 Go 形态 HTML 转义还原（B42 基线收编）：{@code \u003c/\u003e/\u0026} →
      * {@code < > &}。Go 版已下线，转义形态不再构成断言目标；键序/结构/数字形态仍被钉住。
      */

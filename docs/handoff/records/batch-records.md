@@ -593,6 +593,15 @@
 - **结论**：5 类性质 = **1 可退役**（`GoDoubleSerializer`，语义等价）+ **4 契约保留**（时间哨兵 / 键序确定性 / 前端文案 / 存量数据语义）。
 - **待决策**：① `GoDoubleSerializer` 退役做不做（语义安全、需 golden 更新）；② `GoJsonBindError` 需产品/前端确认文案契约。
 
+**✅ B50（2026-10-03，档 3 第十二刀：GoDoubleSerializer 退役——数字形态换 Java 标准）**
+- **用户拍板**：退役（B48 评估：JSON 语义等价、仅字节形态变）。
+- **退役动作**：删类（138 行）；11 处静态调用 `format(x)` → `Double.toString(x)`（DataSourceMapSerializer / ParamCaster / ParamValidator / DocChunkSupport / ConversationSerializer / OllamaManageService×4）；2 处模块注册删除（`EventJson` 的 Double+Float 模块、`LangfuseAttributes` 的 Double 模块）；`GoNumber` → `RawNumber`（内部类去 Go 名）；顺带 `GO_ZERO_TIME_LITERAL` → `ZERO_TIME_LITERAL`、`GO_ZERO_INSTANT` → `ZERO_INSTANT`。
+- **新形态**：`0` → `0.0`、`1e+21` → `1.0E21`、float→string `"42"` → `"42.0"`。
+- **测试收编（本档最宽的一批，11 文件）**：`EventPayloadJsonTest` 90 处断言改 `assertSemantic`（语义比较）；`DataSourceJsonTest` / `DataSourceRepositoryTest` 期望更新为标准形态（原「不得出现 3.0/1.0E21」断言反转）；`ParamCaster` / `ParamValidator` / `ToolRegistry` / `ConversationSerializer` 四测试新增共享辅助 **`RecordingSupport.normalizeNumberText`**（数字 token 级归一：两侧统一到 Java `Double.toString` 形态、含科学计数；带词边界断言避免误伤 `\\u003c` 转义序列）；删除 `GoDoubleSerializerTest`（20 例 Go 形态语料）；`Engine46bStubSupport.goDouble` → `doubleText`。
+- **发现（javadoc 过时）**：`RetrievalConfig` / `SearchResult` 声称"浮点字段挂 GoDoubleSerializer"**但实际从未挂载**——它们本就是 Jackson 默认行为（B48 评估里"前端契约 `0` vs `0.0`"的提示有误，实际无此契约）。
+- **Go\* 类计数：10 → 9**。
+- **验证**：event / agent / datasource / initialization / tracing 五域探针绿；全量 **4678** 绿（−28 = 删除的 Go 语料用例）+ `spotlessCheck` 绿。
+
 **✅ B49（2026-10-03，档 3 第十一刀：保留类去 Go 名——第二批）**
 - **用户拍板**：① `GoDoubleSerializer` 退役；② `GoJsonBindError` 换成 Java 标准；③ 其余保留类名称去掉 Go。
 - **本批（③ 的类名部分）**：`GoTimeSerializer` → **`ZeroTimeSerializer`**、`GoMapSerializer` → **`SortedMapSerializer`**、`GoNaiveOffsetDateTimeTypeHandler` → **`NaiveOffsetDateTimeTypeHandler`**（含 `"typeHandler=<FQN>"` 字符串形态）；顺带方法/常量名去 Go：`isGoZero` → `isZeroValue`、`GO_ZERO_DATE_TIME` → `ZERO_DATE_TIME`、`isGoZeroTime`（rss/datasource 的零值判断）→ `isZeroTime`。70 文件替换，**行为零变更**。
