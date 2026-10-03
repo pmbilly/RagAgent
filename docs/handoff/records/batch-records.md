@@ -582,3 +582,14 @@
 - **验证**：datasource / agent / embed 三域探针绿；全量 **4706** 绿 + `spotlessCheck` 绿。
 - **现状**：`Go*` 名字只剩 C 类 5 个（`GoDoubleSerializer` / `GoTimeSerializer` / `GoMapSerializer` / `GoJsonBindError` / `GoNaiveOffsetDateTimeTypeHandler`）+ `GoogleProvider`（误报，是 "Google"）。
 
+**📋 B48（2026-10-03，档 3 第十刀：C 类 5 个影响评估——决策材料，未改代码）**
+- **侦察面**：5 类全部位于 `common/web`；引用跨 20 包；测试面分别 7 / 11 / 1 / 2 / 0 文件。
+- **逐类评估**：
+  1. **`GoDoubleSerializer`（138 行）**：double 输出对齐 Go（`0` 而非 `0.0`、`1e-7`、`1e+21`、最短往返）。引用 12+ 文件（租户配置 `RetrievalConfig`、数据源序列化、langfuse 上报、agent 工具参数）。**退役影响：JSON 语义等价**（`0.0` 与 `0` 同为数值零、`1.0E21` 与 `1e+21` 同值），仅**字节形态**变 → 需更新 7 个测试文件的 golden。**可退役，收益=删类+统一为标准形态**。
+  2. **`GoTimeSerializer`（87 行）**：时间序列化 + **零值时间哨兵**（未赋值 → `"0001-01-01T00:00:00Z"` 而非 `null`——Java 侧 `null` 会凭空少一个字段）。引用 12+ 文件（datasource 全域）。**业务语义，保留**。
+  3. **`GoMapSerializer`（110 行）**：Map 键序递归排序（服务「模型返回的嵌套 map 键序不稳定」→ prompt 字节确定性）。引用 10+ 文件。**退役影响：键序变 → prompt 前缀缓存失效**（与 B43 保留 `ToolJson` 键排序同一理由）→ **保留**；⚠️ **登记潜在重复**：与 `ToolJson.sorted`（B43）是"同一需求的两个实现"。
+  4. **`GoJsonBindError`（135 行）**：把 Jackson 绑定错误仿真成 Go 措辞（golden 锁字节，如 `invalid character 'o' in literal null (expecting 'u')`）。引用 11+ controller。**退役影响：前端可见错误文案变化** → **需产品确认**。
+  5. **`GoNaiveOffsetDateTimeTypeHandler`（50 行）**：naive 时间列的 `OffsetDateTime` 读写（Go/pgx 语义：写墙钟、读按 UTC）。引用 2 文件（session `TemporaryDocument`）。**退役影响：存量数据语义**（读出的时间值会变）→ **保留**。
+- **结论**：5 类性质 = **1 可退役**（`GoDoubleSerializer`，语义等价）+ **4 契约保留**（时间哨兵 / 键序确定性 / 前端文案 / 存量数据语义）。
+- **待决策**：① `GoDoubleSerializer` 退役做不做（语义安全、需 golden 更新）；② `GoJsonBindError` 需产品/前端确认文案契约。
+
