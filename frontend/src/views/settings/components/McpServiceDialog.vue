@@ -191,7 +191,7 @@
               type="button"
               class="source-option"
               :class="{ 'is-active': formData.authConfig.authType === opt.value }"
-              @click="formData.authConfig.authType = opt.value as '' | 'apiKey' | 'bearer' | 'oauth'"
+              @click="formData.authConfig.authType = opt.value as '' | 'api_key' | 'bearer' | 'oauth'"
             >
               <span class="source-option__label">{{ opt.label }}</span>
             </button>
@@ -246,7 +246,7 @@
           两个字段都是 optional — MCP 服务可能完全不需要鉴权。
         -->
         <!-- 凭证 Header 策略：请求头名称 + 密钥值（其余 auth_type 不展示密钥字段） -->
-        <template v-else-if="formData.authConfig.authType === 'apiKey'">
+        <template v-else-if="formData.authConfig.authType === 'api_key'">
           <!-- 请求头名称（非密钥）：默认 X-API-Key，Bearer/裸 token 场景填 Authorization。 -->
           <div class="form-item">
             <label class="form-label">{{ t('mcpServiceDialog.apiKeyHeader', '请求头名称') }}</label>
@@ -434,9 +434,11 @@ const formData = ref({
   // `headers`). Independent of the auth strategy.
   headers: [] as { key: string; value: string }[],
   authConfig: {
-    // Authentication strategy. UI exposes '' (none) | 'apiKey' (credential
-    // header) | 'oauth'. Legacy 'bearer' is normalised to 'apiKey' on load.
-    authType: '' as '' | 'apiKey' | 'bearer' | 'oauth',
+    // Authentication strategy — wire values are the backend enum's lowercase
+    // values (§1.7): '' (none) | 'api_key' (credential header) | 'oauth'.
+    // Legacy 'bearer' is normalised to 'api_key' on load. 不是 camel：后端
+    // 枚举取值就是 api_key（2026-10-03 缺陷：曾发 'apiKey' → 策略被静默清空）。
+    authType: '' as '' | 'api_key' | 'bearer' | 'oauth',
     // Only used in add-mode; in edit-mode the CredentialResource owns these.
     apiKey: '',
     // Non-secret: header name for the api_key value (default X-API-Key).
@@ -495,7 +497,7 @@ function applyServerConfig(name: string, cfg: Record<string, unknown>) {
   // header value is the secret (encrypted), carried in the given header name.
   // Bearer keeps its "Bearer " prefix inside the value; Authorization with a
   // raw token and X-API-Key all collapse to the same shape.
-  let authType: '' | 'apiKey' = ''
+  let authType: '' | 'api_key' = ''
   let apiKey = ''
   let apiKeyHeader = ''
   const customHeaders: { key: string; value: string }[] = []
@@ -506,7 +508,7 @@ function applyServerConfig(name: string, cfg: Record<string, unknown>) {
     const lowerKey = key.toLowerCase()
     const strVal = typeof val === 'string' ? val : String(val ?? '')
     if (lowerKey === 'authorization' || ['x-api-key', 'api-key', 'apikey'].includes(lowerKey)) {
-      authType = 'apiKey'
+      authType = 'api_key'
       apiKey = strVal.trim()
       apiKeyHeader = lowerKey === 'x-api-key' ? '' : key
     } else {
@@ -609,7 +611,8 @@ const isOAuth = computed(() => formData.value.authConfig.authType === 'oauth')
 // only the custom headers configured above.
 const authTypeOptions = computed(() => [
   { value: '', label: t('mcpServiceDialog.authTypeNone', '无 / 自定义 Header') },
-  { value: 'apiKey', label: t('mcpServiceDialog.authTypeApiKey', 'API Key / Token') },
+  // 取值 = 后端枚举的线上值（api_key，非 camel；见 api/mcp-service.ts 的注释）
+  { value: 'api_key', label: t('mcpServiceDialog.authTypeApiKey', 'API Key / Token') },
   { value: 'oauth', label: t('mcpServiceDialog.authTypeOAuth', 'OAuth 2.0（首次连接授权）') },
 ])
 
@@ -718,7 +721,7 @@ const transportLabel = computed(() => {
 // (placed verbatim into the configured header). None / OAuth carry no static
 // secret, so the credential card is only shown for the api_key strategy.
 const credentialFields = computed<CredentialFieldDef<McpCredentialField>[]>(() => {
-  if (formData.value.authConfig.authType === 'apiKey') {
+  if (formData.value.authConfig.authType === 'api_key') {
     return [{ key: 'apiKey', label: t('mcpServiceDialog.credentialValue', '密钥值 / Token') }]
   }
   return []
@@ -865,11 +868,13 @@ watch(
         // Credentials are owned by CredentialResource in edit mode, but reset
         // the local state too so a switch to add-mode starts clean.
         authConfig: {
-          // Legacy 'bearer' collapses into the unified 'apiKey' strategy; ''
-          // (none) and the rest are preserved.
+          // Legacy 'bearer' collapses into the unified 'api_key' strategy; ''
+          // (none) and the rest are preserved. Wire value is the backend enum's
+          // lowercase form (api_key) — camel 'apiKey' never comes back from the
+          // server (它会静默变 null，见 2026-10-03 缺陷实录).
           authType: service.authConfig?.authType === 'bearer'
-            ? 'apiKey'
-            : ((service.authConfig?.authType as '' | 'apiKey' | 'oauth') || ''),
+            ? 'api_key'
+            : ((service.authConfig?.authType as '' | 'api_key' | 'oauth') || ''),
           apiKey: '',
           apiKeyHeader: service.authConfig?.apiKeyHeader || '',
           token: '',
@@ -918,7 +923,7 @@ function buildPayload(asCreate: boolean): Partial<MCPService> {
   const auth: NonNullable<MCPService['authConfig']> = {
     authType: formData.value.authConfig.authType,
   }
-  if (formData.value.authConfig.authType === 'apiKey') {
+  if (formData.value.authConfig.authType === 'api_key') {
     auth.apiKeyHeader = formData.value.authConfig.apiKeyHeader.trim()
   }
   if (isOAuth.value) {

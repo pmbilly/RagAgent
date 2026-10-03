@@ -220,9 +220,15 @@ final class McpServiceCrudOps {
             if (authConfig.path("customHeaders").isObject()) {
                 auth.setCustomHeaders(stringMap(authConfig.get("customHeaders")));
             }
-            // auth_type / scopes / auth_server_metadata_url 属非秘密 OAuth 配置，允许经主 PUT 切换
+            // auth_type / scopes / auth_server_metadata_url 属非秘密 OAuth 配置，允许经主 PUT 切换。
+            // 写侧用 parseStrict：未知取值 → 400（不再静默写 null——2026-10-03 缺陷实录：
+            // 前端发 "apiKey"、枚举取值 "api_key"，策略被静默清空、凭据改发 X-API-Key）。
             if (authConfig.path("authType").isTextual()) {
-                auth.setAuthType(McpAuthType.fromValue(authConfig.get("authType").asText()));
+                try {
+                    auth.setAuthType(McpAuthType.parseStrict(authConfig.get("authType").asText()));
+                } catch (IllegalArgumentException e) {
+                    throw BizException.badRequest(e.getMessage());
+                }
                 updateFields.put("authType", true);
             }
             // api_key_header 是非秘密的结构配置（承载 api_key 的头名），与 custom_headers 同路

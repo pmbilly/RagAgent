@@ -11,10 +11,13 @@ export interface MCPService {
   url?: string // Optional: required for SSE/HTTP Streamable
   headers?: Record<string, string>
   authConfig?: {
-    // Authentication strategy. Empty/absent means none. "oauth" enables the
-    // per-user OAuth2 authorization-code flow (zero-config: discovery +
-    // dynamic client registration).
-    authType?: '' | 'apiKey' | 'bearer' | 'oauth'
+    // Authentication strategy — wire values are the backend enum's lowercase
+    // values (contract §1.7): "" (none) / "api_key" / "bearer" / "oauth",
+    // NOT camelCase. "oauth" enables the per-user OAuth2 authorization-code
+    // flow (zero-config: discovery + dynamic client registration).
+    // 2026-10-03 缺陷实录：这里曾写成 'apiKey'（camel）→ 后端 fromValue 不匹配
+    // → 策略被静默写成 null，用户"配了 API Key 却不生效"。
+    authType?: '' | 'api_key' | 'bearer' | 'oauth'
     // Secret fields (api_key, token) are NEVER returned by the server in
     // this shape — they live behind the /credentials subresource. The
     // optional-property typing remains so create-mode payloads can still
