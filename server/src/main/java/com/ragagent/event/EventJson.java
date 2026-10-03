@@ -14,15 +14,13 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.ragagent.common.web.GoDoubleSerializer;
-import com.ragagent.common.web.GoJsonEscapes;
 import com.ragagent.common.web.GoTimeSerializer;
 
 /**
- * 事件 payload 进出 JSON 的唯一 ObjectMapper，集中定义四条序列化行为。
+ * 事件 payload 进出 JSON 的唯一 ObjectMapper，集中定义三条序列化行为
+ * （2026-10-03 B39/B40：原第 1 条「HTML 转义复刻 Go」已随 Go 版下线退役）。
  *
  * <ol>
- *   <li><b>HTML 转义 + 小写十六进制控制字符</b>：{@link GoJsonEscapes}
- *       （{@code < → \u003c}、{@code & → \u0026}）。</li>
  *   <li><b>map 键按字母序</b>：{@code ORDER_MAP_ENTRIES_BY_KEYS}。payload 的
  *       {@code extra}/{@code arguments}/{@code data}/{@code args} 装的是任意 JSON，
  *       序列化时键恒按字母序输出。</li>
@@ -68,8 +66,6 @@ public final class EventJson {
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .build();
-        // 转义规则必须在工厂使用前设置（StreamJson 同款踩坑记录）
-        mapper.getFactory().setCharacterEscapes(new GoJsonEscapes());
         return mapper;
     }
 

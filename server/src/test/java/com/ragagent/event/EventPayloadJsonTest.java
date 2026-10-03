@@ -52,6 +52,9 @@ import com.ragagent.event.payload.UserMessageInjectedData;
  */
 class EventPayloadJsonTest {
 
+    // B40（2026-10-03）：Go 版已下线——期望值不再复刻 Go 的 \u003c 形态；
+    // 各用例的「// Go: ...」注释保留为历史记录。
+
     private static String write(Object payload) {
         return EventJson.write(payload);
     }
@@ -87,7 +90,7 @@ class EventPayloadJsonTest {
         d.setUserId("u-1");
         // 刻意乱序插入：Go 的 map 按字母序输出
         d.setExtra(mapOf("zebra", 1, "alpha", true, "mid", "m"));
-        assertEquals("{\"original_query\":\"What is \\u003cRAG\\u003e \\u0026 why?\","
+        assertEquals("{\"original_query\":\"What is <RAG> & why?\","
                 + "\"rewritten_query\":\"explain retrieval-augmented generation\","
                 + "\"session_id\":\"sess-1\",\"user_id\":\"u-1\","
                 + "\"extra\":{\"alpha\":true,\"mid\":\"m\",\"zebra\":1}}", write(d));
@@ -204,7 +207,7 @@ class EventPayloadJsonTest {
         //      "session_id":"s-1","query":"q","extra":{"attempt":2}}
         // extra 里的 float64(2.0) 输出 2（Go 编码器整数不补 .0）
         ErrorData d = new ErrorData("boom <x>&", "E-1", "agent_execution", "s-1", "q", mapOf("attempt", 2.0));
-        assertEquals("{\"error\":\"boom \\u003cx\\u003e\\u0026\",\"error_code\":\"E-1\","
+        assertEquals("{\"error\":\"boom <x>&\",\"error_code\":\"E-1\","
                 + "\"stage\":\"agent_execution\",\"session_id\":\"s-1\",\"query\":\"q\","
                 + "\"extra\":{\"attempt\":2}}", write(d));
     }
@@ -355,7 +358,7 @@ class EventPayloadJsonTest {
     void agentThoughtDataFull() {
         // Go: {"content":"let me \u003cthink\u003e \u0026 see","iteration":2,"done":true}
         AgentThoughtData d = new AgentThoughtData("let me <think> & see", 2, true);
-        assertEquals("{\"content\":\"let me \\u003cthink\\u003e \\u0026 see\",\"iteration\":2,\"done\":true}",
+        assertEquals("{\"content\":\"let me <think> & see\",\"iteration\":2,\"done\":true}",
                 write(d));
     }
 
@@ -402,7 +405,7 @@ class EventPayloadJsonTest {
         AgentToolResultData d = new AgentToolResultData("call_1", "web_search", "res & <res>", "",
                 true, 88, 1, mapOf("display_type", "search", "items", 3.0));
         assertEquals("{\"tool_call_id\":\"call_1\",\"tool_name\":\"web_search\","
-                + "\"output\":\"res \\u0026 \\u003cres\\u003e\",\"success\":true,\"duration_ms\":88,"
+                + "\"output\":\"res & <res>\",\"success\":true,\"duration_ms\":88,"
                 + "\"iteration\":1,\"data\":{\"display_type\":\"search\",\"items\":3}}", write(d));
     }
 
@@ -586,7 +589,7 @@ class EventPayloadJsonTest {
         assertEquals("{\"pending_id\":\"p-1\",\"tenant_id\":42,\"session_id\":\"s-1\","
                 + "\"assistant_message_id\":\"am-1\",\"service_id\":\"svc-1\",\"service_name\":\"github\","
                 + "\"mcp_tool_name\":\"create_issue\",\"registered_tool_name\":\"mcp__github__create_issue\","
-                + "\"description\":\"Create an issue\",\"args\":{\"title\":\"bug \\u003ca\\u003e\\u0026\"},"
+                + "\"description\":\"Create an issue\",\"args\":{\"title\":\"bug <a>&\"},"
                 + "\"args_json\":\"{\\\"title\\\":\\\"bug\\\"}\",\"timeout_seconds\":300,"
                 + "\"requested_at\":1726700000,\"tool_call_id\":\"call_9\",\"request_id\":\"r-1\"}",
                 write(d));

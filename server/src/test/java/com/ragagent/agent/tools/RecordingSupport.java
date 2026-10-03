@@ -6,21 +6,14 @@ import java.util.Collections;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.common.web.GoJsonCodec;
-import com.ragagent.common.web.GoJsonEscapes;
 
 /** 4.5a 实录测试的共享小工具。 */
 public final class RecordingSupport {
 
     public static final ObjectMapper PLAIN = new ObjectMapper();
 
-    /** Go json.Marshal 语义的 mapper（HTML 转义恒开；map 键序由类型上的 serializer 负责）。 */
-    public static final ObjectMapper GO_MAPPER = goMapper();
-
-    private static ObjectMapper goMapper() {
-        ObjectMapper m = new ObjectMapper();
-        m.getFactory().setCharacterEscapes(new GoJsonEscapes());
-        return m;
-    }
+    /** JSON mapper（map 键序由类型上的 serializer 负责；2026-10-03 起标准转义）。 */
+    public static final ObjectMapper GO_MAPPER = new ObjectMapper();
 
     private RecordingSupport() {
     }

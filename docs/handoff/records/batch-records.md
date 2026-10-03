@@ -504,3 +504,11 @@
 - **档 3 现状总账**：① provider 请求面 ✅（B37）；② stream / langfuse / LLM 请求体 ✅（B38）；③ 工具面（MCP / 待办 / 检索）✅（本刀）；④ **待解锁**：event 总线与所有被实录覆盖的面（需先做「实录基线重建」）；`GoTimeSerializer.isGoZero`（业务语义）与 `GoMapSerializer`（被继承）仍待单独设计。
 - **验证**：全量 **4713** 绿 + `spotlessCheck` 绿（含回退后的复跑）。
 
+**✅ B40（2026-10-03，实录基线重建——Go 转义复刻全量退役，`GoJsonEscapes` 类删除）**
+- **前置**：用户拍板「档 3 做完」（B39 报告的选项 A）。真实边界＝「改完基线从哪来」：`GoRecording*` 实录由录制脚本生成、禁止手改、录制源（Go 服务）已下线 ⇒ 无法重录。
+- **解法（不改实录，改比对方式）**：把实录比对从「逐字节」升级为**语义比较**——复用本仓 B2 批已确立的 `ContractJson.deep`（其 javadoc 早已写明「HTML 转义（`\u003c` vs 字面字符）不再构成断言目标」；Go 实录的比对是**漏网的字节级对比**，本批一并收编）。
+- **落点**：① `event/EventJson` 去 escapes（事件总线退役；javadoc 四条→三条）；② 测试侧 `RecordingSupport.GO_MAPPER` 改标准 mapper；③ `EngineRecordingTest` **62 处** `assertThat(X).isEqualTo(GoRecording…)` 批量改写为 `assertRecording(X, …)`（两侧 `ContractJson.deep` 归一）；④ `ToolRegistryRecordingTest.assertResult` 辅助内两侧归一（一处覆盖 3 用例）；⑤ `EventPayloadJsonTest` 5 处期望值改标准形态（实测控制字符为**大写**十六进制）；⑥ **删除 `GoJsonEscapes` 类 + `GoJsonEscapesContractTest`**（全仓零残留）。
+- **验证**：全量 **4709** 绿（较基线 −4 = 删除的契约测试用例）+ `spotlessCheck` 绿。
+- **档 3 总账（escapes 面全清）**：① provider 请求 ✅（B37）｜② stream / langfuse / LLM 请求体 ✅（B38）｜③ 工具面（MCP / 待办 / 检索）✅（B39）｜④ event 总线 ✅（本批）＝ **`GoJsonEscapes` 面全部退役完成**。
+- **剩余（非 escapes 面，待各自探针）**：`GoTimeSerializer.isGoZero`（业务语义，38 处调用）、`GoMapSerializer`（被 datasource 继承 + `GoDoubleSerializer.format` 被当静态工具调）、`GoJsonCodec` / `GoQuoting` / `GoHtml` / `GoValueStr`（工具协议面）。
+

@@ -712,6 +712,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | **B37 档 3 第一刀（provider 请求面）** | Go 字节兼容层退役起步：三份 provider GoJson 去 HTML 转义复刻 | P2 | 小 | 🚧 **完成第一刀（2026-10-03）**——字节流向盘点（四类）+ 三份副本退役（探针先行：embedding 单跑绿后同批改 rerank/websearch）；`GoJsonEscapes` 类保留（stream/langfuse/MCP 仍用）。⚠️ **待决**：stream 面涉「与 Go 版共用 Redis 的 CAS」需确认 Go 版是否在跑；`GoTimeSerializer.isGoZero`（业务语义）与 `GoMapSerializer`（被继承）需单独方案。详见 15.1.1 |
 | **B38 档 3 第二刀（stream/langfuse/LLM 请求体）** | Go 版确认下线 → Redis 事件等三面退役 Go 转义 | P2 | 小 | ✅ **完成（2026-10-03）**——`stream/StreamJson`（保留键序=内部 CAS 需稳定字节）、`RemoteApiBodyCodec`（保留键序归一）、`LangfuseAttributes` 三处退役；4 处「与 Go 对齐」测试改写为「字节稳定 + 标准形态」；全局面收窄至 4 处（event/MCP/待办工具/GoJsonUtil）。全量 4713 + spotlessCheck 绿。详见 15.1.1 |
 | **B39 档 3 第三刀（工具面）+ 实录约束发现** | MCP/待办/检索三处退役；发现「Go 形态实录」为档 3 硬边界 | P2 | 小 | ✅ **完成（2026-10-03）**——三处退役；⚠️ **关键发现**：`GoRecording*` 实录由录制脚本生成、禁止手改、录制源（Go 服务）已下线 ⇒ 无法重录；被实录覆盖的面（`EventJson`/`RecordingSupport`）退役必须**先立「基线重建机制」**，本刀已回退这两处（复绿）。档 3 现状：①②③ 面已退役；④（event/实录覆盖面）待解锁。详见 15.1.1 |
+| **B40 实录基线重建（GoJsonEscapes 全量退役）** | 实录比对「逐字节」→「ContractJson.deep 语义比较」；删 GoJsonEscapes 类 | P2 | 中 | ✅ **完成（2026-10-03）**——解法＝不改实录（禁止手改）而改比对方式（收编漏网的字节级对比）；`EventJson` 退役 + 62 处 `assertRecording` 改写 + 类删除（零残留）。全量 4709 绿（−4=删除的契约测试）+ spotlessCheck 绿。**escapes 面全清**（①②③④）。详见 15.1.1 |
 
 ### 15.1.1 执行记录（索引：正文已移出，按批号 Ctrl-F）
 
@@ -771,6 +772,7 @@ Controller 全仓 52 个；每域 PR 入场时再做该域的"端点 × 前端�
 | 🚧 B37（2026-10-03，档 3 第一刀：provider 请求面退役 Go 转义） | **🚧 B37（2026-10-03，档 3 起步：provider 请求面）**——字节流向盘点（四类：provider 请求 / Redis 事件 / 落库响应 / 工具协议）+ 三份 provider `GoJson` 去 `GoJsonEscapes`（探针先行）；`GoJsonEscapes` 类保留（stream/langfuse/MCP 仍用）；全量 4713 + spotlessCheck 绿。⚠️ stream 面「与 Go 版共用 Redis 的 CAS」待确认 Go 版是否在跑。 |
 | ✅ B38（2026-10-03，档 3 第二刀：stream/langfuse/LLM 请求体） | **✅ B38（2026-10-03，档 3 第二刀）**——用户确认「Go 版已下线、不再双跑」（关键决策登记）；`StreamJson`/`RemoteApiBodyCodec`/`LangfuseAttributes` 退役 Go 转义（键序保留=内部 CAS 稳定性）；4 处对齐测试改写；残留 4 处（event/MCP/TodoWrite/GoJsonUtil）；全量 4713 + spotlessCheck 绿。 |
 | ✅ B39（2026-10-03，档 3 第三刀：工具面 + 实录约束发现） | **✅ B39（2026-10-03，档 3 第三刀）**——`McpCatalog`/`TodoWriteTool`/`GoJsonUtil` 去 escapes + 两处测试侧清理；⚠️ 发现档 3 硬边界：**Go 形态实录（GoRecording*）无法重录**（录制源已下线 + 禁止手改）⇒ `EventJson`/`RecordingSupport` 的退役已回退（先立基线重建机制）；`GoJsonEscapes` 类暂不能删。全量 4713 + spotlessCheck 绿。 |
+| ✅ B40（2026-10-03，实录基线重建：GoJsonEscapes 全量退役） | **✅ B40（2026-10-03，实录基线重建）**——不改实录、改比对方式（`ContractJson.deep` 语义比较，B2 方针的收编）；`EventJson` 退役 + `EngineRecordingTest` 62 处 `assertRecording` + `ToolRegistryRecordingTest` 辅助归一 + **删 `GoJsonEscapes` 类**（零残留）；全量 4709 绿 + spotlessCheck 绿。剩余：`GoTimeSerializer.isGoZero`/`GoMapSerializer`/`GoJsonCodec` 等非 escapes 面。 |
 
 ### 15.2 批次纪律（每批通用，违者必翻车——全是本轮实锤）
 
