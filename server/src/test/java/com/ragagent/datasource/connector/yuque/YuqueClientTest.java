@@ -408,72 +408,36 @@ class YuqueClientTest {
         }
     }
 
-    // ── parseRetryAfter / GoDuration（Go 实录） ──────────────────────────
+    // ── parseRetryAfter（B44：Java 原生 Double 解析，与 FeishuTransport 同款）────
 
-    /** 对照 Go {@code TestParseRetryAfter}。 */
+    /**
+     * header 为秒数：可带小数/正负号（Java {@code Double.parseDouble} 语义）；
+     * 不可解析回落 fallback；{@code <= 0} 强制 100ms。
+     *
+     * <p><b>2026-10-03（B44）</b>：原 Go duration 文法随 {@code GoDuration} 退役——
+     * {@code "90m"} 不再解析为 90ms（回落），{@code "1e2"} 按 Java 语义解析为 100 秒；
+     * 实现与 {@code feishu/FeishuTransport#parseRetryAfter} 一致。</p>
+     */
     @ParameterizedTest
     @CsvSource({
             "'',   5000",
             "0,    100",
+            "-0,   100",
             "-1,   100",
             "3,    3000",
+            "'3 ', 3000",
             "abc,  5000",
-    })
-    void parseRetryAfterMatchesGo(String header, long wantMillis) {
-        assertThat(YuqueClient.parseRetryAfter(header, Duration.ofSeconds(5)))
-                .isEqualTo(Duration.ofMillis(wantMillis));
-    }
-
-    /** 额外的 Go 实录语料：证明"什么算合法"与 Go 的 {@code ParseDuration} 一致。 */
-    @ParameterizedTest
-    @CsvSource({
-            "90m,  90",     // "90ms" 合法 → 90ms
-            "0.5,  500",    // "0.5s" → 500ms
-            "1.,   1000",   // "1.s" → 1s
+            "0.5,  500",
+            "1.,   1000",
             ".5,   500",
             "+2,   2000",
-            "1s,   5000",   // "1ss" 未知单位 → 回落
-            "'3 ', 5000",   // "3 s" 未知单位 → 回落
-            "1e2,  5000",   // "1e2s" 未知单位 → 回落
-            "-0,   100",
+            "1s,   5000",
+            "90m,  5000",
+            "1e2,  100000",
     })
-    void parseRetryAfterFollowsGoDurationGrammar(String header, long wantMillis) {
+    void parseRetryAfterParsesSeconds(String header, long wantMillis) {
         assertThat(YuqueClient.parseRetryAfter(header, Duration.ofSeconds(5)))
                 .isEqualTo(Duration.ofMillis(wantMillis));
-    }
-
-    /** {@link GoDuration} 的溢出与文法边界（Go 实录：这两种输入 Go 也判 invalid）。 */
-    @Test
-    void goDurationRejectsOverflowAndBadGrammar() {
-        assertThatThrownBy(() -> GoDuration.parse("9223372036854775807s"))
-                .as("乘 1e9 越界 → Go 也判 invalid")
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> GoDuration.parse("999999999999999999999s"))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> GoDuration.parse("s"))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> GoDuration.parse("--1s"))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> GoDuration.parse(" 3s"))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    /** 小数秒与正号（Go 实录）。 */
-    @Test
-    void goDurationHandlesFractionsAndSigns() {
-        assertThat(GoDuration.parse(".5s")).isEqualTo(Duration.ofMillis(500));
-        assertThat(GoDuration.parse("1.s")).isEqualTo(Duration.ofSeconds(1));
-        assertThat(GoDuration.parse("+2s")).isEqualTo(Duration.ofSeconds(2));
-        assertThat(GoDuration.parse("1.5s")).isEqualTo(Duration.ofMillis(1500));
-    }
-
-    @Test
-    void goDurationAcceptsCompoundUnits() {
-        assertThat(GoDuration.parse("1h2s")).isEqualTo(Duration.ofSeconds(3602));
-        assertThat(GoDuration.parse("90ms")).isEqualTo(Duration.ofMillis(90));
-        assertThat(GoDuration.parse("0.0001s")).isEqualTo(Duration.ofNanos(100_000));
-        assertThat(GoDuration.parse("0s")).isEqualTo(Duration.ZERO);
-        assertThat(GoDuration.parse("-1s")).isEqualTo(Duration.ofSeconds(-1));
     }
 
     // ── buildQuery ───────────────────────────────────────────────────────

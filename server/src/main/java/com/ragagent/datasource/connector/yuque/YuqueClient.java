@@ -296,7 +296,7 @@ public class YuqueClient {
      * 这样我们仍然让出一次调度、不会忙重试。</p>
      *
      * <p>只支持整数秒形式（RFC 7231 也允许 HTTP-date，但语雀从没发过）。
-     * 解析用的是 {@link GoDuration#parse}（{@code header + "s"}）：
+     * 解析用 Java 原生 {@code Double.parseDouble}（B44 前为 Go duration 文法）：
      * {@code "abc"} → {@code "abcs"} 失败、
      * {@code "1s"} → {@code "1ss"} 失败、{@code "0.5"} → 500ms 成功。</p>
      */
@@ -304,15 +304,18 @@ public class YuqueClient {
         if (header == null || header.isEmpty()) {
             return fallback;
         }
+        double secs;
         try {
-            Duration secs = GoDuration.parse(header + "s");
-            if (secs.isZero() || secs.isNegative()) {
-                return Duration.ofMillis(100);
-            }
-            return secs;
-        } catch (IllegalArgumentException e) {
+            secs = Double.parseDouble(header.trim());
+        } catch (NumberFormatException e) {
             return fallback;
         }
+        if (secs <= 0) {
+            return Duration.ofMillis(100);
+        }
+        // B44：原 GoDuration.parse(header + "s") 的 Go duration 文法复刻已退役——
+        // 与 feishu/FeishuTransport#parseRetryAfter 同款 Java 原生做法（Double + ofNanos）。
+        return Duration.ofNanos((long) (secs * 1_000_000_000L));
     }
 
     /**

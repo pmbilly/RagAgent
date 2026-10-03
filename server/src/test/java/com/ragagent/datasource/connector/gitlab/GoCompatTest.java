@@ -9,7 +9,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link GoUrl} / {@link GoBase64} 的行为对照表。
+ * {@link GoUrl} 的行为对照表。
  *
  * <h2>期望值怎么来的</h2>
  * <p>逐字符枚举（{@code 0x20..0x7E}）跑出来的转义标记串——<b>不是</b>照文档写的，
@@ -121,58 +121,18 @@ class GoCompatTest {
         assertThat(GoUrl.valuesEncode(null)).isEmpty();
     }
 
-    // ── base64 ──────────────────────────────────────────────────────────
+    // ── base64（B44：GoBase64 退役后只留行为面）──────────────
 
+    /** GitLab 的 base64 每 60 字符换行——解码必须跳过 \n/\r（Java 原生 JDK 解码器路径）。 */
     @Test
-    void base64DecodesValidInput() {
-        assertThat(new String(GoBase64.decodeString("SGVsbG8sIEdpdExhYiE="),
-                java.nio.charset.StandardCharsets.UTF_8)).isEqualTo("Hello, GitLab!");
-        assertThat(GoBase64.decodeString("")).isEmpty();
-        assertThat(GoBase64.decodeString("abcd")).hasSize(3);
-        assertThat(GoBase64.decodeString("abc=")).hasSize(2);
-        assertThat(GoBase64.decodeString("ab==")).hasSize(1);
-        assertThat(GoBase64.decodeString("AB==")).hasSize(1);
-        assertThat(GoBase64.decodeString("AAA=")).hasSize(2);
-        assertThat(GoBase64.decodeString("AAAA")).hasSize(3);
-        // 解码会在任意位置跳过 \n / \r
-        assertThat(GoBase64.decodeString("ab\ncd")).hasSize(3);
-        assertThat(GoBase64.decodeString("ab\r\ncd")).hasSize(3);
-        assertThat(GoBase64.decodeString("abcd\n")).hasSize(3);
-    }
-
-    /**
-     * 错误偏移逐条钉死。
-     *
-     * <p>这些偏移量不是"差不多就行"的：报错位置有 {@code si-1} / {@code si-j} /
-     * {@code src.length} 三种不同基准，写错任何一种都会让消息里的数字漂。</p>
-     */
-    @Test
-    void base64ErrorOffsetsMatchGo() {
-        assertOffset("a", 0);
-        assertOffset("ab", 0);
-        assertOffset("abc", 0);
-        assertOffset("=", 0);
-        assertOffset("====", 0);
-        assertOffset("!!!!", 0);
-        assertOffset("a===", 1);
-        assertOffset("a=", 1);
-        assertOffset("a!bc", 1);
-        assertOffset("ab=c", 2);
-        assertOffset("AA=A", 2);
-        assertOffset("AB=C", 2);
-        assertOffset("ab=", 3);
-        assertOffset("ab==cd", 4);
-        assertOffset("abc=d", 4);
-        assertOffset("ab===", 4);
-        assertOffset("AAAA=", 4);
-        assertOffset("SGVsbG8sIEdpdExhYiE", 16);
-        assertOffset("SGVsbG8sIEdpdExhYiE==", 20);
-    }
-
-    private static void assertOffset(String input, int offset) {
-        assertThatThrownBy(() -> GoBase64.decodeString(input))
-                .isInstanceOf(GoBase64.CorruptInputException.class)
-                .hasMessage("illegal base64 data at input byte " + offset);
+    void base64SkipsLineBreaks() {
+        byte[] hello = GitLabClient.decodeBase64Content("SGVsbG8sIEdpdExhYiE=");
+        assertThat(new String(hello, java.nio.charset.StandardCharsets.UTF_8)).isEqualTo("Hello, GitLab!");
+        assertThat(GitLabClient.decodeBase64Content("ab\ncd")).hasSize(3);
+        assertThat(GitLabClient.decodeBase64Content("ab\r\ncd")).hasSize(3);
+        assertThat(GitLabClient.decodeBase64Content("")).isEmpty();
+        assertThatThrownBy(() -> GitLabClient.decodeBase64Content("!!!!"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // ── GoStrings ───────────────────────────────────────────────────────

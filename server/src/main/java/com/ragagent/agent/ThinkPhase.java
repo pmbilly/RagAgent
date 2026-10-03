@@ -197,8 +197,8 @@ final class ThinkPhase {
 
         // 看门狗取消的是 provider 上下文，流只会冒出泛化取消——改述成停顿。
         if (stalled.get()) {
-            result.streamError = "LLM stream stalled: no output for "
-                    + com.ragagent.common.time.GoDuration.of(stallTimeout);
+            // B44：Go 时长形态退役——标准 ISO-8601（Duration.toString）
+            result.streamError = "LLM stream stalled: no output for " + stallTimeout;
         }
 
         log.info("[Agent][Stream] Completed: chunks={}, content_len={}, tool_calls={}, type_distribution={}",
@@ -236,9 +236,7 @@ final class ThinkPhase {
             if (chunk == null) {
                 if (System.nanoTime() - lastChunkAt.get() >= stallTimeout.toNanos()) {
                     log.error("[Agent][Stream] No output for {} (stall timeout {}); cancelling LLM stream",
-                            com.ragagent.common.time.GoDuration.of(
-                                    Duration.ofNanos(System.nanoTime() - lastChunkAt.get())),
-                            com.ragagent.common.time.GoDuration.of(stallTimeout));
+                            Duration.ofNanos(System.nanoTime() - lastChunkAt.get()), stallTimeout);
                     stalled.set(true);
                     return null;
                 }

@@ -127,8 +127,9 @@ class HousekeepingServiceTest {
         service().runSweep();
 
         assertThat(parseStatus(id)).isEqualTo("failed");
+        // B44：时长文本改标准 ISO-8601（Duration.toString，Go 的 "1h10m0s" 形态退役）
         assertThat(errorMessage(id)).isEqualTo(
-                "task stuck in processing > 1h10m0s, recovered by housekeeping");
+                "task stuck in processing > PT1H10M, recovered by housekeeping");
         assertThat(pendingSubtasks(id)).isZero();
     }
 

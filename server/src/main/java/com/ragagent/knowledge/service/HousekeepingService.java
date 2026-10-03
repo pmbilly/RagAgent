@@ -18,7 +18,6 @@ import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import com.ragagent.common.time.GoDuration;
 import com.ragagent.knowledge.domain.Knowledge;
 
 import jakarta.annotation.PreDestroy;
@@ -217,7 +216,7 @@ public class HousekeepingService {
         String placeholders = String.join(",", Collections.nCopies(stuck.size(), "?"));
         List<Object> args = new ArrayList<>(stuck.size() + 6);
         args.add(Knowledge.PARSE_FAILED);
-        args.add("task stuck in processing > " + goDuration(threshold)
+        args.add("task stuck in processing > " + threshold
                 + ", recovered by housekeeping");
         args.add(0);
         args.addAll(stuck);
@@ -229,7 +228,7 @@ public class HousekeepingService {
                     args.toArray());
             if (rows > 0) {
                 log.info("[Housekeeping] recovered {} stuck knowledge rows (threshold={})",
-                        rows, goDuration(threshold));
+                        rows, threshold);
             }
         } catch (RuntimeException e) {
             log.warn("[Housekeeping] knowledge sweep update failed: {}", e.getMessage());
@@ -453,7 +452,4 @@ public class HousekeepingService {
         }
     }
 
-    private static String goDuration(Duration d) {
-        return GoDuration.of(d);
-    }
 }

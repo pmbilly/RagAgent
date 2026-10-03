@@ -539,3 +539,12 @@
 - **Go\* 类计数：17 → 15**（删 `GoValueStr` / `GoJsonMarshal`；`JsonQuoting` 删除后 `ToolJson` 完成退役、不再计为待退役对象）。
 - **验证**：四域探针绿（含 9 例实录红的收编）；全量 **4710** 绿 + `spotlessCheck` 绿。
 
+**✅ B44（2026-10-03，档 3 第七刀：connector 面三刀——Java 原生替换）**
+- `GoBase64`（gitlab，180 行）**删除** → `java.util.Base64.getDecoder()`：GitLab 的 base64 每 60 字符换行，先去换行再解码；非法字符由 `IllegalArgumentException` 报出（原 Go 的 `CorruptInputException` 字节偏移诊断属复刻面、不保留）。提取包私有 `GitLabClient.decodeBase64Content` 保行为可测。
+- `yuque/GoDuration`（169 行 Go duration 文法）**删除** → `Double.parseDouble` + `Duration.ofNanos`（与 `feishu/FeishuTransport#parseRetryAfter` 同款——两 connector 收敛）。**行为差异登记**：`"90m"` 不再解析为 90ms（回落 fallback）、`"1e2"` 按 Java 语义解析为 100 秒；测试改名为 `parseRetryAfterParsesSeconds` 并表达新契约。
+- `common/time/GoDuration`（71 行 Go 时长格式化）**删除** → 标准 `Duration.toString()`（ISO-8601）；`ThinkPhase` 的 stall 文案与 `HousekeepingService` 的 stuck 文案改标准形态（`1h10m0s` → `PT1H10M`）。
+- **测试收编**：`GoCompatTest` 删 base64 的 Go 对照段（含 20 条错误偏移表）→ 换 `base64SkipsLineBreaks` 行为用例；`YuqueClientTest` 5 个 Go duration 用例 → 1 个参数化新契约；`HousekeepingServiceTest` 文案断言更新。
+- **Go\* 类计数：15 → 12**。
+- **顺带发现（登记待退役）**：`LangfuseConfig.parseGoDurationMs` + `TenantInvitationService.parseGoDuration` + `HousekeepingServiceTest.documentProcessTimeoutFromEnvParsesGoDurations` —— **「Go duration 解析」另有 2-3 份副本**（配置 / env 面）。
+- **验证**：datasource / agent / knowledge 探针绿；全量 **4706** 绿（−4 = 退役的 Go 对照用例）+ `spotlessCheck` 绿。
+
