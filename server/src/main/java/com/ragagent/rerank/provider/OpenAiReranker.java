@@ -6,7 +6,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.rerank.GoJson;
+import com.ragagent.common.web.ProviderJson;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.RerankHttp;
 import com.ragagent.rerank.Reranker;
@@ -67,15 +67,15 @@ public final class OpenAiReranker implements Reranker {
     public List<RankResult> rerank(String query, List<String> documents) {
         // 对照 RerankRequest：model/query/documents/additional_data(omitempty)/
         // truncate_prompt_tokens(omitempty)
-        ObjectNode requestBody = GoJson.object();
+        ObjectNode requestBody = ProviderJson.object();
         requestBody.put("model", modelName);
         requestBody.put("query", query == null ? "" : query);
-        requestBody.set("documents", GoJson.arrayOfStrings(documents));
+        requestBody.set("documents", ProviderJson.arrayOfStrings(documents));
         // additional_data 恒 nil → omitempty 恒省略
         if (truncatePromptTokens > 0) {
             requestBody.put("truncate_prompt_tokens", truncatePromptTokens);
         }
-        byte[] jsonData = GoJson.marshal(requestBody);
+        byte[] jsonData = ProviderJson.marshal(requestBody);
 
         RerankHttp.Result resp;
         try {
@@ -87,7 +87,7 @@ public final class OpenAiReranker implements Reranker {
         if (resp.status() != 200) {
             throw new RerankHttp.RerankException("Rerank API error: Http Status: " + resp.statusLine());
         }
-        JsonNode response = GoJson.parse(resp.bodyText());
+        JsonNode response = ProviderJson.parse(resp.bodyText());
         if (response == null) {
             throw new RerankHttp.RerankException("unmarshal response: " + resp.bodyText());
         }

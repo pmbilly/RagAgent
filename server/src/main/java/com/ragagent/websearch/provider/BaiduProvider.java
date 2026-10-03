@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Baidu AI 搜索 provider。
@@ -62,7 +63,7 @@ public final class BaiduProvider implements WebSearchProvider {
             maxResults = MAX_RESULTS;
         }
 
-        var body = GoJson.object();
+        var body = ProviderJson.object();
         var messages = body.putArray("messages");
         messages.addObject().put("role", "user").put("content", preparedQuery);
         body.put("search_source", "baidu_search_v2");
@@ -70,7 +71,7 @@ public final class BaiduProvider implements WebSearchProvider {
         filter.put("type", "web");
         filter.put("top_k", maxResults);
         // search_recency_filter：无值省略该键
-        byte[] json = GoJson.marshal(body);
+        byte[] json = ProviderJson.marshal(body);
 
         var req = SearchHttp.request(baseUrl, TIMEOUT)
                 .header("Authorization", "Bearer " + apiKey)
@@ -84,7 +85,7 @@ public final class BaiduProvider implements WebSearchProvider {
             throw new SearchHttp.SearchHttpException("baidu API returned status " + resp.status()
                     + ": " + new String(respBody, java.nio.charset.StandardCharsets.UTF_8));
         }
-        JsonNode respData = GoJson.parse(respBody);
+        JsonNode respData = ProviderJson.parse(respBody);
         if (respData == null) {
             throw new SearchHttp.SearchHttpException("failed to unmarshal response");
         }

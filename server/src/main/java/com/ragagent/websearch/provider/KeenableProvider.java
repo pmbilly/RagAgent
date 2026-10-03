@@ -8,6 +8,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Keenable 搜索 provider。
@@ -49,10 +50,10 @@ public final class KeenableProvider implements WebSearchProvider {
         String path = apiKey.isEmpty() ? "/v1/search/public" : "/v1/search";
         String endpoint = baseUrl + path;
 
-        var body = GoJson.object();
+        var body = ProviderJson.object();
         body.put("query", query);
         body.put("mode", "pro");
-        byte[] json = GoJson.marshal(body);
+        byte[] json = ProviderJson.marshal(body);
 
         var b = SearchHttp.request(endpoint, TIMEOUT)
                 .header("Content-Type", "application/json")
@@ -67,7 +68,7 @@ public final class KeenableProvider implements WebSearchProvider {
             throw new SearchHttp.SearchHttpException("keenable API returned status " + resp.status()
                     + ": " + resp.bodyText());
         }
-        JsonNode respData = GoJson.parse(resp.body());
+        JsonNode respData = ProviderJson.parse(resp.body());
         if (respData == null) {
             throw new SearchHttp.SearchHttpException("failed to unmarshal response");
         }

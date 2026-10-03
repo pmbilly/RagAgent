@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.embedding.EmbedderPooler;
 import com.ragagent.embedding.EmbeddingHttp;
-import com.ragagent.embedding.GoJson;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * 阿里云 DashScope 多模态 embedding 客户端（对照 Go
@@ -56,7 +56,7 @@ public final class AliyunEmbedder extends BaseEmbedder {
     @Override
     public List<float[]> batchEmbed(List<String> texts) {
         // 对照 AliyunEmbedRequest：contents 数组 + 可选 parameters.dimension
-        ObjectNode reqBody = GoJson.object();
+        ObjectNode reqBody = ProviderJson.object();
         reqBody.put("model", modelName);
         ObjectNode input = reqBody.putObject("input");
         ArrayNode contents = input.putArray("contents");
@@ -70,7 +70,7 @@ public final class AliyunEmbedder extends BaseEmbedder {
         if (supportsDimensionsParam()) {
             reqBody.putObject("parameters").put("dimension", dimensions);
         }
-        byte[] jsonData = GoJson.marshal(reqBody);
+        byte[] jsonData = ProviderJson.marshal(reqBody);
 
         EmbeddingHttp.Result resp;
         try {
@@ -81,7 +81,7 @@ public final class AliyunEmbedder extends BaseEmbedder {
         }
 
         if (resp.status() != 200) {
-            JsonNode errResp = GoJson.parse(resp.bodyText());
+            JsonNode errResp = ProviderJson.parse(resp.bodyText());
             if (errResp != null && !errResp.path("message").asText("").isEmpty()) {
                 throw new EmbeddingHttp.EmbeddingException("API error: "
                         + errResp.path("code").asText("") + " - "
@@ -91,7 +91,7 @@ public final class AliyunEmbedder extends BaseEmbedder {
                     + resp.statusLine());
         }
 
-        JsonNode response = GoJson.parse(resp.bodyText());
+        JsonNode response = ProviderJson.parse(resp.bodyText());
         if (response == null) {
             throw new EmbeddingHttp.EmbeddingException("unmarshal response: "
                     + resp.bodyText());
@@ -105,7 +105,7 @@ public final class AliyunEmbedder extends BaseEmbedder {
         for (JsonNode emb : response.path("output").path("embeddings")) {
             int idx = emb.path("text_index").asInt(-1);
             if (idx >= 0 && idx < embeddings.size()) {
-                embeddings.set(idx, GoJson.floatArray(emb.path("embedding")));
+                embeddings.set(idx, ProviderJson.floatArray(emb.path("embedding")));
             }
         }
         return embeddings;

@@ -13,7 +13,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.rerank.GoJson;
+import com.ragagent.common.web.ProviderJson;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.RerankHttp;
 import com.ragagent.rerank.Reranker;
@@ -70,11 +70,11 @@ public final class WeknoraCloudReranker implements Reranker {
 
     @Override
     public List<RankResult> rerank(String query, List<String> documents) {
-        ObjectNode reqBody = GoJson.object();
+        ObjectNode reqBody = ProviderJson.object();
         reqBody.put("model", effectiveModelName());
         reqBody.put("query", query == null ? "" : query);
-        reqBody.set("documents", GoJson.arrayOfStrings(documents));
-        byte[] bodyBytes = GoJson.marshal(reqBody);
+        reqBody.set("documents", ProviderJson.arrayOfStrings(documents));
+        byte[] bodyBytes = ProviderJson.marshal(reqBody);
 
         String requestID = UUID.randomUUID().toString();
         Map<String, String> headers = com.ragagent.embedding.provider.WeknoraCloudSign.sign(
@@ -109,7 +109,7 @@ public final class WeknoraCloudReranker implements Reranker {
             throw new RerankHttp.RerankException("weknoracloud reranker: status "
                     + resp.statusCode() + ": " + bodyText);
         }
-        JsonNode rerankResp = GoJson.parse(bodyText);
+        JsonNode rerankResp = ProviderJson.parse(bodyText);
         if (rerankResp == null) {
             throw new RerankHttp.RerankException("weknoracloud reranker: unmarshal: " + bodyText);
         }

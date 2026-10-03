@@ -3,6 +3,7 @@ package com.ragagent.rerank;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * 单条重排结果（对照 Go {@code rerank.RankResult} 与其自定义
@@ -63,9 +64,9 @@ public final class RankResult {
 
         /** 对照 DocumentInfo.MarshalJSON（Go 默认 marshal：{"text":"..."}）。 */
         public String marshal() {
-            var node = GoJson.object();
+            var node = ProviderJson.object();
             node.put("text", text);
-            return new String(GoJson.marshal(node), java.nio.charset.StandardCharsets.UTF_8);
+            return new String(ProviderJson.marshal(node), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 
@@ -96,10 +97,10 @@ public final class RankResult {
 
     /** 对照 RankResult.MarshalJSON（index/document/relevance_score 声明序，恒输出）。 */
     public String marshal() {
-        var node = GoJson.object();
+        var node = ProviderJson.object();
         node.put("index", index);
         node.putObject("document").put("text", document.getText());
         node.put("relevance_score", relevanceScore);
-        return new String(GoJson.marshal(node), java.nio.charset.StandardCharsets.UTF_8);
+        return new String(ProviderJson.marshal(node), java.nio.charset.StandardCharsets.UTF_8);
     }
 }

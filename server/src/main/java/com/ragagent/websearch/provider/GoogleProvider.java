@@ -9,6 +9,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Google CSE 搜索 provider。
@@ -65,7 +66,7 @@ public final class GoogleProvider implements WebSearchProvider {
             throw new SearchHttp.SearchHttpException("google API returned status " + resp.status()
                     + ": " + resp.bodyText());
         }
-        JsonNode data = GoJson.parse(resp.body());
+        JsonNode data = ProviderJson.parse(resp.body());
         if (data == null) {
             throw new SearchHttp.SearchHttpException("failed to unmarshal response");
         }

@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.embedding.EmbedderPooler;
 import com.ragagent.embedding.EmbeddingHttp;
-import com.ragagent.embedding.GoJson;
+import com.ragagent.common.web.ProviderJson;
 import com.ragagent.llm.ollama.OllamaService;
 
 /**
@@ -48,7 +48,7 @@ public final class OllamaEmbedder extends BaseEmbedder {
         // Ensure model is available
         ollamaService.ensureModelAvailable(modelName);
 
-        ObjectNode req = GoJson.object();
+        ObjectNode req = ProviderJson.object();
         req.put("model", modelName);
         ArrayNode input = req.putArray("input");
         for (String t : texts) {
@@ -75,7 +75,7 @@ public final class OllamaEmbedder extends BaseEmbedder {
         }
         List<float[]> out = new ArrayList<>();
         for (JsonNode emb : resp.path("embeddings")) {
-            out.add(GoJson.floatArray(emb));
+            out.add(ProviderJson.floatArray(emb));
         }
         return out;
     }

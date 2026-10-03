@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchFilters;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Brave 搜索 provider。
@@ -94,7 +95,7 @@ public final class BraveProvider implements WebSearchProvider {
         if (body.length > maxResponse) {
             throw new SearchHttp.SearchHttpException("brave response exceeds " + maxResponse + " bytes");
         }
-        JsonNode response = GoJson.parse(body);
+        JsonNode response = ProviderJson.parse(body);
         if (response == null) {
             throw new SearchHttp.SearchHttpException("decode Brave response: invalid JSON");
         }

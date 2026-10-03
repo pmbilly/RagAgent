@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.embedding.EmbedderPooler;
 import com.ragagent.embedding.EmbeddingHttp;
-import com.ragagent.embedding.GoJson;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Azure OpenAI embedding 客户端（对照 Go
@@ -50,14 +50,14 @@ public final class AzureOpenAiEmbedder extends BaseEmbedder {
     @Override
     public List<float[]> batchEmbed(List<String> texts) {
         // 对照 azureOpenAIEmbedRequest：model/input/encoding_format/dimensions
-        ObjectNode reqBody = GoJson.object();
+        ObjectNode reqBody = ProviderJson.object();
         reqBody.put("model", modelName);
-        reqBody.set("input", GoJson.arrayOfStrings(texts));
+        reqBody.set("input", ProviderJson.arrayOfStrings(texts));
         reqBody.put("encoding_format", "float");
         if (supportsDimensionsParam()) {
             reqBody.put("dimensions", dimensions);
         }
-        byte[] jsonData = GoJson.marshal(reqBody);
+        byte[] jsonData = ProviderJson.marshal(reqBody);
 
         String url = baseUrl + "/openai/deployments/" + modelName
                 + "/embeddings?api-version=" + apiVersion;
@@ -74,14 +74,14 @@ public final class AzureOpenAiEmbedder extends BaseEmbedder {
                     + resp.statusLine() + ", Response: " + truncateBody(resp.bodyText()));
         }
 
-        JsonNode response = GoJson.parse(resp.bodyText());
+        JsonNode response = ProviderJson.parse(resp.bodyText());
         if (response == null) {
             throw new EmbeddingHttp.EmbeddingException("unmarshal response: "
                     + resp.bodyText());
         }
         List<float[]> embeddings = new ArrayList<>();
         for (JsonNode data : response.path("data")) {
-            embeddings.add(GoJson.floatArray(data.path("embedding")));
+            embeddings.add(ProviderJson.floatArray(data.path("embedding")));
         }
         return embeddings;
     }

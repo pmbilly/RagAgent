@@ -7,6 +7,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Ollama Cloud 搜索 provider。
@@ -50,10 +51,10 @@ public final class OllamaProvider implements WebSearchProvider {
             maxResults = MAX_RESULTS;
         }
         // 请求体键按字母序：max_results 先于 query
-        var body = GoJson.object();
+        var body = ProviderJson.object();
         body.put("max_results", maxResults);
         body.put("query", query);
-        byte[] json = GoJson.marshal(body);
+        byte[] json = ProviderJson.marshal(body);
 
         var req = SearchHttp.request(baseUrl, TIMEOUT)
                 .header("Authorization", "Bearer " + apiKey)
@@ -66,7 +67,7 @@ public final class OllamaProvider implements WebSearchProvider {
             throw new SearchHttp.SearchHttpException("ollama API returned status " + resp.status()
                     + ": " + resp.bodyText());
         }
-        JsonNode respData = GoJson.parse(resp.body());
+        JsonNode respData = ProviderJson.parse(resp.body());
         if (respData == null) {
             throw new SearchHttp.SearchHttpException("failed to unmarshal response");
         }

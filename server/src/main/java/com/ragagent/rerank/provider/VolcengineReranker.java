@@ -10,7 +10,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.ragagent.rerank.GoJson;
+import com.ragagent.common.web.ProviderJson;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.RerankHttp;
 import com.ragagent.rerank.Reranker;
@@ -156,7 +156,7 @@ public     static final int MAX_DOCUMENTS = 50;
     private List<Float> rerankBatch(String query, List<String> documents) {
         // datas[] 每项 {query, content}；Go SDK 实录顺序：datas → rerank_model →
         // rerank_instruction（A/B 钉住，不是字母序）
-        var request = GoJson.object();
+        var request = ProviderJson.object();
         ArrayNode datas = request.putArray("datas");
         for (String d : documents) {
             var item = datas.addObject();
@@ -165,7 +165,7 @@ public     static final int MAX_DOCUMENTS = 50;
         }
         request.put("rerank_model", modelName);
         request.put("rerank_instruction", instruction);
-        byte[] payload = GoJson.marshal(request);
+        byte[] payload = ProviderJson.marshal(request);
 
         RerankHttp.Result resp;
         try {
@@ -178,7 +178,7 @@ public     static final int MAX_DOCUMENTS = 50;
             throw new RerankHttp.RerankException("call Volcengine rerank: HTTP "
                     + resp.statusLine());
         }
-        JsonNode root = GoJson.parse(resp.bodyText());
+        JsonNode root = ProviderJson.parse(resp.bodyText());
         if (root == null || (root.path("data").isMissingNode() || root.path("data").isNull())
                 && root.path("code").asInt(0) == 0) {
             throw new RerankHttp.RerankException("Volcengine rerank returned an empty response");

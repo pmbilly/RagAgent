@@ -10,6 +10,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Bing 搜索 provider。
@@ -58,7 +59,7 @@ public final class BingProvider implements WebSearchProvider {
             throw new SearchHttp.SearchHttpException("bing API returned status " + resp.status()
                     + ": " + resp.bodyText());
         }
-        JsonNode respData = GoJson.parse(resp.body());
+        JsonNode respData = ProviderJson.parse(resp.body());
         if (respData == null) {
             throw new SearchHttp.SearchHttpException("failed to unmarshal response");
         }

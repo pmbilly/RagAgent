@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * DuckDuckGo 搜索 provider。
@@ -159,7 +160,7 @@ public final class DuckDuckGoProvider implements WebSearchProvider {
             throw new SearchHttp.SearchHttpException("duckduckgo API returned status "
                     + resp.status() + ": " + resp.bodyText());
         }
-        JsonNode apiResponse = GoJson.parse(resp.body());
+        JsonNode apiResponse = ProviderJson.parse(resp.body());
         if (apiResponse == null) {
             throw new SearchHttp.SearchHttpException("failed to decode API response");
         }

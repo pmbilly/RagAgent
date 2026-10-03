@@ -6,7 +6,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.rerank.GoJson;
+import com.ragagent.common.web.ProviderJson;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.RerankHttp;
 import com.ragagent.rerank.Reranker;
@@ -45,16 +45,16 @@ public final class AliyunReranker implements Reranker {
 
     @Override
     public List<RankResult> rerank(String query, List<String> documents) {
-        ObjectNode requestBody = GoJson.object();
+        ObjectNode requestBody = ProviderJson.object();
         requestBody.put("model", modelName);
         ObjectNode input = requestBody.putObject("input");
         input.put("query", query == null ? "" : query);
-        input.set("documents", GoJson.arrayOfStrings(documents));
+        input.set("documents", ProviderJson.arrayOfStrings(documents));
         // AliyunRerankParameters 是值类型（非指针）→ 恒输出
         ObjectNode parameters = requestBody.putObject("parameters");
         parameters.put("return_documents", true);
         parameters.put("top_n", documents.size());
-        byte[] jsonData = GoJson.marshal(requestBody);
+        byte[] jsonData = ProviderJson.marshal(requestBody);
 
         RerankHttp.Result resp;
         try {
@@ -67,7 +67,7 @@ public final class AliyunReranker implements Reranker {
             throw new RerankHttp.RerankException("aliyun rerank API error: Http Status: "
                     + resp.statusLine() + ", Body: " + resp.bodyText());
         }
-        JsonNode response = GoJson.parse(resp.bodyText());
+        JsonNode response = ProviderJson.parse(resp.bodyText());
         if (response == null) {
             throw new RerankHttp.RerankException("unmarshal response: " + resp.bodyText());
         }

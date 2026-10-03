@@ -9,7 +9,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.rerank.GoJson;
+import com.ragagent.common.web.ProviderJson;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.RerankHttp;
 import com.ragagent.rerank.Reranker;
@@ -135,14 +135,14 @@ public final class LkeapReranker implements Reranker {
 
     private List<RankResult> rerankBatch(String query, List<String> documents) {
         // 对照 lkeap SDK 的 RunRerankRequest struct 序：Query/Docs/Model（models.go 实测）
-        var body = GoJson.object();
+        var body = ProviderJson.object();
         body.put("Query", query == null ? "" : query);
         var docs = body.putArray("Docs");
         for (String d : documents) {
             docs.add(d == null ? "" : d);
         }
         body.put("Model", modelName);
-        byte[] payload = GoJson.marshal(body);
+        byte[] payload = ProviderJson.marshal(body);
 
         RerankHttp.Result resp;
         try {
@@ -156,7 +156,7 @@ public final class LkeapReranker implements Reranker {
         if (resp.status() != 200) {
             throw new RerankHttp.RerankException("LKEAP RunRerank: HTTP " + resp.statusLine());
         }
-        JsonNode root = GoJson.parse(resp.bodyText());
+        JsonNode root = ProviderJson.parse(resp.bodyText());
         JsonNode response = root == null ? null : root.path("Response");
         JsonNode scoreList = response == null ? null : response.path("ScoreList");
         if (scoreList == null || !scoreList.isArray() || scoreList.isEmpty()) {

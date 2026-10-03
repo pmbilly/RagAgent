@@ -8,6 +8,7 @@ import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.ImageInfo;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * 检索窗口与 image_info 的互相裁剪（{@code ImageURLsInContent / ImageURLsFromInfo} 已在
@@ -195,7 +196,7 @@ public final class ImageInfoMatchUtil {
         node.put("end_pos", info.getEndPos());
         node.put("caption", info.getCaption());
         node.put("ocr_text", info.getOcrText());
-        return new String(GoJsonUtil.marshal(node), java.nio.charset.StandardCharsets.UTF_8);
+        return new String(ProviderJson.marshal(node), java.nio.charset.StandardCharsets.UTF_8);
     }
 
     /**
@@ -211,7 +212,7 @@ public final class ImageInfoMatchUtil {
 
     /** 解析 image_info JSON：失败/非数组 → null。 */
     public static List<ImageInfo> parseInfos(String imageInfoJson) {
-        JsonNode arr = GoJsonUtil.parse(imageInfoJson);
+        JsonNode arr = ProviderJson.parse(imageInfoJson);
         if (arr == null || !arr.isArray()) {
             return null;
         }

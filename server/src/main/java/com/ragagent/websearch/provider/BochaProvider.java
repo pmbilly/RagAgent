@@ -12,6 +12,7 @@ import java.util.Set;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Bocha AI 搜索 provider。
@@ -93,12 +94,12 @@ public final class BochaProvider implements WebSearchProvider {
             maxResults = MAX_RESULTS;
         }
 
-        var body = GoJson.object();
+        var body = ProviderJson.object();
         body.put("query", q);
         body.put("freshness", freshness);
         body.put("summary", summary);
         body.put("count", maxResults);
-        byte[] json = GoJson.marshal(body);
+        byte[] json = ProviderJson.marshal(body);
 
         var req = SearchHttp.request(baseUrl, TIMEOUT)
                 .header("Authorization", "Bearer " + apiKey)
@@ -112,7 +113,7 @@ public final class BochaProvider implements WebSearchProvider {
             throw httpError(resp.status(), respBody);
         }
 
-        JsonNode response = GoJson.parse(respBody);
+        JsonNode response = ProviderJson.parse(respBody);
         if (response == null) {
             throw new SearchHttp.SearchHttpException("failed to unmarshal Bocha response");
         }
@@ -163,7 +164,7 @@ public final class BochaProvider implements WebSearchProvider {
 
     /** 错误体解析：message/msg 字段优先，body 截 4096。 */
     static SearchHttp.SearchHttpException httpError(int statusCode, byte[] body) {
-        JsonNode apiError = GoJson.parse(body);
+        JsonNode apiError = ProviderJson.parse(body);
         if (apiError != null && apiError.isObject()) {
             String detail = apiError.path("message").asText("").trim();
             if (detail.isEmpty()) {

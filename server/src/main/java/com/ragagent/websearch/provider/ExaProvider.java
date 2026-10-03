@@ -9,6 +9,7 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Exa 搜索 provider。
@@ -60,7 +61,7 @@ public final class ExaProvider implements WebSearchProvider {
             maxResults = MAX_RESULTS;
         }
 
-        var body = GoJson.object();
+        var body = ProviderJson.object();
         body.put("query", q);
         body.put("numResults", maxResults);
         var contents = body.putObject("contents");
@@ -68,7 +69,7 @@ public final class ExaProvider implements WebSearchProvider {
         if (includeText) {
             contents.put("text", true);
         }
-        byte[] json = GoJson.marshal(body);
+        byte[] json = ProviderJson.marshal(body);
 
         var req = SearchHttp.request(baseUrl, TIMEOUT)
                 .header("Content-Type", "application/json")
@@ -83,7 +84,7 @@ public final class ExaProvider implements WebSearchProvider {
             throw new SearchHttp.SearchHttpException("exa API returned status " + resp.status()
                     + ": " + new String(bodyBytes, java.nio.charset.StandardCharsets.UTF_8));
         }
-        JsonNode data = GoJson.parse(bodyBytes);
+        JsonNode data = ProviderJson.parse(bodyBytes);
         if (data == null) {
             throw new SearchHttp.SearchHttpException("failed to unmarshal Exa response");
         }

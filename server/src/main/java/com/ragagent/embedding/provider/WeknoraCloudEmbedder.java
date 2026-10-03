@@ -17,7 +17,7 @@ import com.ragagent.embedding.Embedder;
 import com.ragagent.embedding.EmbedderConfig;
 import com.ragagent.embedding.EmbedderPooler;
 import com.ragagent.embedding.EmbeddingHttp;
-import com.ragagent.embedding.GoJson;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * WeKnoraCloud embedding 客户端（对照 Go
@@ -60,13 +60,13 @@ public class WeknoraCloudEmbedder extends BaseEmbedder implements EmbedderPooler
 
     @Override
     public List<float[]> batchEmbed(List<String> texts) {
-        ObjectNode reqBody = GoJson.object();
+        ObjectNode reqBody = ProviderJson.object();
         reqBody.put("model", effectiveModelName());
-        reqBody.set("input", GoJson.arrayOfStrings(texts));
+        reqBody.set("input", ProviderJson.arrayOfStrings(texts));
         if (supportsDimensionOverride && dimensions > 0) {
             reqBody.put("dimensions", dimensions);
         }
-        byte[] bodyBytes = GoJson.marshal(reqBody);
+        byte[] bodyBytes = ProviderJson.marshal(reqBody);
 
         String requestID = UUID.randomUUID().toString();
         Map<String, String> headers = WeknoraCloudSign.sign(appId, apiKey, requestID,
@@ -104,7 +104,7 @@ public class WeknoraCloudEmbedder extends BaseEmbedder implements EmbedderPooler
                     + resp.statusCode() + ": " + bodyText);
         }
 
-        JsonNode embedResp = GoJson.parse(bodyText);
+        JsonNode embedResp = ProviderJson.parse(bodyText);
         if (embedResp == null) {
             throw new EmbeddingHttp.EmbeddingException("weknoracloud embedder: unmarshal: "
                     + bodyText);
@@ -125,7 +125,7 @@ public class WeknoraCloudEmbedder extends BaseEmbedder implements EmbedderPooler
                 throw new EmbeddingHttp.EmbeddingException("weknoracloud embedder: duplicate response index "
                         + index);
             }
-            result.set(index, GoJson.floatArray(item.path("embedding")));
+            result.set(index, ProviderJson.floatArray(item.path("embedding")));
             seen[index] = true;
         }
         for (int index = 0; index < seen.length; index++) {

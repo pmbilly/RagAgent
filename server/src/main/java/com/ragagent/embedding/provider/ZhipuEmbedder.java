@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.embedding.EmbedderPooler;
 import com.ragagent.embedding.EmbeddingHttp;
-import com.ragagent.embedding.GoJson;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * 智谱 embedding 客户端（对照 Go {@code internal/models/embedding/zhipu.go} 全文）。
@@ -46,14 +46,14 @@ public final class ZhipuEmbedder extends BaseEmbedder {
 
     @Override
     public List<float[]> batchEmbed(List<String> texts) {
-        ObjectNode reqBody = GoJson.object();
+        ObjectNode reqBody = ProviderJson.object();
         reqBody.put("model", modelName);
-        reqBody.set("input", GoJson.arrayOfStrings(texts));
+        reqBody.set("input", ProviderJson.arrayOfStrings(texts));
         if (supportsDimensionsParam()) {
             reqBody.put("dimensions", dimensions);
         }
         reqBody.put("truncate_prompt_tokens", truncatePromptTokens);
-        byte[] jsonData = GoJson.marshal(reqBody);
+        byte[] jsonData = ProviderJson.marshal(reqBody);
 
         EmbeddingHttp.Result resp;
         try {
@@ -68,14 +68,14 @@ public final class ZhipuEmbedder extends BaseEmbedder {
                     + resp.statusLine() + ", Response: " + truncateBody(resp.bodyText()));
         }
 
-        JsonNode response = GoJson.parse(resp.bodyText());
+        JsonNode response = ProviderJson.parse(resp.bodyText());
         if (response == null) {
             throw new EmbeddingHttp.EmbeddingException("unmarshal response: "
                     + resp.bodyText());
         }
         List<float[]> embeddings = new ArrayList<>();
         for (JsonNode data : response.path("data")) {
-            embeddings.add(GoJson.floatArray(data.path("embedding")));
+            embeddings.add(ProviderJson.floatArray(data.path("embedding")));
         }
         return embeddings;
     }

@@ -11,6 +11,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * 自托管 SearXNG provider。
@@ -72,7 +73,7 @@ public final class SearxngProvider implements WebSearchProvider {
             throw new SearchHttp.SearchHttpException("searxng returned status " + resp.status()
                     + ": " + new String(body, StandardCharsets.UTF_8));
         }
-        JsonNode data = GoJson.parse(resp.body());
+        JsonNode data = ProviderJson.parse(resp.body());
         if (data == null) {
             lastUnresponsive = new ArrayList<>();
             throw new SearchHttp.SearchHttpException(

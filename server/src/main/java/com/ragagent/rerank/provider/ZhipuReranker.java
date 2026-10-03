@@ -6,7 +6,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.ragagent.rerank.GoJson;
+import com.ragagent.common.web.ProviderJson;
 import com.ragagent.rerank.RankResult;
 import com.ragagent.rerank.RerankHttp;
 import com.ragagent.rerank.Reranker;
@@ -46,13 +46,13 @@ public final class ZhipuReranker implements Reranker {
 
     @Override
     public List<RankResult> rerank(String query, List<String> documents) {
-        ObjectNode requestBody = GoJson.object();
+        ObjectNode requestBody = ProviderJson.object();
         requestBody.put("model", modelName);
         requestBody.put("query", query == null ? "" : query);
-        requestBody.set("documents", GoJson.arrayOfStrings(documents));
+        requestBody.set("documents", ProviderJson.arrayOfStrings(documents));
         // TopN=0 → omitempty 省略；ReturnDocuments=true → 输出；ReturnRawScores=false → 省略
         requestBody.put("return_documents", true);
-        byte[] jsonData = GoJson.marshal(requestBody);
+        byte[] jsonData = ProviderJson.marshal(requestBody);
 
         RerankHttp.Result resp;
         try {
@@ -65,7 +65,7 @@ public final class ZhipuReranker implements Reranker {
             throw new RerankHttp.RerankException("zhipu rerank API error: Http Status: "
                     + resp.statusLine() + ", Body: " + resp.bodyText());
         }
-        JsonNode response = GoJson.parse(resp.bodyText());
+        JsonNode response = ProviderJson.parse(resp.bodyText());
         if (response == null) {
             throw new RerankHttp.RerankException("unmarshal response: " + resp.bodyText());
         }

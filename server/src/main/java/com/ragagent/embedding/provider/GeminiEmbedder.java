@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.embedding.EmbedderPooler;
 import com.ragagent.embedding.EmbeddingHttp;
-import com.ragagent.embedding.GoJson;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Gemini 原生 batchEmbedContents embedding 客户端（对照 Go
@@ -60,7 +60,7 @@ public final class GeminiEmbedder extends BaseEmbedder {
 
         // 对照 geminiBatchEmbedRequest：requests[] 每项 model/content(/taskType/
         // output_dimensionality omitempty)
-        ObjectNode root = GoJson.object();
+        ObjectNode root = ProviderJson.object();
         ArrayNode requests = root.putArray("requests");
         for (String text : texts) {
             ObjectNode req = requests.addObject();
@@ -72,7 +72,7 @@ public final class GeminiEmbedder extends BaseEmbedder {
                 req.put("output_dimensionality", dimensions);
             }
         }
-        byte[] jsonData = GoJson.marshal(root);
+        byte[] jsonData = ProviderJson.marshal(root);
 
         EmbeddingHttp.Result resp;
         try {
@@ -88,7 +88,7 @@ public final class GeminiEmbedder extends BaseEmbedder {
                     + resp.statusLine() + ", Response: " + truncateBody(resp.bodyText()));
         }
 
-        JsonNode response = GoJson.parse(resp.bodyText());
+        JsonNode response = ProviderJson.parse(resp.bodyText());
         if (response == null) {
             throw new EmbeddingHttp.EmbeddingException("unmarshal response: "
                     + resp.bodyText());
@@ -100,7 +100,7 @@ public final class GeminiEmbedder extends BaseEmbedder {
         }
         List<float[]> embeddings = new ArrayList<>(embeddingsNode.size());
         for (JsonNode embedding : embeddingsNode) {
-            embeddings.add(GoJson.floatArray(embedding.path("values")));
+            embeddings.add(ProviderJson.floatArray(embedding.path("values")));
         }
         return embeddings;
     }

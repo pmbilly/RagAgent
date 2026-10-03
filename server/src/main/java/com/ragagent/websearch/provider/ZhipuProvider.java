@@ -10,6 +10,7 @@ import java.util.Set;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * 智谱独立 Web 搜索 provider。
@@ -96,13 +97,13 @@ public final class ZhipuProvider implements WebSearchProvider {
             maxResults = MAX_RESULTS;
         }
 
-        var body = GoJson.object();
+        var body = ProviderJson.object();
         body.put("search_query", preparedQuery);
         body.put("search_engine", searchEngine);
         body.put("search_intent", false);
         body.put("count", maxResults);
         body.put("content_size", contentSize);
-        byte[] json = GoJson.marshal(body);
+        byte[] json = ProviderJson.marshal(body);
 
         var req = SearchHttp.request(baseUrl, TIMEOUT)
                 .header("Authorization", "Bearer " + apiKey)
@@ -117,7 +118,7 @@ public final class ZhipuProvider implements WebSearchProvider {
         if (resp.status() != 200) {
             throw zhipuHttpError(resp.status(), resp.body());
         }
-        JsonNode response = GoJson.parse(resp.body());
+        JsonNode response = ProviderJson.parse(resp.body());
         if (response == null) {
             throw new SearchHttp.SearchHttpException("failed to unmarshal Zhipu response");
         }
@@ -195,7 +196,7 @@ public final class ZhipuProvider implements WebSearchProvider {
 
     /** 错误体解析：error 结构优先，body 截 4096。 */
     static SearchHttp.SearchHttpException zhipuHttpError(int statusCode, byte[] body) {
-        JsonNode response = GoJson.parse(body);
+        JsonNode response = ProviderJson.parse(body);
         if (response != null && response.isObject()) {
             String code = response.path("error").path("code").asText("");
             String message = response.path("error").path("message").asText("");

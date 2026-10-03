@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.embedding.EmbedQueryContext;
 import com.ragagent.embedding.EmbedderPooler;
 import com.ragagent.embedding.EmbeddingHttp;
-import com.ragagent.embedding.GoJson;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * NVIDIA embedding 客户端（对照 Go {@code internal/models/embedding/nvidia.go} 全文）。
@@ -41,16 +41,16 @@ public final class NvidiaEmbedder extends BaseEmbedder {
 
     @Override
     public List<float[]> batchEmbed(List<String> texts) {
-        ObjectNode reqBody = GoJson.object();
+        ObjectNode reqBody = ProviderJson.object();
         reqBody.put("model", modelName);
-        reqBody.set("input", GoJson.arrayOfStrings(texts));
+        reqBody.set("input", ProviderJson.arrayOfStrings(texts));
         reqBody.put("encoding_format", "float");
         if (supportsDimensionsParam()) {
             reqBody.put("dimensions", dimensions);
         }
         // truncate_prompt_tokens 恒 0 → omitempty 恒省略
         reqBody.put("input_type", EmbedQueryContext.isQuery() ? "query" : "passage");
-        byte[] jsonData = GoJson.marshal(reqBody);
+        byte[] jsonData = ProviderJson.marshal(reqBody);
 
         EmbeddingHttp.Result resp;
         try {
@@ -65,14 +65,14 @@ public final class NvidiaEmbedder extends BaseEmbedder {
                     + resp.statusLine());
         }
 
-        JsonNode response = GoJson.parse(resp.bodyText());
+        JsonNode response = ProviderJson.parse(resp.bodyText());
         if (response == null) {
             throw new EmbeddingHttp.EmbeddingException("unmarshal response: "
                     + resp.bodyText());
         }
         List<float[]> embeddings = new ArrayList<>();
         for (JsonNode data : response.path("data")) {
-            embeddings.add(GoJson.floatArray(data.path("embedding")));
+            embeddings.add(ProviderJson.floatArray(data.path("embedding")));
         }
         return embeddings;
     }

@@ -26,6 +26,7 @@ import com.ragagent.rerank.provider.OpenAiReranker;
 import com.ragagent.rerank.provider.VolcengineReranker;
 import com.ragagent.rerank.provider.WeknoraCloudReranker;
 import com.ragagent.rerank.provider.ZhipuReranker;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * rerank 客户端的 stub server A/B：请求体与 Go 实录（wire/*.json）逐字节比对 +
@@ -186,7 +187,7 @@ class RerankWireTest {
             Reranker r = new AliyunReranker(config(stub.url()));
             List<RankResult> results = r.rerank("query", List.of("A", "B", "C"));
             assertEquals(wireBody("rerank_aliyun"), stub.requests.get(0).body());
-            JsonNode body = GoJson.parse(stub.requests.get(0).body());
+            JsonNode body = ProviderJson.parse(stub.requests.get(0).body());
             assertEquals(3, body.path("parameters").path("top_n").asInt());
             assertEquals(0.87, results.get(0).getRelevanceScore());
         } finally {
@@ -438,12 +439,12 @@ class RerankWireTest {
 
     /** 复刻 Go SDK 对 RunRerankRequest 的 marshal（字段序 Query/Docs/Model）。 */
     private static String lkeapBody(String query, List<String> docs, String model) {
-        var body = GoJson.object();
+        var body = ProviderJson.object();
         body.put("Query", query);
         var arr = body.putArray("Docs");
         docs.forEach(arr::add);
         body.put("Model", model);
-        return new String(GoJson.marshal(body), StandardCharsets.UTF_8);
+        return new String(ProviderJson.marshal(body), StandardCharsets.UTF_8);
     }
 
     @Test
@@ -530,7 +531,7 @@ class RerankWireTest {
                         "{\"index\": 7, \"document\": {\"text\": \"This is a document\"}}",
                         "This is a document", 7, 0.0));
         for (Case c : cases) {
-            RankResult r = RankResult.parse(GoJson.parse(c.input()));
+            RankResult r = RankResult.parse(ProviderJson.parse(c.input()));
             assertEquals(c.text(), r.getDocument().getText(), c.name());
             assertEquals(c.index(), r.getIndex(), c.name());
             assertEquals(c.score(), r.getRelevanceScore(), c.name());
@@ -550,7 +551,7 @@ class RerankWireTest {
         // Go 实录 marshal：{"index":1,"document":{"text":"Test document"},"relevance_score":0.95}
         assertEquals("{\"index\":1,\"document\":{\"text\":\"Test document\"},\"relevance_score\":0.95}",
                 r.marshal());
-        RankResult back = RankResult.parse(GoJson.parse(r.marshal()));
+        RankResult back = RankResult.parse(ProviderJson.parse(r.marshal()));
         assertEquals(1, back.getIndex());
         assertEquals("Test document", back.getDocument().getText());
         assertEquals(0.95, back.getRelevanceScore());

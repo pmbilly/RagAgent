@@ -512,3 +512,10 @@
 - **档 3 总账（escapes 面全清）**：① provider 请求 ✅（B37）｜② stream / langfuse / LLM 请求体 ✅（B38）｜③ 工具面（MCP / 待办 / 检索）✅（B39）｜④ event 总线 ✅（本批）＝ **`GoJsonEscapes` 面全部退役完成**。
 - **剩余（非 escapes 面，待各自探针）**：`GoTimeSerializer.isGoZero`（业务语义，38 处调用）、`GoMapSerializer`（被 datasource 继承 + `GoDoubleSerializer.format` 被当静态工具调）、`GoJsonCodec` / `GoQuoting` / `GoHtml` / `GoValueStr`（工具协议面）。
 
+**✅ B41（2026-10-03，档 3 第四刀：provider JSON 四副本收敛 + 删零引用类）**
+- **收敛**：4 份包内副本（`embedding/GoJson` 86 行 / `rerank/GoJson` 66 行 / `websearch/provider/GoJson` 57 行 / `retrieval/support/GoJsonUtil` 39 行）→ 共享 `common/web/ProviderJson`（embedding 版为超集：`marshal` / `object` / `array` / `parse(String|byte[])` / `arrayOfStrings` / `floatArray`）。
+  - 42 文件引用改写（`\bGoJson\b` 词边界替换——不误伤 `GoJsonCodec` / `GoJsonValues` / `GoJsonMarshal` / `GoJsonBindError`）+ 20 文件补 import（原同包引用现跨包，含 3 个 `package-info`）。
+- **删零引用**：`GoFloatSerializer`（`GoDoubleSerializer` 的 float32 孪生，全仓 0 处引用，70 行）。
+- **Go\* 类计数：26 → 21**。
+- 验证：编译绿；全量 **4709** 绿 + `spotlessCheck` 绿。
+

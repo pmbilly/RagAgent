@@ -10,6 +10,7 @@ import java.util.Set;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Metaso（秘塔）搜索 provider。
@@ -79,14 +80,14 @@ public final class MetasoProvider implements WebSearchProvider {
             maxResults = MAX_RESULTS;
         }
 
-        var body = GoJson.object();
+        var body = ProviderJson.object();
         body.put("q", q);
         body.put("scope", scope);
         body.put("size", maxResults);
         body.put("includeSummary", true);
         body.put("includeRawContent", false);
         body.put("conciseSnippet", true);
-        byte[] json = GoJson.marshal(body);
+        byte[] json = ProviderJson.marshal(body);
 
         var req = SearchHttp.request(baseUrl, TIMEOUT)
                 .header("Authorization", "Bearer " + apiKey)
@@ -102,7 +103,7 @@ public final class MetasoProvider implements WebSearchProvider {
         if (resp.status() != 200) {
             throw metasoHttpError(resp.status(), resp.body());
         }
-        JsonNode response = GoJson.parse(resp.body());
+        JsonNode response = ProviderJson.parse(resp.body());
         if (response == null) {
             throw new SearchHttp.SearchHttpException("failed to unmarshal Metaso response");
         }
@@ -139,7 +140,7 @@ public final class MetasoProvider implements WebSearchProvider {
 
     /** 错误体解析：message/error 字段优先，body 截 4096。 */
     static SearchHttp.SearchHttpException metasoHttpError(int statusCode, byte[] body) {
-        JsonNode apiError = GoJson.parse(body);
+        JsonNode apiError = ProviderJson.parse(body);
         if (apiError != null && apiError.isObject()) {
             String detail = apiError.path("message").asText("").trim();
             if (detail.isEmpty()) {

@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ragagent.embedding.EmbedderPooler;
 import com.ragagent.embedding.EmbeddingHttp;
-import com.ragagent.embedding.GoJson;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * 火山引擎 Ark 多模态 embedding 客户端（对照 Go
@@ -63,7 +63,7 @@ public final class VolcengineEmbedder extends BaseEmbedder {
         }
         for (int i = 0; i < texts.size(); i++) {
             String text = texts.get(i);
-            ObjectNode reqBody = GoJson.object();
+            ObjectNode reqBody = ProviderJson.object();
             reqBody.put("model", modelName);
             ArrayNode input = reqBody.putArray("input");
             ObjectNode item = input.addObject();
@@ -74,7 +74,7 @@ public final class VolcengineEmbedder extends BaseEmbedder {
             if (supportsDimensionsParam()) {
                 reqBody.put("dimensions", dimensions);
             }
-            byte[] jsonData = GoJson.marshal(reqBody);
+            byte[] jsonData = ProviderJson.marshal(reqBody);
 
             EmbeddingHttp.Result resp;
             try {
@@ -85,7 +85,7 @@ public final class VolcengineEmbedder extends BaseEmbedder {
             }
 
             if (resp.status() != 200) {
-                JsonNode errResp = GoJson.parse(resp.bodyText());
+                JsonNode errResp = ProviderJson.parse(resp.bodyText());
                 String msg = errResp == null ? "" : errResp.path("error").path("message").asText("");
                 if (!msg.isEmpty()) {
                     throw new EmbeddingHttp.EmbeddingException("API error: "
@@ -95,12 +95,12 @@ public final class VolcengineEmbedder extends BaseEmbedder {
                         + resp.statusLine());
             }
 
-            JsonNode response = GoJson.parse(resp.bodyText());
+            JsonNode response = ProviderJson.parse(resp.bodyText());
             if (response == null) {
                 throw new EmbeddingHttp.EmbeddingException("unmarshal response: "
                         + resp.bodyText());
             }
-            embeddings.set(i, GoJson.floatArray(response.path("data").path("embedding")));
+            embeddings.set(i, ProviderJson.floatArray(response.path("data").path("embedding")));
         }
         return embeddings;
     }

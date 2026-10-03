@@ -8,6 +8,7 @@ import java.util.List;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.retrieval.domain.WebSearchResult;
 import com.ragagent.websearch.domain.WebSearchProviderParams;
+import com.ragagent.common.web.ProviderJson;
 
 /**
  * Tavily 搜索 provider。
@@ -41,11 +42,11 @@ public final class TavilyProvider implements WebSearchProvider {
         if (query == null || query.isEmpty()) {
             throw new SearchHttp.SearchHttpException("query is empty");
         }
-        var body = GoJson.object();
+        var body = ProviderJson.object();
         body.put("api_key", apiKey);
         body.put("query", query);
         body.put("max_results", maxResults);
-        byte[] json = GoJson.marshal(body);
+        byte[] json = ProviderJson.marshal(body);
 
         var req = SearchHttp.request(baseUrl, TIMEOUT)
                 .header("Content-Type", "application/json")
@@ -56,7 +57,7 @@ public final class TavilyProvider implements WebSearchProvider {
             throw new SearchHttp.SearchHttpException("tavily API returned status " + resp.status()
                     + ": " + resp.bodyText());
         }
-        JsonNode respData = GoJson.parse(resp.body());
+        JsonNode respData = ProviderJson.parse(resp.body());
         if (respData == null) {
             throw new SearchHttp.SearchHttpException("failed to unmarshal response");
         }
