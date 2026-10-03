@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.ragagent.TestSchema;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.datasource.domain.DataSource;
 import com.ragagent.datasource.domain.DataSourceConstants;
 import com.ragagent.datasource.domain.DataSourceException;
@@ -86,9 +86,9 @@ class SyncLogRepositoryTest {
         repo.create(log);
 
         assertThat(log.getId()).hasSize(36);
-        assertThat(log.getStartedAt()).isNotEqualTo(GoTimeSerializer.GO_ZERO_DATE_TIME);
-        assertThat(log.getCreatedAt()).isNotEqualTo(GoTimeSerializer.GO_ZERO_DATE_TIME);
-        assertThat(log.getUpdatedAt()).isNotEqualTo(GoTimeSerializer.GO_ZERO_DATE_TIME);
+        assertThat(log.getStartedAt()).isNotEqualTo(ZeroTimeSerializer.ZERO_DATE_TIME);
+        assertThat(log.getCreatedAt()).isNotEqualTo(ZeroTimeSerializer.ZERO_DATE_TIME);
+        assertThat(log.getUpdatedAt()).isNotEqualTo(ZeroTimeSerializer.ZERO_DATE_TIME);
         assertThat(repo.findById(log.getId()).getStatus())
                 .isEqualTo(DataSourceConstants.SYNC_LOG_STATUS_RUNNING);
     }

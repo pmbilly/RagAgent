@@ -10,7 +10,7 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.llm.domain.ChatMessage;
 import com.ragagent.llm.domain.ChatOptions;
 import com.ragagent.llm.domain.ChatResponse;
@@ -178,7 +178,7 @@ public class MemoryConsolidationService {
         // 会让它无限重复下去。
         OffsetDateTime last = force ? subject.getForcedConsolidatedAt() : subject.getConsolidatedAt();
         Duration interval = force ? FORCED_CONSOLIDATE_INTERVAL : CONSOLIDATE_INTERVAL;
-        if (last != null && !GoTimeSerializer.isGoZero(last)
+        if (last != null && !ZeroTimeSerializer.isZeroValue(last)
                 && Duration.between(last, OffsetDateTime.now()).compareTo(interval) < 0) {
             if (force) {
                 result.setSkipped(MemoryConsolidationResult.SKIP_TOO_SOON);
@@ -281,7 +281,7 @@ public class MemoryConsolidationService {
                 continue;
             }
             OffsetDateTime last = item.getValidFrom();
-            if (item.getLastUsedAt() != null && !GoTimeSerializer.isGoZero(item.getLastUsedAt())
+            if (item.getLastUsedAt() != null && !ZeroTimeSerializer.isZeroValue(item.getLastUsedAt())
                     && item.getLastUsedAt().isAfter(last)) {
                 last = item.getLastUsedAt();
             }

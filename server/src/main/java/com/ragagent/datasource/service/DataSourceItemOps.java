@@ -188,11 +188,11 @@ final class DataSourceItemOps {
         metadata.put("datasource_id", ds.getId());
         // 源系统自己的最后修改时间：knowledge 行的 updated_at 每次重解析都会动，
         // 所以这是"这份文档本身有多旧"的唯一记录。
-        if (!DataSourceSupport.isGoZeroTime(item.getUpdatedAt())) {
+        if (!DataSourceSupport.isZeroTime(item.getUpdatedAt())) {
             metadata.put("source_updated_at", item.getUpdatedAt().toInstant()
                     .atOffset(ZoneOffset.UTC).format(DataSourceService.RFC3339));
         }
-        if (!DataSourceSupport.isGoZeroTime(item.getCreatedAt())) {
+        if (!DataSourceSupport.isZeroTime(item.getCreatedAt())) {
             metadata.put("source_created_at", item.getCreatedAt().toInstant()
                     .atOffset(ZoneOffset.UTC).format(DataSourceService.RFC3339));
         }

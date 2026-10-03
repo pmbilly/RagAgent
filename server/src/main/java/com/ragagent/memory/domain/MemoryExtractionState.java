@@ -3,7 +3,7 @@ package com.ragagent.memory.domain;
 import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * {@code memory_subjects.extraction_state} 这一列的内容——**只装主体级的 worker 租约**。
@@ -28,7 +28,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  * {@code JavaTimeModule}（注意：不是裸 mapper），{@link java.time.OffsetDateTime} 按
  * ISO-8601 输出，零值正好是 {@code "0001-01-01T00:00:00Z"} 字面量。</p>
  *
- * <p>字段默认值必须是 {@link GoTimeSerializer#GO_ZERO_DATE_TIME}：
+ * <p>字段默认值必须是 {@link ZeroTimeSerializer#ZERO_DATE_TIME}：
  * {@code null} 不会走自定义序列化器（Jackson 对 null 值用 nullSerializer），
  * 想让落库字节是 year-1 就必须让字段本身就持有零值时间。</p>
  */
@@ -39,7 +39,7 @@ public class MemoryExtractionState {
     private String leaseId = "";
 
     /** 零值是 year-1 的 {@code "0001-01-01T00:00:00Z"} 字面量，且**恒输出**（见类注释）。 */
-    private OffsetDateTime leaseUntil = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime leaseUntil = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     public MemoryExtractionState() {
     }
@@ -57,7 +57,7 @@ public class MemoryExtractionState {
     }
 
     public void setLeaseUntil(OffsetDateTime v) {
-        this.leaseUntil = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        this.leaseUntil = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     /** 租约时刻是否在 {@code now} 之后（还没过期）。 */

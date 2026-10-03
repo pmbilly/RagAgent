@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 一条记忆的向量，单独一张表。
@@ -88,9 +88,9 @@ public class MemoryItemEmbedding {
     @JsonIgnore
     private byte[] vector;
 
-    private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime createdAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
-    private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime updatedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     public String getSourceContent() { return sourceContent; }
     public void setSourceContent(String v) { sourceContent = v == null ? "" : v; }
@@ -118,11 +118,11 @@ public class MemoryItemEmbedding {
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime v) {
-        createdAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        createdAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime v) {
-        updatedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        updatedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 }

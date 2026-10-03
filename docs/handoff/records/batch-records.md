@@ -593,3 +593,9 @@
 - **结论**：5 类性质 = **1 可退役**（`GoDoubleSerializer`，语义等价）+ **4 契约保留**（时间哨兵 / 键序确定性 / 前端文案 / 存量数据语义）。
 - **待决策**：① `GoDoubleSerializer` 退役做不做（语义安全、需 golden 更新）；② `GoJsonBindError` 需产品/前端确认文案契约。
 
+**✅ B49（2026-10-03，档 3 第十一刀：保留类去 Go 名——第二批）**
+- **用户拍板**：① `GoDoubleSerializer` 退役；② `GoJsonBindError` 换成 Java 标准；③ 其余保留类名称去掉 Go。
+- **本批（③ 的类名部分）**：`GoTimeSerializer` → **`ZeroTimeSerializer`**、`GoMapSerializer` → **`SortedMapSerializer`**、`GoNaiveOffsetDateTimeTypeHandler` → **`NaiveOffsetDateTimeTypeHandler`**（含 `"typeHandler=<FQN>"` 字符串形态）；顺带方法/常量名去 Go：`isGoZero` → `isZeroValue`、`GO_ZERO_DATE_TIME` → `ZERO_DATE_TIME`、`isGoZeroTime`（rss/datasource 的零值判断）→ `isZeroTime`。70 文件替换，**行为零变更**。
+- **登记**：零值时间判断现存 3 处实现（`ZeroTimeSerializer.isZeroValue` / `RssUtil.isZeroTime` / `DataSourceSupport.isZeroTime`）——潜在收敛点。
+- **验证**：datasource / session / llm / auth 四域探针绿。
+

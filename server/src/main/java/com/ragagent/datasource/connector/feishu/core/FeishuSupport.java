@@ -11,7 +11,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.ConnectorHttp;
 import com.ragagent.datasource.domain.DataSourceConfig;
@@ -168,7 +168,7 @@ public final class FeishuSupport {
      * 统一经这里回落成 {@code "0001-01-01T00:00:00Z"} 字面量。
      */
     public static OffsetDateTime orGoZero(OffsetDateTime v) {
-        return v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        return v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     // ──────────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import java.time.OffsetDateTime;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 这个人的回答有多经常取材于某个文档。
@@ -49,11 +49,11 @@ public class MemoryDocAffinity {
 
     private int hits;
 
-    private OffsetDateTime lastUsedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime lastUsedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
-    private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime createdAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
-    private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime updatedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     public String getId() { return id; }
     public void setId(String v) { id = v == null ? "" : v; }
@@ -78,16 +78,16 @@ public class MemoryDocAffinity {
 
     public OffsetDateTime getLastUsedAt() { return lastUsedAt; }
     public void setLastUsedAt(OffsetDateTime v) {
-        lastUsedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        lastUsedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime v) {
-        createdAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        createdAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime v) {
-        updatedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        updatedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 }

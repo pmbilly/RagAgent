@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
@@ -161,10 +161,10 @@ public class DataSource {
     private int syncLogRetentionDays;
 
     @TableField("created_at")
-    private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime createdAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     @TableField("updated_at")
-    private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime updatedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     /**
      * 软删除时间戳。JSON 上未删除时输出
@@ -231,12 +231,12 @@ public class DataSource {
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime v) {
-        createdAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        createdAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime v) {
-        updatedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        updatedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getDeletedAt() { return deletedAt; }

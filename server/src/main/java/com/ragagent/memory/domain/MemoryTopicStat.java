@@ -11,7 +11,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 一个话题被这个人问过多少次。
@@ -76,13 +76,13 @@ public class MemoryTopicStat {
 
     private int hits;
 
-    private OffsetDateTime lastSeenAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime lastSeenAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     private OffsetDateTime promotedAt;
 
-    private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime createdAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
-    private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime updatedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     public String getId() { return id; }
     public void setId(String v) { id = v == null ? "" : v; }
@@ -113,7 +113,7 @@ public class MemoryTopicStat {
 
     public OffsetDateTime getLastSeenAt() { return lastSeenAt; }
     public void setLastSeenAt(OffsetDateTime v) {
-        lastSeenAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        lastSeenAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getPromotedAt() { return promotedAt; }
@@ -121,12 +121,12 @@ public class MemoryTopicStat {
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime v) {
-        createdAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        createdAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime v) {
-        updatedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        updatedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     /**

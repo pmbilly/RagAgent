@@ -278,7 +278,7 @@ public final class InitializationConfigService {
         return ResponseEntity.ok(java.util.Collections.singletonMap("message", "配置更新成功"));
     }
 
-    /** RFC-3339 纳秒精度 + 服务器本地时区（同 GoTimeSerializer 逻辑）。 */
+    /** RFC-3339 纳秒精度 + 服务器本地时区（同 ZeroTimeSerializer 逻辑）。 */
 
     static Map<String, String> toStringMap(JsonNode n) {
         if (n == null || !n.isObject()) {

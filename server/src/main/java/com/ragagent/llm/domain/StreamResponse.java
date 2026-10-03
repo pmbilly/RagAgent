@@ -6,7 +6,7 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.ragagent.common.web.GoMapSerializer;
+import com.ragagent.common.web.SortedMapSerializer;
 import com.ragagent.common.retrieval.SearchResult;
 import com.ragagent.common.llm.ResponseType;
 
@@ -54,7 +54,7 @@ public class StreamResponse {
     /**
      * 附加数据（map，为空时省略）。
      *
-     * <p>键序由 {@link GoMapSerializer} 递归按字母序归一——产出方（chat / agent 引擎）
+     * <p>键序由 {@link SortedMapSerializer} 递归按字母序归一——产出方（chat / agent 引擎）
      * 大多用 {@code LinkedHashMap} 按写入序；
      * 嵌套的 {@code arguments} 之类更是直接来自模型返回的 JSON，外层排不掉。</p>
      */

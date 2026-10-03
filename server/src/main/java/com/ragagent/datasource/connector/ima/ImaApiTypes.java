@@ -13,7 +13,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  * <h2>⚠️ 内部 API 形状，不是契约</h2>
  * <p>这些类型只用于**解码 IMA 的响应**与在连接器内部传递数据：它们既不作
  * HTTP 响应体、也不落 jsonb。所以这里<b>不挂</b>
- * {@code GoMapSerializer} / {@code GoDoubleSerializer}，也<b>不是</b>
+ * {@code SortedMapSerializer} / {@code GoDoubleSerializer}，也<b>不是</b>
  * 「键序即契约」的那一类。真正的契约类型是
  * {@link com.ragagent.datasource.domain.Resource} /
  * {@link com.ragagent.datasource.domain.FetchedItem} /

@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
  * <p>期望值常量由录制程序对历史线格式跑出真值后抄入。</p>
  *
  * <p><b>录制时用本机时区（CST +0800）而不是 UTC</b>——
- * Java 侧 {@code GoTimeSerializer} 把时间归一化到 JVM 默认时区，
+ * Java 侧 {@code ZeroTimeSerializer} 把时间归一化到 JVM 默认时区，
  * 用 UTC 录的话两边会差一个时区偏移，那是**录制方法**的问题不是实现的问题。</p>
  *
  * <p>这份语料同时钉住三件容易看走眼的事：</p>
@@ -225,8 +225,8 @@ class AgentStepsJsonTest {
                 + "\"timestamp\":\"0001-01-01T00:00:00Z\"}]";
         List<AgentStep> steps = MAPPER.readValue(raw,
                 new com.fasterxml.jackson.core.type.TypeReference<List<AgentStep>>() {});
-        assertThat(com.ragagent.common.web.GoTimeSerializer.isGoZero(steps.get(0).getTimestamp()))
-                .as("零值时间读回仍是零值（isGoZero 判定）")
+        assertThat(com.ragagent.common.web.ZeroTimeSerializer.isZeroValue(steps.get(0).getTimestamp()))
+                .as("零值时间读回仍是零值（isZeroValue 判定）")
                 .isTrue();
         assertThat(write(steps)).isEqualTo(raw);
     }

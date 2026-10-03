@@ -464,9 +464,9 @@ public class RssConnector implements Connector {
         // 三档回落：updatedParsed -> publishedParsed -> 当前 UTC 时间，
         // 每一档都要求"非 null 且非零值"。
         OffsetDateTime updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
-        if (!RssUtil.isGoZeroTime(item.updatedParsed())) {
+        if (!RssUtil.isZeroTime(item.updatedParsed())) {
             updatedAt = item.updatedParsed();
-        } else if (!RssUtil.isGoZeroTime(item.publishedParsed())) {
+        } else if (!RssUtil.isZeroTime(item.publishedParsed())) {
             updatedAt = item.publishedParsed();
         }
 

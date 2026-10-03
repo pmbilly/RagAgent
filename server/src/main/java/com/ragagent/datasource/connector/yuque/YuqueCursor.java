@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 语雀的增量同步状态。装进
@@ -31,7 +31,7 @@ public class YuqueCursor {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     @JsonProperty("last_sync_time")
-    private OffsetDateTime lastSyncTime = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime lastSyncTime = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     /** {@code { book_id: { doc_id: content_updated_at } }}；omitempty → 空时整键消失。 */
     @JsonProperty("book_doc_times")
@@ -43,7 +43,7 @@ public class YuqueCursor {
     }
 
     public void setLastSyncTime(OffsetDateTime v) {
-        lastSyncTime = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        lastSyncTime = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public Map<String, Map<String, String>> getBookDocTimes() {

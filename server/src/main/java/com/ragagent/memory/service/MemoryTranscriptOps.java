@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.ragagent.common.session.SessionMessagePort;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.memory.domain.MemoryExtractionSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,7 +61,7 @@ final class MemoryTranscriptOps {
             }
             String content = MemoryScopes.trimSpace(message.content());
             boolean isUser = "user".equals(message.role()) && !content.isEmpty();
-            if (isUser && lastAt[0] != null && !GoTimeSerializer.isGoZero(lastAt[0])
+            if (isUser && lastAt[0] != null && !ZeroTimeSerializer.isZeroValue(lastAt[0])
                     && message.createdAt() != null
                     && message.createdAt().isAfter(lastAt[0])
                     && Duration.between(lastAt[0], message.createdAt()).compareTo(MemoryExtractionService.EXTRACT_SEGMENT_GAP) > 0) {

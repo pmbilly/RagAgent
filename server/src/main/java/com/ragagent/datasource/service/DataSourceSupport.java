@@ -162,8 +162,8 @@ final class DataSourceSupport {
     }
 
     /** 零值时间判定（本模块只用来判"连接器有没有给时间"）。 */
-    static boolean isGoZeroTime(OffsetDateTime t) {
-        return t == null || com.ragagent.common.web.GoTimeSerializer.isGoZero(t);
+    static boolean isZeroTime(OffsetDateTime t) {
+        return t == null || com.ragagent.common.web.ZeroTimeSerializer.isZeroValue(t);
     }
 
     static String readMetadataValue(Knowledge k, String key) {

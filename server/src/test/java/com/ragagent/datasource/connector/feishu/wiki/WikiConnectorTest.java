@@ -465,7 +465,7 @@ class WikiConnectorTest {
             assertThat(result.items()).hasSize(2);
             assertThat(result.cursor()).isNotNull();
             assertThat(result.cursor().getLastSyncTime()).isNotEqualTo(
-                    com.ragagent.common.web.GoTimeSerializer.GO_ZERO_DATE_TIME);
+                    com.ragagent.common.web.ZeroTimeSerializer.ZERO_DATE_TIME);
         }
 
         @Test

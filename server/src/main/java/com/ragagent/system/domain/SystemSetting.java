@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
 
 /**
@@ -53,9 +53,9 @@ public class SystemSetting {
     private String lastModifiedBy;
 
     /** 虚拟行 = Go 零值时间；持久行 = DB 值 */
-    private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime createdAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
-    private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime updatedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     /** registry 元数据，落库前必须清空（未产出时显式 null） */
     @TableField(exist = false)

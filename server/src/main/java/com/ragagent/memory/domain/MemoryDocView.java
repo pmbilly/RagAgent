@@ -2,7 +2,7 @@ package com.ragagent.memory.domain;
 
 import java.time.OffsetDateTime;
 
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 这个人反复从中取材的文档。
@@ -21,7 +21,7 @@ public class MemoryDocView {
 
     private int hits;
 
-    private OffsetDateTime lastUsedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime lastUsedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     public String getId() { return id; }
     public void setId(String v) { id = v == null ? "" : v; }
@@ -40,7 +40,7 @@ public class MemoryDocView {
 
     public OffsetDateTime getLastUsedAt() { return lastUsedAt; }
     public void setLastUsedAt(OffsetDateTime v) {
-        lastUsedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        lastUsedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     /**

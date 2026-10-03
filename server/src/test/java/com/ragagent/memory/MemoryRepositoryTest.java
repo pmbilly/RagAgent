@@ -8,7 +8,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.ragagent.TestSchema;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.memory.domain.MemoryDocAffinity;
 import com.ragagent.memory.domain.MemoryItem;
 import com.ragagent.common.settings.MemoryKinds;
@@ -85,8 +85,8 @@ class MemoryRepositoryTest {
         assertThat(created.getSubjectId()).isEqualTo("web_user:u1");
         assertThat(created.isEnabled()).isTrue();
         // GORM 的自动时间戳：created_at 与 updated_at 都被显式写入
-        assertThat(created.getCreatedAt()).isNotEqualTo(GoTimeSerializer.GO_ZERO_DATE_TIME);
-        assertThat(created.getUpdatedAt()).isNotEqualTo(GoTimeSerializer.GO_ZERO_DATE_TIME);
+        assertThat(created.getCreatedAt()).isNotEqualTo(ZeroTimeSerializer.ZERO_DATE_TIME);
+        assertThat(created.getUpdatedAt()).isNotEqualTo(ZeroTimeSerializer.ZERO_DATE_TIME);
 
         MemorySubject again = repo.ensureSubject(scope);
         assertThat(again.getId()).as("第二次必须是同一行").isEqualTo(created.getId());
@@ -169,7 +169,7 @@ class MemoryRepositoryTest {
         repo.createItem(item);
 
         assertThat(item.getId()).hasSize(36);
-        assertThat(item.getValidFrom()).isNotEqualTo(GoTimeSerializer.GO_ZERO_DATE_TIME);
+        assertThat(item.getValidFrom()).isNotEqualTo(ZeroTimeSerializer.ZERO_DATE_TIME);
         assertThat(item.getStatus()).isEqualTo(MemoryKinds.STATUS_ACTIVE);
         assertThat(repo.getItem(scope, item.getId()).getContent()).isEqualTo("生产库是 PostgreSQL");
     }

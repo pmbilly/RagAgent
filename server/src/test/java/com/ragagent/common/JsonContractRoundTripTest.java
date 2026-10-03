@@ -522,7 +522,7 @@ class JsonContractRoundTripTest {
     @Test
     void streamResponseRoundTrips() {
         // SSE 事件体：id/response_type/content/done 恒输出，其余空值省略。
-        // data 的键序由 GoMapSerializer 递归确定——往返必须幂等。
+        // data 的键序由 SortedMapSerializer 递归确定——往返必须幂等。
         StreamResponse r = StreamResponse.of(ResponseType.REFERENCES, "", false);
         r.setId("req-1");
         r.setSessionId("sess-1");

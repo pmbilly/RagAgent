@@ -11,7 +11,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  *
  * <h2>这是内部 API 形状的 mapper，不是契约 mapper</h2>
  * <p>它只服务于"Notion API 的请求/响应"这一条链路——这些类型**从不**落 jsonb、
- * **从不**作 HTTP 响应体，所以它们不需要 {@code @JsonIgnore}/{@code GoMapSerializer}
+ * **从不**作 HTTP 响应体，所以它们不需要 {@code @JsonIgnore}/{@code SortedMapSerializer}
  * 那一套（那套约束的对象是"会落 jsonb 或作响应体的类型"）。
  * 类注释里写清这一点，是为了避免后来人把它们误当契约类型去加注解。</p>
  *

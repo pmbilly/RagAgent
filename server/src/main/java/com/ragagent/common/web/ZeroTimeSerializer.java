@@ -34,7 +34,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
  * {@code 0001-01-01T08:00:00+08:00}（<b>另一个</b>瞬时）仍按常规规则
  * 归一化到 JVM 默认时区，不会被当成零值。</p>
  */
-public class GoTimeSerializer extends JsonSerializer<OffsetDateTime> {
+public class ZeroTimeSerializer extends JsonSerializer<OffsetDateTime> {
 
     /** 零值时间的瞬时（year 1 元旦 UTC）。 */
     public static final Instant GO_ZERO_TIME = Instant.parse("0001-01-01T00:00:00Z");
@@ -50,18 +50,18 @@ public class GoTimeSerializer extends JsonSerializer<OffsetDateTime> {
      * 所以"字段为 null 时输出 year-1 字面量"这个想法是行不通的——
      * 必须让字段本身就持有零值时间（贴合"时间非空"的既定语义）。</p>
      */
-    public static final OffsetDateTime GO_ZERO_DATE_TIME =
+    public static final OffsetDateTime ZERO_DATE_TIME =
             OffsetDateTime.ofInstant(GO_ZERO_TIME, java.time.ZoneOffset.UTC);
 
     /** 该值是否就是零值时间。 */
-    public static boolean isGoZero(OffsetDateTime value) {
+    public static boolean isZeroValue(OffsetDateTime value) {
         return value == null || GO_ZERO_TIME.equals(value.toInstant());
     }
 
     @Override
     public void serialize(OffsetDateTime value, JsonGenerator gen, SerializerProvider serializers)
             throws IOException {
-        if (isGoZero(value)) {
+        if (isZeroValue(value)) {
             gen.writeString(GO_ZERO_TIME_LITERAL);
             return;
         }
@@ -78,7 +78,7 @@ public class GoTimeSerializer extends JsonSerializer<OffsetDateTime> {
      * UTC 变体：timestamptz 列扫描出的时间带 UTC offset，
      * storage-backends 等直接序列化整行数据的路径需要输出 {@code Z} 时用它。
      */
-    public static final class Utc extends GoTimeSerializer {
+    public static final class Utc extends ZeroTimeSerializer {
         @Override
         protected ZoneId targetZone() {
             return java.time.ZoneOffset.UTC;

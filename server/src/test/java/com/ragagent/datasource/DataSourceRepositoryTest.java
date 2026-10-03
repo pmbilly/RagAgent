@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.ragagent.TestSchema;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.datasource.domain.DataSource;
 import com.ragagent.datasource.domain.DataSourceConfig;
 import com.ragagent.datasource.domain.DataSourceConstants;
@@ -76,8 +76,8 @@ class DataSourceRepositoryTest {
         repo.create(ds);
 
         assertThat(ds.getId()).hasSize(36);
-        assertThat(ds.getCreatedAt()).isNotEqualTo(GoTimeSerializer.GO_ZERO_DATE_TIME);
-        assertThat(ds.getUpdatedAt()).isNotEqualTo(GoTimeSerializer.GO_ZERO_DATE_TIME);
+        assertThat(ds.getCreatedAt()).isNotEqualTo(ZeroTimeSerializer.ZERO_DATE_TIME);
+        assertThat(ds.getUpdatedAt()).isNotEqualTo(ZeroTimeSerializer.ZERO_DATE_TIME);
         assertThat(repo.findById(ds.getId()).getName()).isEqualTo("n");
     }
 

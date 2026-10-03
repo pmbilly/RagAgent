@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 语雀连接器的**纯函数**（文档 URL 拼接、内容更新时间解析、
@@ -43,18 +43,18 @@ public final class YuqueFormats {
      * <p>要求带偏移、接受可选小数秒、不接受"只有日期"；
      * 对非标准写法（如 {@code +0800} 缺冒号）也拒绝。</p>
      *
-     * <p>返回的瞬时保留串里带的偏移；写出去时 {@link GoTimeSerializer} 会按
+     * <p>返回的瞬时保留串里带的偏移；写出去时 {@link ZeroTimeSerializer} 会按
      * 既有规则归一化到 JVM 默认时区（dev 上就是 {@code +08:00}，
      * 与语雀返回的偏移一致）。</p>
      */
     public static OffsetDateTime parseContentUpdatedAt(String ts) {
         if (ts == null || ts.isEmpty()) {
-            return GoTimeSerializer.GO_ZERO_DATE_TIME;
+            return ZeroTimeSerializer.ZERO_DATE_TIME;
         }
         try {
             return OffsetDateTime.parse(ts);
         } catch (DateTimeParseException e) {
-            return GoTimeSerializer.GO_ZERO_DATE_TIME;
+            return ZeroTimeSerializer.ZERO_DATE_TIME;
         }
     }
 

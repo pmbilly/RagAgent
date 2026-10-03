@@ -61,7 +61,7 @@ public class TemporaryDocumentRepository {
                 .eq(TemporaryDocument::getId, documentId)
                 .set(TemporaryDocument::getStatus, TemporaryDocument.STATUS_PROCESSING)
                 .set(TemporaryDocument::getStartedAt, startedAt,
-                        "typeHandler=com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler")
+                        "typeHandler=com.ragagent.common.web.NaiveOffsetDateTimeTypeHandler")
                 .set(TemporaryDocument::getErrorMessage, ""));
     }
 
@@ -81,7 +81,7 @@ public class TemporaryDocumentRepository {
                 .set(TemporaryDocument::getMetadata, metadata, "typeHandler=com.ragagent.common.web.PgJsonTypeHandler")
                 .set(TemporaryDocument::getTokenCount, tokenCount)
                 .set(TemporaryDocument::getChunkCount, chunkCount)
-                .set(TemporaryDocument::getReadyAt, readyAt, "typeHandler=com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler")
+                .set(TemporaryDocument::getReadyAt, readyAt, "typeHandler=com.ragagent.common.web.NaiveOffsetDateTimeTypeHandler")
                 .set(TemporaryDocument::getErrorMessage, ""));
     }
 

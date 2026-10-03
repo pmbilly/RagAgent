@@ -42,7 +42,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
  *       键序约定（PG 的 jsonb 规范化序），<b>不要</b>套到这里来——那会打破既定的 golden 用例。</li>
  * </ul>
  */
-public class GoMapSerializer extends JsonSerializer<Map<String, Object>> {
+public class SortedMapSerializer extends JsonSerializer<Map<String, Object>> {
 
     /**
      * 字符串序：逐 UTF-8 字节比较，短者在前。

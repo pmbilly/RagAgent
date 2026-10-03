@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
 import com.ragagent.datasource.domain.DataSourceConstants;
 import com.ragagent.datasource.domain.DataSourceException;
@@ -60,14 +60,14 @@ public class SyncLogRepository {
         if (log.getId().isEmpty()) {
             log.setId(UUID.randomUUID().toString());
         }
-        if (GoTimeSerializer.isGoZero(log.getStartedAt())) {
+        if (ZeroTimeSerializer.isZeroValue(log.getStartedAt())) {
             log.setStartedAt(OffsetDateTime.now(ZoneOffset.UTC));
         }
         OffsetDateTime now = OffsetDateTime.now();
-        if (GoTimeSerializer.isGoZero(log.getCreatedAt())) {
+        if (ZeroTimeSerializer.isZeroValue(log.getCreatedAt())) {
             log.setCreatedAt(now);
         }
-        if (GoTimeSerializer.isGoZero(log.getUpdatedAt())) {
+        if (ZeroTimeSerializer.isZeroValue(log.getUpdatedAt())) {
             log.setUpdatedAt(now);
         }
         mapper.insert(log);
@@ -89,7 +89,7 @@ public class SyncLogRepository {
         // AutoUpdateTime：无条件覆盖
         w.set("updated_at", OffsetDateTime.now());
 
-        if (!GoTimeSerializer.isGoZero(log.getCreatedAt())) {
+        if (!ZeroTimeSerializer.isZeroValue(log.getCreatedAt())) {
             w.set("created_at", log.getCreatedAt());
         }
         if (nonEmpty(log.getDataSourceId())) {
@@ -101,7 +101,7 @@ public class SyncLogRepository {
         if (nonEmpty(log.getStatus())) {
             w.set("status", log.getStatus());
         }
-        if (!GoTimeSerializer.isGoZero(log.getStartedAt())) {
+        if (!ZeroTimeSerializer.isZeroValue(log.getStartedAt())) {
             w.set("started_at", log.getStartedAt());
         }
         if (log.getFinishedAt() != null) {

@@ -65,7 +65,7 @@ public class DataSourceConfig {
      * OAuth/API 凭据（按连接器不同）。落库前逐项 AES-256-GCM 加密
      * （见 {@link #toJSON()}）；API 响应里整张 map 被剥离。
      *
-     * <p>挂 {@link DataSourceMapSerializer} 而不是 {@code GoMapSerializer}：
+     * <p>挂 {@link DataSourceMapSerializer} 而不是 {@code SortedMapSerializer}：
      * 连接器会把数字塞进这张表，map 值的 {@code Double} 格式也要走同一套数字编码器。</p>
      */
     @JsonSerialize(using = DataSourceMapSerializer.class)

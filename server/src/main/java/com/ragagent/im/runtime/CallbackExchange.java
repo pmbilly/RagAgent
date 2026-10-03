@@ -121,7 +121,7 @@ public interface CallbackExchange {
         }
     }
 
-    /** 最小 JSON 编码（键序=插入序；复用全局 GoMapSerializer 语义面）。 */
+    /** 最小 JSON 编码（键序=插入序；复用全局 SortedMapSerializer 语义面）。 */
     final class ImJson {
         private ImJson() {
         }

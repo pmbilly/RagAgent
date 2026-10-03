@@ -5,7 +5,7 @@ import java.time.OffsetDateTime;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 一条被**刻意忘掉**的陈述的记录，免得后台蒸馏下次读到那条消息时又悄悄把它加回来。
@@ -58,7 +58,7 @@ public class MemoryTombstone {
      */
     private String sourceMessageId = "";
 
-    private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime createdAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     public String getId() { return id; }
     public void setId(String v) { id = v == null ? "" : v; }
@@ -80,6 +80,6 @@ public class MemoryTombstone {
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime v) {
-        createdAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        createdAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 }

@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
  *
  * <h2>⚠️ 已知差异：时间的时区写法</h2>
  * <p>Go 的 {@code LastSyncTime} 是 {@code time.Now().UTC()}，所以 JSON 里是
- * {@code "…Z"}；Java 的 {@code GoTimeSerializer} 按约定 §9 <b>统一归一化到 JVM 默认时区</b>，
+ * {@code "…Z"}；Java 的 {@code ZeroTimeSerializer} 按约定 §9 <b>统一归一化到 JVM 默认时区</b>，
  * 于是写成 {@code "+08:00"}。<b>瞬时相同、可互相解析</b>（Go 的
  * {@code json.Unmarshal} 进 {@code time.Time} 完全接受带偏移的串），
  * 但字节不同。下面 {@link #lastSyncTimeIsSameInstantButJvmZoneRepresentation()}

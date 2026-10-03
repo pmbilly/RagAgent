@@ -4,7 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 认领待蒸馏会话的返回值：一批会话进度。
@@ -17,13 +17,13 @@ import com.ragagent.common.web.GoTimeSerializer;
  *   <li>{@code retryAt} 为零 + {@code sessions} 为空 → 没有待办；</li>
  *   <li>{@code sessions} 非空 → 这批已被本 worker 租下。</li>
  * </ul>
- * <p>零值判定用 {@link GoTimeSerializer#isGoZero}，
+ * <p>零值判定用 {@link ZeroTimeSerializer#isZeroValue}，
  * 不是 {@code != null}——字段是值语义的时间戳，恒非 null。</p>
  */
 public class MemoryExtractionBatch {
 
     /** 保持重投的任务活着，直到崩溃 worker 的租约过期。 */
-    private OffsetDateTime retryAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime retryAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     private List<MemoryExtractionSession> sessions = new ArrayList<>();
 
@@ -45,7 +45,7 @@ public class MemoryExtractionBatch {
 
     public OffsetDateTime getRetryAt() { return retryAt; }
     public void setRetryAt(OffsetDateTime v) {
-        retryAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        retryAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public List<MemoryExtractionSession> getSessions() { return sessions; }

@@ -13,7 +13,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.datasource.Connector;
 import com.ragagent.datasource.ConnectorException;
 import com.ragagent.datasource.domain.DataSourceConfig;
@@ -107,7 +107,7 @@ class YuqueConnectorTest {
             assertThat(ab.getMetadata()).containsEntry("book_type", "Book")
                     .containsEntry("public", 1);
             // 未提供 updated_at 的仓库 → Go 零值时间
-            assertThat(GoTimeSerializer.isGoZero(ab.getModifiedAt())).isTrue();
+            assertThat(ZeroTimeSerializer.isZeroValue(ab.getModifiedAt())).isTrue();
         }
     }
 

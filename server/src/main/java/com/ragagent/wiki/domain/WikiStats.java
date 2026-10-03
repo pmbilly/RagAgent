@@ -17,7 +17,7 @@ public class WikiStats {
     private long totalPages;
 
     /** 键为 page_type，值为计数；用 LinkedHashMap 保持键序稳定 */
-    // 出口契约要求 map 键按字节序稳定输出；Jackson 默认不排——不挂 GoMapSerializer，
+    // 出口契约要求 map 键按字节序稳定输出；Jackson 默认不排——不挂 SortedMapSerializer，
     // 多键 map 的键序会随构造顺序漂移
 
     private Map<String, Long> pagesByType = new LinkedHashMap<>();

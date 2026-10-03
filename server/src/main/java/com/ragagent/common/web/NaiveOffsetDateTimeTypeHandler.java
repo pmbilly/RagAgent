@@ -21,7 +21,7 @@ import org.apache.ibatis.type.MappedTypes;
  * 应用侧本地墙钟写入的值因此分别呈现 11:50Z / 19:50Z——golden 用例钉住的形态。</p>
  */
 @MappedTypes(OffsetDateTime.class)
-public class GoNaiveOffsetDateTimeTypeHandler extends BaseTypeHandler<OffsetDateTime> {
+public class NaiveOffsetDateTimeTypeHandler extends BaseTypeHandler<OffsetDateTime> {
 
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, OffsetDateTime value,

@@ -15,7 +15,7 @@ import java.util.UUID;
 import com.ragagent.common.settings.MemoryConfig;
 import com.ragagent.common.settings.MemoryKeys;
 import com.ragagent.common.settings.MemoryKinds;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.memory.domain.MemoryDocAffinity;
 import com.ragagent.memory.domain.MemoryExtractionBatch;
 import com.ragagent.memory.domain.MemoryExtractionFailure;
@@ -328,7 +328,7 @@ final class MemoryIndexStore {
         embedding.setSubjectId(scope.subjectId());
         OffsetDateTime now = OffsetDateTime.now();
         embedding.setUpdatedAt(now);
-        if (GoTimeSerializer.isGoZero(embedding.getCreatedAt())) {
+        if (ZeroTimeSerializer.isZeroValue(embedding.getCreatedAt())) {
             embedding.setCreatedAt(now);
         }
 
@@ -628,7 +628,7 @@ final class MemoryIndexStore {
                 throw new MemoryExtractionLeaseLostException();
             }
             subject.getExtractionState().setLeaseId("");
-            subject.getExtractionState().setLeaseUntil(GoTimeSerializer.GO_ZERO_DATE_TIME);
+            subject.getExtractionState().setLeaseUntil(ZeroTimeSerializer.ZERO_DATE_TIME);
             subject.setExtractScheduledAt(null);
             OffsetDateTime now = OffsetDateTime.now();
             saveExtractionState(scope, subject, now);
@@ -648,7 +648,7 @@ final class MemoryIndexStore {
                 return null;
             }
             subject.getExtractionState().setLeaseId("");
-            subject.getExtractionState().setLeaseUntil(GoTimeSerializer.GO_ZERO_DATE_TIME);
+            subject.getExtractionState().setLeaseUntil(ZeroTimeSerializer.ZERO_DATE_TIME);
             subject.setExtractScheduledAt(null);
             saveExtractionState(scope, subject, OffsetDateTime.now());
             return null;
@@ -763,7 +763,7 @@ final class MemoryIndexStore {
      */
     static void stampForCreate(MemorySubject subject) {
         OffsetDateTime now = OffsetDateTime.now();
-        if (GoTimeSerializer.isGoZero(subject.getCreatedAt())) {
+        if (ZeroTimeSerializer.isZeroValue(subject.getCreatedAt())) {
             subject.setCreatedAt(now);
         }
         subject.setUpdatedAt(now);
@@ -772,7 +772,7 @@ final class MemoryIndexStore {
     /** 同 {@link #MemoryRepository.stampForCreate(MemorySubject)}，条目版。 */
     static void stampForCreate(MemoryItem item) {
         OffsetDateTime now = OffsetDateTime.now();
-        if (GoTimeSerializer.isGoZero(item.getCreatedAt())) {
+        if (ZeroTimeSerializer.isZeroValue(item.getCreatedAt())) {
             item.setCreatedAt(now);
         }
         item.setUpdatedAt(now);

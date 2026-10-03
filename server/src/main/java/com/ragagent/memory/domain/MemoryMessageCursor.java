@@ -3,7 +3,7 @@ package com.ragagent.memory.domain;
 import java.time.OffsetDateTime;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 抽取游标：用消息主键**打破时间戳平局**。
@@ -16,7 +16,7 @@ import com.ragagent.common.web.GoTimeSerializer;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MemoryMessageCursor {
 
-    private OffsetDateTime at = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime at = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     private String id = "";
 
@@ -53,7 +53,7 @@ public class MemoryMessageCursor {
 
     public OffsetDateTime getAt() { return at; }
     public void setAt(OffsetDateTime v) {
-        at = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        at = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public String getId() { return id; }

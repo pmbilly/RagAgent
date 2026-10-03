@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * IMA 连接器的游标载荷。它装进
@@ -49,7 +49,7 @@ public class ImaCursor {
 
     /** 上次同步时间（零值也输出字面量）。 */
     @JsonProperty("last_sync_time")
-    private OffsetDateTime lastSyncTime = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime lastSyncTime = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     /** {@code { kb_id: { logical_key: media_id } }}；omitempty → 空时整个键消失。 */
     @JsonProperty("kb_logical")
@@ -66,7 +66,7 @@ public class ImaCursor {
     }
 
     public void setLastSyncTime(OffsetDateTime v) {
-        lastSyncTime = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        lastSyncTime = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public Map<String, Map<String, String>> getKbLogical() {

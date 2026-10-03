@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.common.web.GoDoubleSerializer;
-import com.ragagent.common.web.GoMapSerializer;
+import com.ragagent.common.web.SortedMapSerializer;
 
 /**
  * 检索结果条目。
@@ -167,7 +167,7 @@ public class SearchResult {
             metadata = null;
             return;
         }
-        TreeMap<String, String> sorted = new TreeMap<>(GoMapSerializer.GO_KEY_ORDER);
+        TreeMap<String, String> sorted = new TreeMap<>(SortedMapSerializer.GO_KEY_ORDER);
         sorted.putAll(v);
         metadata = sorted;
     }

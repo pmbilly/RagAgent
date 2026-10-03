@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Test;
  * <p>期望 JSON 全部<b>逐字节钉死</b>：类型定义、序列化配置与下面断言里的
  * 字面量一一对应，改任何一侧都会被对侧抓住。</p>
  * <p>时间用的是 JVM 默认时区（{@code Asia/Shanghai}）的墙钟，
- * 因为 {@code GoTimeSerializer} 会把时间归一化到那里再输出——
+ * 因为 {@code ZeroTimeSerializer} 会把时间归一化到那里再输出——
  * 用 UTC 写期望值会差一个偏移、断言无意义（沿用 memory 模块的做法）。</p>
  *
  * <h2>这份语料刻意盯住的六个坑</h2>

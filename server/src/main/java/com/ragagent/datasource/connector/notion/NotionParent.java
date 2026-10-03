@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * 页面/数据库的父关系。
  *
  * <p><b>内部 API 形状，不是契约</b>：只进出于 Notion API 的 JSON，从不落 jsonb、
- * 从不作 HTTP 响应体，所以不需要 {@code @JsonIgnore}/{@code GoMapSerializer}
+ * 从不作 HTTP 响应体，所以不需要 {@code @JsonIgnore}/{@code SortedMapSerializer}
  * 那一套。字段用 public（Jackson 直接绑定），取值一律靠 {@link #parentId()} 归一化。</p>
  *
  * <p>本类型从不写出，只在解析时用。</p>

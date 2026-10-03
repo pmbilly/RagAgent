@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.ragagent.common.settings.MemoryKinds;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.memory.domain.MemoryConflictException;
 import com.ragagent.memory.domain.MemoryItem;
 import com.ragagent.memory.domain.MemoryPage;
@@ -43,7 +43,7 @@ final class MemoryItemStore {
         if (item.getId().isEmpty()) {
             item.setId(UUID.randomUUID().toString());
         }
-        if (GoTimeSerializer.isGoZero(item.getValidFrom())) {
+        if (ZeroTimeSerializer.isZeroValue(item.getValidFrom())) {
             item.setValidFrom(OffsetDateTime.now());
         }
         if (item.getStatus().isEmpty()) {

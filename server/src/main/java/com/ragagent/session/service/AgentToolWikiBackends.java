@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ragagent.agent.tools.wiki.IndexEntryView;
 import com.ragagent.agent.tools.wiki.IndexGroupView;
 import com.ragagent.agent.tools.wiki.RepairResult;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.wiki.domain.WikiIndexEntry;
 import com.ragagent.wiki.domain.WikiPageNotFoundException;
 import com.ragagent.agent.tools.wiki.IndexOverviewView;
@@ -254,8 +254,8 @@ final class AgentToolWikiBackends {
      * {@code 0001-01-01T00:00:00Z}。
      */
     static String goTimeText(java.time.OffsetDateTime value) {
-        if (GoTimeSerializer.isGoZero(value)) {
-            return GoTimeSerializer.GO_ZERO_TIME_LITERAL;
+        if (ZeroTimeSerializer.isZeroValue(value)) {
+            return ZeroTimeSerializer.GO_ZERO_TIME_LITERAL;
         }
         String s = value.atZoneSameInstant(java.time.ZoneOffset.UTC).toOffsetDateTime()
                 .format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME);

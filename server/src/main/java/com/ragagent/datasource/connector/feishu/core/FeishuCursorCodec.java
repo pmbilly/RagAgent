@@ -6,7 +6,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.datasource.domain.SyncCursor;
 
 /**
@@ -32,9 +32,9 @@ import com.ragagent.datasource.domain.SyncCursor;
  * 一张 {@code Map<String,Object>}，所以直接构造这张 map，省掉一次无谓的序列化往返。</p>
  *
  * <h2>时间格式为什么在这里重写了一遍</h2>
- * <p>格式化逻辑与 {@link GoTimeSerializer} 完全一致，但它是 {@code JsonSerializer}
+ * <p>格式化逻辑与 {@link ZeroTimeSerializer} 完全一致，但它是 {@code JsonSerializer}
  * 而不是工具类，且在 {@code com.ragagent.common.web} 下（不在本模块可改范围）。
- * 改动 {@code GoTimeSerializer} 时必须同步改这里。</p>
+ * 改动 {@code ZeroTimeSerializer} 时必须同步改这里。</p>
  */
 public final class FeishuCursorCodec {
 
@@ -126,12 +126,12 @@ public final class FeishuCursorCodec {
      * 游标时间戳的 JSON 编码格式（RFC3339Nano、服务器本地时区偏移、
      * 纳秒尾部零裁剪）。
      *
-     * <p>与 {@link GoTimeSerializer#serialize} 的两行完全一致——见类注释里那条
+     * <p>与 {@link ZeroTimeSerializer#serialize} 的两行完全一致——见类注释里那条
      * "改动必须同步"的提醒。</p>
      */
     static String formatGoTime(OffsetDateTime value) {
-        if (GoTimeSerializer.isGoZero(value)) {
-            return GoTimeSerializer.GO_ZERO_TIME_LITERAL;
+        if (ZeroTimeSerializer.isZeroValue(value)) {
+            return ZeroTimeSerializer.GO_ZERO_TIME_LITERAL;
         }
         OffsetDateTime local = value.atZoneSameInstant(ZoneId.systemDefault()).toOffsetDateTime();
         return local.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);

@@ -542,7 +542,7 @@ class ImaConnectorTest {
             assertThat(resources.get(0).getUrl()).isEqualTo(f.baseUrl());
             // 零值时间 → 恒输出的 year-1 字面量（见 Resource 的类注释）
             assertThat(resources.get(0).getModifiedAt())
-                    .isEqualTo(com.ragagent.common.web.GoTimeSerializer.GO_ZERO_DATE_TIME);
+                    .isEqualTo(com.ragagent.common.web.ZeroTimeSerializer.ZERO_DATE_TIME);
         }
     }
 

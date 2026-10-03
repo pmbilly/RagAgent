@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -73,7 +73,7 @@ public class SyncLog {
 
     /** 同步开始时间。创建钩子在零值时补 {@code now(UTC)}。 */
     @TableField("started_at")
-    private OffsetDateTime startedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime startedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     /** 同步完成时间。指针 → nil 输出 {@code null}。 */
     @TableField("finished_at")
@@ -106,10 +106,10 @@ public class SyncLog {
     private JsonNode result;
 
     @TableField("created_at")
-    private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime createdAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     @TableField("updated_at")
-    private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime updatedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     public String getId() { return id; }
     public void setId(String v) { id = v == null ? "" : v; }
@@ -125,7 +125,7 @@ public class SyncLog {
 
     public OffsetDateTime getStartedAt() { return startedAt; }
     public void setStartedAt(OffsetDateTime v) {
-        startedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        startedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getFinishedAt() { return finishedAt; }
@@ -157,12 +157,12 @@ public class SyncLog {
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime v) {
-        createdAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        createdAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime v) {
-        updatedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        updatedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     /**

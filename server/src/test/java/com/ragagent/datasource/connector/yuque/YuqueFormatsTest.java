@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -74,11 +74,11 @@ class YuqueFormatsTest {
     /** 对照 Go 实录：解析失败/空一律回**零值时间**（不是 null、不抛错）。 */
     @Test
     void parseContentUpdatedAtMatchesGo() {
-        assertThat(GoTimeSerializer.isGoZero(YuqueFormats.parseContentUpdatedAt(""))).isTrue();
-        assertThat(GoTimeSerializer.isGoZero(YuqueFormats.parseContentUpdatedAt(null))).isTrue();
-        assertThat(GoTimeSerializer.isGoZero(YuqueFormats.parseContentUpdatedAt("not-a-time"))).isTrue();
+        assertThat(ZeroTimeSerializer.isZeroValue(YuqueFormats.parseContentUpdatedAt(""))).isTrue();
+        assertThat(ZeroTimeSerializer.isZeroValue(YuqueFormats.parseContentUpdatedAt(null))).isTrue();
+        assertThat(ZeroTimeSerializer.isZeroValue(YuqueFormats.parseContentUpdatedAt("not-a-time"))).isTrue();
         // Go 的 RFC3339 不接受"只有日期"
-        assertThat(GoTimeSerializer.isGoZero(YuqueFormats.parseContentUpdatedAt("2026-04-20"))).isTrue();
+        assertThat(ZeroTimeSerializer.isZeroValue(YuqueFormats.parseContentUpdatedAt("2026-04-20"))).isTrue();
 
         assertThat(YuqueFormats.parseContentUpdatedAt("2026-04-20T10:00:00Z").toInstant())
                 .isEqualTo(Instant.parse("2026-04-20T10:00:00Z"));

@@ -254,7 +254,7 @@ final class RssUtil {
      * "没有时间"判定：{@code null} 或零值时间
      * （{@code feedSignalFingerprint} 就是这么判的）。
      */
-    static boolean isGoZeroTime(OffsetDateTime t) {
+    static boolean isZeroTime(OffsetDateTime t) {
         return t == null || GO_ZERO_INSTANT.equals(t.toInstant());
     }
 
@@ -263,7 +263,7 @@ final class RssUtil {
             java.time.Instant.parse("0001-01-01T00:00:00Z");
 
     static String formatRfc3339OrEmpty(OffsetDateTime t) {
-        if (isGoZeroTime(t)) {
+        if (isZeroTime(t)) {
             return "";
         }
         return RFC3339_UTC.format(t);

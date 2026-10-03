@@ -10,7 +10,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * RSS 连接器的增量同步状态。
@@ -48,7 +48,7 @@ public class RssCursor {
 
     /** 本次同步的时间（UTC）。无 omitempty → 恒输出。 */
     @JsonProperty("last_sync_time")
-    private OffsetDateTime lastSyncTime = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime lastSyncTime = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     /**
      * {@code feedURL → itemID → 内容指纹}（{@code "h:<sha256 前 16 位十六进制>"}）。
@@ -72,7 +72,7 @@ public class RssCursor {
     }
 
     public void setLastSyncTime(OffsetDateTime v) {
-        lastSyncTime = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        lastSyncTime = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public Map<String, Map<String, String>> getFeedItems() {

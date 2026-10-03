@@ -10,14 +10,14 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializable;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.ragagent.common.web.GoDoubleSerializer;
-import com.ragagent.common.web.GoMapSerializer;
+import com.ragagent.common.web.SortedMapSerializer;
 
 /**
- * {@link GoMapSerializer} 的 datasource 版本：在"按键排序且递归"之上，**再把嵌套的
+ * {@link SortedMapSerializer} 的 datasource 版本：在"按键排序且递归"之上，**再把嵌套的
  * {@code Double} 按统一浮点格式（{@link GoDoubleSerializer}）输出**。
  *
- * <h2>为什么不能直接用 {@code GoMapSerializer}</h2>
- * <p>{@code GoMapSerializer} 只重排键序，值<b>原样</b>交给 Jackson。而本模块的 map 字段
+ * <h2>为什么不能直接用 {@code SortedMapSerializer}</h2>
+ * <p>{@code SortedMapSerializer} 只重排键序，值<b>原样</b>交给 Jackson。而本模块的 map 字段
  * （{@code DataSourceConfig.settings} / {@code Resource.metadata} /
  * {@code SyncCursor.connector_cursor}）装的是**外部系统给的任意 JSON**，里面必然有数字：
  * 分页偏移、条目上限、文档大小。两边的表示不同：</p>
@@ -30,7 +30,7 @@ import com.ragagent.common.web.GoMapSerializer;
  * <p>{@code Resource.metadata} 是<b>响应体</b>、{@code connector_cursor} 会经
  * {@code last_sync_result} 原样透给前端——分叉看得见。</p>
  *
- * <h2>为什么不改 {@code GoMapSerializer} 本身</h2>
+ * <h2>为什么不改 {@code SortedMapSerializer} 本身</h2>
  * <p>它是被 MCP / Wiki / stream / llm 共同依赖的<b>共享</b>基础设施，
  * 不宜为单个模块改动。故在此处收口：本类继承它、复用它的键序比较器
  * 与 {@code sortDeep}，只补一层"值归一"。</p>
@@ -43,7 +43,7 @@ import com.ragagent.common.web.GoMapSerializer;
  * {@code writeNumber} 是因为 {@code 1e+21} 这类输出不是合法的 Java 数字字面量写法，
  * 只能原样写出。</p>
  */
-public class DataSourceMapSerializer extends GoMapSerializer {
+public class DataSourceMapSerializer extends SortedMapSerializer {
 
     @Override
     public void serialize(Map<String, Object> value, JsonGenerator gen, SerializerProvider serializers)

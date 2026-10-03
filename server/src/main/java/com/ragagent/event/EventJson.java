@@ -14,7 +14,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.ragagent.common.web.GoDoubleSerializer;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 事件 payload 进出 JSON 的唯一 ObjectMapper，集中定义三条序列化行为
@@ -30,7 +30,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  *       只注册在<b>本 mapper</b>，不碰全局 HTTP mapper，避免污染。</li>
  *   <li><b>时间 RFC3339Nano</b>：OffsetDateTime 转 JVM 默认时区后 ISO 输出（与
  *       {@code config.JacksonConfig} 一致）；零值时间输出
- *       {@code "0001-01-01T00:00:00Z"}（{@link GoTimeSerializer}，如 CommandOutputData
+ *       {@code "0001-01-01T00:00:00Z"}（{@link ZeroTimeSerializer}，如 CommandOutputData
  *       的零值 {@code started_at}）。</li>
  * </ol>
  *
@@ -54,11 +54,11 @@ public final class EventJson {
         });
 
         SimpleModule goTime = new SimpleModule();
-        goTime.addSerializer(OffsetDateTime.class, new GoTimeSerializer());
+        goTime.addSerializer(OffsetDateTime.class, new ZeroTimeSerializer());
 
         ObjectMapper mapper = JsonMapper.builder()
                 .addModule(new JavaTimeModule())
-                // GoTimeSerializer：常规时间转 JVM 默认时区 + RFC3339Nano，零值输出 year-1 字面量。
+                // ZeroTimeSerializer：常规时间转 JVM 默认时区 + RFC3339Nano，零值输出 year-1 字面量。
                 // 只此一份——若再叠一个普通 OffsetDateTime 序列化器会后注册者胜、丢掉零值分支。
                 .addModule(goTime)
                 .addModule(goNumbers)

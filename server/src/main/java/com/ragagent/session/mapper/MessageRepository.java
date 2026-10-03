@@ -11,7 +11,7 @@ import java.util.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.memory.domain.MemoryMessageCursor;
 import com.ragagent.session.domain.Message;
 import com.ragagent.session.domain.MessageImage;
@@ -330,7 +330,7 @@ public class MessageRepository implements SessionMessagePort {
                 .eq(Message::getSessionId, sessionId)
                 .isNull(Message::getDeletedAt);
         boolean hasCursor = cursor != null
-                && (!GoTimeSerializer.isGoZero(cursor.getAt()) || !cursor.getId().isEmpty());
+                && (!ZeroTimeSerializer.isZeroValue(cursor.getAt()) || !cursor.getId().isEmpty());
         if (hasCursor) {
             OffsetDateTime at = cursor.getAt();
             String id = cursor.getId();

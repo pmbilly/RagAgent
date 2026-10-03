@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 /**
  * memory 实体 / jsonb 值的**逐字节 JSON 契约**测试。
  *
- * <p>时间字面量按 JVM 默认时区写：{@code GoTimeSerializer} 会把时间归一化到那里
+ * <p>时间字面量按 JVM 默认时区写：{@code ZeroTimeSerializer} 会把时间归一化到那里
  * （本机为 {@code Asia/Shanghai}）再输出——用 UTC 写期望值会差一个偏移、断言无意义。</p>
  *
  * <h2>这份语料刻意盯住的五个坑</h2>
@@ -293,7 +293,7 @@ class MemoryEntityJsonTest {
         MemoryExtractionState back = JSONB.readValue("{}", MemoryExtractionState.class);
         assertThat(back.getLeaseId()).isEmpty();
         assertThat(back.getLeaseUntil().toInstant())
-                .isEqualTo(com.ragagent.common.web.GoTimeSerializer.GO_ZERO_TIME);
+                .isEqualTo(com.ragagent.common.web.ZeroTimeSerializer.GO_ZERO_TIME);
     }
 
     // ── 键序 + 键数（§9：带 is 前缀字段/派生访问器的响应体必须额外钉一条） ──

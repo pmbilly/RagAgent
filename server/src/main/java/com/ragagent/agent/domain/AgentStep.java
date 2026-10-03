@@ -6,7 +6,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * ReAct 循环的一轮。
@@ -21,7 +21,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  *       空时省略；</li>
  *   <li>{@code tool_calls} <b>恒输出</b>：null 输出 {@code "tool_calls":null}；</li>
  *   <li>{@code timestamp} 零值输出 {@code "0001-01-01T00:00:00Z"}
- *       （不是 {@code null}），由 {@link GoTimeSerializer} 序列化。</li>
+ *       （不是 {@code null}），由 {@link ZeroTimeSerializer} 序列化。</li>
  * </ul>
  *
  * <p>实测的完整形状（零值时）：</p>
@@ -70,7 +70,7 @@ public class AgentStep {
      */
 
 
-    private OffsetDateTime timestamp = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime timestamp = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     public int getIteration() { return iteration; }
     public void setIteration(int v) { iteration = v; }
@@ -95,13 +95,13 @@ public class AgentStep {
     /**
      * ⚠️ 返回的是**值类型语义**：未设置时给的是零值时间（{@code 0001-01-01T00:00:00Z}），
      * <b>不是 {@code null}</b>。判"有没有时间"要用
-     * {@link GoTimeSerializer#isGoZero(OffsetDateTime)}。
+     * {@link ZeroTimeSerializer#isZeroValue(OffsetDateTime)}。
      */
     public OffsetDateTime getTimestamp() { return timestamp; }
 
     /** 传入 {@code null} 等价于置回零值时间（不是"清除"）。 */
     public void setTimestamp(OffsetDateTime v) {
-        timestamp = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        timestamp = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     /**

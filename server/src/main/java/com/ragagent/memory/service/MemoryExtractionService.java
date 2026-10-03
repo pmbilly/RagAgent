@@ -12,7 +12,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.common.settings.MemoryConfig;
 import com.ragagent.memory.domain.MemoryExtractionBatch;
 import com.ragagent.memory.domain.MemoryExtractionFailure;
@@ -194,7 +194,7 @@ public class MemoryExtractionService {
         // 最小间隔只是**推迟**：如果上一次运行很近，任务会被排得更远，而不是丢掉这一轮。
         MemorySubject previous = enqueued.subject();
         if (previous != null && previous.getLastExtractedAt() != null
-                && !GoTimeSerializer.isGoZero(previous.getLastExtractedAt())) {
+                && !ZeroTimeSerializer.isZeroValue(previous.getLastExtractedAt())) {
             Duration remaining = cfg.extractMinInterval()
                     .minus(Duration.between(previous.getLastExtractedAt(), OffsetDateTime.now()));
             if (remaining.compareTo(delay) > 0) {
@@ -292,7 +292,7 @@ public class MemoryExtractionService {
         if (batch == null) {
             return;
         }
-        if (!GoTimeSerializer.isGoZero(batch.getRetryAt())) {
+        if (!ZeroTimeSerializer.isZeroValue(batch.getRetryAt())) {
             // 一次重投可能在一个死掉 worker 的租约过期之前到达。在这里直接确认它，
             // 会让持久队列永远搁浅。
             if (queueProvider.getIfAvailable() == null) {

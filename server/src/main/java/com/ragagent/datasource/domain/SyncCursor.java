@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 增量同步的位置/状态。
@@ -41,7 +41,7 @@ public class SyncCursor {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** 上次同步的时间（值类型零值也输出字面量）。 */
-    private OffsetDateTime lastSyncTime = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime lastSyncTime = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     /** 连接器私有游标（分页 token、偏移量 …）。{@code null} 时输出 {@code null}。 */
     @JsonSerialize(using = DataSourceMapSerializer.class)
@@ -52,7 +52,7 @@ public class SyncCursor {
 
     public OffsetDateTime getLastSyncTime() { return lastSyncTime; }
     public void setLastSyncTime(OffsetDateTime v) {
-        lastSyncTime = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        lastSyncTime = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public Map<String, Object> getConnectorCursor() { return connectorCursor; }

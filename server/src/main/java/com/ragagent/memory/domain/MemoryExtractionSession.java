@@ -4,7 +4,7 @@ import java.time.OffsetDateTime;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 每个会话的蒸馏进度——一行**有索引的小记录**，而不是塞进主体上那个不断长大的 JSON 文档。
@@ -70,7 +70,7 @@ public class MemoryExtractionSession {
 
     /** {@code cursor_at} + {@code cursor_id} 两列，JSON 里是嵌套对象（见类注释）。 */
     @JsonIgnore
-    private OffsetDateTime cursorAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime cursorAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     @JsonIgnore
     private String cursorId = "";
@@ -86,13 +86,13 @@ public class MemoryExtractionSession {
     private String failureCode = "";
 
     @JsonIgnore
-    private OffsetDateTime failedFromAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime failedFromAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     @JsonIgnore
     private String failedFromId = "";
 
     @JsonIgnore
-    private OffsetDateTime failedToAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime failedToAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     @JsonIgnore
     private String failedToId = "";
@@ -101,7 +101,7 @@ public class MemoryExtractionSession {
     private OffsetDateTime failedAt;
 
     @JsonIgnore
-    private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime updatedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     // ── 嵌套游标（JSON 键 cursor / failed_from / failed_to） ────────────────
 
@@ -117,7 +117,7 @@ public class MemoryExtractionSession {
     }
 
     public void setCursor(MemoryMessageCursor cursor) {
-        this.cursorAt = cursor == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : cursor.getAt();
+        this.cursorAt = cursor == null ? ZeroTimeSerializer.ZERO_DATE_TIME : cursor.getAt();
         this.cursorId = cursor == null ? "" : cursor.getId();
     }
 
@@ -137,7 +137,7 @@ public class MemoryExtractionSession {
 
     public OffsetDateTime getCursorAt() { return cursorAt; }
     public void setCursorAt(OffsetDateTime v) {
-        cursorAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        cursorAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public String getCursorId() { return cursorId; }
@@ -154,7 +154,7 @@ public class MemoryExtractionSession {
 
     public OffsetDateTime getFailedFromAt() { return failedFromAt; }
     public void setFailedFromAt(OffsetDateTime v) {
-        failedFromAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        failedFromAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public String getFailedFromId() { return failedFromId; }
@@ -162,7 +162,7 @@ public class MemoryExtractionSession {
 
     public OffsetDateTime getFailedToAt() { return failedToAt; }
     public void setFailedToAt(OffsetDateTime v) {
-        failedToAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        failedToAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public String getFailedToId() { return failedToId; }
@@ -173,7 +173,7 @@ public class MemoryExtractionSession {
 
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime v) {
-        updatedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        updatedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     /**

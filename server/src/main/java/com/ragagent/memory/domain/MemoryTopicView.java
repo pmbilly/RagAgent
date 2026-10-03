@@ -4,7 +4,7 @@ import com.ragagent.common.settings.MemoryConfig;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 记忆管理器里展示的"话题计数"形状。
@@ -30,7 +30,7 @@ public class MemoryTopicView {
     /** 当前生效的兴趣阈值（来自 {@link MemoryConfig}，不是行上的字段）。 */
     private int threshold;
 
-    private OffsetDateTime lastSeenAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime lastSeenAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     public String getId() { return id; }
     public void setId(String v) { id = v == null ? "" : v; }
@@ -49,7 +49,7 @@ public class MemoryTopicView {
 
     public OffsetDateTime getLastSeenAt() { return lastSeenAt; }
     public void setLastSeenAt(OffsetDateTime v) {
-        lastSeenAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        lastSeenAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     /**

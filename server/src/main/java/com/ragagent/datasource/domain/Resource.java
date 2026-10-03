@@ -4,7 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 外部系统里一个可同步的资源（文档 / 文件夹 / 空间）。
@@ -27,7 +27,7 @@ import com.ragagent.common.web.GoTimeSerializer;
  * <p>要点：{@code modified_at} 恒输出，零值输出
  * {@code "0001-01-01T00:00:00Z"} 而不是 {@code null}（Jackson 对 null 值
  * 根本不调自定义序列化器）。所以 Java 字段默认值必须是
- * {@link GoTimeSerializer#GO_ZERO_DATE_TIME}。</p>
+ * {@link ZeroTimeSerializer#ZERO_DATE_TIME}。</p>
  *
  * <h2>持久化语义</h2>
  * <ol>
@@ -54,7 +54,7 @@ public class Resource {
     private String url = "";
 
     /** 在外部系统里的最后修改时间。零值也输出字面量。 */
-    private OffsetDateTime modifiedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime modifiedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     /** 层级资源才有。空串照输出。 */
     private String parentId = "";
@@ -83,7 +83,7 @@ public class Resource {
 
     public OffsetDateTime getModifiedAt() { return modifiedAt; }
     public void setModifiedAt(OffsetDateTime v) {
-        modifiedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        modifiedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public String getParentId() { return parentId; }

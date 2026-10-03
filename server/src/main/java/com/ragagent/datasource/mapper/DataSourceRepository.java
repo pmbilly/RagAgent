@@ -7,7 +7,7 @@ import java.util.UUID;
 
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.common.web.PgJsonTypeHandler;
 import com.ragagent.datasource.domain.DataSource;
 import com.ragagent.datasource.domain.DataSourceConstants;
@@ -119,7 +119,7 @@ public class DataSourceRepository {
 
             // created_at 走普通的零值规则：非零才进 SET。
             // 加载出来的 ds 一定带着原值，所以线上会多写一次同值列。
-            if (!GoTimeSerializer.isGoZero(ds.getCreatedAt())) {
+            if (!ZeroTimeSerializer.isZeroValue(ds.getCreatedAt())) {
                 w.set("created_at", ds.getCreatedAt());
             }
             // deleted_at 非零时会被写进 SET；
@@ -293,10 +293,10 @@ public class DataSourceRepository {
      */
     private static void stampForCreate(DataSource ds) {
         OffsetDateTime now = OffsetDateTime.now();
-        if (GoTimeSerializer.isGoZero(ds.getCreatedAt())) {
+        if (ZeroTimeSerializer.isZeroValue(ds.getCreatedAt())) {
             ds.setCreatedAt(now);
         }
-        if (GoTimeSerializer.isGoZero(ds.getUpdatedAt())) {
+        if (ZeroTimeSerializer.isZeroValue(ds.getUpdatedAt())) {
             ds.setUpdatedAt(now);
         }
     }

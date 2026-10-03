@@ -21,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonRawValue;
  * {@code TemporaryDocumentService.CreateOptions.toJson}。</p>
  *
  * <p>时间列在真库是 TIMESTAMP WITHOUT TIME ZONE（naive）：读路径按 JVM 默认时区
- * 补偏移后序列化（由 GoTimeSerializer 家族统一处理）。</p>
+ * 补偏移后序列化（由 ZeroTimeSerializer 家族统一处理）。</p>
  */
 // autoResultMap = true：jsonb/时间列的 typeHandler 在 MP 生成的 insert/update SQL 里
 // 生效的前提（缺了会按 String 直写，真 PG 上报 jsonb 类型错——A/B 实测）
@@ -86,23 +86,23 @@ public class TemporaryDocument {
     private String errorMessage;
 
 
-    @TableField(value = "expires_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
+    @TableField(value = "expires_at", typeHandler = com.ragagent.common.web.NaiveOffsetDateTimeTypeHandler.class)
     private OffsetDateTime expiresAt;
 
     /** omitempty：nil 省略。 */
-    @TableField(value = "started_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
+    @TableField(value = "started_at", typeHandler = com.ragagent.common.web.NaiveOffsetDateTimeTypeHandler.class)
     private OffsetDateTime startedAt;
 
     /** omitempty：nil 省略。 */
-    @TableField(value = "ready_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
+    @TableField(value = "ready_at", typeHandler = com.ragagent.common.web.NaiveOffsetDateTimeTypeHandler.class)
     private OffsetDateTime readyAt;
 
 
-    @TableField(value = "created_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
+    @TableField(value = "created_at", typeHandler = com.ragagent.common.web.NaiveOffsetDateTimeTypeHandler.class)
     private OffsetDateTime createdAt;
 
 
-    @TableField(value = "updated_at", typeHandler = com.ragagent.common.web.GoNaiveOffsetDateTimeTypeHandler.class)
+    @TableField(value = "updated_at", typeHandler = com.ragagent.common.web.NaiveOffsetDateTimeTypeHandler.class)
     private OffsetDateTime updatedAt;
 
     /** 软删除时间，不进响应。 */

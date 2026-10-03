@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 
 /**
  * 一条被记住的陈述。
@@ -96,7 +96,7 @@ public class MemoryItem {
 
     private String sourceMessageId = "";
 
-    private OffsetDateTime validFrom = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime validFrom = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     private OffsetDateTime invalidAt;
 
@@ -128,9 +128,9 @@ public class MemoryItem {
     @com.baomidou.mybatisplus.annotation.TableField(exist = false)
     private boolean inferred;
 
-    private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime createdAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
-    private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime updatedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     public String getId() { return id; }
     public void setId(String v) { id = v == null ? "" : v; }
@@ -170,7 +170,7 @@ public class MemoryItem {
 
     public OffsetDateTime getValidFrom() { return validFrom; }
     public void setValidFrom(OffsetDateTime v) {
-        validFrom = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        validFrom = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getInvalidAt() { return invalidAt; }
@@ -202,11 +202,11 @@ public class MemoryItem {
 
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime v) {
-        createdAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        createdAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(OffsetDateTime v) {
-        updatedAt = v == null ? GoTimeSerializer.GO_ZERO_DATE_TIME : v;
+        updatedAt = v == null ? ZeroTimeSerializer.ZERO_DATE_TIME : v;
     }
 }

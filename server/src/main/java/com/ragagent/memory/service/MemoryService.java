@@ -13,7 +13,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ragagent.auth.domain.Tenant;
 import com.ragagent.auth.service.TenantService;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.memory.MemoryContext;
 import com.ragagent.common.settings.MemoryConfig;
 import com.ragagent.memory.domain.MemoryDocAffinity;
@@ -756,7 +756,7 @@ public class MemoryService {
 
     /** 时间是否为零值，供兄弟类统一口径。 */
     static boolean isZeroTime(OffsetDateTime t) {
-        return GoTimeSerializer.isGoZero(t);
+        return ZeroTimeSerializer.isZeroValue(t);
     }
 
 }

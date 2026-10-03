@@ -4,8 +4,8 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ragagent.common.web.GoMapSerializer;
-import com.ragagent.common.web.GoTimeSerializer;
+import com.ragagent.common.web.SortedMapSerializer;
+import com.ragagent.common.web.ZeroTimeSerializer;
 import com.ragagent.datasource.domain.DataSource;
 import com.ragagent.datasource.domain.DataSourceConfig;
 import com.ragagent.datasource.domain.DataSourceConstants;
@@ -86,16 +86,16 @@ public class DataSourceResponse {
 
     private int syncLogRetentionDays;
 
-    private OffsetDateTime createdAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime createdAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
-    private OffsetDateTime updatedAt = GoTimeSerializer.GO_ZERO_DATE_TIME;
+    private OffsetDateTime updatedAt = ZeroTimeSerializer.ZERO_DATE_TIME;
 
     private long totalItemsSynced;
 
     private SyncLog latestSyncLog;
 
     /**
-     * 单个逻辑凭据字段。挂 {@link GoMapSerializer}：map 键按字母序输出，
+     * 单个逻辑凭据字段。挂 {@link SortedMapSerializer}：map 键按字母序输出，
      * 而这里只有一个键——排序本身无所谓，但挂上它同时保证 {@code NON_EMPTY} 的语义
      * （自定义序列化器会让 {@code @JsonInclude(NON_EMPTY)} 失效）。
      */
